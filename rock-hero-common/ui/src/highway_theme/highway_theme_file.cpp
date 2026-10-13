@@ -16,7 +16,6 @@
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
-#include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -36,27 +35,9 @@ constexpr std::string_view g_name_key = "name";
 constexpr std::string_view g_colors_key = "colors";
 constexpr std::string_view g_inherits_key = "inherits";
 constexpr std::string_view g_strings_key = "strings";
-constexpr std::string_view g_look_key = "look";
-constexpr std::string_view g_style_key = "style";
-constexpr std::string_view g_scale_key = "scale";
-constexpr std::string_view g_scanlines_key = "scanlines";
-constexpr std::string_view g_line_height_key = "line_height";
-constexpr std::string_view g_cell_key = "cell";
-constexpr std::string_view g_theme_colors_only_key = "theme_colors_only";
 
 // The keys the top level of a theme file may hold.
-constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key, g_look_key};
-
-// The keys each style's `look` may hold: its style, then its own parameters.
-constexpr std::array g_plain_look_keys{g_style_key};
-constexpr std::array g_pixel_look_keys{
-    g_style_key, g_scale_key, g_scanlines_key, g_theme_colors_only_key
-};
-constexpr std::array g_crt_look_keys{
-    g_style_key, g_line_height_key, g_scanlines_key, g_theme_colors_only_key
-};
-constexpr std::array g_dither_look_keys{g_style_key, g_scale_key};
-constexpr std::array g_halftone_look_keys{g_style_key, g_cell_key};
+constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key};
 
 // The keys `colors` may hold: every role, read from the one role table, then the string colors.
 constexpr auto g_color_keys = [] {
@@ -127,7 +108,8 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
             HighwayThemeErrorCode::UnknownBase,
             std::format(
                 "\"inherits\" is {}, which names no theme this one may inherit: a user theme "
-                "inherits a built-in, and a built-in inherits nothing",
+                "inherits a built-in, a built-in inherits the default theme, and the default "
+                "theme inherits nothing",
                 juce::JSON::toString(inherits, true).toStdString()),
         }};
     }
@@ -237,241 +219,6 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return readStrings(strings).transform([&id, &name](const StringColorPalette& palette) {
         return HighwayThemePalette{.source_id = id, .name = name, .colors = palette};
     });
-}
-
-// Reads look.<key> as a whole number from `low` to `high`; an absent key is `fallback`, or refused
-// when the style requires it.
-[[nodiscard]] std::expected<int, HighwayThemeError> readLookWholeNumber(
-    const juce::var& look, const std::string_view key, const int low, const int high,
-    const std::optional<int> fallback)
-{
-    const juce::var& value = Json::value(look, key);
-    if (value.isVoid())
-    {
-        if (fallback.has_value())
-        {
-            return *fallback;
-        }
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::MissingKey,
-            std::format("look lacks \"{}\"", key),
-        }};
-    }
-    const std::optional<std::int64_t> number = Json::tryReadInt64(look, key);
-    if (!number.has_value() || *number < low || *number > high)
-    {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::InvalidLook,
-            std::format(
-                "look.{} is {}, not a whole number from {} to {}",
-                key,
-                juce::JSON::toString(value, true).toStdString(),
-                low,
-                high),
-        }};
-    }
-    return static_cast<int>(*number);
-}
-
-// Reads look.<key> as a number from 0 to 1; an absent key is `fallback`.
-[[nodiscard]] std::expected<double, HighwayThemeError> readLookFraction(
-    const juce::var& look, const std::string_view key, const double fallback)
-{
-    const juce::var& value = Json::value(look, key);
-    if (value.isVoid())
-    {
-        return fallback;
-    }
-    const std::optional<double> number = Json::tryReadDouble(look, key);
-    // Written as "inside" rather than "outside" so a NaN, were JSON ever to carry one, is refused.
-    if (!number.has_value() || !(*number >= 0.0 && *number <= 1.0))
-    {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::InvalidLook,
-            std::format(
-                "look.{} is {}, not a number from 0 to 1",
-                key,
-                juce::JSON::toString(value, true).toStdString()),
-        }};
-    }
-    return *number;
-}
-
-// Reads look.<key> as true or false; an absent key is false.
-[[nodiscard]] std::expected<bool, HighwayThemeError> readLookSwitch(
-    const juce::var& look, const std::string_view key)
-{
-    const juce::var& value = Json::value(look, key);
-    if (value.isVoid())
-    {
-        return false;
-    }
-    if (!value.isBool())
-    {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::InvalidLook,
-            std::format(
-                "look.{} is {}, not true or false",
-                key,
-                juce::JSON::toString(value, true).toStdString()),
-        }};
-    }
-    return static_cast<bool>(value);
-}
-
-// Reads `look`: absent is the base's look, or the plain look without a base; a stated block
-// replaces the base's whole and is strict, its keys checked against its own style's.
-[[nodiscard]] std::expected<HighwayRenderLook, HighwayThemeError> readLook(
-    const juce::var& document, const LoadedHighwayTheme* const base)
-{
-    const juce::var& look = Json::value(document, g_look_key);
-    if (look.isVoid())
-    {
-        return base != nullptr ? base->look : HighwayRenderLook{HighwayPlainLook{}};
-    }
-    const juce::DynamicObject* const object = look.getDynamicObject();
-    if (object == nullptr)
-    {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::MalformedJson,
-            "\"look\" must be a JSON object",
-        }};
-    }
-    const juce::var& style = Json::value(look, g_style_key);
-    if (style.isVoid())
-    {
-        return std::unexpected{HighwayThemeError{
-            HighwayThemeErrorCode::MissingKey,
-            "look lacks \"style\"",
-        }};
-    }
-    const std::string style_name = style.isString() ? style.toString().toStdString() : "";
-
-    if (style_name == "plain")
-    {
-        if (std::expected<void, HighwayThemeError> keys =
-                refuseUnknownKeys(*object, g_plain_look_keys, g_look_key);
-            !keys.has_value())
-        {
-            return std::unexpected{std::move(keys.error())};
-        }
-        return HighwayPlainLook{};
-    }
-    if (style_name == "pixel")
-    {
-        if (std::expected<void, HighwayThemeError> keys =
-                refuseUnknownKeys(*object, g_pixel_look_keys, g_look_key);
-            !keys.has_value())
-        {
-            return std::unexpected{std::move(keys.error())};
-        }
-        const std::expected<int, HighwayThemeError> scale = readLookWholeNumber(
-            look, g_scale_key, g_pixel_look_min_scale, g_pixel_look_max_scale, std::nullopt);
-        if (!scale.has_value())
-        {
-            return std::unexpected{scale.error()};
-        }
-        const std::expected<double, HighwayThemeError> scanlines =
-            readLookFraction(look, g_scanlines_key, 0.0);
-        if (!scanlines.has_value())
-        {
-            return std::unexpected{scanlines.error()};
-        }
-        const std::expected<bool, HighwayThemeError> theme_colors_only =
-            readLookSwitch(look, g_theme_colors_only_key);
-        if (!theme_colors_only.has_value())
-        {
-            return std::unexpected{theme_colors_only.error()};
-        }
-        return HighwayPixelLook{
-            .scale = *scale,
-            .scanlines = *scanlines,
-            .theme_colors_only = *theme_colors_only,
-        };
-    }
-    if (style_name == "crt")
-    {
-        if (std::expected<void, HighwayThemeError> keys =
-                refuseUnknownKeys(*object, g_crt_look_keys, g_look_key);
-            !keys.has_value())
-        {
-            return std::unexpected{std::move(keys.error())};
-        }
-        const std::expected<int, HighwayThemeError> line_height = readLookWholeNumber(
-            look,
-            g_line_height_key,
-            g_crt_look_min_line_height,
-            g_crt_look_max_line_height,
-            g_crt_look_default_line_height);
-        if (!line_height.has_value())
-        {
-            return std::unexpected{line_height.error()};
-        }
-        const std::expected<double, HighwayThemeError> scanlines =
-            readLookFraction(look, g_scanlines_key, g_crt_look_default_scanlines);
-        if (!scanlines.has_value())
-        {
-            return std::unexpected{scanlines.error()};
-        }
-        const std::expected<bool, HighwayThemeError> theme_colors_only =
-            readLookSwitch(look, g_theme_colors_only_key);
-        if (!theme_colors_only.has_value())
-        {
-            return std::unexpected{theme_colors_only.error()};
-        }
-        return HighwayCrtLook{
-            .line_height = *line_height,
-            .scanlines = *scanlines,
-            .theme_colors_only = *theme_colors_only,
-        };
-    }
-    if (style_name == "dither")
-    {
-        if (std::expected<void, HighwayThemeError> keys =
-                refuseUnknownKeys(*object, g_dither_look_keys, g_look_key);
-            !keys.has_value())
-        {
-            return std::unexpected{std::move(keys.error())};
-        }
-        const std::expected<int, HighwayThemeError> scale = readLookWholeNumber(
-            look,
-            g_scale_key,
-            g_dither_look_min_scale,
-            g_dither_look_max_scale,
-            g_dither_look_default_scale);
-        if (!scale.has_value())
-        {
-            return std::unexpected{scale.error()};
-        }
-        return HighwayDitherLook{.scale = *scale};
-    }
-    if (style_name == "halftone")
-    {
-        if (std::expected<void, HighwayThemeError> keys =
-                refuseUnknownKeys(*object, g_halftone_look_keys, g_look_key);
-            !keys.has_value())
-        {
-            return std::unexpected{std::move(keys.error())};
-        }
-        const std::expected<int, HighwayThemeError> cell = readLookWholeNumber(
-            look,
-            g_cell_key,
-            g_halftone_look_min_cell,
-            g_halftone_look_max_cell,
-            g_halftone_look_default_cell);
-        if (!cell.has_value())
-        {
-            return std::unexpected{cell.error()};
-        }
-        return HighwayHalftoneLook{.cell = *cell};
-    }
-    return std::unexpected{HighwayThemeError{
-        HighwayThemeErrorCode::InvalidLook,
-        std::format(
-            "look.style is {}, which names no style: \"plain\", \"pixel\", \"crt\", \"dither\" or "
-            "\"halftone\"",
-            juce::JSON::toString(style, true).toStdString()),
-    }};
 }
 
 // Reads every art file beside theme.json, taking each one the directory lacks from the base, and
@@ -623,16 +370,9 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         return std::unexpected{std::move(palette.error())};
     }
 
-    std::expected<HighwayRenderLook, HighwayThemeError> look = readLook(*document, *base);
-    if (!look.has_value())
-    {
-        return std::unexpected{std::move(look.error())};
-    }
-
-    // The guardrails hold the colors the theme draws with, whichever file stated each one, as the
-    // look shows them.
+    // The guardrails hold the colors the theme draws with, whichever file stated each one.
     if (std::expected<void, HighwayThemeError> legible =
-            checkHighwayThemeGuardrails(*roles, palette->colors, *look);
+            checkHighwayThemeGuardrails(*roles, palette->colors);
         !legible.has_value())
     {
         return std::unexpected{std::move(legible.error())};
@@ -651,7 +391,6 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         .colors = *roles,
         .palette = std::move(*palette),
         .textures = std::move(*textures),
-        .look = *look,
     };
 }
 

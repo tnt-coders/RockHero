@@ -44,17 +44,9 @@ bad color, a wrong-length or translucent `strings`, and an `inherits` naming no 
 The resolved colors must pass checkHighwayThemeGuardrails and the resolved art the texture
 contract. Any other file in the directory, such as a license notice, is ignored.
 
-An optional `look` chooses how the finished frame is presented: `{"style": "plain"}`,
-`{"style": "pixel", "scale": 2-8, "scanlines": 0-1}` with `scanlines` defaulting to 0,
-`{"style": "crt", "line_height": 1-8, "scanlines": 0-1}` defaulting to 2 and 0.4 — either of these
-two taking `"theme_colors_only": true` (default false) to snap every pixel to the theme's colors —
-`{"style": "dither", "scale": 1-8}` with `scale` defaulting to 1, or
-`{"style": "halftone", "cell": 4-16}` with `cell` defaulting to 8; every size is a whole number,
-and a style takes only its own keys. A theme that leaves `look` out takes its base's, or the plain
-look; one that states it replaces the base's whole.
-
 \param theme_directory The theme's directory.
-\param bases The themes this one may inherit: the built-ins for a user theme, none for a built-in.
+\param bases The themes this one may inherit: the built-ins for a user theme, the default theme
+       for any other built-in, none for the default theme itself.
 \return The loaded theme, or the first failure, its message prefixed with the directory.
 */
 [[nodiscard]] std::expected<LoadedHighwayTheme, HighwayThemeError> loadHighwayTheme(

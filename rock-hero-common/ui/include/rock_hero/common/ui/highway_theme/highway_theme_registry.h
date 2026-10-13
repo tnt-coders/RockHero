@@ -49,7 +49,7 @@ enum class HighwayThemeErrorCode : std::uint8_t
 
     /*!
     \brief The file leaves out `name`, or a theme that inherits nothing leaves out `colors`, a color
-    role or `strings`, or `look` leaves out a key its style requires.
+    role or `strings`.
     */
     MissingKey,
 
@@ -64,7 +64,7 @@ enum class HighwayThemeErrorCode : std::uint8_t
 
     /*!
     \brief `inherits` names no theme this one may inherit: a user theme inherits only a built-in,
-    and a built-in inherits nothing.
+    a built-in only the default theme, and the default theme nothing.
     */
     UnknownBase,
 
@@ -73,9 +73,6 @@ enum class HighwayThemeErrorCode : std::uint8_t
 
     /*! \brief The colors collapse a distinction the notation reads by color alone. */
     GuardrailViolated,
-
-    /*! \brief `look` names no style, or a parameter is the wrong type or outside its range. */
-    InvalidLook,
 };
 
 /*! \brief Typed failure of one theme directory or of the built-in set, naming what failed. */
@@ -126,12 +123,13 @@ public:
     /*!
     \brief Loads every theme directory in both folders through the one theme loader.
 
-    Built-ins are complete and fail loudly: any that does not load, a missing built-in folder, or
-    no theme with the default id fails the whole load. User themes are untrusted input and may
-    inherit a built-in: one that does not load is logged with its typed error and dropped, one
-    whose id a built-in has takes that built-in's place (logged), and a missing user folder simply
-    contributes none. A theme inheriting a built-in reads the built-in itself, never a user theme
-    in its place.
+    Built-ins fail loudly: any that does not load, a missing built-in folder, or no theme with the
+    default id fails the whole load. The default theme is complete; every other built-in may
+    inherit it, which is how the shipped color themes share its art. User themes are untrusted
+    input and may inherit any built-in: one that does not load is logged with its typed error and
+    dropped, one whose id a built-in has takes that built-in's place (logged), and a missing user
+    folder simply contributes none. A theme inheriting a built-in reads the built-in itself, never
+    a user theme in its place.
 
     \param folders The built-in and user theme folders.
     \return The registry, or the error of the first built-in failure.

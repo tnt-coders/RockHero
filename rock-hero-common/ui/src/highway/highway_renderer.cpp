@@ -6,7 +6,6 @@
 #include "highway/highway_emphasis_styles.h"
 #include "highway/highway_floor_geometry.h"
 #include "highway/highway_head_marks.h"
-#include "highway/highway_scene_target.h"
 #include "highway/highway_slide_path.h"
 #include "highway/highway_texture_contract.h"
 #include "highway_theme/highway_theme_derived_colors.h"
@@ -56,20 +55,13 @@ using common::core::indexOf;
 using Program = common::core::HighwayShaderProgram;
 using TextureAsset = common::core::HighwayTexture;
 
-// The renderer's five views, executed in id order after RenderDevice's own view 0, which clears
-// the window and which this renderer never touches. The background and board render the scene
-// into the off-screen scene target; the block pass of a blocky look, or of one keeping to the
-// theme's colors, reduces it to the block canvas, one texel per virtual pixel (the view stays
-// empty under any other look); the present copies the
-// scene or the canvas to the window through the look; the overlay composites over the result at
-// the window's own resolution, so diagnostics stay crisp and aligned with the device's debug text
-// whatever the look. Every view's frame buffer is re-bound each frame, because a device resize
-// unbinds them all.
+// The renderer's three views, executed in id order after RenderDevice's own view 0, which clears
+// the window and which this renderer never touches. All three draw straight to the backbuffer:
+// the background clears it to the backdrop, the board draws the scene, and the overlay composites
+// the pixel-space diagnostics over it.
 constexpr bgfx::ViewId g_background_view = 1;
 constexpr bgfx::ViewId g_board_view = 2;
-constexpr bgfx::ViewId g_blocks_view = 3;
-constexpr bgfx::ViewId g_present_view = 4;
-constexpr bgfx::ViewId g_overlay_view = 5;
+constexpr bgfx::ViewId g_overlay_view = 3;
 
 // Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp attack
 // line exactly where they occur, then a brief beat-bar fade trailing away down the measure — a
@@ -315,13 +307,6 @@ constexpr double g_accent_gain_boxes = 1.0;
 constexpr std::uint64_t g_overlay_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_MSAA;
 
-// The present replaces every window pixel with the scene's: no blend, no depth.
-constexpr std::uint64_t g_present_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A;
-
-// How far the dither look's Bayer threshold pushes a color, in RGB from 0 to 1, before it snaps to
-// the theme's colors.
-constexpr float g_dither_spread = 0.25F;
-
 // JUCE premultiplies real-alpha PNGs at decode, so textures with genuine transparency (the
 // inlay skin) carry rgb*a texels and must composite with the premultiplied blend — straight
 // SRC_ALPHA would apply alpha twice and darken every anti-aliased edge. The channel-scheme and
@@ -508,26 +493,6 @@ struct PosColorGlowVertex
     }();
     return g_layout;
 }
-
-// A bare clip-space position: the present's triangle carries nothing else.
-[[nodiscard]] const bgfx::VertexLayout& positionLayout()
-{
-    static const bgfx::VertexLayout g_layout = [] {
-        bgfx::VertexLayout layout;
-        layout.begin().add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float).end();
-        return layout;
-    }();
-    return g_layout;
-}
-
-// The one triangle the present draws, in clip space: its corners at (-1, -1), (3, -1) and
-// (-1, 3) put the window's whole square inside it with no diagonal seam, so every window pixel is
-// shaded exactly once.
-constexpr std::array<std::array<float, 3>, 3> g_present_triangle{{
-    {-1.0F, -1.0F, 0.0F},
-    {3.0F, -1.0F, 0.0F},
-    {-1.0F, 3.0F, 0.0F},
-}};
 
 [[nodiscard]] const bgfx::VertexLayout& posColorGlowLayout()
 {
@@ -1853,20 +1818,6 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> window_light_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> box_mute_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> accent_glow_program;
-    UniqueBgfxHandle<bgfx::ProgramHandle> present_program;
-    UniqueBgfxHandle<bgfx::ProgramHandle> present_blocks_program;
-    UniqueBgfxHandle<bgfx::ProgramHandle> present_palette_program;
-    UniqueBgfxHandle<bgfx::ProgramHandle> present_halftone_program;
-
-    // The off-screen targets the scene renders into and a blocky look reduces it to, the passes'
-    // sampler and parameters, and their one static triangle.
-    HighwaySceneTarget scene_target{HighwaySceneTargetKind::Scene};
-    HighwaySceneTarget block_canvas{HighwaySceneTargetKind::Blocks};
-    UniqueBgfxHandle<bgfx::UniformHandle> scene_sampler;
-    UniqueBgfxHandle<bgfx::UniformHandle> present_params;
-    UniqueBgfxHandle<bgfx::UniformHandle> present_palette;
-    UniqueBgfxHandle<bgfx::UniformHandle> present_backdrop;
-    UniqueBgfxHandle<bgfx::VertexBufferHandle> present_triangle;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
     UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
@@ -1924,9 +1875,6 @@ struct HighwayRenderer::Impl
     // string lines and the per-frame string surfaces derive from.
     HighwayTheme theme{};
     StringColorPalette palette{};
-    // How the finished frame is presented; draw() derives the scene target and the present from it
-    // every frame, so a change takes effect from the next frame with nothing rebuilt here.
-    HighwayRenderLook render_look{};
     // Each hand's look, derived from the theme whenever it changes (adoptTheme), never per frame.
     HandLightStyle fretting_style{};
     HandLightStyle picking_style{};
@@ -1960,8 +1908,6 @@ struct HighwayRenderer::Impl
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
     bool reported_oversized_drop{false};
-    // One warning per process when bgfx refuses a scene target, which leaves the frame undrawn.
-    bool reported_scene_target_failure{false};
 
     // The displayed lane a chart string occupies, counted from the lowest lane.
     [[nodiscard]] int laneOf(const int chart_string) const noexcept
@@ -2255,18 +2201,7 @@ struct HighwayRenderer::Impl
     // count moved: the one fact of a state the board face is laid out from.
     [[nodiscard]] bool seatLanes();
     void rebuildBoardFace();
-    // One frame for a window of the given size: the scene into the scene target, a blocky look's
-    // block canvas from it, then the present to the window.
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
-    // Encodes the scene into the scene target; the width and height are the TARGET's, which every
-    // screen-space quantity of the scene (the aspect, the tails' sampling density) is taken from.
-    void drawScene(
-        double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
-    // Reduces the scene target to the block canvas, one texel per virtual pixel.
-    void drawBlocks(const HighwaySceneFrame& frame, const HighwaySceneTargetSpec& blocks) const;
-    // Copies the scene target, or the block canvas when the frame has one, to a window of the
-    // given size through the frame's present.
-    void present(const HighwaySceneFrame& frame, std::uint32_t width, std::uint32_t height) const;
 
     // One board pass each, in the order draw() calls them. Painter order IS submission order for
     // furniture (the board view is Sequential, and no furniture pass writes depth), so a pass
@@ -2361,8 +2296,7 @@ struct HighwayRenderer::Impl
 
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
-    const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
-    HighwayRenderLook look)
+    const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette)
 {
     // The art is validated and measured before any GPU work: a theme or mark sheet that breaks the
     // texture contract is refused with the file and the expectation it violates.
@@ -2387,7 +2321,6 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     auto impl = std::make_unique<Impl>();
     impl->adoptTheme(theme);
     impl->palette = palette;
-    impl->render_look = look;
     // Measured from the same notes.png bytes the atlas uploads: the accent glow sizes its distance
     // field from these numbers, so they describe the pixels shipped, not constants kept by hand.
     impl->head_art = measured->head_art;
@@ -2416,10 +2349,6 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->window_light_program = std::move(linked.at(indexOf(Program::WindowLight)));
     impl->box_mute_program = std::move(linked.at(indexOf(Program::BoxMute)));
     impl->accent_glow_program = std::move(linked.at(indexOf(Program::AccentGlow)));
-    impl->present_program = std::move(linked.at(indexOf(Program::Present)));
-    impl->present_blocks_program = std::move(linked.at(indexOf(Program::PresentBlocks)));
-    impl->present_palette_program = std::move(linked.at(indexOf(Program::PresentPalette)));
-    impl->present_halftone_program = std::move(linked.at(indexOf(Program::PresentHalftone)));
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
@@ -2433,20 +2362,6 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "u_box_mute_arms", bgfx::UniformType::Vec4)};
     impl->accent_glow_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_accent_glow_params", bgfx::UniformType::Vec4)};
-    impl->scene_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "s_scene", bgfx::UniformType::Sampler)};
-    impl->present_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "u_present_params", bgfx::UniformType::Vec4)};
-    impl->present_palette = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "u_present_palette",
-        bgfx::UniformType::Vec4,
-        static_cast<std::uint16_t>(g_highway_present_palette_capacity))};
-    impl->present_backdrop = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "u_present_backdrop", bgfx::UniformType::Vec4)};
-    impl->present_triangle = UniqueBgfxHandle<bgfx::VertexBufferHandle>{bgfx::createVertexBuffer(
-        bgfx::copy(
-            g_present_triangle.data(), static_cast<std::uint32_t>(sizeof(g_present_triangle))),
-        positionLayout())};
 
     impl->atlases = makeHighwayAtlases(textures.at(indexOf(TextureAsset::Notes)), marks_png);
     UploadedTexture inlay = uploadPngTexture(textures.at(indexOf(TextureAsset::Inlays)));
@@ -2574,11 +2489,9 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
 // Every theme color, the hand styles derived from it, and every per-frame string surface are read
 // per frame, so the next frame simply draws with the new ones; only the retained string lines are
 // built from the palette.
-void HighwayRenderer::setTheme(
-    HighwayTheme theme, StringColorPalette palette, HighwayRenderLook look)
+void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette)
 {
     m_impl->adoptTheme(theme);
-    m_impl->render_look = look;
     if (palette.colors == m_impl->palette.colors)
     {
         return;
@@ -2651,9 +2564,6 @@ void HighwayRenderer::Impl::rebuildBoardFace()
     face_index_count = static_cast<std::uint32_t>(indices.size());
 }
 
-// The scene target is fitted first, so creation, a window resize and a change of look are all
-// this one refit. A target bgfx refuses leaves the frame undrawn — RenderDevice's view 0 still
-// clears the window — rather than drawing the scene somewhere it would not be presented from.
 void HighwayRenderer::Impl::draw(
     const double now_seconds, const double dt_seconds, const std::uint32_t width,
     const std::uint32_t height)
@@ -2662,120 +2572,6 @@ void HighwayRenderer::Impl::draw(
     {
         return;
     }
-    const HighwaySceneFrame frame = makeHighwaySceneFrame(width, height, render_look);
-    bool fitted = scene_target.fit(frame.target);
-    if (frame.blocks.has_value())
-    {
-        fitted = block_canvas.fit(*frame.blocks) && fitted;
-    }
-    if (!fitted)
-    {
-        if (!reported_scene_target_failure)
-        {
-            reported_scene_target_failure = true;
-            RH_LOG_WARNING(
-                "common.highway",
-                "bgfx refused a scene target for a {}x{} scene; the highway is not drawn",
-                frame.target.width,
-                frame.target.height);
-        }
-        return;
-    }
-    drawScene(now_seconds, dt_seconds, frame.target.width, frame.target.height);
-    if (frame.blocks.has_value())
-    {
-        drawBlocks(frame, *frame.blocks);
-    }
-    present(frame, width, height);
-}
-
-// The block pass binds its view every frame, like every other: a device resize unbinds them all.
-void HighwayRenderer::Impl::drawBlocks(
-    const HighwaySceneFrame& frame, const HighwaySceneTargetSpec& blocks) const
-{
-    bgfx::setViewFrameBuffer(g_blocks_view, block_canvas.frameBuffer());
-    bgfx::setViewRect(
-        g_blocks_view,
-        0,
-        0,
-        static_cast<std::uint16_t>(blocks.width),
-        static_cast<std::uint16_t>(blocks.height));
-    bgfx::setViewMode(g_blocks_view, bgfx::ViewMode::Sequential);
-    bgfx::setViewClear(g_blocks_view, BGFX_CLEAR_NONE);
-
-    std::array<float, 4> params{frame.present_scale, 0.0F, 0.0F, 0.0F};
-    bgfx::ProgramHandle program = present_blocks_program.get();
-    if (frame.block_colors != HighwayBlockColors::Mean)
-    {
-        // Rebuilt per frame rather than kept beside the theme: one conversion per color on the
-        // stack, and no second copy of the theme's colors to keep in step.
-        std::array<std::array<float, 4>, g_highway_theme_color_count> colors{};
-        std::ranges::transform(
-            highwayThemeColors(theme, palette), colors.begin(), highwayPresentColor);
-        bgfx::setUniform(
-            present_palette.get(), colors.data(), static_cast<std::uint16_t>(colors.size()));
-        params[1] = frame.block_colors == HighwayBlockColors::Dithered ? g_dither_spread : 0.0F;
-        params[2] = static_cast<float>(colors.size());
-        program = present_palette_program.get();
-    }
-    bgfx::setUniform(present_params.get(), params.data());
-    bgfx::setTexture(0, scene_sampler.get(), scene_target.color());
-    bgfx::setVertexBuffer(0, present_triangle.get());
-    bgfx::setState(g_present_state);
-    bgfx::submit(g_blocks_view, program);
-}
-
-// The present binds its own views every frame, like the scene's: a device resize unbinds every
-// view's frame buffer, and the overlay's rect is the window's whatever the scene's resolution.
-void HighwayRenderer::Impl::present(
-    const HighwaySceneFrame& frame, const std::uint32_t width, const std::uint32_t height) const
-{
-    const auto width16 = static_cast<std::uint16_t>(width);
-    const auto height16 = static_cast<std::uint16_t>(height);
-    for (const bgfx::ViewId view : {g_present_view, g_overlay_view})
-    {
-        bgfx::setViewFrameBuffer(view, BGFX_INVALID_HANDLE);
-        bgfx::setViewRect(view, 0, 0, width16, height16);
-        bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
-        bgfx::setViewClear(view, BGFX_CLEAR_NONE);
-    }
-
-    // Each look family has its own program; only the parameters it reads are set for it.
-    bgfx::ProgramHandle program = present_program.get();
-    std::array<float, 4> params{frame.present_scale, frame.scanlines, 0.0F, 0.0F};
-    switch (frame.present)
-    {
-        case HighwayPresent::Copy:
-        {
-            // The rows of the image the present reads, which bound the scanline softening.
-            params[2] = static_cast<float>(frame.blocks.value_or(frame.target).height);
-            params[3] = frame.scanline_height;
-            break;
-        }
-        case HighwayPresent::Halftone:
-        {
-            const std::array<float, 4> backdrop = highwayPresentColor(theme.backdrop);
-            bgfx::setUniform(present_backdrop.get(), backdrop.data());
-            params[2] = static_cast<float>(width);
-            params[3] = static_cast<float>(height);
-            program = present_halftone_program.get();
-            break;
-        }
-    }
-    bgfx::setUniform(present_params.get(), params.data());
-    bgfx::setTexture(
-        0,
-        scene_sampler.get(),
-        frame.blocks.has_value() ? block_canvas.color() : scene_target.color());
-    bgfx::setVertexBuffer(0, present_triangle.get());
-    bgfx::setState(g_present_state);
-    bgfx::submit(g_present_view, program);
-}
-
-void HighwayRenderer::Impl::drawScene(
-    const double now_seconds, const double dt_seconds, const std::uint32_t width,
-    const std::uint32_t height)
-{
     // Camera: stepped targets from the upcoming chart, turned into motion by the spring.
     const common::core::HighwayCameraTarget target =
         common::core::makeHighwayCameraTarget(*state, now_seconds, metrics, options.view.mirrored);
@@ -2786,19 +2582,18 @@ void HighwayRenderer::Impl::drawScene(
         common::core::makeHighwayWorldToClip(pose, aspect, options.view.mirrored, metrics);
     const std::array<float, 16> board_matrix = toBgfxMatrix(world_to_clip);
 
-    // Per-frame view setup, re-asserted every frame: the target's size follows the window and the
-    // look, and a device resize unbinds every view's frame buffer.
+    // Per-frame view setup, re-asserted from the current backbuffer size every frame.
     const auto width16 = static_cast<std::uint16_t>(width);
     const auto height16 = static_cast<std::uint16_t>(height);
-    for (const bgfx::ViewId view : {g_background_view, g_board_view})
+    for (const bgfx::ViewId view : {g_background_view, g_board_view, g_overlay_view})
     {
-        bgfx::setViewFrameBuffer(view, scene_target.frameBuffer());
         bgfx::setViewRect(view, 0, 0, width16, height16);
         bgfx::setViewMode(view, bgfx::ViewMode::Sequential);
     }
     bgfx::setViewClear(
         g_background_view, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, packRgba(theme.backdrop), 1.0F, 0);
     bgfx::setViewClear(g_board_view, BGFX_CLEAR_DEPTH, 0, 1.0F, 0);
+    bgfx::setViewClear(g_overlay_view, BGFX_CLEAR_NONE);
     bgfx::setViewTransform(g_board_view, board_matrix.data(), nullptr);
     // Clear-bearing views execute only when they have items; touch them so the clears always run.
     bgfx::touch(g_background_view);

@@ -13,14 +13,17 @@ namespace
 {
 
 // Neutral dark clear color (0xRRGGBBAA) so the window reads as an intentional surface even when
-// no scene renderer encoded content this frame; a scene's present covers it.
+// no scene renderer encoded content this frame; a scene's own background clear covers it.
 constexpr std::uint32_t g_clear_color = 0x1a1a22ff;
 
 // The device's own view, the first to execute: it clears the window every frame, so presentation
 // stays alive when no renderer exists. Scene renderers use the later views and never reconfigure
-// this one, so it always targets the backbuffer, even after a renderer whose views rendered
-// off-screen is gone.
+// this one.
 constexpr bgfx::ViewId g_default_view = 0;
+
+// The backbuffer's multisample request, folded into every reset (see the class comment for why
+// 4x). Reset flags are absolute state, so it rides along every bgfx::reset with vsync.
+constexpr std::uint32_t g_msaa_reset_flags = BGFX_RESET_MSAA_X4;
 
 // Platform table mapping project backends to bgfx renderer types. Deliberately pinned rather
 // than bgfx auto-select (RendererType::Count): auto-select could land on a backend zero
@@ -80,7 +83,8 @@ std::expected<RenderDevice, RenderDeviceError> RenderDevice::create(
         return std::unexpected{RenderDeviceError{RenderDeviceErrorCode::MissingNativeWindowHandle}};
     }
 
-    const std::uint32_t reset_flags = config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+    const std::uint32_t reset_flags =
+        (config.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE) | g_msaa_reset_flags;
 
     bgfx::renderFrame();
 

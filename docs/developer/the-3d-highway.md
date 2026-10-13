@@ -67,13 +67,13 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    using HighwayShaderSet = std::array<HighwayShaderPair, g_highway_shader_programs.size()>;
    using HighwayTextureSet = std::array<std::vector<std::byte>, g_highway_textures.size()>;
 
-   // The textures, colors, string colors and render look come from the loaded theme (see below);
-   // marks_png is the fixed technique-mark sheet every theme shares.
+   // The textures, colors and string colors come from the loaded theme (see below); marks_png is
+   // the fixed technique-mark sheet every theme shares.
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
               std::span<const std::byte> marks_png, HighwayTheme theme,
-              StringColorPalette palette, HighwayRenderLook look);
-   void setTheme(HighwayTheme theme, StringColorPalette palette, HighwayRenderLook look);
+              StringColorPalette palette);
+   void setTheme(HighwayTheme theme, StringColorPalette palette);
    void setViewState(std::shared_ptr<const common::core::HighwayViewState> state);
    void resetCamera() noexcept;
    void setDisplayOptions(common::core::HighwayDisplayOptions options);
@@ -96,44 +96,12 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    projected chart, so changing one re-projects nothing. Each aid is read at its one draw site in
    `highway_renderer.cpp`.
 
-   The scene never draws straight to the window. `draw` renders it into the renderer's own
-   off-screen target (`highway/highway_scene_target.h`: a color and a depth attachment joined in
-   one frame buffer, refitted by `HighwaySceneTarget::fit` only when its size changes), then one
-   full-screen **present** pass (`vs_present`/`fs_present`) copies it to the window. The views run
-   in id order: `RenderDevice` owns view 0 and clears the window there, the background (1) and
-   board (2) render into the target, the block pass (3) of a blocky look or one keeping to the
-   theme's colors reduces it to the block canvas, the present (4) copies the target or the canvas to the backbuffer, and the overlay (5)
-   composites the pixel-space rects over the result at the window's own resolution. Anti-aliasing lives on the target — 4x MSAA, resolved by bgfx when the
-   frame leaves it — so the backbuffer never multisamples, and the present fetches texels by index
-   rather than sampling them, which makes the plain copy exact. Two rules ride on this: every view
-   re-binds its frame buffer each frame, because a device resize (`bgfx::reset`) unbinds them all;
-   and for the same reason a host never resizes the device between `draw` and
-   `RenderDevice::submitFrame`.
-
-   The theme's **render look** (`highway_theme/highway_render_look.h`, the theme file's `look`)
-   decides the target and the present, through the one pure `makeHighwaySceneFrame`: the plain
-   look is the full-size multisampled target copied pixel for pixel; the pixel look renders the
-   same full-resolution scene rounded up to whole scale x scale blocks, the block pass
-   (`present_blocks`) reduces each block to one texel of the **block canvas** (a second
-   `HighwaySceneTarget`, single-sampled and depthless) holding the block's MEAN color —
-   supersampled, so a far note smaller than a block tints it instead of popping in and out as it
-   moves — and the present paints each texel as one hard-edged virtual pixel, darkening every
-   other virtual row by its `scanlines`. With scanlines on, the present also spreads each texel
-   1:2:1 over the rows above and below, one scanline period, so a small note moving down the
-   board never pulses between a bright row and a dark one. The CRT look renders and copies like the
-   plain look and darkens every other band of its own `line_height` window rows, softened the same
-   way over one band period, so its columns stay sharp while far notes hold steady. A pixel or CRT
-   look with `theme_colors_only` swaps the block pass for `present_palette`, which snaps each
-   texel's mean to the nearest color the theme states (`highwayThemeColors`,
-   `nearestThemeColor`), so a CRT that snaps gets a block canvas of the window's own size; the
-   colors are limited where a board's video output limited them, before the present softens and
-   darkens them, and the guardrails judge such a theme's colors snapped. The dither look sizes its
-   targets like the pixel look and runs the same pass with a 4x4 Bayer nudge before the snap (an
-   ordered dither to the theme's own colors). The halftone renders like the plain look and
-   presents through `present_halftone` (a dot screen with ink outlines). The present program is
-   picked per frame by `HighwaySceneFrame::present`, the block pass's by
-   `HighwaySceneFrame::block_colors`. A look changes the finished image only — geometry, layout
-   and timing are the same under every look.
+   The scene draws straight to the window's backbuffer, which `RenderDevice` multisamples 4x
+   (the scene is thin-line-heavy, so its edges alias visibly without it). The views run in id
+   order: `RenderDevice` owns view 0 and clears the window there, the background (1) clears it
+   to the backdrop, the board (2) draws the scene, and the overlay (3) composites the pixel-space
+   rects over it. A whole-frame post-process (pixel, CRT, dither and halftone looks) was built
+   and withdrawn; `docs/plans/todo/intricate-highway-themes.md` names the commit that holds it.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
    consumer decides where they load from. What each program and asset *is*, and the file name it
@@ -222,10 +190,9 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 The look arrives the same way. The published view state carries the player's highway settings,
 and `EditorView` resolves them against its `HighwayThemeRegistry` whenever they change, handing
 the theme and the resolved palette to the preview (`setLook`) and the palette to the tab lane.
-`PreviewSurface::setLook` restyles the live renderer through `setTheme` (colors, palette and render
-look) when the new theme's art
-is the old one's, and otherwise recreates the renderer through `bringUpRenderer()`, the same path
-and the same failure policy as a first open.
+`PreviewSurface::setLook` restyles the live renderer through `setTheme` (colors and palette) when
+the new theme's art is the old one's, and otherwise recreates the renderer through
+`bringUpRenderer()`, the same path and the same failure policy as a first open.
 
 # The sharing mechanics, precisely
 
@@ -235,8 +202,8 @@ and the same failure policy as a first open.
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
 | String colors (Charter rules) | `common/ui` `string_color_palette.h` | each host passes `HighwayThemeRegistry::paletteFor(<the player's settings>)` — the pinned palette, else the theme's — to `HighwayRenderer::create` and `makeTabLaneMetrics` |
 | Player's highway settings (theme id, palette pin, view preferences) | `common/core` `highway/highway_settings_store.h` | the game reads `HighwaySettingsStore` over the shared settings file once at launch; the editor's controller reads it at construction and writes each theme pick, palette pick and View > Highway Display toggle through `update` |
-| Highway theme (the 20 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` and `look` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
-| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeFor(<the player's settings>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/`, user themes in the per-user `themes/` (`themesFolder()`), where one may inherit a built-in (`inherits`) or shadow it by taking its id |
+| Highway theme (the 21 color roles) | `common/ui` `highway_theme/highway_theme.h` | each host passes the player's theme's `colors` to `HighwayRenderer::create`; `setTheme` swaps them and the palette without a rebuild |
+| Theme directories, loader and registry | `common/ui` `highway_theme/highway_theme_registry.h` | each product loads `HighwayThemeRegistry` from `highwayThemeFolders(<resources root>)` and draws with `themeFor(<the player's settings>)`; built-ins under `rock-hero-common/ui/resources/themes/<id>/` (`ice` is complete, every other built-in inherits its art and states its own colors), user themes in the per-user `themes/` (`themesFolder()`), where one may inherit any built-in (`inherits`) or shadow it by taking its id |
 | Fixed highway art (the technique-mark sheet) | `rock-hero-common/ui/resources/highway/` (`marks.png` plus the license notice for its adapted art), deployed to `<resources root>/highway/` | the game reads it through `GameResources::highwayMarkSheetBytes`, the editor preview through `loadPreviewMarkSheet`, and both hand the bytes to `HighwayRenderer::create`, which composes it under the theme's `notes.png` |
 | Shader sources (vs/fs pairs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
@@ -831,8 +798,7 @@ Adding a new *shader program* is two declarations plus its use:
    globbing `vs_*.sc`, so a source drop is the CMake side of the change — there is no list to edit).
    **Silent step:** the vertex shader must write `v_world_z` and the fragment shader must apply
    `highwayFarFade` from `highway_fade.sh`, or the program's content pops in at the far edge while
-   everything else fades. The one exception is `present`, which draws in screen space after the
-   scene and so has no world depth to fade by. Shared `.sh` includes beside the sources are tracked through shaderc's
+   everything else fades. Shared `.sh` includes beside the sources are tracked through shaderc's
    depfile, so editing one rebuilds every program that includes it.
 2. A `HighwayShaderProgram` enumerator plus its base name in `highwayShaderProgramName`
    (`common/core/.../highway/highway_resources.h`), and a row in `g_highway_shader_programs`. Both

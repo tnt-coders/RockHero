@@ -39,15 +39,6 @@ the user picks which way the two surfaces reconcile.
   the string axis at grazing angles — if it shimmers on sighting, the fix is a plain chain plus
   `BGFX_SAMPLER_MIN_ANISOTROPIC` on that texture, judged together.
 
-## Found by the render-look simplicity review (2026-10-12)
-
-- **Every present program carries a copy of the same vertex shader:** `vs_present_palette.sc`,
-  `vs_present_halftone.sc` and `vs_present_blocks.sc` repeat `vs_present.sc` line for line,
-  because `rock_hero_stage_highway_shaders` (`cmake/RockHeroRenderStack.cmake`, ~:91-101) derives
-  the program list from `vs_*.sc`. Deriving it from `fs_*.sc` and letting
-  `g_highway_shader_programs` name each program's vertex stage would delete the three copies (one
-  CMake edit plus the shader loader).
-
 ## Found by plan 54 Phases 1 and 2a (2026-10-11)
 
 - **The 2D lane restates the head's sounding-stop binding:** `tab_paint_core.cpp` (~:2479) writes

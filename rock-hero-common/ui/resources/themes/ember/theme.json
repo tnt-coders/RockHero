@@ -1,0 +1,27 @@
+{
+  "name": "Ember",
+  "inherits": "ice",
+  "colors": {
+    "backdrop": "#0B0403",
+    "beat_bar": "#4A1A0C",
+    "attack_line": "#FFE3BF",
+    "lit_lane": "#FF6A1F49",
+    "lit_lane_dotted": "#8A2E0E49",
+    "lane_line": "#9C54341F",
+    "lane_line_lit": "#9C5434",
+    "fret_line": "#26100A",
+    "fret_line_lit": "#FFD8A8",
+    "fret_number_lit": "#FFC08A",
+    "fret_number_target": "#FFF4E0",
+    "strike_fretting": "#FFF1D6",
+    "strike_picking": "#FF9A5A",
+    "chord": "#FF6A55",
+    "arpeggio": "#8C7BFF",
+    "full_mute_mark": "#FFE3BF",
+    "capo_shade": "#0B0403B4",
+    "capo_bar": "#E8C9A8",
+    "capo_bar_rim": "#0B0403",
+    "inlay_tint": "#A86A48E6",
+    "label_text": "#FFE3BF"
+  }
+}

@@ -1,8 +1,0 @@
-{
-  "name": "Theme: Ice, halftone",
-  "inherits": "ice",
-  "look": {
-    "style": "halftone",
-    "cell": 8
-  }
-}

@@ -10,6 +10,7 @@
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/shared/user_data_folders.h>
+#include <span>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -67,8 +68,9 @@ HighwayThemeFolders highwayThemeFolders(const std::filesystem::path& resources_r
     };
 }
 
-// Built-ins first, each inheriting nothing; then the user's own, each free to inherit a built-in
-// as shipped, and only then may a user theme take a built-in's place.
+// The default theme first, inheriting nothing; then the other built-ins, each free to inherit it;
+// then the user's own, each free to inherit a built-in as shipped, and only then may a user theme
+// take a built-in's place.
 std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::load(
     const HighwayThemeFolders& folders)
 {
@@ -82,21 +84,8 @@ std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::loa
                 common::core::utf8FromPath(folders.built_in)),
         }};
     }
-
-    std::vector<LoadedHighwayTheme> themes;
-    for (const std::filesystem::path& directory : themeDirectoriesIn(folders.built_in))
-    {
-        std::expected<LoadedHighwayTheme, HighwayThemeError> theme =
-            loadHighwayTheme(directory, {});
-        if (!theme.has_value())
-        {
-            return std::unexpected{std::move(theme.error())};
-        }
-        themes.push_back(std::move(*theme));
-    }
-    const auto default_theme =
-        std::ranges::find(themes, g_default_highway_theme_id, &LoadedHighwayTheme::id);
-    if (default_theme == themes.end())
+    const std::filesystem::path default_directory = folders.built_in / g_default_highway_theme_id;
+    if (!std::filesystem::is_directory(default_directory, probe_error))
     {
         return std::unexpected{HighwayThemeError{
             HighwayThemeErrorCode::MissingDefaultTheme,
@@ -106,8 +95,34 @@ std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::loa
                 g_default_highway_theme_id),
         }};
     }
+    std::expected<LoadedHighwayTheme, HighwayThemeError> default_theme =
+        loadHighwayTheme(default_directory, {});
+    if (!default_theme.has_value())
+    {
+        return std::unexpected{std::move(default_theme.error())};
+    }
+
+    std::vector<LoadedHighwayTheme> themes;
+    for (const std::filesystem::path& directory : themeDirectoriesIn(folders.built_in))
+    {
+        if (common::core::utf8FromPath(directory.filename()) == g_default_highway_theme_id)
+        {
+            continue;
+        }
+        std::expected<LoadedHighwayTheme, HighwayThemeError> theme =
+            loadHighwayTheme(directory, std::span{&*default_theme, 1});
+        if (!theme.has_value())
+        {
+            return std::unexpected{std::move(theme.error())};
+        }
+        themes.push_back(std::move(*theme));
+    }
+    themes.push_back(std::move(*default_theme));
+    std::ranges::sort(themes, {}, &LoadedHighwayTheme::id);
     // A user theme either takes a built-in's slot or appends, so the default keeps this index.
-    const auto default_index = static_cast<std::size_t>(default_theme - themes.begin());
+    const auto default_index = static_cast<std::size_t>(
+        std::ranges::find(themes, g_default_highway_theme_id, &LoadedHighwayTheme::id) -
+        themes.begin());
 
     std::vector<LoadedHighwayTheme> user_themes;
     for (const std::filesystem::path& directory : themeDirectoriesIn(folders.user))

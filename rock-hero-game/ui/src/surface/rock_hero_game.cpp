@@ -158,8 +158,7 @@ std::optional<int> RockHeroGame::onInit()
             highway_theme.textures,
             *highway_marks,
             highway_theme.colors,
-            highway_themes->paletteFor(m_config.highway_settings).colors,
-            highway_theme.look);
+            highway_themes->paletteFor(m_config.highway_settings).colors);
     if (!renderer.has_value())
     {
         std::println(stderr, "rock-hero: {}", renderer.error().message);

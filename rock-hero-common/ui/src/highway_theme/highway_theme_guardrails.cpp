@@ -45,29 +45,19 @@ struct NamedColor
 
 // Runs the color pairs, the string pairs and the fret-line order, reporting the first failure.
 std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
-    const HighwayTheme& colors, const StringColorPalette& strings, const HighwayRenderLook& look)
+    const HighwayTheme& colors, const StringColorPalette& strings)
 {
-    // A highway color as the look shows it: snapped to the nearest stated color, or unchanged.
-    const bool snaps = snapsToThemeColors(look);
-    const HighwayThemeColors stated = highwayThemeColors(colors, strings);
-    const auto drawn = [snaps, &stated](const NamedColor named) {
-        return snaps
-                   ? NamedColor{.name = named.name, .color = nearestThemeColor(stated, named.color)}
-                   : named;
+    const NamedColor chord = roleColor(colors, &HighwayTheme::chord);
+    const NamedColor arpeggio = roleColor(colors, &HighwayTheme::arpeggio);
+    const NamedColor picking_chord{
+        .name = "the picking hand's chord", .color = pickingHandColor(colors.chord)
     };
-
-    const NamedColor chord = drawn(roleColor(colors, &HighwayTheme::chord));
-    const NamedColor arpeggio = drawn(roleColor(colors, &HighwayTheme::arpeggio));
-    const NamedColor picking_chord = drawn(
-        NamedColor{.name = "the picking hand's chord", .color = pickingHandColor(colors.chord)});
-    const NamedColor picking_arpeggio = drawn(
-        NamedColor{
-            .name = "the picking hand's arpeggio", .color = pickingHandColor(colors.arpeggio)
-        });
-    const NamedColor number_lit = drawn(roleColor(colors, &HighwayTheme::fret_number_lit));
-    const NamedColor number_dim =
-        drawn(NamedColor{.name = "the dim fret number", .color = fretNumberDim(colors)});
-    const NamedColor number_target = drawn(roleColor(colors, &HighwayTheme::fret_number_target));
+    const NamedColor picking_arpeggio{
+        .name = "the picking hand's arpeggio", .color = pickingHandColor(colors.arpeggio)
+    };
+    const NamedColor number_lit = roleColor(colors, &HighwayTheme::fret_number_lit);
+    const NamedColor number_dim{.name = "the dim fret number", .color = fretNumberDim(colors)};
+    const NamedColor number_target = roleColor(colors, &HighwayTheme::fret_number_target);
     const std::array<std::array<NamedColor, 2>, 9> distinct_pairs{{
         // The two kinds of span, and each kind's two hands.
         {chord, arpeggio},
@@ -82,8 +72,8 @@ std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
         {number_lit, number_target},
         {number_dim, number_target},
         // The two hands' strike pops.
-        {drawn(roleColor(colors, &HighwayTheme::strike_fretting)),
-         drawn(roleColor(colors, &HighwayTheme::strike_picking))},
+        {roleColor(colors, &HighwayTheme::strike_fretting),
+         roleColor(colors, &HighwayTheme::strike_picking)},
     }};
 
     for (const auto& [first, second] : distinct_pairs)

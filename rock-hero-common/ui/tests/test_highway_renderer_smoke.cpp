@@ -63,7 +63,6 @@
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
-#include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/render/render_device.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
@@ -524,8 +523,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
             loadShippedTextureSet(),
             loadShippedMarkSheet(),
             testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayPlainLook{});
+            testing::fixtureStringColors());
         REQUIRE(renderer.has_value());
 
         // Encoding frames before any content is the state both products are in between device
@@ -591,48 +589,6 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // The paused redraw: song time frozen, frame delta zero, the camera smoother asked to
         // integrate nothing.
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, 0.0, 30);
-
-        // The render look is a theme part: a pixel look refits the scene target to whole blocks
-        // and adds the block canvas, a resize under it refits both, snapping to the theme's colors
-        // swaps the block pass's program, the CRT drops the canvas for the window-size scene until
-        // it snaps too, the dither snaps through the same pass, the halftone presents through its
-        // own program, and the plain look brings the window-size target back.
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayPixelLook{.scale = 3, .scanlines = 0.5, .theme_colors_only = false});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        device->resize(1001, 563);
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayPixelLook{.scale = 3, .scanlines = 0.5, .theme_colors_only = true});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayCrtLook{.line_height = 3, .scanlines = 0.4, .theme_colors_only = false});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayCrtLook{.line_height = 2, .scanlines = 0.4, .theme_colors_only = true});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayDitherLook{.scale = 2});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(),
-            testing::fixtureStringColors(),
-            HighwayHalftoneLook{.cell = 8});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        renderer->setTheme(
-            testing::fixtureHighwayTheme(), testing::fixtureStringColors(), HighwayPlainLook{});
-        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
-        device->resize(1280, 720);
 
         // The camera is the host's: a re-published state (an edit of the chart on screen) keeps it
         // gliding from where it is, and only resetCamera (a load) snaps it to its target. Framed
@@ -704,7 +660,7 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         recolored.chord = 0xFFFF00FFU;
         StringColorPalette recolored_strings = testing::fixtureStringColors();
         recolored_strings.colors.front() = 0xFF40FF40U;
-        renderer->setTheme(recolored, recolored_strings, HighwayPlainLook{});
+        renderer->setTheme(recolored, recolored_strings);
         drawFrames(*renderer, *device, -1.0, (last_beat_seconds + 2.0) / 120.0, 30);
 
         // An arrangement with no chart at all: empty scene, no beats, no camera zones — the

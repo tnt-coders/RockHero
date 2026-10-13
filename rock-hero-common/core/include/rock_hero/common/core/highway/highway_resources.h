@@ -66,33 +66,6 @@ enum class HighwayShaderProgram : std::uint8_t
     fragment from a signed distance field so corners wrap as arcs and nothing bands.
     */
     AccentGlow,
-
-    /*!
-    \brief The full-screen present: copies the off-screen scene to the window through the theme's
-    render look — an exact copy for the plain look, the CRT's full-resolution copy under its
-    scanlines, and the hard-edged block upscale of the block canvas, with the pixel look's own.
-    Screen space, so it carries no far-edge fade.
-    */
-    Present,
-
-    /*!
-    \brief The block pass: one texel of the block canvas per virtual pixel, the mean of the
-    full-resolution scene block it covers. Screen space, no far-edge fade.
-    */
-    PresentBlocks,
-
-    /*!
-    \brief The block pass of a look restricted to the theme's colors: each block's mean snapped to
-    the nearest color the theme states, after a 4x4 Bayer threshold nudges it under the dither
-    look. Screen space, no far-edge fade.
-    */
-    PresentPalette,
-
-    /*!
-    \brief The halftone look's present: a 45-degree dot screen over the theme's backdrop, with ink
-    outlines from a Sobel edge on the scene's luminance. Screen space, no far-edge fade.
-    */
-    PresentHalftone,
 };
 
 /*!
@@ -146,10 +119,6 @@ inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::WindowLight,
     HighwayShaderProgram::BoxMute,
     HighwayShaderProgram::AccentGlow,
-    HighwayShaderProgram::Present,
-    HighwayShaderProgram::PresentBlocks,
-    HighwayShaderProgram::PresentPalette,
-    HighwayShaderProgram::PresentHalftone,
 };
 
 // A loader walks the array while the renderer indexes handle slots by enumerator value, so a
@@ -166,7 +135,7 @@ static_assert(
             }
         }
         return g_highway_shader_programs.size() ==
-               static_cast<std::size_t>(HighwayShaderProgram::PresentHalftone) + 1;
+               static_cast<std::size_t>(HighwayShaderProgram::AccentGlow) + 1;
     }(),
     "g_highway_shader_programs must list every program in enumeration order");
 
@@ -253,22 +222,6 @@ static_assert(
         case HighwayShaderProgram::AccentGlow:
         {
             return "accent_glow";
-        }
-        case HighwayShaderProgram::Present:
-        {
-            return "present";
-        }
-        case HighwayShaderProgram::PresentBlocks:
-        {
-            return "present_blocks";
-        }
-        case HighwayShaderProgram::PresentPalette:
-        {
-            return "present_palette";
-        }
-        case HighwayShaderProgram::PresentHalftone:
-        {
-            return "present_halftone";
         }
     }
 

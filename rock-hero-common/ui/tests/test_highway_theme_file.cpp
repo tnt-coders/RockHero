@@ -3,7 +3,6 @@
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -15,7 +14,6 @@
 #include <rock_hero/common/core/highway/highway_view_preferences.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
-#include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
@@ -24,7 +22,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -205,32 +202,6 @@ void setOwnColor(const juce::var& document, const std::string_view key, const ju
     return failureOf(folder.themeAt("changed"));
 }
 
-// A `look` block parsed from its JSON text.
-[[nodiscard]] juce::var lookFrom(const juce::String& json)
-{
-    return juce::JSON::parse(json);
-}
-
-// Loads the default theme's document after one change to its `look`.
-[[nodiscard]] std::expected<LoadedHighwayTheme, HighwayThemeError> loadWithLook(
-    const juce::var& look)
-{
-    const ThemeFolder folder;
-    const juce::var document = defaultThemeDocument();
-    setKey(document, "look", look);
-    folder.addTheme("looked", document);
-    return loadHighwayTheme(folder.themeAt("looked"), {});
-}
-
-// Why a theme whose `look` is the given JSON text fails, or nothing when it loads.
-[[nodiscard]] std::optional<HighwayThemeErrorCode> lookFailure(const juce::String& json)
-{
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-        loadWithLook(lookFrom(json));
-    return loaded.has_value() ? std::nullopt
-                              : std::optional<HighwayThemeErrorCode>{loaded.error().code};
-}
-
 } // namespace
 
 // Both CSS forms parse in either case; the alpha CSS writes last lands in the packed top byte.
@@ -294,7 +265,7 @@ TEST_CASE("A complete theme directory loads", "[ui][highway-theme]")
 
 // The file's shape is strict: what it cannot parse, a key it does not define (including the head
 // shape and inlay choices it has no key for), and a base it may not inherit are each refused by
-// name. A theme loaded with no bases, as a built-in is, may inherit nothing.
+// name. A theme loaded with no bases, as the default theme is, may inherit nothing.
 TEST_CASE("A theme file outside the format is refused", "[ui][highway-theme]")
 {
     {
@@ -425,7 +396,7 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
         colors.chord = chord;
         colors.arpeggio = arpeggio;
         const std::expected<void, HighwayThemeError> checked =
-            checkHighwayThemeGuardrails(colors, strings, HighwayPlainLook{});
+            checkHighwayThemeGuardrails(colors, strings);
         return checked.has_value() ? std::string{} : checked.error().message;
     };
 
@@ -447,53 +418,19 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
               .starts_with("the 2D chord ink #008587 and the 2D arpeggio ink #008587 "));
 }
 
-// A look that snaps to the theme's colors shows each derived color as its nearest stated one, so
-// the guardrails judge the snapped colors: the fixture's two picking-hand colors, far apart as
-// drawn, both land on its grey fret_line_lit once snapped, and only the snapping look refuses it.
-TEST_CASE("A snapping look's guardrails judge the snapped colors", "[ui][highway-theme]")
-{
-    const HighwayTheme colors = testing::fixtureHighwayTheme();
-    const StringColorPalette strings = testing::fixtureStringColors();
-    const auto failure = [&colors, &strings](const HighwayRenderLook& look) {
-        const std::expected<void, HighwayThemeError> checked =
-            checkHighwayThemeGuardrails(colors, strings, look);
-        return checked.has_value() ? std::string{} : checked.error().message;
-    };
-
-    CHECK(failure(HighwayPlainLook{}).empty());
-    CHECK(failure(HighwayDitherLook{.scale = 2}).empty());
-    CHECK(failure(HighwayCrtLook{.line_height = 2, .scanlines = 0.4, .theme_colors_only = false})
-              .empty());
-    CHECK(failure(HighwayCrtLook{.line_height = 2, .scanlines = 0.4, .theme_colors_only = true})
-              .starts_with(
-                  "the picking hand's chord #C0C0C0 and the picking hand's arpeggio "
-                  "#C0C0C0 "));
-    CHECK(failure(HighwayPixelLook{.scale = 3, .scanlines = 0.0, .theme_colors_only = true})
-              .starts_with("the picking hand's chord #C0C0C0 "));
-}
-
-// Every built-in the products ship loads through the one loader as a complete theme, and the set
-// holds the default theme.
+// Every built-in the products ship loads through the registry, which fails on the first that does
+// not (naming it), so one theme per shipped directory comes back, the default among them.
 TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
 {
     const std::filesystem::path built_in = testing::builtInThemesDirectory();
-    int theme_count = 0;
-    for (const std::filesystem::directory_entry& entry :
-         std::filesystem::directory_iterator{built_in})
-    {
-        INFO(common::core::utf8FromPath(entry.path()));
-        const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-            loadHighwayTheme(entry.path(), {});
-        if (!loaded.has_value())
-        {
-            FAIL(loaded.error().message);
-        }
-        ++theme_count;
-    }
-    CHECK(theme_count > 0);
-
     const ThemeFolder no_user_themes;
     const HighwayThemeRegistry registry = registryOver(built_in, no_user_themes.path() / "absent");
+
+    const auto directory_count = std::ranges::count_if(
+        std::filesystem::directory_iterator{built_in},
+        [](const std::filesystem::directory_entry& entry) { return entry.is_directory(); });
+    CHECK(std::cmp_equal(registry.themes().size(), directory_count));
+    CHECK(registry.themes().size() > 1);
     CHECK(
         registry.themeFor(common::core::HighwayPlayerSettings{}).id == g_default_highway_theme_id);
 }
@@ -724,7 +661,7 @@ TEST_CASE("A palette resolves to its pin or to the theme's choice", "[ui][highwa
 }
 
 // A broken install fails loudly: no built-in folder, no default theme, or any built-in that does
-// not load, one that inherits included, fails the whole registry.
+// not load, one inheriting a theme that is not the default included, fails the whole registry.
 TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]")
 {
     const ThemeFolder user;
@@ -749,251 +686,16 @@ TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]
     with_broken.addTheme("broken", broken);
     CHECK(failure(with_broken.path()) == HighwayThemeErrorCode::InvalidColor);
 
+    // A built-in may inherit the default theme and nothing else: not another built-in, whatever
+    // the folder order.
     const ThemeFolder with_inheriting;
     with_inheriting.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
     with_inheriting.addThemeFileOnly("accent", inheritingDocument("Accent"));
+    CHECK_FALSE(failure(with_inheriting.path()).has_value());
+    const juce::var chained = inheritingDocument("Chained");
+    setKey(chained, "inherits", "accent");
+    with_inheriting.addThemeFileOnly("chained", chained);
     CHECK(failure(with_inheriting.path()) == HighwayThemeErrorCode::UnknownBase);
-}
-
-// A theme without `look` presents plainly; a pixel look loads with its scale, and its scanlines
-// default to none.
-TEST_CASE("A theme's look loads, and its absence is the plain look", "[ui][highway-theme]")
-{
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> ice =
-        loadHighwayTheme(testing::defaultThemeDirectory(), {});
-    REQUIRE(ice.has_value());
-    if (!ice.has_value())
-    {
-        return;
-    }
-    CHECK(std::holds_alternative<HighwayPlainLook>(ice->look));
-
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> plain =
-        loadWithLook(lookFrom(R"({"style": "plain"})"));
-    REQUIRE(plain.has_value());
-    if (plain.has_value())
-    {
-        CHECK(std::holds_alternative<HighwayPlainLook>(plain->look));
-    }
-
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> pixel =
-        loadWithLook(lookFrom(R"({"style": "pixel", "scale": 3})"));
-    REQUIRE(pixel.has_value());
-    if (pixel.has_value())
-    {
-        const auto* const look = std::get_if<HighwayPixelLook>(&pixel->look);
-        REQUIRE(look != nullptr);
-        if (look != nullptr)
-        {
-            CHECK(look->scale == 3);
-            CHECK_THAT(look->scanlines, Catch::Matchers::WithinULP(0.0, 0));
-        }
-    }
-
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> lined =
-        loadWithLook(lookFrom(R"({"style": "pixel", "scale": 8, "scanlines": 0.25})"));
-    REQUIRE(lined.has_value());
-    if (lined.has_value())
-    {
-        const auto* const look = std::get_if<HighwayPixelLook>(&lined->look);
-        REQUIRE(look != nullptr);
-        if (look != nullptr)
-        {
-            CHECK(look->scale == 8);
-            CHECK_THAT(look->scanlines, Catch::Matchers::WithinULP(0.25, 0));
-        }
-    }
-    CHECK_FALSE(lookFailure(R"({"style": "pixel", "scale": 2, "scanlines": 1})").has_value());
-    CHECK_FALSE(lookFailure(R"({"style": "pixel", "scale": 2, "scanlines": 0})").has_value());
-}
-
-// A look is strict like the rest of the file: its shape, its style, each style's own keys, and
-// every parameter's type and range.
-TEST_CASE("A look outside the format is refused", "[ui][highway-theme]")
-{
-    // A bare string, set directly: JUCE's JSON parser reads only an object or array at the top.
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> bare = loadWithLook("pixel");
-    CHECK((!bare.has_value() && bare.error().code == HighwayThemeErrorCode::MalformedJson));
-    CHECK(lookFailure("{}") == HighwayThemeErrorCode::MissingKey);
-    CHECK(lookFailure(R"({"style": "neon"})") == HighwayThemeErrorCode::InvalidLook);
-    CHECK(lookFailure(R"({"style": 3})") == HighwayThemeErrorCode::InvalidLook);
-    CHECK(lookFailure(R"({"style": "plain", "scale": 2})") == HighwayThemeErrorCode::UnknownKey);
-    CHECK(
-        lookFailure(R"({"style": "pixel", "scale": 2, "glow": 1})") ==
-        HighwayThemeErrorCode::UnknownKey);
-    CHECK(lookFailure(R"({"style": "pixel"})") == HighwayThemeErrorCode::MissingKey);
-    for (const char* const scale : {"1", "9", "2.5", "\"3\"", "true"})
-    {
-        INFO(scale);
-        CHECK(
-            lookFailure(juce::String{R"({"style": "pixel", "scale": )"} + scale + "}") ==
-            HighwayThemeErrorCode::InvalidLook);
-    }
-    for (const char* const scanlines : {"-0.1", "1.5", "\"x\""})
-    {
-        INFO(scanlines);
-        CHECK(
-            lookFailure(
-                juce::String{R"({"style": "pixel", "scale": 2, "scanlines": )"} + scanlines +
-                "}") == HighwayThemeErrorCode::InvalidLook);
-    }
-}
-
-// An inheriting theme that leaves `look` out takes its base's; one that states it replaces the
-// base's whole, so a partial block is refused rather than completed from the base.
-TEST_CASE("An inheriting theme takes its base's look whole", "[ui][highway-theme]")
-{
-    const ThemeFolder built_in;
-    const juce::var arcade = defaultThemeDocument();
-    setKey(arcade, "look", lookFrom(R"({"style": "pixel", "scale": 4, "scanlines": 0.5})"));
-    built_in.addTheme("arcade", arcade);
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> base =
-        loadHighwayTheme(built_in.themeAt("arcade"), {});
-    REQUIRE(base.has_value());
-    if (!base.has_value())
-    {
-        return;
-    }
-    const std::span<const LoadedHighwayTheme> bases{&*base, 1};
-    const auto load = [bases](const juce::var& document) {
-        const ThemeFolder folder;
-        folder.addThemeFileOnly("inheriting", document);
-        return loadHighwayTheme(folder.themeAt("inheriting"), bases);
-    };
-    const auto inheriting = [](const std::string_view name) {
-        const juce::var document = inheritingDocument(name);
-        setKey(document, "inherits", "arcade");
-        return document;
-    };
-
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> kept = load(inheriting("Kept"));
-    REQUIRE(kept.has_value());
-    if (kept.has_value())
-    {
-        const auto* const look = std::get_if<HighwayPixelLook>(&kept->look);
-        REQUIRE(look != nullptr);
-        if (look != nullptr)
-        {
-            CHECK(look->scale == 4);
-            CHECK_THAT(look->scanlines, Catch::Matchers::WithinULP(0.5, 0));
-        }
-    }
-
-    const juce::var plain = inheriting("Plain");
-    setKey(plain, "look", lookFrom(R"({"style": "plain"})"));
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> replaced = load(plain);
-    REQUIRE(replaced.has_value());
-    if (replaced.has_value())
-    {
-        CHECK(std::holds_alternative<HighwayPlainLook>(replaced->look));
-    }
-
-    const juce::var partial = inheriting("Partial");
-    setKey(partial, "look", lookFrom(R"({"style": "pixel"})"));
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> refused = load(partial);
-    CHECK((!refused.has_value() && refused.error().code == HighwayThemeErrorCode::MissingKey));
-}
-
-// The dither and halftone looks load with their defaults or their stated sizes, and refuse a size
-// outside their ranges or a key that is another style's.
-TEST_CASE("Dither and halftone looks load within their ranges", "[ui][highway-theme]")
-{
-    const auto dither_scale = [](const juce::String& json) {
-        const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-            loadWithLook(lookFrom(json));
-        const HighwayDitherLook* const look =
-            loaded.has_value() ? std::get_if<HighwayDitherLook>(&loaded->look) : nullptr;
-        return look != nullptr ? std::optional<int>{look->scale} : std::nullopt;
-    };
-    CHECK(dither_scale(R"({"style": "dither"})") == g_dither_look_default_scale);
-    CHECK(dither_scale(R"({"style": "dither", "scale": 1})") == 1);
-    CHECK(dither_scale(R"({"style": "dither", "scale": 8})") == 8);
-
-    const auto halftone_cell = [](const juce::String& json) {
-        const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-            loadWithLook(lookFrom(json));
-        const HighwayHalftoneLook* const look =
-            loaded.has_value() ? std::get_if<HighwayHalftoneLook>(&loaded->look) : nullptr;
-        return look != nullptr ? std::optional<int>{look->cell} : std::nullopt;
-    };
-    CHECK(halftone_cell(R"({"style": "halftone"})") == g_halftone_look_default_cell);
-    CHECK(halftone_cell(R"({"style": "halftone", "cell": 4})") == 4);
-    CHECK(halftone_cell(R"({"style": "halftone", "cell": 16})") == 16);
-
-    for (const char* const json :
-         {R"({"style": "dither", "scale": 0})",
-          R"({"style": "dither", "scale": 9})",
-          R"({"style": "dither", "scale": 1.5})",
-          R"({"style": "halftone", "cell": 3})",
-          R"({"style": "halftone", "cell": 17})",
-          R"({"style": "halftone", "cell": "8"})"})
-    {
-        INFO(json);
-        CHECK(lookFailure(json) == HighwayThemeErrorCode::InvalidLook);
-    }
-    CHECK(lookFailure(R"({"style": "dither", "cell": 8})") == HighwayThemeErrorCode::UnknownKey);
-    CHECK(
-        lookFailure(R"({"style": "dither", "scanlines": 0.5})") ==
-        HighwayThemeErrorCode::UnknownKey);
-    CHECK(lookFailure(R"({"style": "halftone", "scale": 2})") == HighwayThemeErrorCode::UnknownKey);
-}
-
-// The CRT loads with its defaults or its stated band height and strength, and refuses either
-// outside its range or a key that is another style's.
-TEST_CASE("A CRT look loads within its ranges", "[ui][highway-theme]")
-{
-    const auto crt = [](const juce::String& json) {
-        const std::expected<LoadedHighwayTheme, HighwayThemeError> loaded =
-            loadWithLook(lookFrom(json));
-        const HighwayCrtLook* const look =
-            loaded.has_value() ? std::get_if<HighwayCrtLook>(&loaded->look) : nullptr;
-        return look != nullptr ? std::optional<HighwayCrtLook>{*look} : std::nullopt;
-    };
-    const std::optional<HighwayCrtLook> defaulted = crt(R"({"style": "crt"})");
-    REQUIRE(defaulted.has_value());
-    if (defaulted.has_value())
-    {
-        CHECK(defaulted->line_height == g_crt_look_default_line_height);
-        CHECK_THAT(
-            defaulted->scanlines, Catch::Matchers::WithinULP(g_crt_look_default_scanlines, 0));
-        CHECK_FALSE(defaulted->theme_colors_only);
-    }
-    const std::optional<HighwayCrtLook> stated =
-        crt(R"({"style": "crt", "line_height": 8, "scanlines": 0.6})");
-    REQUIRE(stated.has_value());
-    if (stated.has_value())
-    {
-        CHECK(stated->line_height == 8);
-        CHECK_THAT(stated->scanlines, Catch::Matchers::WithinULP(0.6, 0));
-    }
-    CHECK(crt(R"({"style": "crt", "line_height": 1})").has_value());
-    // The switch reaches the guardrails: snapped to its own colors, the default theme's two
-    // picking-hand colors land 12.1 apart, under the minimum, so the snapping look is refused.
-    const std::expected<LoadedHighwayTheme, HighwayThemeError> snapping =
-        loadWithLook(lookFrom(R"({"style": "crt", "theme_colors_only": true})"));
-    REQUIRE_FALSE(snapping.has_value());
-    if (!snapping.has_value())
-    {
-        CHECK(snapping.error().code == HighwayThemeErrorCode::GuardrailViolated);
-        CHECK(snapping.error().message.contains(
-            "the picking hand's chord #C6CDE2 and the picking hand's arpeggio #C1C1C1"));
-    }
-
-    for (const char* const json :
-         {R"({"style": "crt", "line_height": 0})",
-          R"({"style": "crt", "line_height": 9})",
-          R"({"style": "crt", "line_height": 2.5})",
-          R"({"style": "crt", "scanlines": 1.5})",
-          R"({"style": "crt", "theme_colors_only": 1})",
-          R"({"style": "pixel", "scale": 2, "theme_colors_only": "yes"})"})
-    {
-        INFO(json);
-        CHECK(lookFailure(json) == HighwayThemeErrorCode::InvalidLook);
-    }
-    CHECK(lookFailure(R"({"style": "crt", "scale": 2})") == HighwayThemeErrorCode::UnknownKey);
-    CHECK(
-        lookFailure(R"({"style": "dither", "theme_colors_only": true})") ==
-        HighwayThemeErrorCode::UnknownKey);
 }
 
 } // namespace rock_hero::common::ui

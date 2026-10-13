@@ -76,9 +76,11 @@ roles rather than inside `HighwayTheme`.
 - **The folder name is the id**, `[a-z0-9-]+`, and there is no `id` key that could disagree with
   it. A theme whose folder breaks the pattern is rejected.
 - **`name`** is the picker's display name, required and never inherited.
-- **`inherits`** is optional and names only a built-in (54-Q11). Without it a theme is complete:
-  every role, `strings`, `head_shape`, `inlay` and every asset. With it, each one left out comes
-  from the base; roles inherit one by one, `strings` and each asset inherit whole.
+- **`inherits`** is optional and names only a built-in (54-Q11): any built-in for a user theme,
+  the default theme for a built-in (since 2026-10-12, when the shipped color themes landed
+  sharing the default's art). Without it a theme is complete: every role, `strings`,
+  `head_shape`, `inlay` and every asset. With it, each one left out comes from the base; roles
+  inherit one by one, `strings` and each asset inherit whole.
 - **`colors`** holds every color and nothing else, keyed by the `HighwayTheme` member names; one
   role table serves the loader and the later theme editor. Colors are CSS hex: `#RRGGBB` opaque,
   `#RRGGBBAA` with alpha, case-insensitive. An alpha-first form would be indistinguishable from a
@@ -89,10 +91,9 @@ roles rather than inside `HighwayTheme`.
   tiers derive from it.
 - **`head_shape` and `inlay`** are library ids at the top level, since they are not colors; they
   arrive with Phase 5.
-- **`look`** (optional) is the theme's render look, `{"style": "plain"}` or
-  `{"style": "pixel", "scale": 2-8, "scanlines": 0-1}`, `{"style": "dither", "scale": 1-8}` or
-  `{"style": "halftone", "cell": 4-16}`; left out, it is the base's or plain, and
-  stated, it replaces the base's whole (`docs/plans/in-progress/highway-render-looks.md`).
+- **No `look` key.** A theme chooses colors and art only; the render looks (a `look` block
+  choosing a whole-frame post-process) were built and withdrawn on 2026-10-12, and live in the
+  commit `docs/plans/todo/intricate-highway-themes.md` names.
 - **Strict:** an unknown key or role, bad hex, or a `strings` array of the wrong length rejects
   the file. The guardrails run on the resolved theme. No version field; formats change in place.
 
@@ -411,8 +412,9 @@ kept locally, outside the tree. The user's picks from them:
   - the ring over today's diamond reads as a cross-hair, which suits a precisely placed node, and
     that quality is worth keeping in whatever replaces it;
   - the 2D lane keeps its current harmonic drawing for now.
-- **Later themes:** a synthwave "night drive" look and an arcade-vector look with animated backdrops
-  are wanted after v1 (a backdrop-art feature, COULD tier).
+- **Later themes:** animated backdrops for the synthwave and arcade themes, and the render looks,
+  are wanted after v1 (`docs/plans/todo/intricate-highway-themes.md`; backdrop art is COULD tier).
+  Night Drive and Retro Arcade ship as color themes since 2026-10-12.
 - **A theme editor** (build, save, import and export themes) comes later, with 54-Q12's todo plan.
 
 ## Open questions (Phase 0 gate)
@@ -799,8 +801,9 @@ each pick writes the shared `highway.*` keys through the store and re-resolves t
 theme registry, the one resolution authority both products use (`themeFor`, `paletteFor`). The pin
 is `highway.palette`, naming the theme whose file states the strings. A pick whose art bytes match
 recolors through `setTheme(theme, palette)`; any other recreates the renderer. No game-side picker
-(54-Q16 waits on plan 26): the game draws the shared picks at launch. Built-in themes inherit
-nothing yet; Phase 6's accent built-ins add built-in-to-built-in inheritance. No code-owned
+(54-Q16 waits on plan 26): the game draws the shared picks at launch. A built-in may inherit the
+default theme (added 2026-10-12 with the distilled built-in set: the registry loads the default
+first and the other built-ins against it, so the color themes share its art). No code-owned
 palettes exist yet, so the palette list is the themes that state their own strings.
 
 **Tests**: inheriting and unknown-base fixtures in `test_highway_theme_file.cpp`, including a
@@ -896,6 +899,14 @@ The other accents in "Phase 0 direction" ship as built-ins. Each inherits the de
 (54-Q11) and sets only its accent-derived colors, deriving every role by the same rule. Several
 built-ins in use also keep a role that Phase 1 missed from hiding in a one-theme world, beside
 Phase 3's coverage fixture. Each passes the same contracts. **STOP: sighting and sign-off.**
+
+*Partly landed 2026-10-12, ahead of the accent study:* the built-in set was distilled from the
+day's sighted candidates to six color themes beside ice — Signal and Ladder (the readability
+set: strings placed for perceptual and color-vision-deficiency distance, Ladder colorblind-first)
+and Ember, Phosphor, Night Drive and Retro Arcade (distinct whole looks) — each inheriting ice's
+art and stating every role (`rock-hero-common/ui/resources/themes/`). The accent built-ins this
+phase describes, the user's sighting and the sign-off remain; every other candidate is archived
+in the commit `docs/plans/todo/intricate-highway-themes.md` names.
 
 Later work, outside this plan:
 - the theme editor, with export and import (54-Q12's todo plan);
