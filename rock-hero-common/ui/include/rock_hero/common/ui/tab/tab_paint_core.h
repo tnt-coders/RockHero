@@ -59,7 +59,7 @@ The paint core's JUCE conversion of stringLaneColor, which maps the lane onto it
 \brief The inks a span's rails and its label chip are painted with, one per kind of span.
 
 The span chip (\ref drawTabSpanChip) fills in its span's ink too, so the chip and the rails it
-stands on read as one object, and prints its label in \ref g_chip_label_color over it.
+stands on read as one object, and prints its label over it in \ref chipLabelColorOn its ink.
 */
 struct TabShapeInks
 {
@@ -78,13 +78,16 @@ struct TabShapeInks
 };
 
 /*!
-\brief Derives the lane's span inks from a theme's chord and arpeggio colors.
+\brief Returns the lane's span inks: a theme's chord and arpeggio colors as the 3D highway wears
+them.
 
-Each kind's ink keeps its role's hue at one luminance shared by both kinds, dark enough that the
-chip's white label stays legible over it, so the lane tells the kinds apart by hue and chroma.
+The 2D lane and the highway are two views of one chart, so a span kind wears one color on both.
+A derived ink held to one lightness was tried and retired: some hues keep their name only while
+light (a light cyan darkened reads teal, an amber reads brown), so the lane named the kinds
+differently from the highway.
 
 \param theme The theme the lane draws with.
-\return The chord and arpeggio inks, under their roles' alphas.
+\return The chord and arpeggio colors, under their roles' alphas.
 */
 [[nodiscard]] TabShapeInks tabShapeInks(const HighwayTheme& theme);
 
@@ -259,8 +262,22 @@ because the renderer snaps a line to a whole row and can spread the ink across i
 */
 [[nodiscard]] float chipHeight(const TabLaneFont& label_font);
 
-/*! \brief The opaque white every chip prints its label in. */
+/*! \brief The opaque white every chip on an editor-chosen fill prints its label in. */
 inline const juce::Colour g_chip_label_color{0xffffffff};
+
+/*!
+\brief Returns the label color for a chip whose fill a theme chooses: black over a light fill,
+white over a dark one.
+
+A theme's fill can be any lightness, so no one label color reads over all of them. The polarity
+is the one APCA rates higher: its two text contrasts cross where the fill's screen luminance (each
+sRGB channel to the power 2.4, weighted as the luminance) is 0.342. APCA rather than the WCAG 2
+ratio, which prefers black over mid-tone purples where white reads clearly better.
+
+\param fill The chip's fill; its alpha is ignored.
+\return Opaque black or \ref g_chip_label_color.
+*/
+[[nodiscard]] juce::Colour chipLabelColorOn(juce::Colour fill);
 
 /*!
 \brief The weight a 2D ghost keeps: a ghost note, and a chip standing for something DERIVED rather
@@ -714,7 +731,7 @@ bottom-left corner at \ref TabSpanChip::base_left, its top corners rounded
 (\ref g_lane_chip_corner_radius), filled in its span's ink (\ref TabShapeInks).
 
 The chip prints its label — its name, or "?" for a span given none (\ref TabSpanChip::name) —
-centred in \ref g_chip_label_color. It is sized as a fret-hand-position chip in the same font
+centred in \ref chipLabelColorOn the ink. It is sized as a fret-hand-position chip in the same font
 (\ref tabFhpChipBounds): blank, as wide as a one-figure fret-hand chip; labelled, as wide as its
 label boxed the way a fret-hand chip boxes its text, never narrower than the blank chip. The chip
 stands \ref chipHeight tall; where that exceeds \ref TabSpanChip::max_height, the chip stands

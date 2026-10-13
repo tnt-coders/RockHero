@@ -17,11 +17,6 @@ constexpr double g_picking_hand_chroma_scale = 0.25;
 // stays exact integer arithmetic.
 constexpr ArgbColor g_box_fill_middle_permille = 286;
 
-// The WCAG contrast white label text keeps over a 2D span's ink, and the relative luminance that
-// puts the ink at it: (1 + 0.05) / (Y + 0.05) = 4.45.
-constexpr double g_lane_label_contrast = 4.45;
-constexpr double g_lane_shape_luminance = (1.05 / g_lane_label_contrast) - 0.05;
-
 // The D65 white in CIE XYZ, which the conversions normalize by so white lands on (1, 1, 1).
 constexpr double g_white_x = 0.95047;
 constexpr double g_white_z = 1.08883;
@@ -153,31 +148,6 @@ ArgbColor boxFillMiddle(const ArgbColor box_color)
         result |= (((channel * g_box_fill_middle_permille) + 500U) / 1000U) << shift;
     }
     return result;
-}
-
-// Scales the base to the ink's luminance where its brightest channel allows, and blends it toward
-// white otherwise. Luminance is linear in each channel, so either move lands on it exactly before
-// the bytes round.
-ArgbColor laneShapeInk(const ArgbColor base)
-{
-    const LinearRgb linear = linearRgbOf(base);
-    const double luminance = luminanceOf(linear);
-    const double brightest = std::max({linear.red, linear.green, linear.blue});
-
-    // Scaling by Y_t / Y fits while the brightest channel stays within full, Y_t * max <= Y, and
-    // needs a luminance to divide by. Blending runs only for a base darker than the ink, so 1 - Y
-    // never reaches zero.
-    const bool scales = luminance > 0.0 && g_lane_shape_luminance * brightest <= luminance;
-    const auto shaded = [&](const double channel) {
-        if (scales)
-        {
-            return channel * g_lane_shape_luminance / luminance;
-        }
-        const double blend = (g_lane_shape_luminance - luminance) / (1.0 - luminance);
-        return channel + (blend * (1.0 - channel));
-    };
-    return (base & 0xFF000000U) | (encodedChannel(shaded(linear.red)) << 16U) |
-           (encodedChannel(shaded(linear.green)) << 8U) | encodedChannel(shaded(linear.blue));
 }
 
 ArgbColor fretNumberDim(const HighwayTheme& theme)

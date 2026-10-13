@@ -495,9 +495,9 @@ constexpr float g_span_chip_headroom{30.0f};
     return true;
 }
 
-// The pixels of a span chip render nearer the white label text than the chord span's saturated
-// fill: a printed label's ink, classified by saturation to the nearer of the two colors rather
-// than matched exactly, since a glyph is antialiased into the fill.
+// The pixels of a span chip render nearer the label text, black or white and so unsaturated either
+// way, than the chord span's saturated fill: a printed label's ink, classified by saturation to the
+// nearer of the two rather than matched exactly, since a glyph is antialiased into the fill.
 [[nodiscard]] int spanChipLabelInk(const juce::Image& image)
 {
     const float midpoint =
@@ -1441,6 +1441,28 @@ TEST_CASE("Tab span chip is a rectangle with a rounded top in the span's colors"
         CHECK(image.getPixelAt(20 + radius, top) == ink);
         CHECK(image.getPixelAt(right - radius, top) == ink);
     }
+}
+
+// The lane wears the theme's span colors as they are, and a span chip's label takes whichever of
+// black and white APCA rates higher over its fill: black over the light cyan and the amber, white
+// over the purple, the crimson and the cobalt, the polarity turning at screen luminance 0.342.
+TEST_CASE("Tab span inks are the theme's colors under a label that reads", "[ui][tab-paint]")
+{
+    HighwayTheme theme = testing::fixtureHighwayTheme();
+    theme.chord = 0xFF5CD3F5U;
+    theme.arpeggio = 0xFFA361FFU;
+    const TabShapeInks inks = tabShapeInks(theme);
+    CHECK(inks.chord == juce::Colour{0xFF5CD3F5U});
+    CHECK(inks.arpeggio == juce::Colour{0xFFA361FFU});
+
+    CHECK(chipLabelColorOn(juce::Colour{0xFF5CD3F5U}) == juce::Colours::black);
+    CHECK(chipLabelColorOn(juce::Colour{0xFFFFB800U}) == juce::Colours::black);
+    CHECK(chipLabelColorOn(juce::Colour{0xFFA361FFU}) == g_chip_label_color);
+    CHECK(chipLabelColorOn(juce::Colour{0xFFE8003CU}) == g_chip_label_color);
+    CHECK(chipLabelColorOn(juce::Colour{0xFF2E86FFU}) == g_chip_label_color);
+    // Greys either side of the turn: 0xA3 is 0.3416 of full luminance, 0xA4 0.3466.
+    CHECK(chipLabelColorOn(juce::Colour{0xFFA3A3A3U}) == g_chip_label_color);
+    CHECK(chipLabelColorOn(juce::Colour{0xFFA4A4A4U}) == juce::Colours::black);
 }
 
 // The stop column narrows the chip to the room before it, an upright block down to a single pixel,

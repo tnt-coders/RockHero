@@ -677,20 +677,20 @@ that would reach it, though at the chip height the chip stands clear below it.
 Every chip in the editor — the ruler's section, tempo and time-signature chips, the fret-hand,
 capo and span chips, and the automation lanes' name and "+" chips — prints its label in ONE face
 and stands ONE height, from `common::ui::chipLabelFont` and `common::ui::chipHeight`
-(`tab_paint_core.h`), in `common::ui::g_chip_label_color`; the tone regions print their names in
-that face too. The bend and slide labels riding the tails are notation, not chips: they print in
+(`tab_paint_core.h`), in `common::ui::g_chip_label_color` — except the span chip, whose fill the
+theme chooses, so its label takes black or white by `common::ui::chipLabelColorOn`; the tone
+regions print their names in that face too. The bend and slide labels riding the tails are notation, not chips: they print in
 the lane's fret font and scale with the lane.
 
 The chip's label is its span's name, the chord name of the span's grip template. A span is
 complete only once it carries a template, so the drawer itself prints "?" for a span given no
-name; spans carry no template yet, so every chip prints "?". The label prints in opaque
-white where the room holds the whole labelled chip and the chip stands its own height, and is
-dropped whole otherwise, leaving the chip blank. The rails' ink comes from the theme
-(`common::ui::tabShapeInks`, carried on `TabLaneMetrics::shape_inks`): each of the theme's `chord`
-and `arpeggio` colors held to the one luminance under which that white text reads at 4.45:1 — a
-balance set by eye between reading as the span's color and carrying the label — so the two kinds
-differ by hue and chroma, never by lightness. The theme guardrails hold the two inks apart. The
-ruler fills its chips in the same inks: `EditorView` hands them to `TrackViewport`'s constructor,
+name; spans carry no template yet, so every chip prints "?". The label prints where the room
+holds the whole labelled chip and the chip stands its own height, and is dropped whole otherwise,
+leaving the chip blank. The rails' ink is the theme's own `chord` or `arpeggio` color, exactly as
+the 3D highway wears it (`common::ui::tabShapeInks`, carried on `TabLaneMetrics::shape_inks`), so
+a span kind wears one color on both surfaces. The chip's label takes whichever of black and white
+APCA rates higher over that color (`common::ui::chipLabelColorOn`; the polarity turns at screen
+luminance 0.342), since a theme's span color can be any lightness. The ruler fills its chips in the same inks: `EditorView` hands them to `TrackViewport`'s constructor,
 which builds its `TimelineRuler` with them, and pushes them through `TrackViewport::setShapeInks`
 whenever it restates the lane's colors.
 

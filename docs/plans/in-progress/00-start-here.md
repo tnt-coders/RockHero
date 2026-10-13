@@ -53,9 +53,9 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    arpeggio, be told apart?). Every chord box, two-note ones included, now closes with its top
    bar (`0289989e`); only the repeat box differs, at half height. Expected, not defects: today's
    marks and repeat X.
-   **Phase 4b, in the 2D lane:** the chord and arpeggio span rails and the ruler's span chips now
-   wear inks derived from the theme's `chord`/`arpeggio` (`2c0fa04d`; ice draws a deep teal
-   `#358196` and a purple `#9257E6`, white chip labels at 4.45:1). The mark sheet split
+   **Phase 4b, in the 2D lane:** the chord and arpeggio span rails and the ruler's span chips wear
+   the theme's own `chord`/`arpeggio` colors, as the highway does (Default: light sky-blue
+   `#5CD3F5` and purple `#A361FF`), each chip's label black or white by contrast. The mark sheet split
    (`3e5cc80d`) is zero visual change by construction; confirm the marks still draw.
 4. **The head fade (ruled 2026-10-11/12):** a head fades with its tail at the tail's rate; a note
    with no drawn tail fades from the strike within 0.25 s (or its own length); a held head ends

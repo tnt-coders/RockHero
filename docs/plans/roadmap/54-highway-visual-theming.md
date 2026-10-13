@@ -914,6 +914,14 @@ look. **Verification**: build, touched tests.
     2D mute rim is shared by every mute mark and carries no palm/dead distinction.
   - Under today's values the 2D rails turn from Charter's blue and purple to a darkened teal and
     purple; the Phase 4b sighting judges both themes in both surfaces.
+  - **Superseded 2026-10-13 (user, on the UI review's recommendation):** the fixed-luminance law
+    changed some span colors' NAMES — a light cyan darkened reads teal, an amber reads brown — so
+    the 2D lane named a kind differently from the highway. The rails and the span chips now wear
+    the role colors verbatim (`tabShapeInks`), one color per kind on both surfaces, and the chip's
+    label takes black or white, whichever APCA rates higher over the fill (`chipLabelColorOn`,
+    polarity turning at screen luminance 0.342). `laneShapeInk`, its guardrail pair and its tests
+    are deleted. Default's 2D chord is therefore its light sky-blue, not the old hand-tuned royal
+    blue (a different hue, 263 against 220 in OKLCH, which no rule shared by every theme reaches).
 - **S3's sheet split** per 54-Q17 moves today's mark cells unchanged, which is zero visual change
   (verified byte-exact: the two files stacked decode to the old sheet's pixels). The private theme's `notes.png` is re-cut locally to the
   heads-only layout so it still passes the contract.
