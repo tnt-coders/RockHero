@@ -10,6 +10,11 @@
 //   center, so a small far note moving down the board crossfades from one line into the next as
 //   it moves, instead of sitting on a line and then hopping a whole pitch; columns keep the
 //   scene's full resolution, so text stays sharp.
+// - Each line is sharpened against its two neighbors, as a monitor's sharpness control peaks its
+//   picture: the line gains CRT_SHARPEN times its difference from their mean. The correction is
+//   symmetric and sums to zero, so it changes neither a note's total light nor where that light
+//   is centered: the edges the tent softened firm up while a moving note keeps its brightness and
+//   its smooth slide.
 // - Each line is drawn as a beam of Gaussian profile whose width grows with its brightness: dark
 //   and mid areas show the dark gaps between lines, while bright heads, labels and lit lines bloom
 //   until their gaps close. Every beam carries exactly its line's light, as a real beam's light
@@ -33,6 +38,9 @@ SAMPLER2D(s_scene, 0);
 // The narrowest line pitch in window pixels: below two, the gaps alias into moire on a small
 // window.
 #define CRT_MIN_PITCH 2.0
+
+// How strongly each line is peaked against its neighbors: 0 leaves the tent's lines as they are.
+#define CRT_SHARPEN 1.0
 
 // The beam's sharpness, as the exponent a squared distance in line pitches is scaled by: a black
 // line's beam is the hardest, a full-bright line's the widest.
@@ -87,6 +95,14 @@ vec3 lineColor(float index, float pitch, float x)
     return sum / weights;
 }
 
+// A line's color peaked against the lines on either side of it. A line beside a much brighter one
+// would go below black, which no beam can show, so it stops at black.
+vec3 sharpened(vec3 scan_line, vec3 one_side, vec3 other_side)
+{
+    vec3 peaked = scan_line + CRT_SHARPEN * (scan_line - 0.5 * (one_side + other_side));
+    return max(peaked, vec3_splat(0.0));
+}
+
 // A line's beam at a distance from its center, in line pitches, per channel: wider the brighter
 // the line, and scaled so its whole profile holds one pitch of light, which the line's color then
 // sets.
@@ -106,8 +122,12 @@ void main()
     float position = (gl_FragCoord.y - lineCenter(0.0, pitch)) / pitch;
     float previous = floor(position);
     float offset = position - previous;
-    vec3 previous_color = lineColor(previous, pitch, x);
-    vec3 next_color = lineColor(previous + 1.0, pitch, x);
+    vec3 before_previous = lineColor(previous - 1.0, pitch, x);
+    vec3 previous_line = lineColor(previous, pitch, x);
+    vec3 next_line = lineColor(previous + 1.0, pitch, x);
+    vec3 after_next = lineColor(previous + 2.0, pitch, x);
+    vec3 previous_color = sharpened(previous_line, before_previous, next_line);
+    vec3 next_color = sharpened(next_line, previous_line, after_next);
     vec3 light = previous_color * beam(previous_color, offset)
                  + next_color * beam(next_color, 1.0 - offset);
 

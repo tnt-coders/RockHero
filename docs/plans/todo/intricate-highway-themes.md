@@ -15,6 +15,11 @@ tunables in the theme file, and no palette snap. Only the CRT renders off-screen
 before. Everything else below (pixel, dither, halftone, the snap, the archived themes) stays
 deferred.
 
+**The standard for this kind of effect** (user, 2026-10-13: "captures the vibe VERY well") is
+commit `1473ab96`, tagged `crt-standard-2026-10-13`. Judge any later CRT change against it side
+by side: a sharper cut that loses its vibe is a regression. Its one open complaint was a general
+fuzziness, which the per-line sharpening (`CRT_SHARPEN`) that followed it addresses.
+
 ## Where the work lives
 
 **Commit `4f8e0d7bea047fb63e0e393a0bc56fd684c2bdd1`** ("Archived every sighted highway theme

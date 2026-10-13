@@ -107,9 +107,10 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    window, and the present carries it to the window through `fs_crt.sc`. That shader is an
    arcade raster monitor: about 540 scan lines over the window's height, a whole number of pixels
    apart, each a tent-weighted mean of the scene's rows within one line pitch, so a far note
-   slides from line to line rather than hopping; a beam per line that widens with brightness
-   while carrying exactly its line's light, so dark areas show the gaps, bright heads close them,
-   and nothing pulses or dims; and a gentle RGB stripe mask. Its tunables are `#define`s in the
+   slides from line to line rather than hopping, then peaked against its two neighbors as a
+   monitor's sharpness control would; a beam per line that widens with brightness while
+   carrying exactly its line's light, so dark areas show the gaps, bright heads close them, and
+   nothing pulses or dims; and a gentle RGB stripe mask. Its tunables are `#define`s in the
    shader, and nothing in it moves or blurs content horizontally, so the board reads as it does
    plain. The other render looks (pixel, dither, halftone, palette snap) stay withdrawn;
    `docs/plans/todo/intricate-highway-themes.md` names the commit that holds them.
