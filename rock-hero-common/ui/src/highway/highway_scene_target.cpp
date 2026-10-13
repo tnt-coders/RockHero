@@ -26,9 +26,8 @@ constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::
 } // namespace
 
 // Releases the old target before creating the new one, so a resize never holds both. The color
-// attachment is sampled (never write-only), so bgfx keeps a single-sampled copy to resolve into,
-// read with the default bilinear filter the present's paired-row taps rely on; the depth is
-// write-only, which bgfx requires of a multisampled depth attachment.
+// attachment is sampled (never write-only), so bgfx keeps a single-sampled copy to resolve into;
+// the depth is write-only, which bgfx requires of a multisampled depth attachment.
 bool HighwaySceneTarget::fit(const std::uint32_t width, const std::uint32_t height)
 {
     if (width == m_width && height == m_height)

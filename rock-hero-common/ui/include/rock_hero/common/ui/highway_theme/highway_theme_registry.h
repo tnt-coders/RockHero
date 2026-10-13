@@ -47,19 +47,22 @@ enum class HighwayThemeErrorCode : std::uint8_t
     */
     MalformedJson,
 
-    /*! \brief The file carries a key the format does not define, top level or color role. */
+    /*!
+    \brief The file carries a key the format does not define: top level, color role, or a span
+    role's surface.
+    */
     UnknownKey,
 
     /*!
-    \brief The file leaves out `name`, or a theme that inherits nothing leaves out `colors`, a color
-    role or `strings`.
+    \brief The file leaves out `name`, a theme that inherits nothing leaves out `colors`, a color
+    role or `strings`, or a span role's surface pair lacks a half.
     */
     MissingKey,
 
     /*! \brief `name` is not a non-blank string. */
     InvalidName,
 
-    /*! \brief A color is not CSS hex, `#RRGGBB` or `#RRGGBBAA`. */
+    /*! \brief A color is not CSS hex, `#RRGGBB` or `#RRGGBBAA`, or a tab ink is translucent. */
     InvalidColor,
 
     /*! \brief `strings` is not exactly one opaque color per string the chart format allows. */
@@ -98,7 +101,10 @@ struct [[nodiscard]] HighwayThemeError
 /*! \brief The two folders themes are scanned from, each holding one directory per theme. */
 struct HighwayThemeFolders
 {
-    /*! \brief The themes the product ships; any that fails to load is a broken install. */
+    /*!
+    \brief The themes the product ships; the default theme must load, and any other that fails is
+    dropped and logged.
+    */
     std::filesystem::path built_in;
 
     /*! \brief The player's own themes; one that fails to load is dropped and logged. */

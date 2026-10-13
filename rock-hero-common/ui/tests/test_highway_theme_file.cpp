@@ -589,17 +589,40 @@ TEST_CASE("A theme's CRT look is its own or its base's", "[ui][highway-theme]")
           }) == HighwayThemeErrorCode::MalformedJson);
 }
 
-// Every built-in the products ship loads through the registry, which fails on the first that does
-// not (naming it), so one theme per shipped directory comes back, the default among them.
+// Every built-in the products ship loads. The registry would drop a broken one quietly, so each
+// directory is loaded on its own against the default theme, and a failure names its theme; the
+// registry then holds one theme per shipped directory, the default among them.
 TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
 {
     const std::filesystem::path built_in = testing::builtInThemesDirectory();
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> default_theme =
+        loadHighwayTheme(testing::defaultThemeDirectory(), {});
+    REQUIRE(default_theme.has_value());
+    if (!default_theme.has_value())
+    {
+        return;
+    }
+    int directory_count = 0;
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator{built_in})
+    {
+        if (!entry.is_directory())
+        {
+            continue;
+        }
+        ++directory_count;
+        if (entry.path().filename() == std::filesystem::path{g_default_highway_theme_id})
+        {
+            continue;
+        }
+        const std::expected<LoadedHighwayTheme, HighwayThemeError> theme =
+            loadHighwayTheme(entry.path(), std::span{&*default_theme, 1});
+        INFO((theme.has_value() ? std::string{} : theme.error().message));
+        CHECK(theme.has_value());
+    }
+
     const ThemeFolder no_user_themes;
     const HighwayThemeRegistry registry = registryOver(built_in, no_user_themes.path() / "absent");
-
-    const auto directory_count = std::ranges::count_if(
-        std::filesystem::directory_iterator{built_in},
-        [](const std::filesystem::directory_entry& entry) { return entry.is_directory(); });
     CHECK(std::cmp_equal(registry.themes().size(), directory_count));
     CHECK(registry.themes().size() > 1);
     CHECK(
@@ -837,8 +860,6 @@ TEST_CASE("A palette resolves to its pin or to the theme's choice", "[ui][highwa
     CHECK(resolved("other", "tweak") == std::pair{std::string{"other"}, std::string{}});
 }
 
-// A broken install fails loudly: no built-in folder, no default theme, or any built-in that does
-// not load, one inheriting a theme that is not the default included, fails the whole registry.
 // Only the default theme is required, since every other theme inherits it: without the folder,
 // the default directory or a default that loads, the registry fails; any other built-in that
 // fails is dropped alone, as a user theme is.

@@ -1941,11 +1941,11 @@ struct HighwayRenderer::Impl
     // Player scroll speed; the default until it becomes a player setting.
     double scroll_speed{1.3};
 
-    // One warning per process when a transient batch is dropped (budget exceeded is a bug
+    // One warning per renderer when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
     bool reported_oversized_drop{false};
-    // One warning per process when bgfx refuses the CRT's scene target; the board then draws
+    // One warning per renderer when bgfx refuses the CRT's scene target; the board then draws
     // plain.
     bool reported_scene_target_failure{false};
 

@@ -47,7 +47,8 @@ struct NamedColor
 
 } // namespace
 
-// Runs the color pairs, the string pairs and the fret-line order, reporting the first failure.
+// Runs the color pairs, the string pairs, the tab inks' lightness and the fret-line order,
+// reporting the first failure.
 std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
     const HighwayTheme& colors, const TabShapeInks& tab_inks, const StringColorPalette& strings)
 {

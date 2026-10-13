@@ -28,6 +28,21 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the theme close-out cleanup (2026-10-13)
+
+- **The renderer takes the CRT as a bare `bool`.** `HighwayRenderer::create` and `setTheme` take
+  `bool crt` after the colors and palette, and the three travel together at the three host sites
+  (the preview's create and `setTheme`, the game's create), with the tests passing an unexplained
+  `false`/`true`. A `HighwayLook {colors, palette, crt}` taken by both, or at least an enum
+  `HighwayPresentation {Plain, Crt}`, would name the choice at each call. Small: one header, three
+  hosts, about four test lines.
+- **`RenderDevice::resize` carries an ordering precondition both hosts honor by hand.** It must
+  never run between a renderer's draw and `submitFrame`, because a reset unbinds the CRT's scene
+  target mid-frame. Storing the size and applying the reset inside `submitFrame` would make the
+  bad order impossible and delete the precondition. Both hosts are correct today
+  (`preview_surface.cpp`, `rock_hero_game.cpp`); the renderer keeps re-binding its views every frame
+  either way, since the CRT switches at runtime.
+
 ## Found while mipmapping the head atlases (2026-10-12)
 
 - **The inlay texture still samples four texels at any distance.** `uploadPngTexture`

@@ -11,9 +11,14 @@ Phase 2a landed 2026-10-11: the default is `resources/themes/ice/`, loaded with 
 through one strict loader. Phase 2b landed 2026-10-11: inheritance from built-ins, and the
 editor's theme and string-color pickers over plan 70's shared settings. Phase 4a landed
 2026-10-11: the box chord device, open-bar posts as upright legs only, the glow posts unchanged
-(ruled), and the cue renamed Note Targets. **Phase 0 has a direction for the default look**
-(below) and still gates the art phases (54-Q5 to 54-Q22, each with a recommendation or a ruling).
-Phases 1 and 2a need only the role names, which this plan fixes. The engineering is ordered so the
+(ruled), and the cue renamed Note Targets. Phases 3 and 4b landed after it, and with them the
+per-surface span colors (`8af156d8`), the shipped built-ins, Retro Arcade's CRT look (ruled at
+`df01b691`) and a broken non-default built-in being dropped rather than failing startup.
+**Paused 2026-10-13 (user)**; the next theme step is Phase 5's symbols, gated on the mark brief.
+`docs/plans/in-progress/00-start-here.md` holds the owed sightings. **Phase 0 has a direction for
+the default look** (below) and still gates the art phases (54-Q5 to 54-Q22, each with a
+recommendation or a ruling). Phases 1 and 2a need only the role names, which this plan fixes. The
+engineering is ordered so the
 new default look can be sighted in both products as early as possible ("Path to the first in-app
 sighting"). **Phases 1 to 5 gate the first public release.** **Sequencing 2026-10-12 (user):**
 the mark brief (54-Q8, with the harmonic pair and the IP review's per-mark findings) is
@@ -86,7 +91,9 @@ roles rather than inside `HighwayTheme`.
 - **`colors`** holds every color and nothing else, keyed by the `HighwayTheme` member names; one
   role table serves the loader and the later theme editor. Colors are CSS hex: `#RRGGBB` opaque,
   `#RRGGBBAA` with alpha, case-insensitive. An alpha-first form would be indistinguishable from a
-  pasted CSS color and load with its channels rotated.
+  pasted CSS color and load with its channels rotated. A span role (`chord`, `arpeggio`) is one
+  color for both surfaces or a `{"highway": "#..", "tab": "#.."}` pair; the `tab` half fills the
+  2D lane's rails and ruler chips, must be opaque, and is stated or inherited with its role whole.
 - **`colors.strings`** is exactly `g_max_chart_strings` opaque `#RRGGBB` colors in the player's
   string numbering, from the highest string down: entry 1 is the high e, 6 the low E, 7 the low B,
   8 the low F#, so each slot is the same string at every string count. The standard and extended
@@ -99,8 +106,10 @@ roles rather than inside `HighwayTheme`.
   unless it states false. It returned on 2026-10-13 as the one survivor of the render looks
   (a `look` block choosing pixel, CRT, dither or halftone) that were built and withdrawn on
   2026-10-12; the rest live in the commit `docs/plans/todo/intricate-highway-themes.md` names.
-- **Strict:** an unknown key or role, bad hex, or a `strings` array of the wrong length rejects
-  the file. The guardrails run on the resolved theme. No version field; formats change in place.
+- **Strict:** an unknown key, role or surface, bad hex, a surface pair missing a half, a
+  translucent tab ink, a `crt` that is not a boolean, or a `strings` array of the wrong length
+  rejects the file. The guardrails run on the resolved theme. No version field; formats change
+  in place.
 
 A theme cannot add elements: a backdrop is one flat color, and backdrop art, animation and bloom
 are out of v1 (COULD tier).
@@ -301,10 +310,11 @@ colors as drawn, a derived color included, so a theme cannot collapse a distinct
 - every two string colors;
 - plus one order check: L*(`fret_line_lit`) exceeds L*(`fret_line`) by a margin (provisionally 30),
   since the hand window is read from it;
-- from Phase 4b, `distinct()` between the two 2D shape inks derived from `chord` and `arpeggio`,
-  which share a luminance by construction.
+- from Phase 4b, `distinct()` between the tab lane's authored chord and arpeggio inks, and each
+  tab ink at most L* 60, since its chip prints a white label.
 
-The ice theme passes with its closest pair, the two picking-hand colors, 21.1 apart.
+The default theme passes with its closest pair, the two picking-hand colors, 21.1 apart (its tab
+pair sits about 24.5 apart).
 
 **Kind is authored, hand is derived (ruled by the user, 2026-10-11).** Every box and rail tells
 two things apart by color alone: the kind of span (chord or arpeggio) and the hand (fretting or

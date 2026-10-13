@@ -54,6 +54,12 @@ constexpr std::array<std::string_view, 2> g_surface_keys{"highway", "tab"};
 // The fully opaque alpha byte of a packed color.
 constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
 
+// Whether a packed color carries no transparency.
+[[nodiscard]] constexpr bool isOpaque(const ArgbColor color)
+{
+    return (color & g_opaque_alpha) == g_opaque_alpha;
+}
+
 // A theme id is a folder name every platform spells the same: lowercase letters, digits, hyphens.
 [[nodiscard]] bool isThemeId(const std::string_view id)
 {
@@ -252,7 +258,7 @@ struct ResolvedRoles
         }
         const auto [highway, tab] = *pair;
         // The chip a tab ink fills prints its label on it, so the ink carries no alpha.
-        if ((tab & g_opaque_alpha) != g_opaque_alpha)
+        if (!isOpaque(tab))
         {
             return std::unexpected{HighwayThemeError{
                 HighwayThemeErrorCode::InvalidColor,
@@ -287,20 +293,14 @@ struct ResolvedRoles
     for (std::size_t index = 0; index < palette.colors.size(); ++index)
     {
         const juce::var& entry = entries->getReference(static_cast<int>(index));
-        const std::optional<ArgbColor> color =
-            entry.isString() ? parseCssHexColor(entry.toString().toStdString()) : std::nullopt;
+        const std::expected<ArgbColor, HighwayThemeError> color =
+            readColor(entry, std::format("strings entry {}", index + 1));
         if (!color.has_value())
         {
-            return std::unexpected{HighwayThemeError{
-                HighwayThemeErrorCode::InvalidColor,
-                std::format(
-                    "colors.strings entry {} is {}, not a #RRGGBB color",
-                    index + 1,
-                    juce::JSON::toString(entry, true).toStdString()),
-            }};
+            return std::unexpected{color.error()};
         }
         // A string color is drawn at full strength on every surface, so it carries no alpha.
-        if ((*color & g_opaque_alpha) != g_opaque_alpha)
+        if (!isOpaque(*color))
         {
             return std::unexpected{HighwayThemeError{
                 HighwayThemeErrorCode::InvalidStringColors,

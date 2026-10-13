@@ -201,7 +201,8 @@ pointer aliases the same state's `chart` member, so the two surfaces read one bu
 
 The look arrives the same way. The published view state carries the player's highway settings,
 and `EditorView` resolves them against its `HighwayThemeRegistry` whenever they change, handing
-the theme and the resolved palette to the preview (`setLook`) and the palette to the tab lane.
+the theme and the resolved palette to the preview (`setLook`), and the palette and the theme's
+`tab_inks` to the tab lane and the ruler.
 `PreviewSurface::setLook` restyles the live renderer through `setTheme` (colors, palette and the
 CRT switch) when the new theme's art is the old one's, and otherwise recreates the renderer
 through `bringUpRenderer()`, the same path and the same failure policy as a first open.

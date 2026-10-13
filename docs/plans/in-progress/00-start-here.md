@@ -93,7 +93,7 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    L* 3.5) and every unlit lane line a faint tint (about L* 5) under the 2026-10-13 no-haze
    ruling; sight Default's quieter window against the old strength. Watch: Fire's gold arpeggio
    boxes around the orange and yellow strings' heads and its scarlet chord beside the low E;
-   Hell's lava arpeggio beside the orange string; whether a window at L* 4 still locates the
+   Hell's lava arpeggio beside the orange string; whether a window at L* 8 still locates the
    hand in motion.
 
 **Plan 70 Phase 3 (per-user data), owed by the user BEFORE the next run of either app**, all inside
