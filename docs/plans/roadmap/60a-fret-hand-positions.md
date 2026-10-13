@@ -474,8 +474,8 @@ wherever it stands (`selected_fret_hand_position`).
 **Verbs on the row.** `Ctrl+P` at the cursor authors or restates the marker; `Delete` removes
 an authored marker, and is inert on a derived event with no shape (a derived position is not
 directly deletable, by law 7); `Alt+←/→` moves the
-marker and is inert on a derived front (§9 item 8); the tail keys move the end only if Phase 3's
-open END question builds them; digits
+marker and is inert on a derived front (§9 item 8); the tail keys move a SPAN's end, not a
+position's (`60b-holds.md` item 4); digits
 pin the floor, `Alt`+digits the top, `Alt+Delete` clears the top; `Enter` opens the template
 picker on an event with a shape (Phase 5); `Ctrl+R` is inert until an event has a name to rename
 (the entry's name is the dictionary's).
