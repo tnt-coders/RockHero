@@ -28,33 +28,34 @@ constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::
 // Releases the old target before creating the new one, so a resize never holds both. The color
 // attachment is sampled (never write-only), so bgfx keeps a single-sampled copy to resolve into;
 // the depth is write-only, which bgfx requires of a multisampled depth attachment.
-bool HighwaySceneTarget::fit(
-    const std::uint32_t width, const std::uint32_t height, const bool mipmapped)
+bool HighwaySceneTarget::fit(const std::uint32_t width, const std::uint32_t height)
 {
-    if (width == m_width && height == m_height && mipmapped == m_mipmapped)
+    if (width == m_width && height == m_height)
     {
         return m_frame_buffer.isValid();
     }
     m_width = width;
     m_height = height;
-    m_mipmapped = mipmapped;
     m_frame_buffer.reset();
     m_color.reset();
     m_depth.reset();
 
-    // A mip chain is regenerated from a single-sampled target only (see the class comment).
-    const std::uint64_t samples = mipmapped ? BGFX_TEXTURE_RT : g_scene_msaa;
     const auto width16 = static_cast<std::uint16_t>(width);
     const auto height16 = static_cast<std::uint16_t>(height);
     m_color = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
         width16,
         height16,
-        mipmapped,
+        false,
         1,
         g_scene_color_format,
-        samples | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP)};
+        g_scene_msaa | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP)};
     m_depth = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
-        width16, height16, false, 1, g_scene_depth_format, samples | BGFX_TEXTURE_RT_WRITE_ONLY)};
+        width16,
+        height16,
+        false,
+        1,
+        g_scene_depth_format,
+        g_scene_msaa | BGFX_TEXTURE_RT_WRITE_ONLY)};
     if (m_color.isValid() && m_depth.isValid())
     {
         // Never destroyTextures: the wrappers own the attachments (bgfx_handle.h).

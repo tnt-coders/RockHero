@@ -35,15 +35,14 @@ The directory's name is the theme's id and must be `[a-z0-9-]+`. Its `theme.json
 non-blank `name` and a `colors` object with every HighwayTheme role, keyed by its member name, plus
 `strings`: exactly one opaque `#RRGGBB` per string the chart format allows, highest string first.
 A span role (`chord`, `arpeggio`) is one color for both surfaces or a `{"highway", "tab"}` pair
-naming both halves, the `tab` half opaque. An optional `crt` (`"off"`, `"sharp"`, `"sharp-256"`
-or `"vintage"`) presents the 3D board through that CRT monitor (HighwayCrt). Beside the file lies
-the art, named by common::core::HighwayTexture.
+naming both halves, the `tab` half opaque. An optional boolean `crt` presents the 3D board through
+the CRT look. Beside the file lies the art, named by common::core::HighwayTexture.
 
 A file whose `inherits` names one of \p bases may leave out any of that: each role it omits is the
 base's, a span role with both its halves, `crt` is the base's, and `strings` and each art file it
 omits are the base's whole, so it registers no palette of its own. `name` is never inherited. The
 file is strict either way: an unknown key, role or surface, a bad color, a surface pair missing a
-half, a translucent tab ink, a `crt` naming no monitor, a wrong-length or translucent
+half, a translucent tab ink, a `crt` that is not a boolean, a wrong-length or translucent
 `strings`, and an `inherits` naming no base are refused.
 
 The resolved colors must pass checkHighwayThemeGuardrails and the resolved art the texture

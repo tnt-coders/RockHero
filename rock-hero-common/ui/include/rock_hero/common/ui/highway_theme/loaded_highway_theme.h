@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <rock_hero/common/ui/highway_theme/highway_crt.h>
 #include <rock_hero/common/ui/highway_theme/highway_texture_set.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/highway_theme/tab_shape_inks.h>
@@ -66,10 +65,10 @@ struct LoadedHighwayTheme
     TabShapeInks tab_inks;
 
     /*!
-    \brief The CRT monitor the 3D highway presents its board through, or none: the theme's own
-    `crt`, otherwise its base's.
+    \brief Whether the 3D highway presents its board through the CRT look, an arcade monitor's
+    scan lines and phosphor stripes: the theme's own `crt`, otherwise its base's.
     */
-    HighwayCrt crt;
+    bool crt;
 
     /*! \brief The theme's art, satisfying the texture contract. */
     HighwayTextureSet textures;

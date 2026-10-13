@@ -522,60 +522,6 @@ constexpr std::array<std::array<float, 3>, 3> g_present_triangle{{
     {-1.0F, 3.0F, 0.0F},
 }};
 
-// One CRT monitor's settings, as fs_crt.sc reads them. The one place a monitor is defined; the
-// shader keeps only what every monitor shares.
-struct CrtPreset
-{
-    // u_crt_params: x the scan lines it aims for over the window's height, y 1 for a pixel board
-    // of square pixels one line pitch wide (read from the scene's mip chain) or 0 for a smooth
-    // monitor, z how strongly each line is peaked against its neighbors.
-    std::array<float, 4> params;
-
-    // u_crt_board: xyz the steps red, green and blue may take, a channel's levels minus one, or 0
-    // for no color limit; w where a channel rounds up to its next level, as a fraction of a step.
-    std::array<float, 4> board;
-
-    // Whether the scene renders with a mip chain, which a pixel board reads its pixels from.
-    [[nodiscard]] bool pixelBoard() const noexcept
-    {
-        return params[1] > 0.0F;
-    }
-};
-
-// No color limit; 3-3-2 bits, the 256 colors of an early-80s board, each channel rounded to its
-// nearest level; one bit a channel, the eight colors of the first color boards. A channel of the
-// eight lights from a quarter of full brightness, not half: the board draws much of itself in dim
-// and translucent colors (lanes, lane lines, fret lines, inlays), which a half threshold blacks
-// out, where the art of the boards themselves never used a dim color at all.
-constexpr std::array<float, 4> g_full_color{0.0F, 0.0F, 0.0F, 0.0F};
-constexpr std::array<float, 4> g_board_256{7.0F, 7.0F, 3.0F, 0.5F};
-constexpr std::array<float, 4> g_board_8{1.0F, 1.0F, 1.0F, 0.25F};
-
-[[nodiscard]] CrtPreset crtPreset(const HighwayCrt crt)
-{
-    switch (crt)
-    {
-        case HighwayCrt::Sharp:
-        {
-            return {.params = {540.0F, 0.0F, 1.0F, 0.0F}, .board = g_full_color};
-        }
-        case HighwayCrt::Sharp256:
-        {
-            return {.params = {540.0F, 0.0F, 1.0F, 0.0F}, .board = g_board_256};
-        }
-        case HighwayCrt::Vintage:
-        {
-            return {.params = {240.0F, 1.0F, 0.0F, 0.0F}, .board = g_board_8};
-        }
-        case HighwayCrt::Off:
-        {
-            break;
-        }
-    }
-    // Off presents nothing, so no caller asks for its settings.
-    std::unreachable();
-}
-
 [[nodiscard]] const bgfx::VertexLayout& posColorGlowLayout()
 {
     static const bgfx::VertexLayout g_layout = [] {
@@ -1907,8 +1853,6 @@ struct HighwayRenderer::Impl
     // The target exists only while the CRT draws: a CRT frame allocates it, a plain one frees it.
     HighwaySceneTarget scene_target;
     UniqueBgfxHandle<bgfx::UniformHandle> scene_sampler;
-    UniqueBgfxHandle<bgfx::UniformHandle> crt_params;
-    UniqueBgfxHandle<bgfx::UniformHandle> crt_board;
     UniqueBgfxHandle<bgfx::VertexBufferHandle> present_triangle;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
@@ -1964,11 +1908,11 @@ struct HighwayRenderer::Impl
     // projected state, so changing it re-derives nothing the projection built.
     common::core::HighwayDisplayOptions options{};
     // The look: the theme every frame reads its colors from, the string palette the retained
-    // string lines and the per-frame string surfaces derive from, and the CRT monitor the frame
-    // is presented through, if any, which draw() reads every frame.
+    // string lines and the per-frame string surfaces derive from, and whether the frame is
+    // presented through the CRT, which draw() reads every frame.
     HighwayTheme theme{};
     StringColorPalette palette{};
-    HighwayCrt crt{HighwayCrt::Off};
+    bool crt{false};
     // Each hand's look, derived from the theme whenever it changes (adoptTheme), never per frame.
     HandLightStyle fretting_style{};
     HandLightStyle picking_style{};
@@ -2400,7 +2344,7 @@ struct HighwayRenderer::Impl
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
     const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
-    const HighwayCrt crt)
+    const bool crt)
 {
     // The art is validated and measured before any GPU work: a theme or mark sheet that breaks the
     // texture contract is refused with the file and the expectation it violates.
@@ -2470,10 +2414,6 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "u_accent_glow_params", bgfx::UniformType::Vec4)};
     impl->scene_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "s_scene", bgfx::UniformType::Sampler)};
-    impl->crt_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "u_crt_params", bgfx::UniformType::Vec4)};
-    impl->crt_board = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "u_crt_board", bgfx::UniformType::Vec4)};
     impl->present_triangle = UniqueBgfxHandle<bgfx::VertexBufferHandle>{bgfx::createVertexBuffer(
         bgfx::copy(
             g_present_triangle.data(), static_cast<std::uint32_t>(sizeof(g_present_triangle))),
@@ -2605,7 +2545,7 @@ void HighwayRenderer::setDisplayOptions(const common::core::HighwayDisplayOption
 // Every theme color, the hand styles derived from it, every per-frame string surface and the CRT
 // choice are read per frame, so the next frame simply draws with the new ones; only the retained
 // string lines are built from the palette.
-void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette, const HighwayCrt crt)
+void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette, const bool crt)
 {
     m_impl->adoptTheme(theme);
     m_impl->crt = crt;
@@ -5427,14 +5367,13 @@ void HighwayRenderer::Impl::draw(
 bgfx::FrameBufferHandle HighwayRenderer::Impl::sceneFrameBuffer(
     const std::uint32_t width, const std::uint32_t height)
 {
-    if (crt == HighwayCrt::Off)
+    if (!crt)
     {
         // An empty target holds no handles, so this costs nothing once the first plain frame ran.
         scene_target = HighwaySceneTarget{};
         return BGFX_INVALID_HANDLE;
     }
-    // A pixel board reads each of its pixels as one texel of the scene's mip chain.
-    if (!scene_target.fit(width, height, crtPreset(crt).pixelBoard()))
+    if (!scene_target.fit(width, height))
     {
         if (!reported_scene_target_failure)
         {
@@ -5450,13 +5389,9 @@ bgfx::FrameBufferHandle HighwayRenderer::Impl::sceneFrameBuffer(
     return scene_target.frameBuffer();
 }
 
-// The CRT reads the window's size from bgfx's own view uniforms; the monitor's settings are the one
-// parameter the present sets.
+// The CRT reads the window's size from bgfx's own view uniforms, so the present sets no parameter.
 void HighwayRenderer::Impl::present() const
 {
-    const CrtPreset preset = crtPreset(crt);
-    bgfx::setUniform(crt_params.get(), preset.params.data());
-    bgfx::setUniform(crt_board.get(), preset.board.data());
     bgfx::setTexture(0, scene_sampler.get(), scene_target.color());
     bgfx::setVertexBuffer(0, present_triangle.get());
     bgfx::setState(g_present_state);

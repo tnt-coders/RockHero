@@ -13,7 +13,6 @@
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/ui/highway_theme/highway_crt.h>
 #include <rock_hero/common/ui/highway_theme/highway_texture_set.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
@@ -115,15 +114,15 @@ public:
            TextureAssetInvalid. Read only during the call.
     \param theme Colors the board draws with until \ref setTheme replaces them.
     \param palette String colors every per-string surface derives from.
-    \param crt The CRT monitor the frame is presented through, if any, until \ref setTheme
-           says otherwise.
+    \param crt Whether the frame is presented through the CRT look until \ref setTheme says
+           otherwise.
     \return The renderer, or a typed error naming the failed program or invalid texture
             asset.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
         const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
         std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
-        HighwayCrt crt);
+        bool crt);
 
     /*! \brief Destroys every owned GPU resource; must run before bgfx shutdown. */
     ~HighwayRenderer();
@@ -196,10 +195,10 @@ public:
 
     \param theme Colors to draw with.
     \param palette String colors every per-string surface derives from.
-    \param crt The CRT monitor the frame is presented through, if any: the scene renders
-           off-screen and reaches the window under that monitor's scan lines and phosphor stripes.
+    \param crt Whether the frame is presented through the CRT look: the scene renders off-screen
+           and reaches the window under an arcade monitor's scan lines and phosphor stripes.
     */
-    void setTheme(HighwayTheme theme, StringColorPalette palette, HighwayCrt crt);
+    void setTheme(HighwayTheme theme, StringColorPalette palette, bool crt);
 
     /*!
     \brief Encodes one frame of the highway into the render views, through the CRT look when the

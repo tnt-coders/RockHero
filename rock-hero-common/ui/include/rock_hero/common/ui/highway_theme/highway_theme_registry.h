@@ -43,7 +43,7 @@ enum class HighwayThemeErrorCode : std::uint8_t
 
     /*!
     \brief `theme.json` is not JSON, or does not have the theme file's object shape, such as a
-    `crt` naming no monitor.
+    `crt` that is not true or false.
     */
     MalformedJson,
 

@@ -22,6 +22,24 @@ sharpening (`CRT_SHARPEN`) for a general fuzziness, and deeper gaps on dim conte
 (`CRT_BEAM_DARK` 12) once the finer lines had gone faint. Judge any later CRT change against that
 commit side by side: a sharper cut that loses its vibe is a regression.
 
+**A vintage arcade theme was tried and withdrawn the same day (2026-10-13).** Commits `a44756b3`
+and `43872bc5` hold it: `crt` became a monitor preset (`"sharp"`, `"sharp-256"`, `"vintage"`),
+with "Arcade - Retro 256" (the ruled look held to 3-3-2 bits, 256 colors) and "Arcade - Vintage"
+(hard square pixels about 240 to the height, each one read from the scene's mip chain, on an
+eight-color board). The user ruled it not working well enough and kept plain Retro Arcade. What it
+taught:
+- A low-resolution picture built by averaging this highway reads as blur, not as chunky pixels:
+  the art is made for high resolution (glows, fading tails, anti-aliased edges, translucent
+  layers), and a block's mean of soft content is a soft in-between color. Trilinear mip sampling
+  made it far worse; exact block means at a power-of-two pitch kept the pixels hard-edged.
+- An eight-color board blacks out most of the highway: lanes, lane lines, fret lines and inlays are
+  dim or translucent, and rounding a channel to on/off drops everything under half brightness.
+  Lowering the threshold to a quarter kept them but pushed them to full strength. Real boards' art
+  never used dim colors, so a convincing vintage look needs art and a palette made for it, not a
+  post-process over this scene.
+- bgfx cannot resolve a multisampled target into a mip chain (D3D11), so a mipmapped scene gives
+  up multisampling.
+
 ## Where the work lives
 
 **Commit `4f8e0d7bea047fb63e0e393a0bc56fd684c2bdd1`** ("Archived every sighted highway theme
