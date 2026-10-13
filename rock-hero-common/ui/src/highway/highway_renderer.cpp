@@ -532,7 +532,7 @@ struct CrtPreset
     std::array<float, 4> params;
 
     // u_crt_board: xyz the steps red, green and blue may take, a channel's levels minus one, or 0
-    // for no color limit.
+    // for no color limit; w where a channel rounds up to its next level, as a fraction of a step.
     std::array<float, 4> board;
 
     // Whether the scene renders with a mip chain, which a pixel board reads its pixels from.
@@ -542,11 +542,14 @@ struct CrtPreset
     }
 };
 
-// No color limit; 3-3-2 bits, the 256 colors of an early-80s board; one bit a channel, the eight
-// colors of the first color boards.
+// No color limit; 3-3-2 bits, the 256 colors of an early-80s board, each channel rounded to its
+// nearest level; one bit a channel, the eight colors of the first color boards. A channel of the
+// eight lights from a quarter of full brightness, not half: the board draws much of itself in dim
+// and translucent colors (lanes, lane lines, fret lines, inlays), which a half threshold blacks
+// out, where the art of the boards themselves never used a dim color at all.
 constexpr std::array<float, 4> g_full_color{0.0F, 0.0F, 0.0F, 0.0F};
-constexpr std::array<float, 4> g_board_256{7.0F, 7.0F, 3.0F, 0.0F};
-constexpr std::array<float, 4> g_board_8{1.0F, 1.0F, 1.0F, 0.0F};
+constexpr std::array<float, 4> g_board_256{7.0F, 7.0F, 3.0F, 0.5F};
+constexpr std::array<float, 4> g_board_8{1.0F, 1.0F, 1.0F, 0.25F};
 
 [[nodiscard]] CrtPreset crtPreset(const HighwayCrt crt)
 {

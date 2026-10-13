@@ -41,7 +41,9 @@ SAMPLER2D(s_scene, 0);
 // strongly each line is peaked against its neighbors.
 uniform vec4 u_crt_params;
 
-// xyz: the steps red, green and blue may take, as a channel's levels minus one; 0 for no limit.
+// xyz: the steps red, green and blue may take, as a channel's levels minus one, 0 for no limit;
+// w: where a channel rounds up to its next level, as a fraction of a step from the one below
+// (0.5 rounds to the nearest; less lifts dim colors the board would otherwise drop to black).
 uniform vec4 u_crt_board;
 
 // The narrowest line pitch in window pixels: below two, the gaps alias into moire on a small
@@ -84,7 +86,7 @@ vec3 boardColor(vec3 color)
     }
     vec3 steps = u_crt_board.xyz;
     vec3 encoded = pow(color, vec3_splat(1.0 / CRT_GAMMA));
-    vec3 held = floor(encoded * steps + 0.5) / steps;
+    vec3 held = floor(encoded * steps + (1.0 - u_crt_board.w)) / steps;
     return pow(held, vec3_splat(CRT_GAMMA));
 }
 
