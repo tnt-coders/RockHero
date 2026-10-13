@@ -839,7 +839,10 @@ TEST_CASE("A palette resolves to its pin or to the theme's choice", "[ui][highwa
 
 // A broken install fails loudly: no built-in folder, no default theme, or any built-in that does
 // not load, one inheriting a theme that is not the default included, fails the whole registry.
-TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]")
+// Only the default theme is required, since every other theme inherits it: without the folder,
+// the default directory or a default that loads, the registry fails; any other built-in that
+// fails is dropped alone, as a user theme is.
+TEST_CASE("Only a missing or broken default theme fails the registry", "[ui][highway-theme]")
 {
     const ThemeFolder user;
     const auto failure = [&user](const std::filesystem::path& built_in) {
@@ -856,23 +859,33 @@ TEST_CASE("A broken built-in set fails the whole registry", "[ui][highway-theme]
     without_default.addTheme("other", defaultThemeDocument());
     CHECK(failure(without_default.path()) == HighwayThemeErrorCode::MissingDefaultTheme);
 
-    const ThemeFolder with_broken;
-    with_broken.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
     const juce::var broken = defaultThemeDocument();
     setColor(broken, "beat_bar", "#nothex");
-    with_broken.addTheme("broken", broken);
-    CHECK(failure(with_broken.path()) == HighwayThemeErrorCode::InvalidColor);
+    const ThemeFolder with_broken_default;
+    with_broken_default.addTheme(std::string{g_default_highway_theme_id}, broken);
+    CHECK(failure(with_broken_default.path()) == HighwayThemeErrorCode::InvalidColor);
 
     // A built-in may inherit the default theme and nothing else: not another built-in, whatever
-    // the folder order.
-    const ThemeFolder with_inheriting;
-    with_inheriting.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
-    with_inheriting.addThemeFileOnly("accent", inheritingDocument("Accent"));
-    CHECK_FALSE(failure(with_inheriting.path()).has_value());
+    // the folder order. One that inherits another, like one whose colors are bad, is dropped.
+    const ThemeFolder built_in;
+    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addThemeFileOnly("accent", inheritingDocument("Accent"));
+    built_in.addTheme("broken", broken);
     const juce::var chained = inheritingDocument("Chained");
     setKey(chained, "inherits", "accent");
-    with_inheriting.addThemeFileOnly("chained", chained);
-    CHECK(failure(with_inheriting.path()) == HighwayThemeErrorCode::UnknownBase);
+    built_in.addThemeFileOnly("chained", chained);
+    const HighwayThemeRegistry registry = registryOver(built_in.path(), user.path());
+    REQUIRE(registry.themes().size() == 2);
+    CHECK(registry.themes()[0].id == "accent");
+    CHECK(registry.themes()[1].id == g_default_highway_theme_id);
+
+    // A pick of a dropped built-in falls back to the default theme.
+    const common::core::HighwayPlayerSettings picks_broken{
+        .theme_id = std::string{"broken"},
+        .pinned_palette_id = std::nullopt,
+        .view = common::core::HighwayViewPreferences{},
+    };
+    CHECK(registry.themeFor(picks_broken).id == g_default_highway_theme_id);
 }
 
 } // namespace rock_hero::common::ui

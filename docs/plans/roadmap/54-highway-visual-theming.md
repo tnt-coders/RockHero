@@ -132,9 +132,12 @@ Plan-specific rules:
 - **No JUCE in the theme's public header.** Colors are `common::ui::ArgbColor`; the loader may use
   `juce_core` JSON and `juce::Image` decoding, as `box_mute_profile.cpp` already does.
 - **Hex-literal-only color construction** at static or namespace scope (plan 45 decision 2).
-- **Built-in themes fail loudly; user themes fall back.** A built-in that does not load is a broken
-  install (`highway_renderer.h:46-51, 113-121`); a user file is untrusted input and is dropped
-  with a logged, typed error.
+- **Only the default theme is required; every other theme falls back.** A missing or broken
+  default theme is a broken install and fails startup, since every other theme inherits it and
+  every unknown pick falls back to it. Any other theme that does not load, built-in or user, is
+  dropped with a logged, typed error and a pick of it draws the default (user ruling 2026-10-13,
+  after one built-in's guardrail failure kept the whole app from starting; the shipped-themes
+  test still fails CI on a broken built-in).
 - **Formats change in place** — no version field, no migration ladder.
 - **The tree's git history is never rewritten.** Today's art and values leave the tree going
   forward only.
@@ -368,7 +371,8 @@ the palette, and injected the palette into both surfaces; renderer line numbers 
 
 ## Decisions carried from the 2026-08-02 plan
 
-- **Kept**: built-ins fail loudly, user files fall back; preset ids are stable strings persisted
+- **Kept** (the first since narrowed: only the default theme fails loudly now): built-ins fail
+  loudly, user files fall back; preset ids are stable strings persisted
   per product through one registry (plan 45 decision 7); art owns structure and the theme owns
   color, now covering `notes.png` through `head_art_profile`; formats change in place; geometry is
   not themeable (now the tiers above); the palette stays its own selection, and the user's pinned

@@ -776,8 +776,8 @@ If the element is *textured*, the asset lives in one table and the fan-out is sh
    the one entry point both the theme loader and `HighwayRenderer::create` run: its grid, and any
    measurement the renderer reads off it, each failure naming the asset and the expectation.
 3. Use the bytes in the renderer (`textures.at(indexOf(HighwayTexture::…))`). Every texture is
-   required: a theme whose asset breaks the contract is refused (a built-in fails startup, a user
-   theme is dropped and logged), and `create` refuses it with `TextureAssetInvalid`.
+   required: a theme whose asset breaks the contract is refused (the default theme fails startup,
+   any other is dropped and logged), and `create` refuses it with `TextureAssetInvalid`.
 4. Nothing in CMake. Both products deploy the whole built-in themes tree through
    `rock_hero_deploy_product_resources` — see the deploy contract in \ref guide_game. A user's own
    themes need the file too, which is a format change: they fail to load until they carry it.

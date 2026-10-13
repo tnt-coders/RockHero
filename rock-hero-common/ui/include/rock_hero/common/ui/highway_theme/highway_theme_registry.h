@@ -126,16 +126,18 @@ public:
     /*!
     \brief Loads every theme directory in both folders through the one theme loader.
 
-    Built-ins fail loudly: any that does not load, a missing built-in folder, or no theme with the
-    default id fails the whole load. The default theme is complete; every other built-in may
-    inherit it, which is how the shipped color themes share its art. User themes are untrusted
-    input and may inherit any built-in: one that does not load is logged with its typed error and
-    dropped, one whose id a built-in has takes that built-in's place (logged), and a missing user
+    Only the default theme is required: a missing built-in folder, no theme with the default id,
+    or a default theme that does not load fails the whole load, since every other theme inherits
+    it and every unknown pick falls back to it. The default theme is complete; every other
+    built-in may inherit it, which is how the shipped color themes share its art. Any other theme
+    that does not load, built-in or user, is logged with its typed error and dropped, and a pick
+    of it falls back to the default theme. User themes are untrusted input and may inherit any
+    built-in: one whose id a built-in has takes that built-in's place (logged), and a missing user
     folder simply contributes none. A theme inheriting a built-in reads the built-in itself, never
     a user theme in its place.
 
     \param folders The built-in and user theme folders.
-    \return The registry, or the error of the first built-in failure.
+    \return The registry, or the error that leaves it without a default theme.
     */
     [[nodiscard]] static std::expected<HighwayThemeRegistry, HighwayThemeError> load(
         const HighwayThemeFolders& folders);

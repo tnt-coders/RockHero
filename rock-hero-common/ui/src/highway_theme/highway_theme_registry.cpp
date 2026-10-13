@@ -70,7 +70,9 @@ HighwayThemeFolders highwayThemeFolders(const std::filesystem::path& resources_r
 
 // The default theme first, inheriting nothing; then the other built-ins, each free to inherit it;
 // then the user's own, each free to inherit a built-in as shipped, and only then may a user theme
-// take a built-in's place.
+// take a built-in's place. Only the default theme is required: every other theme inherits it and
+// every unknown pick falls back to it, so without it nothing could draw, where any other theme
+// that fails is dropped with its error and its pick falls back.
 std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::load(
     const HighwayThemeFolders& folders)
 {
@@ -113,7 +115,8 @@ std::expected<HighwayThemeRegistry, HighwayThemeError> HighwayThemeRegistry::loa
             loadHighwayTheme(directory, std::span{&*default_theme, 1});
         if (!theme.has_value())
         {
-            return std::unexpected{std::move(theme.error())};
+            RH_LOG_ERROR("ui.theme", "Dropped a built-in theme: {}", theme.error().message);
+            continue;
         }
         themes.push_back(std::move(*theme));
     }
