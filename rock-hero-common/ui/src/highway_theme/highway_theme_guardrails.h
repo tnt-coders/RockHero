@@ -6,6 +6,7 @@
 #pragma once
 
 #include <expected>
+#include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme_registry.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
@@ -25,13 +26,17 @@ minimum CIELAB distance apart, and so must every two string colors. The lit fret
 lighter than the unlit one by a margin, since the hand window is read from it.
 
 Colors are compared as drawn, a derived color included, but without their alpha: a role's alpha is
-an opacity the renderer scales further, while the distinction lives in the color.
+an opacity the renderer scales further, while the distinction lives in the color. Under a look that
+snaps to the theme's colors (snapsToThemeColors), the highway shows each derived color as its
+nearest stated one, so the highway's pairs are compared snapped; the 2D lane's inks, which no look
+reaches, are not.
 
 \param colors The theme's color roles.
 \param strings The theme's string colors.
+\param look The look the theme presents through.
 \return Nothing, or a GuardrailViolated error naming the first failed check and its measure.
 */
 [[nodiscard]] std::expected<void, HighwayThemeError> checkHighwayThemeGuardrails(
-    const HighwayTheme& colors, const StringColorPalette& strings);
+    const HighwayTheme& colors, const StringColorPalette& strings, const HighwayRenderLook& look);
 
 } // namespace rock_hero::common::ui

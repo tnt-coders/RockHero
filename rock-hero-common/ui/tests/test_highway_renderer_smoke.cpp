@@ -593,20 +593,31 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, 0.0, 30);
 
         // The render look is a theme part: a pixel look refits the scene target to whole blocks
-        // and adds the block canvas, a resize under it refits both, the CRT drops the canvas for
-        // the window-size scene, the dither and the halftone each present through their own
-        // program, and the plain look brings the window-size target back.
+        // and adds the block canvas, a resize under it refits both, snapping to the theme's colors
+        // swaps the block pass's program, the CRT drops the canvas for the window-size scene until
+        // it snaps too, the dither snaps through the same pass, the halftone presents through its
+        // own program, and the plain look brings the window-size target back.
         renderer->setTheme(
             testing::fixtureHighwayTheme(),
             testing::fixtureStringColors(),
-            HighwayPixelLook{.scale = 3, .scanlines = 0.5});
+            HighwayPixelLook{.scale = 3, .scanlines = 0.5, .theme_colors_only = false});
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
         device->resize(1001, 563);
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
         renderer->setTheme(
             testing::fixtureHighwayTheme(),
             testing::fixtureStringColors(),
-            HighwayCrtLook{.line_height = 3, .scanlines = 0.4});
+            HighwayPixelLook{.scale = 3, .scanlines = 0.5, .theme_colors_only = true});
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        renderer->setTheme(
+            testing::fixtureHighwayTheme(),
+            testing::fixtureStringColors(),
+            HighwayCrtLook{.line_height = 3, .scanlines = 0.4, .theme_colors_only = false});
+        drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
+        renderer->setTheme(
+            testing::fixtureHighwayTheme(),
+            testing::fixtureStringColors(),
+            HighwayCrtLook{.line_height = 2, .scanlines = 0.4, .theme_colors_only = true});
         drawFrames(*renderer, *device, last_beat_seconds / 2.0, sweep_step_seconds, 20);
         renderer->setTheme(
             testing::fixtureHighwayTheme(),

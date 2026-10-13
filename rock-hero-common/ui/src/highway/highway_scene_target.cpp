@@ -1,12 +1,9 @@
 #include "highway/highway_scene_target.h"
 
-#include "highway_theme/highway_theme_roles.h"
-
 #include <array>
 #include <bgfx/bgfx.h>
 #include <cstdint>
 #include <optional>
-#include <tuple>
 #include <variant>
 
 namespace rock_hero::common::ui
@@ -31,28 +28,36 @@ constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::
 
 // The frame of a look made of virtual pixels scale window pixels wide: the full-resolution scene
 // rounded UP to whole scale x scale blocks, so the block pass reads only texels inside the scene
-// and the scene still covers the window, and above scale 1 the block canvas holding one texel per
-// block. At scale 1 a block is one pixel, so the present reads the scene itself.
+// and the scene still covers the window, and the block canvas holding one texel per block. At
+// scale 1 a block is one pixel, so a look keeping the scene's own colors needs no canvas: the
+// present reads the scene itself.
 [[nodiscard]] HighwaySceneFrame blockFrame(
-    const std::uint32_t width, const std::uint32_t height, const int scale,
-    const HighwayPresent present, const double scanlines)
+    const std::uint32_t width, const std::uint32_t height, const int scale, const double scanlines,
+    const HighwayBlockColors block_colors)
 {
     const auto edge = static_cast<std::uint32_t>(scale);
     const std::uint32_t columns = (width + edge - 1U) / edge;
     const std::uint32_t rows = (height + edge - 1U) / edge;
     std::optional<HighwaySceneTargetSpec> blocks;
-    if (scale > 1)
+    if (scale > 1 || block_colors != HighwayBlockColors::Mean)
     {
         blocks = HighwaySceneTargetSpec{.width = columns, .height = rows};
     }
     return HighwaySceneFrame{
         .target = HighwaySceneTargetSpec{.width = columns * edge, .height = rows * edge},
         .blocks = blocks,
-        .present = present,
+        .block_colors = block_colors,
+        .present = HighwayPresent::Copy,
         .present_scale = static_cast<float>(scale),
         .scanlines = static_cast<float>(scanlines),
         .scanline_height = 1.0F,
     };
+}
+
+// Snapped to the theme's colors, or the scene's own.
+[[nodiscard]] HighwayBlockColors keptColors(const bool theme_colors_only)
+{
+    return theme_colors_only ? HighwayBlockColors::Snapped : HighwayBlockColors::Mean;
 }
 
 } // namespace
@@ -62,31 +67,33 @@ HighwaySceneFrame makeHighwaySceneFrame(
 {
     if (const auto* const pixel = std::get_if<HighwayPixelLook>(&look))
     {
-        return blockFrame(width, height, pixel->scale, HighwayPresent::Copy, pixel->scanlines);
+        return blockFrame(
+            width, height, pixel->scale, pixel->scanlines, keptColors(pixel->theme_colors_only));
     }
     if (const auto* const crt = std::get_if<HighwayCrtLook>(&look))
     {
         HighwaySceneFrame frame =
-            blockFrame(width, height, 1, HighwayPresent::Copy, crt->scanlines);
+            blockFrame(width, height, 1, crt->scanlines, keptColors(crt->theme_colors_only));
         frame.scanline_height = static_cast<float>(crt->line_height);
         return frame;
     }
     if (const auto* const dither = std::get_if<HighwayDitherLook>(&look))
     {
-        return blockFrame(width, height, dither->scale, HighwayPresent::Dither, 0.0);
+        return blockFrame(width, height, dither->scale, 0.0, HighwayBlockColors::Dithered);
     }
     if (const auto* const halftone = std::get_if<HighwayHalftoneLook>(&look))
     {
         return HighwaySceneFrame{
             .target = HighwaySceneTargetSpec{.width = width, .height = height},
             .blocks = std::nullopt,
+            .block_colors = HighwayBlockColors::Mean,
             .present = HighwayPresent::Halftone,
             .present_scale = static_cast<float>(halftone->cell),
             .scanlines = 0.0F,
             .scanline_height = 1.0F,
         };
     }
-    return blockFrame(width, height, 1, HighwayPresent::Copy, 0.0);
+    return blockFrame(width, height, 1, 0.0, HighwayBlockColors::Mean);
 }
 
 std::array<float, 4> highwayPresentColor(const ArgbColor color)
@@ -95,33 +102,6 @@ std::array<float, 4> highwayPresentColor(const ArgbColor color)
         return static_cast<float>((color >> shift) & 0xFFU) / 255.0F;
     };
     return {channel(16), channel(8), channel(0), 1.0F};
-}
-
-// Roles in their table's order, then the strings highest first, then black and white.
-HighwayDitherPalette makeHighwayDitherPalette(
-    const HighwayTheme& theme, const StringColorPalette& strings)
-{
-    static_assert(
-        g_highway_theme_roles.size() + std::tuple_size_v<decltype(StringColorPalette::colors)> +
-                2 <=
-            g_highway_dither_palette_capacity,
-        "the dither palette must hold every role, every string, black and white");
-    HighwayDitherPalette palette;
-    const auto push = [&palette](const ArgbColor color) {
-        palette.colors.at(palette.count) = highwayPresentColor(color);
-        ++palette.count;
-    };
-    for (const HighwayThemeRole& role : g_highway_theme_roles)
-    {
-        push(theme.*role.member);
-    }
-    for (const ArgbColor color : strings.colors)
-    {
-        push(color);
-    }
-    push(0xFF000000U);
-    push(0xFFFFFFFFU);
-    return palette;
 }
 
 HighwaySceneTarget::HighwaySceneTarget(const HighwaySceneTargetKind kind) noexcept

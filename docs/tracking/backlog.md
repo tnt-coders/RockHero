@@ -41,7 +41,7 @@ the user picks which way the two surfaces reconcile.
 
 ## Found by the render-look simplicity review (2026-10-12)
 
-- **Every present program carries a copy of the same vertex shader:** `vs_present_dither.sc`,
+- **Every present program carries a copy of the same vertex shader:** `vs_present_palette.sc`,
   `vs_present_halftone.sc` and `vs_present_blocks.sc` repeat `vs_present.sc` line for line,
   because `rock_hero_stage_highway_shaders` (`cmake/RockHeroRenderStack.cmake`, ~:91-101) derives
   the program list from `vs_*.sc`. Deriving it from `fs_*.sc` and letting

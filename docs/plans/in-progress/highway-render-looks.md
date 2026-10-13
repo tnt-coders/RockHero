@@ -100,8 +100,8 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
   up to whole blocks), and a block pass (`present_blocks`, view 3) reduces it to a block canvas
   holding each virtual pixel's MEAN color, so a small note tints its block by its coverage and
   moves through it smoothly. Each block is computed once, so the pass costs one fetch per scene
-  texel, and the scene no longer renders cheaper than the plain look. A dither at scale 1 has no
-  canvas: its present reads the scene. (Bgfx's auto-generated mips would give the box mean for
+  texel, and the scene no longer renders cheaper than the plain look. (A dither at scale 1 first
+  had no canvas; since `theme_colors_only`, below, every snapping look has one.) (Bgfx's auto-generated mips would give the box mean for
   free and delete the pass, but only at power-of-two scales; that trade is the user's.)
 - **Scanlines band-limit vertically (second sighting, same day).** Supersampled, the scanline
   version still flickered in the distance: scanlines darken fixed rows, so a note moving down the
@@ -133,7 +133,8 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
   inside one shader. `{"style": "dither", "scale": 1-8}` (default 1) renders like the pixel look
   and ordered-dithers each virtual pixel's mean (4x4 Bayer) to the nearest color of a palette made only of
   the theme's own colors — every role and string color with alpha dropped, plus black and white
-  (`makeHighwayDitherPalette`) — so it needs no guardrail change. `{"style": "halftone",
+  (`makeHighwayDitherPalette`; both since reshaped by `theme_colors_only`, below) — so it needs no
+  guardrail change. `{"style": "halftone",
   "cell": 4-16}` (default 8) renders the full multisampled scene and prints it as a 45-degree dot
   screen over the theme's backdrop, each dot's area following its cell's luminance, with
   near-black ink outlines from a Sobel edge on the full-resolution luminance.
@@ -149,6 +150,23 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
   it. So the softening generalized to one period of any band height — the rows within a band
   weigh 1 and the two a band away 1/2 (1:2:1 for a one-row band), which sends every row's light
   half to bright bands and half to dark. Columns stay sharp; a taller band softens more.
+- **`theme_colors_only`: the hard palette snap (same day, at the user's request).** For an
+  authentic arcade theme every color on screen must come from the board's palette, and a theme's
+  stated colors cannot guarantee that: the renderer derives more (the picking hand's pale twins,
+  each box fill's dark middle) and blends, glows and anti-aliases between them. So the pixel and
+  CRT looks take `"theme_colors_only": true` (default false), which snaps each virtual pixel's
+  mean to the nearest color the theme states in the block pass — where a board's palette sat,
+  before the present's scanlines and beam softening — and gives a snapping CRT a block canvas of
+  the window's own size. The user chose the hard snap over a dithered one: gradients turn into
+  flat bands and edges go jagged, as on the hardware. The dither look moved onto the same pass
+  (`present_palette`, a Bayer nudge of 0.25 before the snap), deleting `present_dither`, and its
+  palette lost the black and white it used to add: a look's palette is now exactly the theme's
+  stated colors (`highwayThemeColors`). This settles open problem 2 for the snap: under a snapping
+  look the guardrails compare the highway's pairs snapped (`nearestThemeColor`, the shader's rule
+  restated on the CPU), so a theme whose two picking-hand colors land on one stated color is
+  refused. The shipped Ice theme is one — snapped, its picking-hand colors lie 12.1 apart — so a
+  snapping theme must state a pale color near each picking-hand twin. The dither keeps the
+  unsnapped judgement, since its pattern keeps each area's mean.
 
 ## Phases
 

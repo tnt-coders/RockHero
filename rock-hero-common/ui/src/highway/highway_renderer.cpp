@@ -58,8 +58,9 @@ using TextureAsset = common::core::HighwayTexture;
 
 // The renderer's five views, executed in id order after RenderDevice's own view 0, which clears
 // the window and which this renderer never touches. The background and board render the scene
-// into the off-screen scene target; a blocky look's block pass reduces it to the block canvas,
-// one texel per virtual pixel (the view stays empty under any other look); the present copies the
+// into the off-screen scene target; the block pass of a blocky look, or of one keeping to the
+// theme's colors, reduces it to the block canvas, one texel per virtual pixel (the view stays
+// empty under any other look); the present copies the
 // scene or the canvas to the window through the look; the overlay composites over the result at
 // the window's own resolution, so diagnostics stay crisp and aligned with the device's debug text
 // whatever the look. Every view's frame buffer is re-bound each frame, because a device resize
@@ -316,6 +317,10 @@ constexpr std::uint64_t g_overlay_state =
 
 // The present replaces every window pixel with the scene's: no blend, no depth.
 constexpr std::uint64_t g_present_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A;
+
+// How far the dither look's Bayer threshold pushes a color, in RGB from 0 to 1, before it snaps to
+// the theme's colors.
+constexpr float g_dither_spread = 0.25F;
 
 // JUCE premultiplies real-alpha PNGs at decode, so textures with genuine transparency (the
 // inlay skin) carry rgb*a texels and must composite with the premultiplied blend — straight
@@ -1850,7 +1855,7 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> accent_glow_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> present_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> present_blocks_program;
-    UniqueBgfxHandle<bgfx::ProgramHandle> present_dither_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> present_palette_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> present_halftone_program;
 
     // The off-screen targets the scene renders into and a blocky look reduces it to, the passes'
@@ -1859,7 +1864,7 @@ struct HighwayRenderer::Impl
     HighwaySceneTarget block_canvas{HighwaySceneTargetKind::Blocks};
     UniqueBgfxHandle<bgfx::UniformHandle> scene_sampler;
     UniqueBgfxHandle<bgfx::UniformHandle> present_params;
-    UniqueBgfxHandle<bgfx::UniformHandle> dither_palette;
+    UniqueBgfxHandle<bgfx::UniformHandle> present_palette;
     UniqueBgfxHandle<bgfx::UniformHandle> present_backdrop;
     UniqueBgfxHandle<bgfx::VertexBufferHandle> present_triangle;
 
@@ -2413,7 +2418,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->accent_glow_program = std::move(linked.at(indexOf(Program::AccentGlow)));
     impl->present_program = std::move(linked.at(indexOf(Program::Present)));
     impl->present_blocks_program = std::move(linked.at(indexOf(Program::PresentBlocks)));
-    impl->present_dither_program = std::move(linked.at(indexOf(Program::PresentDither)));
+    impl->present_palette_program = std::move(linked.at(indexOf(Program::PresentPalette)));
     impl->present_halftone_program = std::move(linked.at(indexOf(Program::PresentHalftone)));
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
@@ -2432,10 +2437,10 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "s_scene", bgfx::UniformType::Sampler)};
     impl->present_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_present_params", bgfx::UniformType::Vec4)};
-    impl->dither_palette = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
-        "u_dither_palette",
+    impl->present_palette = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_present_palette",
         bgfx::UniformType::Vec4,
-        static_cast<std::uint16_t>(g_highway_dither_palette_capacity))};
+        static_cast<std::uint16_t>(g_highway_present_palette_capacity))};
     impl->present_backdrop = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_present_backdrop", bgfx::UniformType::Vec4)};
     impl->present_triangle = UniqueBgfxHandle<bgfx::VertexBufferHandle>{bgfx::createVertexBuffer(
@@ -2698,12 +2703,26 @@ void HighwayRenderer::Impl::drawBlocks(
     bgfx::setViewMode(g_blocks_view, bgfx::ViewMode::Sequential);
     bgfx::setViewClear(g_blocks_view, BGFX_CLEAR_NONE);
 
-    const std::array<float, 4> params{frame.present_scale, 0.0F, 0.0F, 0.0F};
+    std::array<float, 4> params{frame.present_scale, 0.0F, 0.0F, 0.0F};
+    bgfx::ProgramHandle program = present_blocks_program.get();
+    if (frame.block_colors != HighwayBlockColors::Mean)
+    {
+        // Rebuilt per frame rather than kept beside the theme: one conversion per color on the
+        // stack, and no second copy of the theme's colors to keep in step.
+        std::array<std::array<float, 4>, g_highway_theme_color_count> colors{};
+        std::ranges::transform(
+            highwayThemeColors(theme, palette), colors.begin(), highwayPresentColor);
+        bgfx::setUniform(
+            present_palette.get(), colors.data(), static_cast<std::uint16_t>(colors.size()));
+        params[1] = frame.block_colors == HighwayBlockColors::Dithered ? g_dither_spread : 0.0F;
+        params[2] = static_cast<float>(colors.size());
+        program = present_palette_program.get();
+    }
     bgfx::setUniform(present_params.get(), params.data());
     bgfx::setTexture(0, scene_sampler.get(), scene_target.color());
     bgfx::setVertexBuffer(0, present_triangle.get());
     bgfx::setState(g_present_state);
-    bgfx::submit(g_blocks_view, present_blocks_program.get());
+    bgfx::submit(g_blocks_view, program);
 }
 
 // The present binds its own views every frame, like the scene's: a device resize unbinds every
@@ -2731,19 +2750,6 @@ void HighwayRenderer::Impl::present(
             // The rows of the image the present reads, which bound the scanline softening.
             params[2] = static_cast<float>(frame.blocks.value_or(frame.target).height);
             params[3] = frame.scanline_height;
-            break;
-        }
-        case HighwayPresent::Dither:
-        {
-            // Rebuilt per frame rather than kept beside the theme: one conversion per color on the
-            // stack, and no second copy of the theme's colors to keep in step.
-            const HighwayDitherPalette palette_colors = makeHighwayDitherPalette(theme, palette);
-            bgfx::setUniform(
-                dither_palette.get(),
-                palette_colors.colors.data(),
-                static_cast<std::uint16_t>(palette_colors.count));
-            params[2] = static_cast<float>(palette_colors.count);
-            program = present_dither_program.get();
             break;
         }
         case HighwayPresent::Halftone:

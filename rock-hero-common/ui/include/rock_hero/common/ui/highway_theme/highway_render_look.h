@@ -32,6 +32,12 @@ struct HighwayPixelLook
     one; at 0 the pixels stay crisp.
     */
     double scanlines;
+
+    /*!
+    \brief Whether each virtual pixel snaps to the nearest color the theme states, before the
+    scanlines, as a limited-palette board's video output could show nothing else.
+    */
+    bool theme_colors_only;
 };
 
 /*! \brief The smallest pixel-look scale: 1 would be the plain look. */
@@ -55,6 +61,12 @@ struct HighwayCrtLook
 
     /*! \brief How much every other band darkens, 0 (none) to 1 (black). */
     double scanlines;
+
+    /*!
+    \brief Whether each window pixel snaps to the nearest color the theme states, before the
+    scanlines, as a limited-palette board's video output could show nothing else.
+    */
+    bool theme_colors_only;
 };
 
 /*! \brief The thinnest CRT band: one window row. */
@@ -73,8 +85,8 @@ inline constexpr double g_crt_look_default_scanlines = 0.4;
 \brief The scene rendered at a fraction of the window's resolution, then ordered-dithered (a 4x4
 Bayer matrix) to the theme's own opaque colors.
 
-The palette is every color the theme states, alpha dropped — each role and each string color —
-plus black and white, so the dither can only show colors the theme's guardrails already approved.
+The palette is every color the theme states, alpha dropped — each role and each string color — so
+the dither can only show colors the theme's guardrails already approved.
 */
 struct HighwayDitherLook
 {
@@ -118,5 +130,26 @@ A look changes the finished image, never what is drawn or where. The default is 
 */
 using HighwayRenderLook = std::variant<
     HighwayPlainLook, HighwayPixelLook, HighwayCrtLook, HighwayDitherLook, HighwayHalftoneLook>;
+
+/*!
+\brief Whether a look snaps every pixel to the nearest color the theme states, so the colors it
+shows are the snapped ones.
+
+\param look The look.
+\return True for a pixel or CRT look with theme_colors_only. False for every other look, the dither
+        included: its pattern keeps each area's mean color, so a distinction survives it.
+*/
+[[nodiscard]] constexpr bool snapsToThemeColors(const HighwayRenderLook& look) noexcept
+{
+    if (const auto* const pixel = std::get_if<HighwayPixelLook>(&look))
+    {
+        return pixel->theme_colors_only;
+    }
+    if (const auto* const crt = std::get_if<HighwayCrtLook>(&look))
+    {
+        return crt->theme_colors_only;
+    }
+    return false;
+}
 
 } // namespace rock_hero::common::ui

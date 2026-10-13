@@ -42,14 +42,19 @@ constexpr std::string_view g_scale_key = "scale";
 constexpr std::string_view g_scanlines_key = "scanlines";
 constexpr std::string_view g_line_height_key = "line_height";
 constexpr std::string_view g_cell_key = "cell";
+constexpr std::string_view g_theme_colors_only_key = "theme_colors_only";
 
 // The keys the top level of a theme file may hold.
 constexpr std::array g_theme_keys{g_name_key, g_colors_key, g_inherits_key, g_look_key};
 
 // The keys each style's `look` may hold: its style, then its own parameters.
 constexpr std::array g_plain_look_keys{g_style_key};
-constexpr std::array g_pixel_look_keys{g_style_key, g_scale_key, g_scanlines_key};
-constexpr std::array g_crt_look_keys{g_style_key, g_line_height_key, g_scanlines_key};
+constexpr std::array g_pixel_look_keys{
+    g_style_key, g_scale_key, g_scanlines_key, g_theme_colors_only_key
+};
+constexpr std::array g_crt_look_keys{
+    g_style_key, g_line_height_key, g_scanlines_key, g_theme_colors_only_key
+};
 constexpr std::array g_dither_look_keys{g_style_key, g_scale_key};
 constexpr std::array g_halftone_look_keys{g_style_key, g_cell_key};
 
@@ -292,6 +297,28 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
     return *number;
 }
 
+// Reads look.<key> as true or false; an absent key is false.
+[[nodiscard]] std::expected<bool, HighwayThemeError> readLookSwitch(
+    const juce::var& look, const std::string_view key)
+{
+    const juce::var& value = Json::value(look, key);
+    if (value.isVoid())
+    {
+        return false;
+    }
+    if (!value.isBool())
+    {
+        return std::unexpected{HighwayThemeError{
+            HighwayThemeErrorCode::InvalidLook,
+            std::format(
+                "look.{} is {}, not true or false",
+                key,
+                juce::JSON::toString(value, true).toStdString()),
+        }};
+    }
+    return static_cast<bool>(value);
+}
+
 // Reads `look`: absent is the base's look, or the plain look without a base; a stated block
 // replaces the base's whole and is strict, its keys checked against its own style's.
 [[nodiscard]] std::expected<HighwayRenderLook, HighwayThemeError> readLook(
@@ -350,7 +377,17 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         {
             return std::unexpected{scanlines.error()};
         }
-        return HighwayPixelLook{.scale = *scale, .scanlines = *scanlines};
+        const std::expected<bool, HighwayThemeError> theme_colors_only =
+            readLookSwitch(look, g_theme_colors_only_key);
+        if (!theme_colors_only.has_value())
+        {
+            return std::unexpected{theme_colors_only.error()};
+        }
+        return HighwayPixelLook{
+            .scale = *scale,
+            .scanlines = *scanlines,
+            .theme_colors_only = *theme_colors_only,
+        };
     }
     if (style_name == "crt")
     {
@@ -376,7 +413,17 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         {
             return std::unexpected{scanlines.error()};
         }
-        return HighwayCrtLook{.line_height = *line_height, .scanlines = *scanlines};
+        const std::expected<bool, HighwayThemeError> theme_colors_only =
+            readLookSwitch(look, g_theme_colors_only_key);
+        if (!theme_colors_only.has_value())
+        {
+            return std::unexpected{theme_colors_only.error()};
+        }
+        return HighwayCrtLook{
+            .line_height = *line_height,
+            .scanlines = *scanlines,
+            .theme_colors_only = *theme_colors_only,
+        };
     }
     if (style_name == "dither")
     {
@@ -576,18 +623,19 @@ constexpr ArgbColor g_opaque_alpha = 0xFF000000U;
         return std::unexpected{std::move(palette.error())};
     }
 
-    // The guardrails hold the colors the theme draws with, whichever file stated each one.
-    if (std::expected<void, HighwayThemeError> legible =
-            checkHighwayThemeGuardrails(*roles, palette->colors);
-        !legible.has_value())
-    {
-        return std::unexpected{std::move(legible.error())};
-    }
-
     std::expected<HighwayRenderLook, HighwayThemeError> look = readLook(*document, *base);
     if (!look.has_value())
     {
         return std::unexpected{std::move(look.error())};
+    }
+
+    // The guardrails hold the colors the theme draws with, whichever file stated each one, as the
+    // look shows them.
+    if (std::expected<void, HighwayThemeError> legible =
+            checkHighwayThemeGuardrails(*roles, palette->colors, *look);
+        !legible.has_value())
+    {
+        return std::unexpected{std::move(legible.error())};
     }
 
     std::expected<HighwayTextureSet, HighwayThemeError> textures =

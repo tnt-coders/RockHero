@@ -186,4 +186,40 @@ ArgbColor fretNumberDim(const HighwayTheme& theme)
     return (((alpha + 1U) / 2U) << 24U) | (theme.lane_line_lit & 0x00FFFFFFU);
 }
 
+// Roles in their table's order, then the strings highest first.
+HighwayThemeColors highwayThemeColors(const HighwayTheme& theme, const StringColorPalette& strings)
+{
+    HighwayThemeColors colors{};
+    std::size_t next = 0;
+    for (const HighwayThemeRole& role : g_highway_theme_roles)
+    {
+        colors.at(next) = (theme.*role.member) | 0xFF000000U;
+        ++next;
+    }
+    for (const ArgbColor color : strings.colors)
+    {
+        colors.at(next) = color | 0xFF000000U;
+        ++next;
+    }
+    return colors;
+}
+
+// Integer byte distances order exactly as the shader's 0-to-1 floats do, so both pick one entry.
+ArgbColor nearestThemeColor(const std::span<const ArgbColor> palette, const ArgbColor color)
+{
+    const auto squaredGap = [color](const ArgbColor entry) {
+        int sum = 0;
+        for (const unsigned shift : {16U, 8U, 0U})
+        {
+            const int gap = static_cast<int>((entry >> shift) & 0xFFU) -
+                            static_cast<int>((color >> shift) & 0xFFU);
+            sum += gap * gap;
+        }
+        return sum;
+    };
+    // min_element keeps the first of equal elements, the shader's strict comparison.
+    const auto nearest = std::ranges::min_element(palette, {}, squaredGap);
+    return *nearest | 0xFF000000U;
+}
+
 } // namespace rock_hero::common::ui

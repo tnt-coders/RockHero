@@ -6,6 +6,7 @@
 #pragma once
 
 #include "highway/bgfx_handle.h"
+#include "highway_theme/highway_theme_derived_colors.h"
 
 #include <array>
 #include <bgfx/bgfx.h>
@@ -14,7 +15,6 @@
 #include <optional>
 #include <rock_hero/common/ui/highway_theme/highway_render_look.h>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
-#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 
 namespace rock_hero::common::ui
 {
@@ -44,14 +44,27 @@ struct HighwaySceneTargetSpec
 /*! \brief Which present program carries the scene to the window, one per family of look. */
 enum class HighwayPresent : std::uint8_t
 {
-    /*! \brief A copy with optional scanlines: the plain, pixel and CRT looks. */
+    /*! \brief A copy with optional scanlines: the plain, pixel, CRT and dither looks. */
     Copy,
-
-    /*! \brief The ordered dither to the theme's palette. */
-    Dither,
 
     /*! \brief The halftone dot screen with ink outlines. */
     Halftone,
+};
+
+/*! \brief What the block pass writes into each texel of the block canvas. */
+enum class HighwayBlockColors : std::uint8_t
+{
+    /*! \brief The mean color of the scene block the texel covers. */
+    Mean,
+
+    /*! \brief That mean snapped to the nearest color the theme states. */
+    Snapped,
+
+    /*!
+    \brief That mean nudged by a 4x4 Bayer threshold, then snapped, so flat areas between two of
+    the theme's colors break into an ordered cross-hatch.
+    */
+    Dithered,
 };
 
 /*!
@@ -63,18 +76,21 @@ struct HighwaySceneFrame
     HighwaySceneTargetSpec target;
 
     /*!
-    \brief The block canvas, one texel per virtual pixel, that the pixel and dither looks render
-    between the scene and the present; empty when a virtual pixel is a window pixel, or under the
-    halftone, where the present reads the scene itself.
+    \brief The block canvas, one texel per virtual pixel, that the block pass renders between the
+    scene and the present; empty when a virtual pixel is a window pixel keeping the scene's own
+    colors, or under the halftone, where the present reads the scene itself.
     */
     std::optional<HighwaySceneTargetSpec> blocks;
+
+    /*! \brief What the block pass writes; Mean when there is no block canvas. */
+    HighwayBlockColors block_colors{HighwayBlockColors::Mean};
 
     /*! \brief The program that presents it. */
     HighwayPresent present{HighwayPresent::Copy};
 
     /*!
-    \brief The present's size in window pixels: one virtual pixel's edge for the copy and the
-    dither, one screen cell's edge for the halftone.
+    \brief The present's size in window pixels: one virtual pixel's edge for the copy, one screen
+    cell's edge for the halftone.
     */
     float present_scale{1.0F};
 
@@ -95,32 +111,15 @@ struct HighwaySceneFrame
 */
 [[nodiscard]] std::array<float, 4> highwayPresentColor(ArgbColor color);
 
-/*! \brief The most colors a dither palette holds: the present program's uniform array size. */
-inline constexpr std::size_t g_highway_dither_palette_capacity = 32;
-
-/*! \brief The colors the dither look may show, as the present's uniform array takes them. */
-struct HighwayDitherPalette
-{
-    /*! \brief Each color's red, green and blue from 0 to 1, then 1; the first count are live. */
-    std::array<std::array<float, 4>, g_highway_dither_palette_capacity> colors{};
-
-    /*! \brief How many colors are live. */
-    std::size_t count{0};
-};
-
 /*!
-\brief The dither look's palette for a theme: every role color, then every string color, alpha
-dropped, then black and white.
-
-Built only from colors the theme states, so the dither can show nothing the loader's guardrails
-did not approve.
-
-\param theme The theme's color roles.
-\param strings The string colors the board draws with.
-\return The palette.
+\brief The most colors the block pass's palette holds: its program's uniform array size, which
+every color a theme states fits.
 */
-[[nodiscard]] HighwayDitherPalette makeHighwayDitherPalette(
-    const HighwayTheme& theme, const StringColorPalette& strings);
+inline constexpr std::size_t g_highway_present_palette_capacity = 32;
+
+static_assert(
+    g_highway_theme_color_count <= g_highway_present_palette_capacity,
+    "the block pass's palette must hold every color a theme states");
 
 /*!
 \brief The frame a window of the given size presents under a render look.
@@ -132,8 +131,11 @@ reduces each block to one texel of a block canvas, and presents each texel as on
 virtual pixel with the look's scanlines: a detail smaller than a block tints it by the share it
 covers rather than popping in and out as it moves. The CRT look renders like the plain look and
 darkens every other band of its line height. The dither look sizes its targets the same way
-and dithers each texel of the canvas. The halftone look renders like the plain look — its ink
-outlines trace the full-resolution scene — and presents through the dot screen.
+and dithers each texel of the canvas. A look that keeps to the theme's colors snaps each texel of
+its canvas, which a CRT look then needs at the window's own size: the colors are snapped where a
+board's video output would limit them, before the present softens and darkens them. The halftone
+look renders like the plain look — its ink outlines trace the full-resolution scene — and presents
+through the dot screen.
 
 \param width Window width in pixels; non-zero.
 \param height Window height in pixels; non-zero.

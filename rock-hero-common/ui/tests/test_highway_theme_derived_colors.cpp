@@ -1,5 +1,6 @@
 #include "highway_theme/highway_theme_derived_colors.h"
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
@@ -123,6 +124,36 @@ TEST_CASE("The dim fret number is lane_line_lit at half alpha", "[ui][highway-th
     CHECK(fretNumberDim(theme) == 0x20408090U);
     theme.lane_line_lit = 0x01408090U;
     CHECK(fretNumberDim(theme) == 0x01408090U);
+}
+
+// A theme's colors are every role in its table's order, then every string highest first, each
+// opaque — nothing else, so a look restricted to them shows only what the theme chose.
+TEST_CASE("A theme's colors are its roles then its strings, opaque", "[ui][highway-theme]")
+{
+    HighwayTheme theme = testing::fixtureHighwayTheme();
+    theme.lit_lane = 0x492A2AFFU;
+    const StringColorPalette strings = testing::fixtureStringColors();
+    const HighwayThemeColors colors = highwayThemeColors(theme, strings);
+
+    CHECK(colors.front() == (theme.backdrop | 0xFF000000U));
+    CHECK(colors.at(3) == 0xFF2A2AFFU);
+    CHECK(colors.at(g_highway_theme_roles.size() - 1) == (theme.label_text | 0xFF000000U));
+    CHECK(colors.at(g_highway_theme_roles.size()) == strings.colors.front());
+    CHECK(colors.back() == strings.colors.back());
+}
+
+// The nearest color is the smallest RGB distance, the earlier entry winning a tie, and comes back
+// opaque whatever the alpha of the color snapped.
+TEST_CASE("A color snaps to the nearest theme color", "[ui][highway-theme]")
+{
+    const std::array<ArgbColor, 4> palette{0xFF000000U, 0xFF020000U, 0xFFFF0000U, 0xFF00FF00U};
+    CHECK(nearestThemeColor(palette, 0xFFC02020U) == 0xFFFF0000U);
+    CHECK(nearestThemeColor(palette, 0x40001000U) == 0xFF000000U);
+    CHECK(nearestThemeColor(palette, 0xFF20E020U) == 0xFF00FF00U);
+    // One step from black and one from 0x020000: black, listed first, wins the tie.
+    CHECK(nearestThemeColor(palette, 0xFF010000U) == 0xFF000000U);
+    // A color already in the palette is itself.
+    CHECK(nearestThemeColor(palette, 0xFF00FF00U) == 0xFF00FF00U);
 }
 
 } // namespace rock_hero::common::ui

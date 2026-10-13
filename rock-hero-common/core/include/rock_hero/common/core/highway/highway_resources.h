@@ -70,22 +70,23 @@ enum class HighwayShaderProgram : std::uint8_t
     /*!
     \brief The full-screen present: copies the off-screen scene to the window through the theme's
     render look — an exact copy for the plain look, the CRT's full-resolution copy under its
-    scanlines, and the pixel look's hard-edged block upscale of the block canvas with its own.
+    scanlines, and the hard-edged block upscale of the block canvas, with the pixel look's own.
     Screen space, so it carries no far-edge fade.
     */
     Present,
 
     /*!
-    \brief The pixel and dither looks' block pass: one texel of the block canvas per virtual pixel,
-    the mean of the full-resolution scene block it covers. Screen space, no far-edge fade.
+    \brief The block pass: one texel of the block canvas per virtual pixel, the mean of the
+    full-resolution scene block it covers. Screen space, no far-edge fade.
     */
     PresentBlocks,
 
     /*!
-    \brief The dither look's present: each virtual pixel ordered-dithered (4x4 Bayer) to the
-    nearest color of the theme's own opaque palette. Screen space, no far-edge fade.
+    \brief The block pass of a look restricted to the theme's colors: each block's mean snapped to
+    the nearest color the theme states, after a 4x4 Bayer threshold nudges it under the dither
+    look. Screen space, no far-edge fade.
     */
-    PresentDither,
+    PresentPalette,
 
     /*!
     \brief The halftone look's present: a 45-degree dot screen over the theme's backdrop, with ink
@@ -147,7 +148,7 @@ inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::AccentGlow,
     HighwayShaderProgram::Present,
     HighwayShaderProgram::PresentBlocks,
-    HighwayShaderProgram::PresentDither,
+    HighwayShaderProgram::PresentPalette,
     HighwayShaderProgram::PresentHalftone,
 };
 
@@ -261,9 +262,9 @@ static_assert(
         {
             return "present_blocks";
         }
-        case HighwayShaderProgram::PresentDither:
+        case HighwayShaderProgram::PresentPalette:
         {
-            return "present_dither";
+            return "present_palette";
         }
         case HighwayShaderProgram::PresentHalftone:
         {

@@ -6,8 +6,14 @@ derived and judged in.
 
 #pragma once
 
+#include "highway_theme/highway_theme_roles.h"
+
+#include <array>
+#include <cstddef>
 #include <rock_hero/common/ui/highway_theme/highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
+#include <span>
+#include <tuple>
 
 namespace rock_hero::common::ui
 {
@@ -96,5 +102,38 @@ half up); a number the window covers partly blends from it toward fret_number_li
 \return lane_line_lit at half alpha.
 */
 [[nodiscard]] ArgbColor fretNumberDim(const HighwayTheme& theme);
+
+/*! \brief How many colors a theme states: one per role, then one per string. */
+inline constexpr std::size_t g_highway_theme_color_count =
+    g_highway_theme_roles.size() + std::tuple_size_v<decltype(StringColorPalette::colors)>;
+
+/*! \brief Every color a theme states, opaque, in the order highwayThemeColors gives them. */
+using HighwayThemeColors = std::array<ArgbColor, g_highway_theme_color_count>;
+
+/*!
+\brief Lists every color a theme states, alpha dropped: the palette a look restricted to the theme's
+colors may show.
+
+Only colors the theme states, so such a look can show nothing the theme did not choose.
+
+\param theme The theme's color roles, in their table's order.
+\param strings The string colors the board draws with, highest string first.
+\return The colors, roles first, each opaque.
+*/
+[[nodiscard]] HighwayThemeColors highwayThemeColors(
+    const HighwayTheme& theme, const StringColorPalette& strings);
+
+/*!
+\brief Snaps a color to the nearest of a palette, as the present's palette pass does on the GPU.
+
+Nearest by the squared distance between the RGB bytes, alpha ignored; of two equally near, the
+earlier wins. The guardrails judge a snapping look's colors through this, so it and
+fs_present_palette.sc must keep one rule.
+
+\param palette The palette, not empty.
+\param color The color to snap.
+\return The nearest palette entry, opaque.
+*/
+[[nodiscard]] ArgbColor nearestThemeColor(std::span<const ArgbColor> palette, ArgbColor color);
 
 } // namespace rock_hero::common::ui

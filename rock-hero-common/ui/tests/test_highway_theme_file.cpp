@@ -425,7 +425,7 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
         colors.chord = chord;
         colors.arpeggio = arpeggio;
         const std::expected<void, HighwayThemeError> checked =
-            checkHighwayThemeGuardrails(colors, strings);
+            checkHighwayThemeGuardrails(colors, strings, HighwayPlainLook{});
         return checked.has_value() ? std::string{} : checked.error().message;
     };
 
@@ -445,6 +445,31 @@ TEST_CASE("A theme whose hands or kinds of span collapse is refused", "[ui][high
     // inks hold both kinds to one luminance.
     CHECK(failure(0xFF00D2D5U, 0xFF006A6BU)
               .starts_with("the 2D chord ink #008587 and the 2D arpeggio ink #008587 "));
+}
+
+// A look that snaps to the theme's colors shows each derived color as its nearest stated one, so
+// the guardrails judge the snapped colors: the fixture's two picking-hand colors, far apart as
+// drawn, both land on its grey fret_line_lit once snapped, and only the snapping look refuses it.
+TEST_CASE("A snapping look's guardrails judge the snapped colors", "[ui][highway-theme]")
+{
+    const HighwayTheme colors = testing::fixtureHighwayTheme();
+    const StringColorPalette strings = testing::fixtureStringColors();
+    const auto failure = [&colors, &strings](const HighwayRenderLook& look) {
+        const std::expected<void, HighwayThemeError> checked =
+            checkHighwayThemeGuardrails(colors, strings, look);
+        return checked.has_value() ? std::string{} : checked.error().message;
+    };
+
+    CHECK(failure(HighwayPlainLook{}).empty());
+    CHECK(failure(HighwayDitherLook{.scale = 2}).empty());
+    CHECK(failure(HighwayCrtLook{.line_height = 2, .scanlines = 0.4, .theme_colors_only = false})
+              .empty());
+    CHECK(failure(HighwayCrtLook{.line_height = 2, .scanlines = 0.4, .theme_colors_only = true})
+              .starts_with(
+                  "the picking hand's chord #C0C0C0 and the picking hand's arpeggio "
+                  "#C0C0C0 "));
+    CHECK(failure(HighwayPixelLook{.scale = 3, .scanlines = 0.0, .theme_colors_only = true})
+              .starts_with("the picking hand's chord #C0C0C0 "));
 }
 
 // Every built-in the products ship loads through the one loader as a complete theme, and the set
@@ -931,6 +956,7 @@ TEST_CASE("A CRT look loads within its ranges", "[ui][highway-theme]")
         CHECK(defaulted->line_height == g_crt_look_default_line_height);
         CHECK_THAT(
             defaulted->scanlines, Catch::Matchers::WithinULP(g_crt_look_default_scanlines, 0));
+        CHECK_FALSE(defaulted->theme_colors_only);
     }
     const std::optional<HighwayCrtLook> stated =
         crt(R"({"style": "crt", "line_height": 8, "scanlines": 0.6})");
@@ -941,17 +967,33 @@ TEST_CASE("A CRT look loads within its ranges", "[ui][highway-theme]")
         CHECK_THAT(stated->scanlines, Catch::Matchers::WithinULP(0.6, 0));
     }
     CHECK(crt(R"({"style": "crt", "line_height": 1})").has_value());
+    // The switch reaches the guardrails: snapped to its own colors, the default theme's two
+    // picking-hand colors land 12.1 apart, under the minimum, so the snapping look is refused.
+    const std::expected<LoadedHighwayTheme, HighwayThemeError> snapping =
+        loadWithLook(lookFrom(R"({"style": "crt", "theme_colors_only": true})"));
+    REQUIRE_FALSE(snapping.has_value());
+    if (!snapping.has_value())
+    {
+        CHECK(snapping.error().code == HighwayThemeErrorCode::GuardrailViolated);
+        CHECK(snapping.error().message.contains(
+            "the picking hand's chord #C6CDE2 and the picking hand's arpeggio #C1C1C1"));
+    }
 
     for (const char* const json :
          {R"({"style": "crt", "line_height": 0})",
           R"({"style": "crt", "line_height": 9})",
           R"({"style": "crt", "line_height": 2.5})",
-          R"({"style": "crt", "scanlines": 1.5})"})
+          R"({"style": "crt", "scanlines": 1.5})",
+          R"({"style": "crt", "theme_colors_only": 1})",
+          R"({"style": "pixel", "scale": 2, "theme_colors_only": "yes"})"})
     {
         INFO(json);
         CHECK(lookFailure(json) == HighwayThemeErrorCode::InvalidLook);
     }
     CHECK(lookFailure(R"({"style": "crt", "scale": 2})") == HighwayThemeErrorCode::UnknownKey);
+    CHECK(
+        lookFailure(R"({"style": "dither", "theme_colors_only": true})") ==
+        HighwayThemeErrorCode::UnknownKey);
 }
 
 } // namespace rock_hero::common::ui

@@ -101,8 +101,8 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    one frame buffer, refitted by `HighwaySceneTarget::fit` only when its size changes), then one
    full-screen **present** pass (`vs_present`/`fs_present`) copies it to the window. The views run
    in id order: `RenderDevice` owns view 0 and clears the window there, the background (1) and
-   board (2) render into the target, a blocky look's block pass (3) reduces it to the block
-   canvas, the present (4) copies the target or the canvas to the backbuffer, and the overlay (5)
+   board (2) render into the target, the block pass (3) of a blocky look or one keeping to the
+   theme's colors reduces it to the block canvas, the present (4) copies the target or the canvas to the backbuffer, and the overlay (5)
    composites the pixel-space rects over the result at the window's own resolution. Anti-aliasing lives on the target — 4x MSAA, resolved by bgfx when the
    frame leaves it — so the backbuffer never multisamples, and the present fetches texels by index
    rather than sampling them, which makes the plain copy exact. Two rules ride on this: every view
@@ -122,12 +122,18 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    1:2:1 over the rows above and below, one scanline period, so a small note moving down the
    board never pulses between a bright row and a dark one. The CRT look renders and copies like the
    plain look and darkens every other band of its own `line_height` window rows, softened the same
-   way over one band period, so its columns stay sharp while far notes hold steady. The dither look sizes its targets the
-   same way and presents the canvas through `present_dither` (an ordered dither to the theme's own
-   colors), and the halftone renders like the plain look and presents through
-   `present_halftone` (a dot screen with ink outlines). Each family of look has its own present
-   program, picked per frame by `HighwaySceneFrame::present`. A look changes the
-   finished image only — geometry, layout and timing are the same under every look.
+   way over one band period, so its columns stay sharp while far notes hold steady. A pixel or CRT
+   look with `theme_colors_only` swaps the block pass for `present_palette`, which snaps each
+   texel's mean to the nearest color the theme states (`highwayThemeColors`,
+   `nearestThemeColor`), so a CRT that snaps gets a block canvas of the window's own size; the
+   colors are limited where a board's video output limited them, before the present softens and
+   darkens them, and the guardrails judge such a theme's colors snapped. The dither look sizes its
+   targets like the pixel look and runs the same pass with a 4x4 Bayer nudge before the snap (an
+   ordered dither to the theme's own colors). The halftone renders like the plain look and
+   presents through `present_halftone` (a dot screen with ink outlines). The present program is
+   picked per frame by `HighwaySceneFrame::present`, the block pass's by
+   `HighwaySceneFrame::block_colors`. A look changes the finished image only — geometry, layout
+   and timing are the same under every look.
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
    consumer decides where they load from. What each program and asset *is*, and the file name it
