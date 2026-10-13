@@ -983,6 +983,17 @@ in every built-in, where Phosphor's green had reached 29; Retro Arcade's spans a
 chord and a hot-pink arpeggio, since the grape that paired with cobalt elsewhere sat 12 from the
 purple string here.
 
+*Colorblind set 2026-10-13 (user):* color-vision deficiency is not a criterion for the themes
+above; instead one built-in per type, named "Colorblind - Protanopia", "- Deuteranopia",
+"- Tritanopia" and "- Achromatopsia", each Default's furniture with its own strings and span
+pair. Each palette keeps every string within 25 degrees of its standard hue (yellow light enough
+to stay yellow, orange to stay orange, string 8 grey) and maximizes CIEDE2000 between strings 1-6
+as that viewer sees them (Machado 2009 full-severity simulation; achromatopsia as luminance
+alone, its strings an even lightness ladder from L* 45 to 97, neighbours at least two steps
+apart). Strings 1-6 as seen, worst pair against Default's: protanopia 15.4 (1.9), deuteranopia
+15.9 (6.1), tritanopia 16.0 (14.0), achromatopsia 4.6 (0.4, the ceiling for eight colors told by
+lightness alone). Both span colors stay at L* 62 or above, since a frame draws at half alpha.
+
 Later work, outside this plan:
 - the theme editor, with export and import (54-Q12's todo plan);
 - backdrop art and animation for the "night drive" and arcade-vector themes (COULD tier).

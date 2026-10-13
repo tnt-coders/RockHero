@@ -1,0 +1,18 @@
+{
+  "name": "Colorblind - Protanopia",
+  "inherits": "default",
+  "colors": {
+    "chord": "#A1FAFE",
+    "arpeggio": "#DB7E8C",
+    "strings": [
+      "#AA06E9",
+      "#C9FEBF",
+      "#FAA987",
+      "#308DFD",
+      "#F0F71E",
+      "#FE741A",
+      "#53F7FF",
+      "#6A6B6B"
+    ]
+  }
+}
