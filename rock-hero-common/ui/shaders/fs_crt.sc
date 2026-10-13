@@ -44,7 +44,7 @@ SAMPLER2D(s_scene, 0);
 
 // The beam's sharpness, as the exponent a squared distance in line pitches is scaled by: a black
 // line's beam is the hardest, a full-bright line's the widest.
-#define CRT_BEAM_DARK 8.0
+#define CRT_BEAM_DARK 12.0
 #define CRT_BEAM_BRIGHT 4.0
 
 // What the mask keeps of the two channels a column's stripe does not light, and the gain that
