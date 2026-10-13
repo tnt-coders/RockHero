@@ -121,8 +121,8 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    other virtual row by its `scanlines`. With scanlines on, the present also spreads each texel
    1:2:1 over the rows above and below, one scanline period, so a small note moving down the
    board never pulses between a bright row and a dark one. The CRT look renders and copies like the
-   plain look and darkens every other band of its own `line_height` window rows, never softened, so
-   every pixel stays sharp. The dither look sizes its targets the
+   plain look and darkens every other band of its own `line_height` window rows, softened the same
+   way over one band period, so its columns stay sharp while far notes hold steady. The dither look sizes its targets the
    same way and presents the canvas through `present_dither` (an ordered dither to the theme's own
    colors), and the halftone renders like the plain look and presents through
    `present_halftone` (a dot screen with ink outlines). Each family of look has its own present

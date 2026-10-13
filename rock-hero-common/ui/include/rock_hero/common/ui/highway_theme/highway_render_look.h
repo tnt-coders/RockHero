@@ -42,11 +42,11 @@ inline constexpr int g_pixel_look_max_scale = 8;
 
 /*!
 \brief The scene at the window's full resolution under a display's scanlines: bands of window rows
-alternately kept and darkened, with no virtual pixels and no softening.
+alternately kept and darkened, with no virtual pixels.
 
-A note smaller than a band can still brighten and dim as it moves down the board, because nothing
-here softens it the way the pixel look softens its blocks; the price of keeping every pixel
-sharp.
+Any scanlines above 0 soften each window pixel vertically over one band period, as the pixel look
+softens its blocks, so a note moving down the board never pulses between a bright band and a dark
+one; every column stays sharp, and a taller band softens more.
 */
 struct HighwayCrtLook
 {

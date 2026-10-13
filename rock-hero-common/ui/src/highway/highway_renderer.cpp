@@ -2728,12 +2728,8 @@ void HighwayRenderer::Impl::present(
     {
         case HighwayPresent::Copy:
         {
-            // The canvas rows the scanline softening spans; 0 when the present reads the scene,
-            // whose window pixels are never softened.
-            if (frame.blocks.has_value())
-            {
-                params[2] = static_cast<float>(frame.blocks->height);
-            }
+            // The rows of the image the present reads, which bound the scanline softening.
+            params[2] = static_cast<float>(frame.blocks.value_or(frame.target).height);
             params[3] = frame.scanline_height;
             break;
         }

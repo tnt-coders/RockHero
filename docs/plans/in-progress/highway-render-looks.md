@@ -142,11 +142,13 @@ small set of STYLE knobs (glow intensity, gradient flattening), not a new draw p
 - **A `crt` style: scanlines without pixels (same day, at the user's request).** `{"style":
   "crt", "line_height": 1-8, "scanlines": 0-1}` (defaults 2 and 0.4) renders and copies the
   scene at full resolution, like the plain look, and darkens every other band of `line_height`
-  window rows. The scanline band height became its own present parameter, a virtual pixel's under
-  the pixel look and the look's own here, and the 1:2:1 softening now runs only when the present
-  reads the block canvas, so the CRT keeps every pixel sharp. The cost is the pulse the softening
-  exists to prevent: a far note thinner than a band may still brighten and dim as it moves, which
-  the sighting judges.
+  window rows. The scanline band height became its own present parameter, in rows of the image
+  the present reads (one virtual pixel under the pixel look, the line height here). First built
+  unsoftened to keep every pixel sharp, it flickered on far notes at sighting: fixed bands make
+  anything thinner than a band period pulse, and only spreading each row over one period cures
+  it. So the softening generalized to one period of any band height — the rows within a band
+  weigh 1 and the two a band away 1/2 (1:2:1 for a one-row band), which sends every row's light
+  half to bright bands and half to dark. Columns stay sharp; a taller band softens more.
 
 ## Phases
 

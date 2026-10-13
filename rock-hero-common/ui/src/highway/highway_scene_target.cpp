@@ -51,7 +51,7 @@ constexpr bgfx::TextureFormat::Enum g_scene_depth_format = bgfx::TextureFormat::
         .present = present,
         .present_scale = static_cast<float>(scale),
         .scanlines = static_cast<float>(scanlines),
-        .scanline_height = static_cast<float>(scale),
+        .scanline_height = 1.0F,
     };
 }
 

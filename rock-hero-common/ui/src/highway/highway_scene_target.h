@@ -82,8 +82,8 @@ struct HighwaySceneFrame
     float scanlines{0.0F};
 
     /*!
-    \brief Height of one scanline band in window pixels: a virtual pixel's under the pixel look,
-    the look's own line height under the CRT.
+    \brief Height of one scanline band in rows of the image the present reads: one virtual pixel
+    under the pixel look, the look's own line height under the CRT.
     */
     float scanline_height{1.0F};
 };

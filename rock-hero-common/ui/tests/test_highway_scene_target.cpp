@@ -47,7 +47,7 @@ TEST_CASE("The pixel frame renders a covering target of whole blocks", "[ui][hig
     CHECK(tiny.present == HighwayPresent::Copy);
 
     // One scanline band per virtual pixel row.
-    CHECK_THAT(exact.scanline_height, Catch::Matchers::WithinULP(3.0F, 0));
+    CHECK_THAT(exact.scanline_height, Catch::Matchers::WithinULP(1.0F, 0));
 }
 
 // The CRT renders and copies the scene at the window's size, like the plain look, and hands its
