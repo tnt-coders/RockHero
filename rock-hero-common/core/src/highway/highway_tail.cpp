@@ -141,6 +141,48 @@ double highwaySlideEaseSlope(const double progress, const bool unpitched) noexce
     return half_pi * std::sin(p * std::numbers::pi);
 }
 
+bool highwayGlideWalks(
+    const NoteViewState& note, const SlideStopViewState& stop, const HighwayGlidePath path) noexcept
+{
+    return path == HighwayGlidePath::Rail ||
+           ((!stop.slide_out || isScrape(note.attack)) && stop.fret > 0);
+}
+
+HighwayGlideLeg highwayGlideLegAt(
+    const NoteViewState& note, const HighwayGlidePath path, const double seconds) noexcept
+{
+    double leg_start_seconds = note.start_seconds;
+    int leg_start_fret = note.fret;
+    for (std::size_t index = 0; index < note.slides.size(); ++index)
+    {
+        const SlideStopViewState& stop = note.slides[index];
+        if (!highwayGlideWalks(note, stop, path))
+        {
+            continue;
+        }
+        if (seconds <= stop.seconds)
+        {
+            const double span = stop.seconds - leg_start_seconds;
+            const double progress =
+                span > 0.0 ? std::clamp((seconds - leg_start_seconds) / span, 0.0, 1.0) : 1.0;
+            return HighwayGlideLeg{
+                .from_fret = leg_start_fret,
+                .to_fret = stop.fret,
+                .weight = highwaySlideEaseWeight(progress, stop.slide_out),
+                .stop = index,
+            };
+        }
+        leg_start_seconds = stop.seconds;
+        leg_start_fret = stop.fret;
+    }
+    return HighwayGlideLeg{
+        .from_fret = leg_start_fret,
+        .to_fret = leg_start_fret,
+        .weight = 1.0,
+        .stop = note.slides.size(),
+    };
+}
+
 double highwayVibratoWobble(const double seconds_from_start) noexcept
 {
     return std::sin(2.0 * std::numbers::pi * seconds_from_start / g_highway_vibrato_period_seconds);

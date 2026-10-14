@@ -1084,14 +1084,13 @@ enum class FhpAuthored : std::uint8_t
 
 /*!
 \brief One fret-hand position — a hand event (\ref FretHandResolutions::events), derived or
-authored — or one slide-out ride (\ref FretHandResolutions::rides), resolved to a timeline second,
-with its eased approach.
+authored — resolved to a timeline second: the chip a surface draws and selects. How the hand moves
+into it is the track's (\ref ChartViewState::fret_hand_track).
 */
 struct FhpViewState
 {
     /*!
-    \brief Absolute position the hand arrives at this placement — the DRAWN arrival where a slide's
-    ramp carries it, which presentation may place a margin before the instant the chart states.
+    \brief Absolute position the hand arrives at this placement, the instant the chart states it.
     Placements ascend by this, the order every consumer binary-searches.
     */
     double seconds{0.0};
@@ -1113,43 +1112,9 @@ struct FhpViewState
 
     /*!
     \brief What the charter stated here: the editor draws a derived position's chip as a ghost, and
-    always prints an authored end fret (\ref FretHandPosition::end_fret) as a range. A ride is
-    always \ref FhpAuthored::Nothing.
+    always prints an authored end fret (\ref FretHandPosition::end_fret) as a range.
     */
     FhpAuthored authored{FhpAuthored::Nothing};
-
-    /*!
-    \brief Duration of the hand's eased approach ending at \ref seconds; zero arrives instantly.
-
-    When the fretting hand starts moving toward this placement is a fact about the chart, not
-    about a surface, so it is derived once here: a placement landing exactly on a slide keyframe —
-    pitched glide or unpitched slide-out end alike — ramps over that glide's own segment so a
-    drawn hand travels with the drawn rail, and every other placement morphs over the
-    minimum-sustain-distance margin before it (shortened when placements crowd closer than the
-    ramp). The board's window track animates it (\ref HighwayHandArrival); the lane's static
-    marker draws the arrival alone.
-    */
-    double ramp_seconds{0.0};
-
-    /*!
-    \brief True when \ref ramp_seconds spans an UNPITCHED glide, so an animated hand eases with the
-    unpitched glide's curve instead of the pitched one.
-
-    The hand follows whatever the rail draws, and the two families are different functions of
-    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve would leave the
-    window and the rail sharing only their endpoints.
-    */
-    bool unpitched_ramp{false};
-
-    /*!
-    \brief The stretch of the ramp past the rail's ink end — the crop zone — over which an animated
-    hand settles into the arrival instead of finishing the glide's curve; zero where the rail
-    reaches the arrival.
-
-    A slide-matched placement whose glide the ink end cuts: the rail is drawn to the crop while
-    the hand completes at the arrival (\ref HighwayHandArrival::settle_seconds).
-    */
-    double settle_seconds{0.0};
 
     /*!
     \brief Compares two placements by their stored fields.
@@ -1160,10 +1125,97 @@ struct FhpViewState
     friend constexpr bool operator==(const FhpViewState& lhs, const FhpViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.position == rhs.position &&
-               lhs.fret == rhs.fret && lhs.width == rhs.width && lhs.authored == rhs.authored &&
+               lhs.fret == rhs.fret && lhs.width == rhs.width && lhs.authored == rhs.authored;
+    }
+};
+
+/*!
+\brief The final stretch of a hand's approach that comes to rest off the curve it was following,
+and where that curve was heading (\ref FretHandArrivalViewState::settle).
+*/
+struct FretHandSettleViewState
+{
+    /*! \brief How long before the arrival the approach leaves its curve. */
+    double seconds{0.0};
+
+    /*!
+    \brief The window the curve was carrying the hand toward: the arrival's own window where the
+    rail stops short of it, the ridden window where a slide-out carried the hand elsewhere.
+    */
+    FretWindow heading{};
+
+    /*!
+    \brief Compares two settles by their stored fields.
+    \param lhs Left-hand settle.
+    \param rhs Right-hand settle.
+    \return True when both settles store equal values.
+    */
+    friend constexpr bool operator==(
+        const FretHandSettleViewState& lhs, const FretHandSettleViewState& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.heading == rhs.heading;
+    }
+};
+
+/*!
+\brief One arrival of the fretting hand's window, resolved to a timeline second with its eased
+approach: a hand event's, a slide-out ride's (\ref FretHandResolutions::rides), or the window's
+return after one.
+
+How the hand moves is a fact about the chart, not about a surface, so it is derived once here and
+the board's window track animates it (\ref HighwayHandArrival). The lane draws the chips alone.
+*/
+struct FretHandArrivalViewState
+{
+    /*! \brief Absolute position the window arrives; arrivals ascend by this. */
+    double seconds{0.0};
+
+    /*! \brief The window the hand comes to rest on. */
+    FretWindow window{};
+
+    /*!
+    \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
+
+    An arrival exactly on a pitched glide's arrival ramps over that glide's own segment, and one
+    where a ridden slide-out ends over the slide-out's, so a drawn hand travels with the drawn rail;
+    every other arrival morphs over the minimum-sustain-distance margin before it. A ramp never
+    reaches back past the arrival before it.
+    */
+    double ramp_seconds{0.0};
+
+    /*!
+    \brief True when the approach follows an UNPITCHED glide, so an animated hand eases with the
+    unpitched glide's curve instead of the pitched one.
+
+    The hand follows whatever the rail draws, and the two families are different functions of
+    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve would leave the
+    window and the rail sharing only their endpoints.
+    */
+    bool unpitched_ramp{false};
+
+    /*!
+    \brief Present where the approach leaves its glide's curve before the arrival: over that final
+    stretch an animated hand comes to rest with a continuous slope instead of finishing the curve.
+
+    Two causes. The rail's ink is cut short of the arrival (tail rule 1), so the curve is drawn to
+    the crop and no further while the hand completes at the arrival. And a ridden slide-out carries
+    the hand toward a window other than the one arriving at its end, so the hand leaves the curve
+    where its own margin morph into that window begins, or at the crop if that is earlier.
+    */
+    std::optional<FretHandSettleViewState> settle{};
+
+    /*!
+    \brief Compares two arrivals by their stored fields.
+    \param lhs Left-hand arrival.
+    \param rhs Right-hand arrival.
+    \return True when both arrivals store equal values.
+    */
+    friend constexpr bool operator==(
+        const FretHandArrivalViewState& lhs, const FretHandArrivalViewState& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.window == rhs.window &&
                std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp &&
-               std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
+               lhs.unpitched_ramp == rhs.unpitched_ramp && lhs.settle == rhs.settle;
     }
 };
 
@@ -1273,11 +1325,11 @@ struct ChartViewState
     std::vector<FhpViewState> fret_hand_positions;
 
     /*!
-    \brief The window's slide-out rides in ascending arrival order
-    (\ref FretHandResolutions::rides), resolved as \ref fret_hand_positions are and read by the
-    board's hand track alone: motion, so no surface draws a chip or a number for one.
+    \brief Every arrival of the fretting hand's window in ascending order: one per hand event, and
+    the slide-out rides and their returns between them (\ref FretHandResolutions). Read by the
+    board's hand track alone: motion, so no surface draws a chip or a number for a ride.
     */
-    std::vector<FhpViewState> fret_hand_rides;
+    std::vector<FretHandArrivalViewState> fret_hand_track;
 
     /*!
     \brief Number of strings the chart's tuning declares; zero means no chart is loaded.

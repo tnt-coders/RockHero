@@ -29,67 +29,48 @@ namespace
 // target at rest the longest but reads too static, so 2 gives the tighter, livelier frame.
 constexpr int g_camera_zone_measures = 2;
 
-// THE FRETTING HAND'S TRACK (HighwayViewState::fret_hand's track): each placement's approach and
-// each slide-out ride's, merged into one ascending sequence in the board's one motion element.
+// THE FRETTING HAND'S TRACK (HighwayViewState::fret_hand's track): the chart's arrivals in the
+// board's one motion element, each window as its fret-line edges.
 [[nodiscard]] std::vector<HighwayHandArrival> makeHighwayFretHand(const ChartViewState& scene)
 {
     std::vector<HighwayHandArrival> track;
-    track.reserve(scene.fret_hand_positions.size() + scene.fret_hand_rides.size());
-    for (const auto* const arrivals : {&scene.fret_hand_positions, &scene.fret_hand_rides})
+    track.reserve(scene.fret_hand_track.size());
+    for (const FretHandArrivalViewState& arrival : scene.fret_hand_track)
     {
-        for (const FhpViewState& fhp : *arrivals)
+        std::optional<HighwayHandSettle> settle;
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<FretHandSettleViewState>& settles = arrival.settle;
+        if (settles.has_value())
         {
-            track.push_back(
-                HighwayHandArrival{
-                    .seconds = fhp.seconds,
-                    .low_line = static_cast<double>(fhp.fret - 1),
-                    .high_line =
-                        static_cast<double>(FretWindow{.fret = fhp.fret, .width = fhp.width}.top()),
-                    .ramp_seconds = fhp.ramp_seconds,
-                    .unpitched_ramp = fhp.unpitched_ramp,
-                    .settle_seconds = fhp.settle_seconds,
-                });
+            settle = HighwayHandSettle{
+                .seconds = settles->seconds,
+                .low_line = static_cast<double>(settles->heading.fret - 1),
+                .high_line = static_cast<double>(settles->heading.top()),
+            };
         }
+        track.push_back(
+            HighwayHandArrival{
+                .seconds = arrival.seconds,
+                .low_line = static_cast<double>(arrival.window.fret - 1),
+                .high_line = static_cast<double>(arrival.window.top()),
+                .ramp_seconds = arrival.ramp_seconds,
+                .unpitched_ramp = arrival.unpitched_ramp,
+                .settle = settle,
+            });
     }
-    std::ranges::inplace_merge(
-        track,
-        track.begin() + static_cast<std::ptrdiff_t>(scene.fret_hand_positions.size()),
-        std::ranges::less{},
-        &HighwayHandArrival::seconds);
     return track;
 }
 
-// A member's position on its own rail at an instant: its sounding stop before any glide, eased
-// along each leg with the family the rail draws (highwaySlideEaseWeight, the family being the
-// stop's own slide-out flag), and the last stop's afterwards. A tap's unpitched slide-out never
-// moves the light; a scrape's stops, its slide-out included, ARE the hand's travel. The DRAWN
-// position (highwayDrawnStop), so a path cannot walk off the board while the head it belongs to is
-// held at the edge.
+// A member's position on its own rail at an instant, along the hand's walk of its glide
+// (highwayGlideLegAt): a tap's unpitched slide-out never moves the light, while a scrape's stops,
+// its slide-out included, ARE the hand's travel. The DRAWN position (highwayDrawnStop), so a path
+// cannot walk off the board while the head it belongs to is held at the edge.
 [[nodiscard]] double memberPositionAt(const NoteViewState& note, const double seconds)
 {
-    const bool scrape = isScrape(note.attack);
-    double previous_seconds = note.start_seconds;
-    double previous_position = highwayStopPosition(highwayDrawnStop(note, note.fret));
-    for (std::size_t index = 0; index < note.slides.size(); ++index)
-    {
-        const SlideStopViewState& stop = note.slides[index];
-        if ((stop.slide_out && !scrape) || stop.fret <= 0)
-        {
-            continue;
-        }
-        const double stop_position = highwayStopPosition(highwayDrawnStop(note, stop.fret));
-        if (seconds <= stop.seconds)
-        {
-            const double span = stop.seconds - previous_seconds;
-            const double progress =
-                span > 0.0 ? std::clamp((seconds - previous_seconds) / span, 0.0, 1.0) : 1.0;
-            return previous_position + ((stop_position - previous_position) *
-                                        highwaySlideEaseWeight(progress, stop.slide_out));
-        }
-        previous_seconds = stop.seconds;
-        previous_position = stop_position;
-    }
-    return previous_position;
+    const HighwayGlideLeg leg = highwayGlideLegAt(note, HighwayGlidePath::Hand, seconds);
+    const double from = highwayStopPosition(highwayDrawnStop(note, leg.from_fret));
+    const double to = highwayStopPosition(highwayDrawnStop(note, leg.to_fret));
+    return from + ((to - from) * leg.weight);
 }
 
 // When the note's hand leaves: the last pitched keyframe when a DRAWN unpitched slide-out
@@ -190,19 +171,24 @@ void appendTapGroupPath(
     for (const std::size_t member : members)
     {
         const NoteViewState& tap = notes[member];
-        const bool scrape = isScrape(tap.attack);
-        for (std::size_t stop_index = 0; stop_index < tap.slides.size(); ++stop_index)
+        for (const SlideStopViewState& stop : tap.slides)
         {
-            const SlideStopViewState& stop = tap.slides[stop_index];
-            if ((stop.slide_out && !scrape) || stop.fret <= 0)
+            if (!highwayGlideWalks(tap, stop, HighwayGlidePath::Hand))
             {
                 continue;
+            }
+            // A stop past the ink end settles over the crop zone; its curve heads for the stop
+            // itself, whose edges are read below once the group's list is whole.
+            std::optional<HighwayHandSettle> settle;
+            if (stop.seconds > tap.ink_end_seconds)
+            {
+                settle = HighwayHandSettle{.seconds = stop.seconds - tap.ink_end_seconds};
             }
             track.push_back(
                 HighwayHandArrival{
                     .seconds = stop.seconds,
                     .unpitched_ramp = stop.slide_out,
-                    .settle_seconds = std::max(0.0, stop.seconds - tap.ink_end_seconds),
+                    .settle = settle,
                 });
             if (!instantDrawn(stop.seconds, tap.ink_end_seconds))
             {
@@ -223,7 +209,13 @@ void appendTapGroupPath(
         if (track[at].seconds - last.seconds < g_onset_match_epsilon)
         {
             last.unpitched_ramp = last.unpitched_ramp || track[at].unpitched_ramp;
-            last.settle_seconds = std::max(last.settle_seconds, track[at].settle_seconds);
+            // Bound once so each presence test and its read are provably the same object.
+            const std::optional<HighwayHandSettle>& other = track[at].settle;
+            std::optional<HighwayHandSettle>& longest = last.settle;
+            if (other.has_value() && (!longest.has_value() || other->seconds > longest->seconds))
+            {
+                longest = other;
+            }
             continue;
         }
         track[kept] = track[at];
@@ -258,6 +250,12 @@ void appendTapGroupPath(
         arrival.low_line = low - 1.0;
         arrival.high_line = high;
         arrival.ramp_seconds = at == head ? 0.0 : arrival.seconds - track[at - 1].seconds;
+        std::optional<HighwayHandSettle>& settle = arrival.settle;
+        if (settle.has_value())
+        {
+            settle->low_line = arrival.low_line;
+            settle->high_line = arrival.high_line;
+        }
     }
 }
 

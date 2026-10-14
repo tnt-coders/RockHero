@@ -466,8 +466,12 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
     // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
     // margin.
+    REQUIRE_FALSE(state.chart.fret_hand_track.empty());
     CHECK(
-        state.chart.fret_hand_positions[0].ramp_seconds ==
+        state.chart.fret_hand_track[0].seconds ==
+        Catch::Approx(state.chart.fret_hand_positions[0].seconds));
+    CHECK(
+        state.chart.fret_hand_track[0].ramp_seconds ==
         Catch::Approx(g_minimum_sustain_distance_seconds));
 
     REQUIRE(state.sections.size() == 1);
@@ -1501,7 +1505,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
             .high_line = high,
             .ramp_seconds = 0.0,
             .unpitched_ramp = false,
-            .settle_seconds = 0.0,
+            .settle = std::nullopt,
         };
     };
     CHECK(
@@ -1616,7 +1620,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .high_line = 12.0,
                         .ramp_seconds = 0.0,
                         .unpitched_ramp = false,
-                        .settle_seconds = 0.0,
+                        .settle = std::nullopt,
                     });
     CHECK(
         track[1] == HighwayHandArrival{
@@ -1625,7 +1629,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .high_line = 12.0,
                         .ramp_seconds = 1.0,
                         .unpitched_ramp = false,
-                        .settle_seconds = 0.0,
+                        .settle = std::nullopt,
                     });
     CHECK(
         track[2] == HighwayHandArrival{
@@ -1634,7 +1638,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .high_line = 12.0,
                         .ramp_seconds = 0.0,
                         .unpitched_ramp = false,
-                        .settle_seconds = 0.0,
+                        .settle = std::nullopt,
                     });
     CHECK(
         track[3] == HighwayHandArrival{
@@ -1643,7 +1647,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .high_line = 15.0,
                         .ramp_seconds = 1.0,
                         .unpitched_ramp = false,
-                        .settle_seconds = 0.0,
+                        .settle = std::nullopt,
                     });
     CHECK(
         track[4] == HighwayHandArrival{
@@ -1652,7 +1656,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .high_line = 10.0,
                         .ramp_seconds = 0.0,
                         .unpitched_ramp = false,
-                        .settle_seconds = 0.0,
+                        .settle = std::nullopt,
                     });
     CHECK(
         track[5] == HighwayHandArrival{
@@ -1661,7 +1665,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .high_line = 13.0,
                         .ramp_seconds = 1.0,
                         .unpitched_ramp = false,
-                        .settle_seconds = 0.0,
+                        .settle = std::nullopt,
                     });
 
     // The held tap and the plain slide release at their ink ends; the drawn slide-out releases at
@@ -1785,7 +1789,7 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     CHECK(release.high_line == Catch::Approx(13.0));
     CHECK(release.ramp_seconds == Catch::Approx(0.25));
     CHECK_FALSE(release.unpitched_ramp);
-    CHECK(std::is_eq(release.settle_seconds <=> 0.0));
+    CHECK_FALSE(release.settle.has_value());
 }
 
 // A pitched tap glide the ink end cuts: the light follows the cut leg on the rail's own curve to
@@ -1820,14 +1824,22 @@ TEST_CASE("Highway tap light follows a pitched glide the ink end cuts", "[core][
                        .high_line = 12.0,
                        .ramp_seconds = 0.0,
                        .unpitched_ramp = false,
-                       .settle_seconds = 0.0,
+                       .settle = std::nullopt,
                    });
     CHECK(path[1].seconds == Catch::Approx(2.0));
     CHECK(path[1].low_line == Catch::Approx(14.0));
     CHECK(path[1].high_line == Catch::Approx(15.0));
     CHECK(path[1].ramp_seconds == Catch::Approx(1.0));
     CHECK_FALSE(path[1].unpitched_ramp);
-    CHECK(path[1].settle_seconds == Catch::Approx(0.2));
+    // The cut leg's curve heads for the stop itself and settles over the stretch past the ink end.
+    const std::optional<HighwayHandSettle>& cut_settle = path[1].settle;
+    REQUIRE(cut_settle.has_value());
+    if (cut_settle.has_value())
+    {
+        CHECK(cut_settle->seconds == Catch::Approx(0.2));
+        CHECK(cut_settle->low_line == Catch::Approx(path[1].low_line));
+        CHECK(cut_settle->high_line == Catch::Approx(path[1].high_line));
+    }
 }
 
 // Between its own stops a member rides its rail's eased curve, not a straight line, so a chord
@@ -1974,13 +1986,14 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     // A free scrape is drawn to its end, so no leg crosses an ink end and nothing settles.
     for (const HighwayHandArrival& arrival : path)
     {
-        CHECK(std::is_eq(arrival.settle_seconds <=> 0.0));
+        CHECK_FALSE(arrival.settle.has_value());
     }
     // The FHP on the keyframe's grid position ramps by the margin morph — one duration at any
     // tempo — not by the scrape leg's span back to the onset (which would be 0.25s).
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
+    REQUIRE(state.chart.fret_hand_track.size() == 1);
     CHECK(
-        state.chart.fret_hand_positions[0].ramp_seconds ==
+        state.chart.fret_hand_track[0].ramp_seconds ==
         Catch::Approx(g_minimum_sustain_distance_seconds));
 }
 
@@ -2023,7 +2036,7 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     CHECK(path[1].high_line == Catch::Approx(3.0));
     CHECK(path[1].ramp_seconds == Catch::Approx(0.25));
     CHECK_FALSE(path[1].unpitched_ramp);
-    CHECK(std::is_eq(path[1].settle_seconds <=> 0.0));
+    CHECK_FALSE(path[1].settle.has_value());
 
     // The cut leg: the terminal past the ink end is the last arrival, its whole leg is the ramp,
     // and the part of it past the ink end is the settle.
@@ -2032,9 +2045,16 @@ TEST_CASE("Highway tap light settles a bound scrape over its crop zone", "[core]
     CHECK(path[2].high_line == Catch::Approx(9.0));
     CHECK(path[2].ramp_seconds == Catch::Approx(0.25));
     CHECK(path[2].unpitched_ramp);
-    CHECK(
-        path[2].settle_seconds == Catch::Approx(scrape.slides[1].seconds - scrape.ink_end_seconds));
-    CHECK(path[2].settle_seconds == Catch::Approx(0.1));
+    const std::optional<HighwayHandSettle>& cut_settle = path[2].settle;
+    REQUIRE(cut_settle.has_value());
+    if (cut_settle.has_value())
+    {
+        CHECK(
+            cut_settle->seconds ==
+            Catch::Approx(scrape.slides[1].seconds - scrape.ink_end_seconds));
+        CHECK(cut_settle->seconds == Catch::Approx(0.1));
+        CHECK(cut_settle->low_line == Catch::Approx(path[2].low_line));
+    }
     // A scrape releases where its ink ends — the pick lifts at the crop — while the path runs on
     // to the cut leg's arrival.
     CHECK(light.lit.front().release_seconds == Catch::Approx(scrape.ink_end_seconds));
@@ -2072,7 +2092,7 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
     for (std::size_t index = 1; index < path.size(); ++index)
     {
         CHECK(path[index].ramp_seconds == Catch::Approx(0.25));
-        CHECK(std::is_eq(path[index].settle_seconds <=> 0.0));
+        CHECK_FALSE(path[index].settle.has_value());
     }
     CHECK(path[1].low_line == Catch::Approx(2.0));
     CHECK(path[2].low_line == Catch::Approx(9.0));
@@ -2094,10 +2114,10 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
         Catch::Approx(9.0 + ((1.0 - 9.0) * highwaySlideEaseWeight(0.5, true))));
 }
 
-// The fretting hand's track is an arrival per chart placement, with the placement's settled window
-// as fret lines and the scene's ramp. A placement landing where a slide-out arrives gets the crop
-// zone as its settle — the slide-out's rail is cut one margin before the next head while the hand
-// completes at the head — and a margin-morph placement settles over nothing.
+// The fretting hand's track is the scene's, with each settled window as fret lines. A placement
+// landing where a ridden slide-out ends, on the very window the ride covers the exit with, gets the
+// crop zone as its settle — the slide-out's rail is cut one margin before the next head while the
+// hand completes at the head — and a margin-morph placement settles over nothing.
 TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
@@ -2135,7 +2155,8 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     const GridPosition slide_out_arrival{.measure = 2, .beat = 1};
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
-        // Exactly on the slide-out's terminal: rides the slide-out's own segment, unpitched.
+        // Exactly on the slide-out's terminal, the window covering its exit: rides the
+        // slide-out's own segment, unpitched.
         FretHandPosition{.position = slide_out_arrival, .fret = 9},
         // An ordinary move with no glide under it: the margin morph.
         FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 2},
@@ -2147,14 +2168,15 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     REQUIRE(state.chart.fret_hand_positions.size() == 3);
     REQUIRE(state.fret_hand.track.size() == 3);
 
-    // One arrival per placement, at the placement's instant with its ramp and family.
+    // One arrival per placement, at the placement's instant with the scene's ramp and family.
+    REQUIRE(state.chart.fret_hand_track.size() == 3);
     for (std::size_t index = 0; index < state.fret_hand.track.size(); ++index)
     {
         const HighwayHandArrival& arrival = state.fret_hand.track[index];
-        const FhpViewState& placement = state.chart.fret_hand_positions[index];
-        CHECK(arrival.seconds == Catch::Approx(placement.seconds));
-        CHECK(arrival.ramp_seconds == Catch::Approx(placement.ramp_seconds));
-        CHECK(arrival.unpitched_ramp == placement.unpitched_ramp);
+        const FretHandArrivalViewState& scene = state.chart.fret_hand_track[index];
+        CHECK(arrival.seconds == Catch::Approx(state.chart.fret_hand_positions[index].seconds));
+        CHECK(arrival.ramp_seconds == Catch::Approx(scene.ramp_seconds));
+        CHECK(arrival.unpitched_ramp == scene.unpitched_ramp);
     }
     // Its lines are the settled window's edges: frets [fret, fret + width - 1] sit on lines
     // fret - 1 to fret + width - 1.
@@ -2174,23 +2196,31 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
         tempo_map,
         tempo_map.wholeNotePositionAt(slide_out_arrival),
         -g_minimum_sustain_distance_seconds));
-    CHECK(slide_out.settle_seconds == Catch::Approx(slide_out.seconds - crop_seconds));
-    CHECK(slide_out.settle_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+    const std::optional<HighwayHandSettle>& settle = slide_out.settle;
+    REQUIRE(settle.has_value());
     REQUIRE_FALSE(state.chart.notes.empty());
-    CHECK(
-        slide_out.settle_seconds ==
-        Catch::Approx(slide_out.seconds - state.chart.notes.front().ink_end_seconds));
-    CHECK(slide_out.settle_seconds <= slide_out.ramp_seconds);
+    if (settle.has_value())
+    {
+        CHECK(settle->seconds == Catch::Approx(slide_out.seconds - crop_seconds));
+        CHECK(settle->seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+        CHECK(
+            settle->seconds ==
+            Catch::Approx(slide_out.seconds - state.chart.notes.front().ink_end_seconds));
+        CHECK(settle->seconds <= slide_out.ramp_seconds);
+        // The ride covers the exit with the placement's own window, so the curve heads for it.
+        CHECK(settle->low_line == Catch::Approx(slide_out.low_line));
+        CHECK(settle->high_line == Catch::Approx(slide_out.high_line));
+    }
 
     // The margin morphs settle over nothing: their ramp is already the pitched curve's tangential
     // arrival.
     CHECK_FALSE(state.fret_hand.track[0].unpitched_ramp);
     CHECK_FALSE(state.fret_hand.track[2].unpitched_ramp);
-    CHECK(std::is_eq(state.fret_hand.track[0].settle_seconds <=> 0.0));
-    CHECK(std::is_eq(state.fret_hand.track[2].settle_seconds <=> 0.0));
+    CHECK_FALSE(state.fret_hand.track[0].settle.has_value());
+    CHECK_FALSE(state.fret_hand.track[2].settle.has_value());
 }
 
-// A slide-out ride is motion and nothing else: the track merges its two arrivals between the
+// A slide-out ride is motion and nothing else: the track carries its two arrivals between the
 // placements, the first riding the slide's own segment with the unpitched ease and the second
 // morphing back over the margin, while the scene publishes no chip for either.
 TEST_CASE("Highway fret hand rides a slide-out without a placement", "[core][highway]")
@@ -2222,7 +2252,7 @@ TEST_CASE("Highway fret hand rides a slide-out without a placement", "[core][hig
 
     const HighwayViewState state = boardOf(arrangement, tempo_map);
     CHECK(state.chart.fret_hand_positions.size() == 1);
-    REQUIRE(state.chart.fret_hand_rides.size() == 2);
+    REQUIRE(state.chart.fret_hand_track.size() == 3);
     REQUIRE(state.fret_hand.track.size() == 3);
 
     // The slide's segment runs from the onset, so the ride's ramp is the whole of it.

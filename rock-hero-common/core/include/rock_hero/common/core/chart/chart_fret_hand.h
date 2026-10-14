@@ -8,6 +8,7 @@ rides a slide-out (\ref deriveFretHandRides), and the two together as a chart re
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -351,30 +352,76 @@ there, since an event fronting at the place has already arrived.
     const std::vector<FretHandEvent>& events, Fraction place);
 
 /*!
-\brief The window's ride with every unpitched slide-out: MOTION derived from the slide, never a
-position, so it is no hand event and changes none.
+\brief The window's ride with the unpitched slide-outs ending at one instant: MOTION derived from
+the slides, never a position, so it is no hand event and changes none (\ref deriveFretHandRides).
+*/
+struct FretHandRide
+{
+    /*!
+    \brief Where the ride leaves the standing window: the earliest departure among its slide-outs,
+    each the instant its last stop is stated (\ref offsetBeforeEnd).
+    */
+    Fraction departure{};
 
-The hand travels with a slide-out of a stop it holds (\ref fretHandDemandAt), so the window does: it
-arrives at the slide-out's end covering the exit fret, and at the next instant the hand derivation
-covers it is back at the window the hand events state there. The ride shifts the standing window the
-least distance that covers the exit frets of every slide-out ending at that instant, keeping its
-width; a window already covering them does not move. A slide-out stays planted where it has no
-room: where the next demand comes before its end or exactly at it, or where a hand event fronts
-between its start and its end — that event is the hand moving on, so the drawing has no departure
-case. The way back is a ride arrival only where no hand event fronts first; otherwise that event is
-the way back.
+    /*! \brief Where the slide-outs end, at their rings' end: the instant the ride arrives. */
+    Fraction end{};
 
-The board's hand track merges these arrivals with the hand events and eases each as it eases any
-arrival, so the ride takes the slide's own segment and unpitched ease. Nothing else reads them.
+    /*! \brief The window standing at the departure, which the ride shifts and returns to. */
+    FretWindow standing{};
+
+    /*!
+    \brief The window the ride travels toward: \ref standing shifted the least distance that covers
+    every exit fret, keeping its width, and never equal to it.
+    */
+    FretWindow ridden{};
+
+    /*!
+    \brief The slide-out departing first, whose drawn rail the ride follows: an index into the
+    connections' saved notes.
+    */
+    std::size_t note{0};
+
+    /*!
+    \brief Where the window is back at \ref standing: the first instant the hand covers at or after
+    \ref end. Absent where a hand event fronts there or first, since that event is the way back, and
+    where a later ride arrives first.
+    */
+    std::optional<Fraction> back{};
+
+    /*!
+    \brief Compares two rides by their stored fields.
+    \param lhs Left-hand ride.
+    \param rhs Right-hand ride.
+    \return True when both rides store equal values.
+    */
+    friend bool operator==(const FretHandRide& lhs, const FretHandRide& rhs) = default;
+};
+
+/*!
+\brief The window's ride with every unpitched slide-out of a stop the fretting hand holds.
+
+The hand travels with a slide-out of a stop it holds (\ref fretHandDemandAt), so the window does:
+from the slide-out's departure it travels on the slide-out's own curve toward the window covering
+the exit fret, and it is back at the standing window by the next instant the hand covers. Slide-outs
+ending at one instant ride one window, shifted the least distance that covers every exit, keeping
+its width; a window already covering them does not move. A slide-out stays planted where it has no
+room: where an instant the hand covers, or a hand event, lies strictly between its departure and its
+end — an event there is the hand moving on. Either one standing exactly at the end is where the ride
+lands, which is how a slide-out into the next onset is ridden. A tap's slide-out is the picking
+hand's travel and moves nothing here.
+
+How far along its curve the drawn window follows the ride is presentation: the board's hand track
+follows the slide's rail to where its ink is cut and comes to rest in whatever arrives at the end
+(\ref makeChartViewState). Nothing else reads the rides.
 
 \param connections The resolved connections the events were derived from.
 \param demands The demands the events were derived from (\ref fretHandDemands): the instants a
-       ride needs room before, and the capo.
+       ride needs room between, and the capo.
 \param events The hand events (\ref deriveFretHandEvents).
 
-\return The ride arrivals, strictly ascending by front, none fronting where a hand event does.
+\return The rides, strictly ascending by end.
 */
-[[nodiscard]] std::vector<FretHandEvent> deriveFretHandRides(
+[[nodiscard]] std::vector<FretHandRide> deriveFretHandRides(
     const ChartConnections& connections, const FretHandDemands& demands,
     const std::vector<FretHandEvent>& events);
 
@@ -397,7 +444,7 @@ struct FretHandResolutions
     \brief How the window rides the unpitched slide-outs (\ref deriveFretHandRides): motion beside
     \ref events, read by the board's hand track alone, so it is no chip and no position.
     */
-    std::vector<FretHandEvent> rides;
+    std::vector<FretHandRide> rides;
 };
 
 /*!

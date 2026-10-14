@@ -137,7 +137,7 @@ namespace
 
 // The slide-out rides over the hand events one stream derives, around the authored positions where
 // a case states any.
-[[nodiscard]] std::vector<FretHandEvent> ridesOf(
+[[nodiscard]] std::vector<FretHandRide> ridesOf(
     const std::vector<ChartNote>& notes, const std::vector<FretHandPosition>& authored = {})
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -147,11 +147,29 @@ namespace
         connections, demands, deriveFretHandEvents(connections, demands, tempo_map, authored));
 }
 
-// An expected ride arrival: its front in whole notes, and its window.
-[[nodiscard]] FretHandEvent rideAt(
-    const Fraction front, const int fret, const int width = g_min_fret_hand_width)
+// An expected ride in whole notes: where it departs and ends, the floors of the window it leaves
+// and of the one it travels toward, the note it follows, and where it is back, if anywhere.
+struct ExpectedRide
 {
-    return FretHandEvent{.front = front, .window = FretWindow{.fret = fret, .width = width}};
+    Fraction departure{};
+    Fraction end{};
+    int standing{0};
+    int ridden{0};
+    std::size_t note{0};
+    std::optional<Fraction> back{};
+    int width{g_min_fret_hand_width};
+};
+
+[[nodiscard]] FretHandRide rideOf(const ExpectedRide& expected)
+{
+    return FretHandRide{
+        .departure = expected.departure,
+        .end = expected.end,
+        .standing = FretWindow{.fret = expected.standing, .width = expected.width},
+        .ridden = FretWindow{.fret = expected.ridden, .width = expected.width},
+        .note = expected.note,
+        .back = expected.back,
+    };
 }
 
 } // namespace
@@ -412,7 +430,17 @@ TEST_CASE("Hand derivation follows a chord gliding up and back", "[core][chart]"
     };
     CHECK(
         eventsOf(notes, 0, {positionAt(1, 1, 4)}) ==
-        std::vector{eventAt(1, 1, 4), rideAt(Fraction{1, 8}, 6), rideAt(Fraction{1, 4}, 4)});
+        std::vector{
+            eventAt(1, 1, 4),
+            FretHandEvent{
+                .front = Fraction{1, 8},
+                .window = FretWindow{.fret = 6, .width = g_min_fret_hand_width},
+            },
+            FretHandEvent{
+                .front = Fraction{1, 4},
+                .window = FretWindow{.fret = 4, .width = g_min_fret_hand_width},
+            },
+        });
 }
 
 // Hand-position rule 3: a run closes at a chord, at a bar line, and where the grip outgrows the
@@ -857,13 +885,22 @@ TEST_CASE("An authored position after the last note is still an event", "[core][
         std::vector{eventAt(1, 1, 5), eventAt(2, 1, 9)});
 }
 
-// The hand travels with a slide-out, so the window arrives covering the exit fret where the slide
-// ends and is back at the standing window by the next instant the hand covers. That is motion
-// beside the hand events, which stay exactly what the notes derive.
+// The hand travels with a slide-out, so the window rides toward the window covering the exit fret
+// from where the slide departs to where it ends, and is back at the standing window by the next
+// instant the hand covers. That is motion beside the hand events, which stay exactly what the
+// notes derive.
 TEST_CASE("The window rides a slide-out to its exit and back", "[core][chart]")
 {
     const std::vector notes{slideOutAt(1, 1, 1, 5, 1), noteAt(1, 3, 1, 5)};
-    CHECK(ridesOf(notes) == std::vector{rideAt(Fraction{1, 8}, 1), rideAt(Fraction{1, 2}, 5)});
+    CHECK(
+        ridesOf(notes) == std::vector{rideOf({
+                              .departure = Fraction{},
+                              .end = Fraction{1, 8},
+                              .standing = 5,
+                              .ridden = 1,
+                              .note = 0,
+                              .back = Fraction{1, 2},
+                          })});
     CHECK(eventsOf(notes) == std::vector{eventAt(1, 1, 5)});
 }
 
@@ -875,28 +912,107 @@ TEST_CASE("The window does not ride an exit it covers or a tap's slide-out", "[c
     CHECK(ridesOf({withFretAt(tapAt(1, 1, 1, 5), Fraction{1, 4}, 1), noteAt(1, 1, 2, 5)}).empty());
 }
 
-// A slide-out with no room before the next demand stays planted: one ringing past it, and one
-// reaching exactly to it, since a ring is half-open and is not there at its end.
-TEST_CASE("A slide-out without room before the next demand stays planted", "[core][chart]")
+// A slide-out stays planted only where the hand must act strictly inside it: one ringing past an
+// instant the hand covers. One reaching exactly to that instant is ridden, and since the window
+// there is the standing one, the ride's way back lands at its very end.
+TEST_CASE("A slide-out stays planted only where the hand acts inside it", "[core][chart]")
 {
     CHECK(ridesOf({slideOutAt(1, 1, 1, 5, 1, Fraction{1, 2}), noteAt(1, 2, 2, 5)}).empty());
-    CHECK(ridesOf({slideOutAt(1, 1, 1, 5, 1, Fraction{1, 4}), noteAt(1, 2, 2, 5)}).empty());
+    CHECK(
+        ridesOf({slideOutAt(1, 1, 1, 5, 1, Fraction{1, 4}), noteAt(1, 2, 2, 5)}) ==
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{1, 4},
+            .standing = 5,
+            .ridden = 1,
+            .note = 0,
+            .back = Fraction{1, 4},
+        })});
     CHECK(
         ridesOf({slideOutAt(1, 1, 1, 5, 1, Fraction{3, 16}), noteAt(1, 2, 2, 5)}) ==
-        std::vector{rideAt(Fraction{3, 16}, 1), rideAt(Fraction{1, 4}, 5)});
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{3, 16},
+            .standing = 5,
+            .ridden = 1,
+            .note = 0,
+            .back = Fraction{1, 4},
+        })});
 }
 
-// The way back is a hand event wherever one fronts first, and a hand event fronting while the slide
-// travels is the hand moving on, so that slide-out is not ridden at all.
+// The way back is a hand event wherever one fronts first, a hand event fronting exactly where the
+// slide ends is the window the ride leads into, and one fronting while the slide travels is the
+// hand moving on, so that slide-out is not ridden at all.
 TEST_CASE("A hand event is the window's way back from a ride, or its departure", "[core][chart]")
 {
     CHECK(
-        ridesOf({slideOutAt(1, 1, 1, 5, 1), noteAt(2, 1, 1, 12)}) ==
-        std::vector{rideAt(Fraction{1, 8}, 1)});
+        ridesOf({slideOutAt(1, 1, 1, 5, 1), noteAt(2, 1, 1, 12)}) == std::vector{rideOf({
+                                                                         .departure = Fraction{},
+                                                                         .end = Fraction{1, 8},
+                                                                         .standing = 5,
+                                                                         .ridden = 1,
+                                                                         .note = 0,
+                                                                         .back = std::nullopt,
+                                                                     })});
+    CHECK(
+        ridesOf({slideOutAt(1, 1, 1, 12, 8, Fraction{1, 4}), noteAt(1, 2, 2, 2)}) ==
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{1, 4},
+            .standing = 12,
+            .ridden = 8,
+            .note = 0,
+            .back = std::nullopt,
+        })});
     CHECK(
         ridesOf(
             {slideOutAt(1, 1, 1, 5, 12, Fraction{1, 2}), noteAt(2, 1, 1, 5)}, {positionAt(1, 2, 9)})
             .empty());
+}
+
+// A chain that glides before it slides out departs from its last stop, under the window that stop
+// moved the hand to, not from its onset.
+TEST_CASE("A chain's ride departs where its slide-out does", "[core][chart]")
+{
+    const ChartNote chain = withFretAt(
+        withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 4}), Fraction{1, 8}, 9), Fraction{1, 4}, 4);
+    CHECK(
+        ridesOf({chain, noteAt(1, 3, 1, 9)}) == std::vector{rideOf({
+                                                    .departure = Fraction{1, 8},
+                                                    .end = Fraction{1, 4},
+                                                    .standing = 9,
+                                                    .ridden = 4,
+                                                    .note = 0,
+                                                    .back = Fraction{1, 2},
+                                                })});
+}
+
+// A later ride arriving by an earlier one's way back takes the window on from there, so only the
+// later one returns.
+TEST_CASE("A later ride takes over an earlier one's way back", "[core][chart]")
+{
+    CHECK(
+        ridesOf(
+            {slideOutAt(1, 1, 1, 5, 1),
+             slideOutAt(1, 1, 2, 5, 3, Fraction{3, 16}),
+             noteAt(1, 3, 1, 5)}) == std::vector{
+                                         rideOf({
+                                             .departure = Fraction{},
+                                             .end = Fraction{1, 8},
+                                             .standing = 5,
+                                             .ridden = 1,
+                                             .note = 0,
+                                             .back = std::nullopt,
+                                         }),
+                                         rideOf({
+                                             .departure = Fraction{},
+                                             .end = Fraction{3, 16},
+                                             .standing = 5,
+                                             .ridden = 3,
+                                             .note = 1,
+                                             .back = Fraction{1, 2},
+                                         }),
+                                     });
 }
 
 // Strings sliding out together ride one window, shifted the least distance that covers every exit.
@@ -904,7 +1020,14 @@ TEST_CASE("Strings sliding out together ride one window", "[core][chart]")
 {
     CHECK(
         ridesOf({slideOutAt(1, 1, 1, 5, 2), slideOutAt(1, 1, 2, 7, 4), noteAt(1, 3, 1, 5)}) ==
-        std::vector{rideAt(Fraction{1, 8}, 2), rideAt(Fraction{1, 2}, 5)});
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{1, 8},
+            .standing = 5,
+            .ridden = 2,
+            .note = 0,
+            .back = Fraction{1, 2},
+        })});
 }
 
 // An authored window is ridden like a derived one, keeping its width.
@@ -912,7 +1035,15 @@ TEST_CASE("An authored position standing over a slide-out gets the same ride", "
 {
     CHECK(
         ridesOf({slideOutAt(1, 1, 1, 7, 12), noteAt(1, 3, 1, 6)}, {positionAt(1, 1, 5, 9)}) ==
-        std::vector{rideAt(Fraction{1, 8}, 8, 5), rideAt(Fraction{1, 2}, 5, 5)});
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{1, 8},
+            .standing = 5,
+            .ridden = 8,
+            .note = 0,
+            .back = Fraction{1, 2},
+            .width = 5,
+        })});
 }
 
 // THE INVARIANT the position row's identity rests on: the hand events front strictly ascending, so

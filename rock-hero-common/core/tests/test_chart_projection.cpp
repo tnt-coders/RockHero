@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <compare>
 #include <cstddef>
 #include <limits>
 #include <optional>
@@ -132,6 +133,21 @@ namespace
         .chart_ref = "charts/4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4.chart.json",
         .chart = std::move(chart),
     };
+}
+
+// The track's arrival at a chip's instant: every chip is one, beside the rides' arrivals and
+// returns between them, so a case about a chip's approach finds it by the chip's own instant.
+[[nodiscard]] const FretHandArrivalViewState& arrivalAtChip(
+    const ChartViewState& state, const std::size_t chip)
+{
+    REQUIRE(chip < state.fret_hand_positions.size());
+    const double seconds = state.fret_hand_positions[chip].seconds;
+    const auto found = std::ranges::find_if(
+        state.fret_hand_track, [seconds](const FretHandArrivalViewState& arrival) {
+            return std::is_eq(arrival.seconds <=> seconds);
+        });
+    REQUIRE(found != state.fret_hand_track.end());
+    return *found;
 }
 
 // A projected note reduced to the three instants the fade rules read: its onset, where its ink
@@ -965,12 +981,13 @@ TEST_CASE("Chart projection vibrates a shift slide's arrival head, not its glide
 }
 
 // A hand event fronts at the instant the chart states a gesture end — here the derived window of
-// the strike the slide-out ends on — and the ramp table files each glide's segment under that same
-// stored instant: nothing presentation decides moves a statement, so a slide-out whose ink the crop
-// stops a margin early is still ridden to where the chart states it. Every stored glide keyframe
-// files a ramp, the one past the ink end included: the hand completes where the sound goes, not
-// where the ink stops.
-TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[core][chart]")
+// the strike the slide-out ends on — and the window rides the slide-out up to it: nothing
+// presentation decides moves a statement, so the approach spans the slide-out's whole stored
+// segment and arrives where the chart states the strike. The window follows the slide-out's curve
+// toward the window covering its exit, and since that is not the strike's, it leaves the curve
+// where the rail's ink is cut — one margin before the strike — and settles into the strike's
+// window over that margin.
+TEST_CASE("Chart projection rides a cropped slide-out into the window it ends on", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart;
@@ -1017,14 +1034,120 @@ TEST_CASE("Chart projection ramps a cropped slide-out to its stored instant", "[
     CHECK(glide.slides[0].seconds == Catch::Approx(2.0));
     CHECK(glide.slides[0].slide_out);
 
-    // The identity key finds the ramp: the window the fret-3 strike derives fronts exactly where
-    // the chart states the terminal, so the hand rides the slide-out from the note's onset to that
-    // stored instant, easing with the unpitched family.
+    // The window the fret-3 strike derives fronts exactly where the chart states the terminal, so
+    // the hand rides the slide-out from the note's onset to that stored instant, easing with the
+    // unpitched family toward the window over fret 12, and settles into fret 3 from the crop.
     REQUIRE(state.fret_hand_positions.size() == 2);
     CHECK(state.fret_hand_positions[1].fret == 3);
-    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(2.0));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(2.0));
-    CHECK(state.fret_hand_positions[1].unpitched_ramp);
+    REQUIRE(state.fret_hand_track.size() == 2);
+    const FretHandArrivalViewState& strike = state.fret_hand_track[1];
+    CHECK(strike.seconds == Catch::Approx(2.0));
+    CHECK(strike.window.fret == 3);
+    CHECK(strike.ramp_seconds == Catch::Approx(2.0));
+    CHECK(strike.unpitched_ramp);
+    const std::optional<FretHandSettleViewState>& settle = strike.settle;
+    REQUIRE(settle.has_value());
+    if (settle.has_value())
+    {
+        CHECK(settle->seconds == Catch::Approx(strike.seconds - glide.ink_end_seconds));
+        CHECK(settle->heading == FretWindow{.fret = 9, .width = g_min_fret_hand_width});
+    }
+}
+
+// The three places a ridden slide-out comes to rest. Into blank space the ride arrives at the
+// slide's end on the window covering its exit, with its rail drawn whole, and returns over the
+// margin before the next instant the hand covers. Ending exactly on that instant with the standing
+// window there, the return itself lands at the slide's end, so the window dips toward the exit and
+// settles back over the margin. Ending exactly on a hand event, that event is where it rests.
+TEST_CASE("Chart projection brings a ridden slide-out to rest", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto project =
+        [&tempo_map](const Fraction ring, const GridPosition& next, const int fret) {
+            Arrangement arrangement = makeArrangementWithChart();
+            Chart* const chart_ptr = chartOrNull(arrangement);
+            REQUIRE(chart_ptr != nullptr);
+            chart_ptr->fret_hand_positions.clear();
+            chart_ptr->notes = {
+                // Fret 5 sliding out down to fret 1, which the fret-5 window does not cover.
+                ChartNote{
+                    .position = GridPosition{.measure = 1, .beat = 1},
+                    .string = 1,
+                    .fret = 5,
+                    .sustain = ring,
+                    .bend = {},
+                    .keyframes = {Keyframe{.offset = ring, .fret = 1}},
+                },
+                ChartNote{
+                    .position = next,
+                    .string = 2,
+                    .fret = fret,
+                    .sustain = Fraction{1, 32},
+                    .bend = {},
+                    .keyframes = {},
+                },
+            };
+            return makeChartViewState(arrangement, tempo_map);
+        };
+    const FretWindow standing{.fret = 5, .width = g_min_fret_hand_width};
+    const FretWindow ridden{.fret = 1, .width = g_min_fret_hand_width};
+
+    SECTION("into blank space the ride arrives on its exit and returns")
+    {
+        const ChartViewState state =
+            project(Fraction{1, 8}, GridPosition{.measure = 1, .beat = 3}, 5);
+        REQUIRE(state.fret_hand_track.size() == 3);
+        const FretHandArrivalViewState& ride = state.fret_hand_track[1];
+        CHECK(ride.seconds == Catch::Approx(0.25));
+        CHECK(ride.window == ridden);
+        CHECK(ride.ramp_seconds == Catch::Approx(0.25));
+        CHECK(ride.unpitched_ramp);
+        CHECK_FALSE(ride.settle.has_value());
+        const FretHandArrivalViewState& back = state.fret_hand_track[2];
+        CHECK(back.seconds == Catch::Approx(1.0));
+        CHECK(back.window == standing);
+        CHECK(back.ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+        CHECK_FALSE(back.unpitched_ramp);
+    }
+
+    SECTION("onto the standing window the window dips and settles back")
+    {
+        const ChartViewState state =
+            project(Fraction{1, 4}, GridPosition{.measure = 1, .beat = 2}, 5);
+        REQUIRE(state.fret_hand_track.size() == 2);
+        const FretHandArrivalViewState& back = state.fret_hand_track[1];
+        CHECK(back.seconds == Catch::Approx(0.5));
+        CHECK(back.window == standing);
+        CHECK(back.ramp_seconds == Catch::Approx(0.5));
+        CHECK(back.unpitched_ramp);
+        const std::optional<FretHandSettleViewState>& settle = back.settle;
+        REQUIRE(settle.has_value());
+        if (settle.has_value())
+        {
+            CHECK(settle->seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+            CHECK(settle->heading == ridden);
+        }
+    }
+
+    SECTION("onto a hand event the window settles into that event")
+    {
+        const ChartViewState state =
+            project(Fraction{1, 4}, GridPosition{.measure = 1, .beat = 2}, 12);
+        REQUIRE(state.fret_hand_positions.size() == 2);
+        REQUIRE(state.fret_hand_track.size() == 2);
+        const FretHandArrivalViewState& strike = state.fret_hand_track[1];
+        CHECK(strike.seconds == Catch::Approx(0.5));
+        CHECK(strike.window.fret == 12);
+        CHECK(strike.ramp_seconds == Catch::Approx(0.5));
+        CHECK(strike.unpitched_ramp);
+        const std::optional<FretHandSettleViewState>& settle = strike.settle;
+        REQUIRE(settle.has_value());
+        if (settle.has_value())
+        {
+            CHECK(settle->seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+            CHECK(settle->heading == ridden);
+        }
+    }
 }
 
 // Verifies an arrangement with no chart projects an empty scene that names no strings.
@@ -1274,7 +1397,7 @@ TEST_CASE(
         });
         REQUIRE(state.fret_hand_positions.size() == 2);
         // Bound once, so the count check and the reads after it are provably the same object.
-        const FhpViewState& move = state.fret_hand_positions[1];
+        const FretHandArrivalViewState& move = arrivalAtChip(state, 1);
         CHECK(move.seconds == Catch::Approx(0.75));
         CHECK(move.ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
         REQUIRE(state.shapes.size() == 1);
@@ -1339,7 +1462,7 @@ TEST_CASE(
         const ChartViewState state = project({glide(1, 5), glide(2, 7)});
         REQUIRE(state.fret_hand_positions.size() == 2);
         CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(0.5));
-        CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.25));
+        CHECK(arrivalAtChip(state, 1).ramp_seconds == Catch::Approx(0.25));
         REQUIRE_FALSE(state.shapes.empty());
         CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.5));
         CHECK_THAT(
@@ -1402,12 +1525,12 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK(view.slides[1].seconds == Catch::Approx(view.ring_end_seconds));
 }
 
-// Ramp derivation for the fretting hand's approach: a placement landing exactly on a keyframe's
-// grid position ramps over that glide segment (slide-locked), ordinary placements morph over the
-// shared minimum-sustain-distance margin, and crowded placements shorten against the previous
-// arrival instead of overlapping it. A segment ending at the RING's end is the slide-out, so its
-// ramp carries the unpitched family; the pitched slide-lock is pinned by the hold-keyframe case
-// below, whose arrival sits strictly inside its ring.
+// Ramp derivation for the fretting hand's approach: ordinary placements morph over the shared
+// minimum-sustain-distance margin, and crowded placements shorten against the previous arrival
+// instead of overlapping it. A segment ending at the RING's end is the slide-out, which the hand
+// lands on only by riding it; a window already covering its exit never rides, so a placement on
+// its end morphs over the margin like any other. The pitched slide-lock is pinned by the
+// hold-keyframe case below, whose arrival sits strictly inside its ring.
 TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1417,9 +1540,8 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // A sustained note whose tail trails off unpitched: a placement on its end rides the
-    // slide-out's own segment with the unpitched curve, so the window travels exactly with the
-    // drawn rail.
+    // A sustained note whose tail trails off unpitched, under windows that already cover its
+    // exit.
     chart.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -1436,43 +1558,37 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
         // Crowded: a sixty-fourth after the previous arrival — closer than the margin —
         // so the morph shortens against it.
         boardWidePosition(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}}),
-        // Exactly on the fixture's pitched keyframe (3:1+1/2 advanced by its half-note offset):
-        // slide-locked to the glide segment.
+        // Exactly on the fixture's 3:1+1/2 slide-out end (advanced by its half-note offset).
         boardWidePosition(GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}}),
-        // Exactly where the unpitched slide-out ends (4:3 advanced a quarter): the margin
-        // morph, arriving with the slide-out, never the whole-sustain segment.
+        // Exactly where the pushed slide-out ends (4:3 advanced a quarter).
         boardWidePosition(GridPosition{.measure = 4, .beat = 4}),
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 4);
 
-    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    CHECK(
-        state.fret_hand_positions[0].ramp_seconds ==
-        Catch::Approx(g_minimum_sustain_distance_seconds));
+    // The windows cover every exit, so nothing rides and the track is the chips alone.
+    REQUIRE(state.fret_hand_track.size() == 4);
+    const std::vector<FretHandArrivalViewState>& track = state.fret_hand_track;
 
-    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
+    CHECK(track[0].seconds == Catch::Approx(4.0 * beat));
+    CHECK(track[0].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
 
-    // The glide starts at the note onset (8.5 beats) and lands at the keyframe (10.5 beats), which
-    // is the fixture ring's own end — the slide-out, so the family is the unpitched one.
-    CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
-    CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
-    CHECK(state.fret_hand_positions[2].unpitched_ramp);
+    CHECK(track[1].seconds == Catch::Approx(4.0625 * beat));
+    CHECK(track[1].ramp_seconds == Catch::Approx(0.0625 * beat));
 
-    // A placement on an unpitched slide-out's end rides that slide-out's OWN segment, exactly as a
-    // pitched glide does, and carries the unpitched family so the window eases with the same curve
-    // the rail is drawn with. The slide-out's segment runs from the note's onset (14 beats) to its
-    // end (15 beats) because the note carries no pitched keyframes ahead of it; morphing over the
-    // metrical margin instead would leave the window stationary for most of the drawn glide and
-    // then sprinting to catch up.
-    CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
-    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK(state.fret_hand_positions[3].unpitched_ramp);
-    // The two margin morphs keep the pitched family: only a slide-out ramp is unpitched.
-    CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
-    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
+    // On a slide-out end whose exit the window already covers: the hand never left, so the
+    // placement morphs over the margin.
+    CHECK(track[2].seconds == Catch::Approx(10.5 * beat));
+    CHECK(track[2].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+    CHECK(track[3].seconds == Catch::Approx(15.0 * beat));
+    CHECK(track[3].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+    // Every margin morph keeps the pitched family and settles on its own curve.
+    for (const FretHandArrivalViewState& arrival : track)
+    {
+        CHECK_FALSE(arrival.unpitched_ramp);
+        CHECK_FALSE(arrival.settle.has_value());
+    }
 }
 
 // A shift slide's ARRIVAL is pitched even where the crop stops the ink before it, and only the
@@ -1511,8 +1627,8 @@ TEST_CASE("Chart projection keeps a cropped shift slide's arrival ramp pitched",
     CHECK(arrival.seconds == Catch::Approx(13.0 * beat));
     CHECK(arrival.seconds > shift.ink_end_seconds);
     CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(arrival.seconds));
-    CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
+    CHECK(arrivalAtChip(state, 2).ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK_FALSE(arrivalAtChip(state, 2).unpitched_ramp);
 }
 
 // The settle is the stretch of a slide-matched ramp past its rail's ink end: a placement on a glide
@@ -1578,31 +1694,36 @@ TEST_CASE("Chart projection settles a placement past its glide's ink end", "[cor
     const NoteViewState& shift = state.notes[0];
     REQUIRE(shift.slides.size() == 1);
     REQUIRE(shift.slides.front().seconds > shift.ink_end_seconds);
-    const FhpViewState& cut = state.fret_hand_positions[1];
+    const FretHandArrivalViewState& cut = arrivalAtChip(state, 1);
     CHECK(cut.seconds == Catch::Approx(5.0 * beat));
     CHECK(cut.ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK(cut.settle_seconds == Catch::Approx(cut.seconds - shift.ink_end_seconds));
-    CHECK(cut.settle_seconds > 0.0);
-    CHECK(cut.settle_seconds < cut.ramp_seconds);
+    // The curve heads for the placement's own window: only the rail stops short of it.
+    const std::optional<FretHandSettleViewState>& cut_settle = cut.settle;
+    REQUIRE(cut_settle.has_value());
+    if (cut_settle.has_value())
+    {
+        CHECK(cut_settle->seconds == Catch::Approx(cut.seconds - shift.ink_end_seconds));
+        CHECK(cut_settle->seconds < cut.ramp_seconds);
+        CHECK(cut_settle->heading == cut.window);
+    }
 
     // The reached glide: slide-matched over its own quarter-note segment, nothing to settle.
     const NoteViewState& reached = state.notes[2];
     REQUIRE(reached.slides.size() == 1);
     REQUIRE(instantDrawn(reached.slides.front().seconds, reached.ink_end_seconds));
-    const FhpViewState& drawn = state.fret_hand_positions[3];
+    const FretHandArrivalViewState& drawn = arrivalAtChip(state, 3);
     CHECK(drawn.seconds == Catch::Approx(9.0 * beat));
     CHECK(drawn.ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK_THAT(drawn.settle_seconds, Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_FALSE(drawn.settle.has_value());
 
     // The margin morph settles over nothing.
-    const FhpViewState& morph = state.fret_hand_positions[4];
+    const FretHandArrivalViewState& morph = arrivalAtChip(state, 4);
     CHECK(morph.ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
-    CHECK_THAT(morph.settle_seconds, Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_FALSE(morph.settle.has_value());
 }
 
-// Two rings can end on ONE head from two strings, and the ramp table is keyed by instant alone: the
-// placement standing there is the hand LANDING, so the pitched arrival outranks the slide-out
-// leaving beside it whichever note the walk reaches first.
+// Two rings can end on ONE head from two strings: the placement standing there is the hand LANDING,
+// so it follows the pitched arrival rather than riding the slide-out leaving beside it.
 TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1652,8 +1773,8 @@ TEST_CASE("Chart projection prefers a pitched ramp at a shared instant", "[core]
     // The arrival's own segment: from the onset (4 beats) to the arrival's stored instant, the
     // 5 beats both rings end at.
     CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(5.0 * beat));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
+    CHECK(arrivalAtChip(state, 1).ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK_FALSE(arrivalAtChip(state, 1).unpitched_ramp);
 }
 
 // An equal-fret keyframe is a HOLD, not a glide: nothing travels across it, so a placement landing
@@ -1703,14 +1824,13 @@ TEST_CASE("Chart projection gives a hold keyframe the margin morph", "[core][cha
 
     // The hold at beat 4 does NOT inherit the dotted-half held stretch; it morphs over the margin.
     CHECK(
-        state.fret_hand_positions[1].ramp_seconds ==
-        Catch::Approx(g_minimum_sustain_distance_seconds));
-    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
+        arrivalAtChip(state, 1).ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+    CHECK_FALSE(arrivalAtChip(state, 1).unpitched_ramp);
     // The real glide that follows still rides its own quarter-note segment, and the arrival is
     // drawn exactly where the chart states it, so the window completes there.
     CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(8.0 * beat));
-    CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
+    CHECK(arrivalAtChip(state, 2).ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK_FALSE(arrivalAtChip(state, 2).unpitched_ramp);
 }
 
 // THE DIGIT WINDOW and the mark that rides it. A bracket is the span's CHORD FRAME: it states

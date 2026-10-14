@@ -203,13 +203,43 @@ rounding of any kind here.
 }
 
 /*!
+\brief The final stretch of a hand's approach over which it leaves the curve it was following and
+comes to rest at the arrival with a continuous slope (\ref HighwayHandArrival::settle).
+*/
+struct HighwayHandSettle
+{
+    /*! \brief How long before the arrival the approach leaves its curve. */
+    double seconds{0.0};
+
+    /*! \brief Fret-line coordinate of the low-fret edge the curve was heading for. */
+    double low_line{0.0};
+
+    /*! \brief Fret-line coordinate of the high-fret edge the curve was heading for. */
+    double high_line{4.0};
+
+    /*!
+    \brief Compares two settles by their stored fields.
+    \param lhs Left-hand settle.
+    \param rhs Right-hand settle.
+    \return True when both settles store equal values.
+    */
+    friend constexpr bool operator==(
+        const HighwayHandSettle& lhs, const HighwayHandSettle& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.low_line <=> rhs.low_line) &&
+               std::is_eq(lhs.high_line <=> rhs.high_line);
+    }
+};
+
+/*!
 \brief One arrival of a hand's window on the board: the extent the hand settles on, and the eased
 approach ending there.
 
 THE ONE MOTION ELEMENT BOTH HANDS SHARE, resolved by one rule (\ref highwayHandWindowAt): the
-fretting hand's track (\ref HighwayViewState::fret_hand) is an arrival per placement and per
-slide-out ride, and the
-picking hand's (\ref HighwayViewState::pick_hand) is an arrival per stop of the taps' travel.
+fretting hand's track (\ref HighwayViewState::fret_hand) is the chart's
+(\ref ChartViewState::fret_hand_track), and the picking hand's (\ref HighwayViewState::pick_hand) is
+an arrival per stop of the taps' travel.
 Edges are fret-line coordinates (line 0 is the nut side of fret 1): a settled window covering
 frets [fret, fret + width - 1] has edges fret - 1 and fret + width - 1.
 */
@@ -227,28 +257,32 @@ struct HighwayHandArrival
     /*!
     \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
 
-    A placement's is \ref FhpViewState::ramp_seconds. On the picking hand's track a strike's first
-    arrival is instant, and every later arrival ramps over the leg from the arrival before it. A
-    ramp never reaches back past the arrival before it, so ramp starts ascend with the arrivals.
+    The fretting hand's is \ref FretHandArrivalViewState::ramp_seconds. On the picking hand's track
+    a strike's first arrival is instant, and every later arrival ramps over the leg from the
+    arrival before it. A ramp never reaches back past the arrival before it, so ramp starts ascend
+    with the arrivals.
     */
     double ramp_seconds{0.0};
 
     /*!
-    \brief True when the ramp spans an UNPITCHED glide (\ref FhpViewState::unpitched_ramp), so
-    the approach eases with the unpitched curve instead of the pitched one.
+    \brief True when the ramp spans an UNPITCHED glide
+    (\ref FretHandArrivalViewState::unpitched_ramp), so the approach eases with the unpitched curve
+    instead of the pitched one.
     */
     bool unpitched_ramp{false};
 
     /*!
-    \brief The final stretch of the ramp over which the approach settles into the arrival with a
-    continuous slope; zero settles on the ramp's own curve.
+    \brief Present where the approach leaves its curve before the arrival; absent where it settles
+    on the curve's own end.
 
-    THE CROP ZONE: from the rail's ink end to the arrival. A leg the ink end cuts is drawn to the
-    crop and no further while the hand completes at the true instant, so over this stretch the
-    window leaves the leg's curve where the rail stops and comes to rest exactly at the arrival,
-    in place of the curve's stop with slope. Zero where the rail reaches the arrival.
+    THE CROP ZONE: a leg the ink end cuts is drawn to the crop and no further while the hand
+    completes at the true instant, so over this stretch the window leaves the leg's curve where the
+    rail stops and comes to rest exactly at the arrival, in place of the curve's stop with slope.
+    The curve heads for the settle's own edges, which are the arrival's except where a ridden
+    slide-out carried the hand toward another window
+    (\ref FretHandArrivalViewState::settle).
     */
-    double settle_seconds{0.0};
+    std::optional<HighwayHandSettle> settle{};
 
     /*!
     \brief Compares two arrivals by their stored fields.
@@ -267,8 +301,7 @@ struct HighwayHandArrival
                std::is_eq(lhs.low_line <=> rhs.low_line) &&
                std::is_eq(lhs.high_line <=> rhs.high_line) &&
                std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp &&
-               std::is_eq(lhs.settle_seconds <=> rhs.settle_seconds);
+               lhs.unpitched_ramp == rhs.unpitched_ramp && lhs.settle == rhs.settle;
     }
 };
 
@@ -666,10 +699,10 @@ struct HighwayViewState
     /*!
     \brief The fretting hand's light.
 
-    Its track is an arrival per placement (\ref ChartViewState::fret_hand_positions) and per
-    slide-out ride (\ref ChartViewState::fret_hand_rides), merged in arrival order: what the
-    board's window motion reads — the window edges, the morph dim, the camera's framing — through
-    the one resolver both hands share (\ref highwayHandWindowAt). The chart's placements stay the
+    Its track is the chart's (\ref ChartViewState::fret_hand_track), an arrival per placement and
+    per slide-out ride and return: what the board's window motion reads — the window edges, the
+    morph dim, the camera's framing — through the one resolver both hands share
+    (\ref highwayHandWindowAt). The chart's placements stay the
     authority for what a placement IS (the 2D lane draws them, the board labels them). It is lit
     where the chart proves the hand holds something (\ref makeFretHandLight).
     */

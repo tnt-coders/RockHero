@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/highway/highway_window.h>
 #include <span>
@@ -268,6 +269,68 @@ the window's settle over a crop zone joins the curve at its value AND its slope 
 \return The curve's slope at the progress.
 */
 [[nodiscard]] double highwaySlideEaseSlope(double progress, bool unpitched) noexcept;
+
+/*! \brief Which of a note's stops a glide reading walks (\ref highwayGlideLegAt). */
+enum class HighwayGlidePath : std::uint8_t
+{
+    /*! \brief Every stop the note's rail is drawn through, its slide-out included. */
+    Rail,
+
+    /*!
+    \brief The stops a hand travels to: a scrape's every stop, the picking hand's whole gesture,
+    but no other note's unpitched slide-out, and no stop at or below the nut.
+    */
+    Hand,
+};
+
+/*!
+\brief Reports whether a glide reading walks a stop (\ref HighwayGlidePath).
+\param note Projected note the stop belongs to.
+\param stop One of the note's stops.
+\param path Which stops the reading walks.
+\return True when the reading travels to the stop.
+*/
+[[nodiscard]] bool highwayGlideWalks(
+    const NoteViewState& note, const SlideStopViewState& stop, HighwayGlidePath path) noexcept;
+
+/*!
+\brief The leg of a note's glide in force at an instant (\ref highwayGlideLegAt).
+
+A surface places the two stops in its own space and lerps between them by \ref weight: every fret
+axis is affine in the fret, so one weight places the rail, the head and the hand alike.
+*/
+struct HighwayGlideLeg
+{
+    /*! \brief The stop the leg leaves: the note's own fret, or the stop walked before it. */
+    int from_fret{0};
+
+    /*! \brief The stop the leg travels to; \ref from_fret again once past the last stop walked. */
+    int to_fret{0};
+
+    /*! \brief How far along the leg's eased curve the instant lies, in [0, 1]. */
+    double weight{1.0};
+
+    /*! \brief Index of the stop travelled to in the note's stops, or their count once past. */
+    std::size_t stop{0};
+};
+
+/*!
+\brief THE ONE WALK over a note's glide: the leg in force at an instant, from the note's onset
+through each walked stop at its stored instant, each eased by \ref highwaySlideEaseWeight in the
+family the arriving stop names (a pitched glide accelerates into its target; an unpitched one
+releases early). Past the last walked stop the glide holds it.
+
+Every stop sits at its stored instant, stops past the note's ink end included, so an instant inside
+the drawn extent on the leg toward a stop beyond it lies on that leg's true path. What is drawn is
+the caller's to bound.
+
+\param note Projected note whose glide is read.
+\param path Which stops the reading walks: the rail's, or the hand's.
+\param seconds Absolute time to evaluate at.
+\return The leg in force there.
+*/
+[[nodiscard]] HighwayGlideLeg highwayGlideLegAt(
+    const NoteViewState& note, HighwayGlidePath path, double seconds) noexcept;
 
 /*!
 \brief The cubic Hermite curve from one value and slope to another, at a unit progress.

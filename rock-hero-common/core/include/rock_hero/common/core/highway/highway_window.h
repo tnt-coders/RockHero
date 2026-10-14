@@ -57,10 +57,11 @@ travel. Inside an arrival's [seconds - ramp_seconds, seconds] span both edges ea
 settled window toward the arriving one, so the window travels in lockstep with a gliding note and
 morphs smoothly for ordinary moves. Which easing applies is the arrival's own `unpitched_ramp`: a
 pitched approach takes the slide curve, an unpitched one the slide-out curve, which starts slowly
-because a hand letting go does not accelerate the way one arriving does. An arrival's
-`settle_seconds` is the crop zone: over that final stretch the approach leaves its curve — where
-the rail it follows is cut — and comes to rest at the arrival with a continuous slope, in place of
-the unpitched curve's stop with slope. Outside every ramp the settled window holds, and arrivals
+because a hand letting go does not accelerate the way one arriving does. The curve heads for the
+arrival's \ref highwayHandHeading, and an arrival's `settle` is the stretch over which the approach
+leaves that curve — where the rail it follows is cut, or where a ridden slide-out carried it
+toward another window — and comes to rest at the arrival with a continuous slope, in place of the
+curve's stop with slope. Outside every ramp the settled window holds, and arrivals
 are inclusive: at exactly \p seconds the arrival has arrived. The first arrival's settled window
 already holds from the start of time — the opening scroll shows where the hand belongs before the
 first note arrives — and the reference nut window (lines 0 to 4) applies only when there are no
@@ -72,6 +73,19 @@ arrivals at all.
 */
 [[nodiscard]] HighwayHandWindow highwayHandWindowAt(
     std::span<const HighwayHandArrival> track, double seconds) noexcept;
+
+/*!
+\brief Returns the window an arrival's approach curve heads for: its settle's edges where it
+settles (\ref HighwayHandArrival::settle), otherwise the arrival's own.
+
+The approach's whole path runs from the previous settled window through this one to the arrival's
+own, so every reader of how far a leg travels — the sampler's slice density, the motion dim —
+measures through it rather than between the two settled windows alone.
+
+\param arrival The arrival whose approach is read.
+\return The window the approach's curve heads for.
+*/
+[[nodiscard]] HighwayHandWindow highwayHandHeading(const HighwayHandArrival& arrival) noexcept;
 
 /*!
 \brief The leg a hand's window is travelling at one instant: the ramp from one arrival's settled

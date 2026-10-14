@@ -28,19 +28,6 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
-## Found by the partial-slide and slide-out exit review (2026-10-13)
-
-- **`statedStopFrom` is spelled out nine times in the span walk.** `chart_shapes.cpp` calls
-  `statedStopFrom(saved_notes[i], offset, arrives_into[i])` at nine sites in `deriveChartShapes`.
-  A `channel_at(note_index, offset)` lambda would name that call once. The partial-slide block's
-  holder loop indexes by a `string_index` it never uses, beside an `any_of` over the same
-  `slot.strike_notes`; one style for both would read cleaner.
-- **The slide-out "no room" rule is split across two functions.** `slideOutRidesOf`
-  (`chart_fret_hand.cpp`) drops a ride when a hand event fronts during the slide, and
-  `deriveFretHandRides` drops one when a demand lands during it. That is one sentence in the
-  hand-position rules. Fold them into one predicate, unless the slide-out hand redesign (the
-  ride-vs-placement-ramp question raised the same day) replaces both first.
-
 ## Found by the theme close-out cleanup (2026-10-13)
 
 - **The renderer takes the CRT as a bare `bool`.** `HighwayRenderer::create` and `setTheme` take
@@ -1667,9 +1654,6 @@ against the tree on the date above.
   untouched — yet it is handed to the tempo, meter and section snapshots too
   (`marker_model_commit.h`). Only the positions snapshot reads it. Either state that precondition
   on the field, or hand the layer to the positions snapshot alone.
-- **Rides are typed as hand events.** `deriveFretHandRides` returns `FretHandEvent`s, while
-  `chart_fret_hand.h` says a ride is motion and "no hand event". Rename the `{front, window}` type
-  `FretWindowArrival` when it is next touched, leaving "hand event" to the derivation's own output.
 - **Commit-then-select verbs publish twice.** Section add and rename (`section_handlers.cpp`, the
   `commitMarkerModel` calls at :118 and :148), tone insert (`tone_handlers.cpp` :684) and
   fret-hand add (`fret_hand_handlers.cpp` :236) publish inside `commitMarkerModel`

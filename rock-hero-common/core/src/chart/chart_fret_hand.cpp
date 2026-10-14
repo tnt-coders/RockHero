@@ -242,20 +242,21 @@ struct HandRun
         .hold_reach[static_cast<std::size_t>(std::distance(demands.holds.begin(), past)) - 1];
 }
 
-// One slide-out the window may ride: its segment on the whole-note axis and the fret it exits to.
-struct SlideOutRide
+// One slide-out of a stop the fretting hand holds, on the whole-note axis: where it leaves its last
+// stop, where it ends, the fret it exits to, and its note.
+struct HeldSlideOut
 {
-    Fraction start{};
+    Fraction departure{};
     Fraction end{};
     int exit_fret{0};
+    std::size_t note{0};
 };
 
-// The slide-outs of stops the fretting hand holds, each under a window that has stood since the
-// slide began, ascending by end.
-[[nodiscard]] std::vector<SlideOutRide> slideOutRidesOf(
-    const ChartConnections& connections, const int capo, const std::vector<FretHandEvent>& events)
+// Every slide-out of a stop the fretting hand holds, ascending by end.
+[[nodiscard]] std::vector<HeldSlideOut> heldSlideOuts(
+    const ChartConnections& connections, const int capo)
 {
-    std::vector<SlideOutRide> rides;
+    std::vector<HeldSlideOut> slide_outs;
     for (std::size_t index = 0; index < connections.saved_notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
@@ -274,20 +275,16 @@ struct SlideOutRide
             continue;
         }
         const Fraction place = connections.places[index];
-        const SlideOutRide ride{
-            .start = place + departure,
-            .end = place + slide_out->offset,
-            .exit_fret = *exit_fret,
-        };
-        // A hand event fronting while the slide travels is the hand moving on: no ride.
-        const auto past = firstFretHandEventAfter(events, ride.end);
-        if (past != events.begin() && std::prev(past)->front <= ride.start)
-        {
-            rides.push_back(ride);
-        }
+        slide_outs.push_back(
+            HeldSlideOut{
+                .departure = place + departure,
+                .end = place + slide_out->offset,
+                .exit_fret = *exit_fret,
+                .note = index,
+            });
     }
-    std::ranges::sort(rides, std::ranges::less{}, &SlideOutRide::end);
-    return rides;
+    std::ranges::sort(slide_outs, std::ranges::less{}, &HeldSlideOut::end);
+    return slide_outs;
 }
 
 } // namespace
@@ -795,42 +792,45 @@ std::vector<FretHandEvent>::const_iterator firstFretHandEventAfter(
     return std::ranges::upper_bound(events, place, std::ranges::less{}, &FretHandEvent::front);
 }
 
-// Keeps the slide-outs with room before the next demand, shifts the standing window over each
-// instant's exits, and adds the way back where no hand event fronts first.
-std::vector<FretHandEvent> deriveFretHandRides(
+// Keeps the slide-outs with room, shifts the standing window over each instant's exits, and finds
+// the way back where no hand event or later ride is first.
+std::vector<FretHandRide> deriveFretHandRides(
     const ChartConnections& connections, const FretHandDemands& demands,
     const std::vector<FretHandEvent>& events)
 {
-    std::vector<SlideOutRide> slide_outs = slideOutRidesOf(connections, demands.capo, events);
-    if (slide_outs.empty())
-    {
-        return {};
-    }
+    std::vector<HeldSlideOut> slide_outs = heldSlideOuts(connections, demands.capo);
     // The instants the hand derivation covers.
     const std::vector<FretHandInstant>& instants = demands.instants;
-    const auto next_demand_after = [&instants](const Fraction place) {
-        return std::ranges::upper_bound(
-            instants, place, std::ranges::less{}, &FretHandInstant::place);
-    };
 
-    // No room: the next demand after the slide begins lands before its end, or exactly on it.
-    std::erase_if(slide_outs, [&next_demand_after](const SlideOutRide& slide_out) {
-        return next_demand_after(slide_out.start) != next_demand_after(slide_out.end);
+    // ROOM: nothing the hand must do lies strictly inside the slide — no instant it covers, and no
+    // hand event fronting, which would be the hand moving on — and a window stands where it
+    // departs. Either one exactly at the end is where the ride lands.
+    std::erase_if(slide_outs, [&instants, &events](const HeldSlideOut& slide_out) {
+        const auto demand = std::ranges::upper_bound(
+            instants, slide_out.departure, std::ranges::less{}, &FretHandInstant::place);
+        const auto event = firstFretHandEventAfter(events, slide_out.departure);
+        return event == events.begin() || (event != events.end() && event->front < slide_out.end) ||
+               (demand != instants.end() && demand->place < slide_out.end);
     });
 
-    std::vector<FretHandEvent> rides;
+    std::vector<FretHandRide> rides;
     for (auto member = slide_outs.begin(); member != slide_outs.end();)
     {
         const Fraction end = member->end;
+        const HeldSlideOut* leading = &*member;
         int lowest = member->exit_fret;
         int highest = member->exit_fret;
         for (; member != slide_outs.end() && member->end == end; ++member)
         {
             lowest = std::min(lowest, member->exit_fret);
             highest = std::max(highest, member->exit_fret);
+            if (member->departure < leading->departure)
+            {
+                leading = &*member;
+            }
         }
-        const auto past = firstFretHandEventAfter(events, end);
-        const FretWindow standing = std::prev(past)->window;
+        const FretWindow standing =
+            std::prev(firstFretHandEventAfter(events, leading->departure))->window;
         // The least shift that covers every exit, keeping the width; a spread wider than the
         // window keeps its lowest exit covered.
         const FretWindow ridden{
@@ -841,17 +841,37 @@ std::vector<FretHandEvent> deriveFretHandRides(
         {
             continue;
         }
-        rides.push_back(FretHandEvent{.front = end, .window = ridden});
-        const auto back = next_demand_after(end);
-        if (back != instants.end() && (past == events.end() || back->place < past->front))
+        // The way back: the first instant the hand covers at the end or after it, unless a hand
+        // event fronts there or first.
+        const auto after = firstFretHandEventAfter(events, end);
+        const auto back =
+            std::ranges::lower_bound(instants, end, std::ranges::less{}, &FretHandInstant::place);
+        std::optional<Fraction> back_place;
+        if (std::prev(after)->front != end && back != instants.end() &&
+            (after == events.end() || back->place < after->front))
         {
-            rides.push_back(FretHandEvent{.front = back->place, .window = standing});
+            back_place = back->place;
+        }
+        rides.push_back(
+            FretHandRide{
+                .departure = leading->departure,
+                .end = end,
+                .standing = standing,
+                .ridden = ridden,
+                .note = leading->note,
+                .back = back_place,
+            });
+    }
+    // A later ride arriving by an earlier one's way back takes the window on from there, so the
+    // earlier one never returns.
+    for (std::size_t index = 0; index + 1 < rides.size(); ++index)
+    {
+        const std::optional<Fraction>& back = rides[index].back;
+        if (back.has_value() && rides[index + 1].end <= *back)
+        {
+            rides[index].back.reset();
         }
     }
-    // Slide-outs ending at different instants before one demand share its way back.
-    std::ranges::sort(rides, std::ranges::less{}, &FretHandEvent::front);
-    const auto repeated = std::ranges::unique(rides);
-    rides.erase(repeated.begin(), repeated.end());
     return rides;
 }
 

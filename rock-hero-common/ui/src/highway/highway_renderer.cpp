@@ -2031,23 +2031,33 @@ struct HighwayRenderer::Impl
         }
         const common::core::HighwayHandArrival& from = *leg->from;
         const common::core::HighwayHandArrival& to = *leg->to;
+        // The leg's whole path runs through where its curve heads (highwayHandHeading), so a leg
+        // that leaves and returns to one window still sweeps.
+        const common::core::HighwayHandWindow heading = common::core::highwayHandHeading(to);
         const bool mirrored = options.view.mirrored;
-        const auto travel_x = [&](const double from_line, const double to_line) {
-            return std::abs(
-                common::core::highwayFretLineX(to_line, metrics, mirrored) -
-                common::core::highwayFretLineX(from_line, metrics, mirrored));
-        };
-        const double slope =
-            std::max(travel_x(from.low_line, to.low_line), travel_x(from.high_line, to.high_line)) /
-            common::core::highwayTimeToZ(to.ramp_seconds, scroll_speed, metrics);
-        // A lane both of the leg's windows cover stays lit throughout; only the rest of the window
+        const auto travel_x =
+            [&](const double from_line, const double via_line, const double to_line) {
+                const auto x = [&](const double line) {
+                    return common::core::highwayFretLineX(line, metrics, mirrored);
+                };
+                return std::abs(x(via_line) - x(from_line)) + std::abs(x(to_line) - x(via_line));
+            };
+        const double slope = std::max(
+                                 travel_x(from.low_line, heading.low_line, to.low_line),
+                                 travel_x(from.high_line, heading.high_line, to.high_line)) /
+                             common::core::highwayTimeToZ(to.ramp_seconds, scroll_speed, metrics);
+        // A lane every window of the leg covers stays lit throughout; only the rest of the window
         // sweeps, so the dim is the window's average over its lanes. Every window is at least one
         // fret line wide (FHP widths, and the picking hand's one-lane light), so the width is
         // never zero.
         const double shared = std::max(
-            0.0, std::min(from.high_line, to.high_line) - std::max(from.low_line, to.low_line));
-        const double sweeping_share =
-            1.0 - (shared / std::max(from.high_line - from.low_line, to.high_line - to.low_line));
+            0.0,
+            std::min({from.high_line, heading.high_line, to.high_line}) -
+                std::max({from.low_line, heading.low_line, to.low_line}));
+        const double sweeping_share = 1.0 - (shared / std::max(
+                                                          {from.high_line - from.low_line,
+                                                           heading.high_line - heading.low_line,
+                                                           to.high_line - to.low_line}));
         const double depth =
             g_window_morph_dim * sweeping_share * (slope / std::sqrt(1.0 + (slope * slope)));
         const double bell = std::sin(std::numbers::pi * leg->progress);

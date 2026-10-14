@@ -20,27 +20,33 @@ namespace
     return HighwayHandWindow{.low_line = arrival.low_line, .high_line = arrival.high_line};
 }
 
-// The approach's weight at `progress` through a ramp of positive length: the ramp's own curve,
-// and inside the settle stretch (\ref HighwayHandArrival::settle_seconds, never more than the
-// ramp) the cubic from that curve's value and slope where the stretch begins to full travel with
-// zero slope where it ends. The slope is scaled into the stretch's own unit so the join is
-// continuous in time, not only in value.
-[[nodiscard]] double approachWeight(
-    const HighwayHandArrival& arrival, const double progress) noexcept
+// One edge of the approach at `progress` through a ramp of positive length, leaving `from`: the
+// ramp's own curve toward `heading` (\ref highwayHandHeading), and inside the settle stretch
+// (\ref HighwayHandArrival::settle, never more than the ramp) the cubic from that curve's value
+// and slope where the stretch begins to the arrival's own edge `to` with zero slope where it ends.
+// The slope is scaled into the stretch's own unit so the join is continuous in time, not only in
+// value.
+[[nodiscard]] double approachEdge(
+    const HighwayHandArrival& arrival, const double from, const double heading, const double to,
+    const double progress) noexcept
 {
-    const double settle =
-        std::min(arrival.settle_seconds, arrival.ramp_seconds) / arrival.ramp_seconds;
-    const double knee = 1.0 - settle;
-    if (settle <= 0.0 || progress <= knee)
+    const double travel = heading - from;
+    // Bound to a local so the presence test and the read are provably the same object.
+    const std::optional<HighwayHandSettle>& settle = arrival.settle;
+    const double stretch =
+        settle.has_value() ? std::min(settle->seconds, arrival.ramp_seconds) / arrival.ramp_seconds
+                           : 0.0;
+    const double knee = 1.0 - stretch;
+    if (stretch <= 0.0 || progress <= knee)
     {
-        return highwaySlideEaseWeight(progress, arrival.unpitched_ramp);
+        return from + (travel * highwaySlideEaseWeight(progress, arrival.unpitched_ramp));
     }
     return cubicHermite(
-        highwaySlideEaseWeight(knee, arrival.unpitched_ramp),
-        highwaySlideEaseSlope(knee, arrival.unpitched_ramp) * settle,
-        1.0,
+        from + (travel * highwaySlideEaseWeight(knee, arrival.unpitched_ramp)),
+        travel * highwaySlideEaseSlope(knee, arrival.unpitched_ramp) * stretch,
+        to,
         0.0,
-        std::clamp((progress - knee) / settle, 0.0, 1.0));
+        std::clamp((progress - knee) / stretch, 0.0, 1.0));
 }
 
 // THE LEG LOOKUP, given the first arrival after `seconds` (the one upper_bound both public readers
@@ -126,10 +132,14 @@ void highwayTrackSampleTimes(
         {
             continue;
         }
+        // The edges' whole path, through where the curve heads and on to where the leg rests.
         const HighwayHandArrival& previous = *std::prev(it);
+        const HighwayHandWindow heading = highwayHandHeading(arrival);
         const double sweep = std::max(
-            std::abs(arrival.low_line - previous.low_line),
-            std::abs(arrival.high_line - previous.high_line));
+            std::abs(heading.low_line - previous.low_line) +
+                std::abs(arrival.low_line - heading.low_line),
+            std::abs(heading.high_line - previous.high_line) +
+                std::abs(arrival.high_line - heading.high_line));
         if (sweep <= 0.0)
         {
             continue;
@@ -182,16 +192,30 @@ HighwayHandWindow highwayHandWindowAt(
         return settledWindow(next == track.begin() ? *next : *std::prev(next));
     }
     const HighwayHandWindow previous = settledWindow(*leg->from);
+    const HighwayHandWindow heading = highwayHandHeading(*leg->to);
     const HighwayHandWindow target = settledWindow(*leg->to);
     // The window eases with the SAME curve the drawn rail uses for this move: the pitched glide's
     // curve for a pitched ramp, the unpitched release curve for a slide-out. Easing every move with
     // the pitched one would leave the window and the rail sharing only their endpoints, which reads
     // as the window not moving with the slide.
-    const double weight = approachWeight(*leg->to, leg->progress);
     return HighwayHandWindow{
-        .low_line = previous.low_line + ((target.low_line - previous.low_line) * weight),
-        .high_line = previous.high_line + ((target.high_line - previous.high_line) * weight),
+        .low_line = approachEdge(
+            *leg->to, previous.low_line, heading.low_line, target.low_line, leg->progress),
+        .high_line = approachEdge(
+            *leg->to, previous.high_line, heading.high_line, target.high_line, leg->progress),
     };
+}
+
+// Rationale lives on the declaration in highway_window.h.
+HighwayHandWindow highwayHandHeading(const HighwayHandArrival& arrival) noexcept
+{
+    // Bound to a local so the presence test and the read are provably the same object.
+    const std::optional<HighwayHandSettle>& settle = arrival.settle;
+    if (settle.has_value())
+    {
+        return HighwayHandWindow{.low_line = settle->low_line, .high_line = settle->high_line};
+    }
+    return settledWindow(arrival);
 }
 
 // Rationale lives on the declaration in highway_window.h. After the release the light follows only

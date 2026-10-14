@@ -112,9 +112,16 @@ the derivation takes over where they do not fit. (`validateFretHandCoverage`, wh
 
 ## Slide-out rides
 
-A slide-out's exit is motion, not a position. The window rides the slide: it shifts the least
-distance that covers the exit frets ending at that instant, keeping its width, and returns to the
-window the hand events state at the next instant the hand covers. A slide-out with no room — the
-next demand at or before its end, or a hand event fronting during it — does not ride, and neither
-does a tap's slide-out, which the picking hand makes. Rides are not hand events and change none.
-(`deriveFretHandRides`)
+A slide-out's exit is motion, not a position. From where the slide-out leaves its last stop, the
+window rides it on the slide-out's own curve and timing, toward the window that covers the exit
+frets ending at that instant by the least shift, keeping its width. It follows the slide only as
+far as the rail is drawn: where the ring's ink is cut short of its end (tail rule 1), the window
+leaves the curve there and comes to rest with a continuous slope. What it comes to rest on is
+whatever arrives at the slide's end — the next hand event, or the window's return to where it
+stood — and where that is another window than the ridden one, the window leaves the curve no later
+than that arrival's own margin before it. Into blank space it arrives on the ridden window at the
+slide's end and returns to the standing window at the next instant the hand covers. A slide-out
+does not ride where an instant the hand covers, or a hand event, lies strictly inside it — an event
+there is the hand moving on — nor where the standing window already covers its exits, nor for a
+tap's slide-out, which the picking hand makes. Rides are not hand events and change none.
+(`deriveFretHandRides`; the drawn track in `makeChartViewState`)

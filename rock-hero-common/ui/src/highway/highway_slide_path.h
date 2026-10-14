@@ -94,16 +94,12 @@ struct HighwaySlideState
 /*!
 \brief Returns a note's glide state at a time: the eased X offset from its anchor, and the dim.
 
-The ONE authority for a note's lateral travel. Segments run between keyframe anchors, eased by
-\ref common::core::highwaySlideEaseWeight in the family the ARRIVING keyframe names (a pitched
-glide accelerates into its target; an unpitched one releases early), and past the last keyframe the
-glide holds its target, since a gesture that has stopped travelling continues straight along the
-fret it stopped on.
-
-Every stop sits at its stored instant, including stops past the note's ink end, and the walk reads
-all of them: a time inside the drawn extent on the leg toward a stop beyond it lies on that leg's
-true path. What is DRAWN is the caller's to bound — it evaluates only times within its extent,
-so a stop past the ink end moves nothing on the board.
+The rail's walk of the glide (\ref common::core::highwayGlideLegAt over every stop), placed on the
+board: the leg's two stops are placed by \ref highwayNoteFretboardX and the leg's weight lerps
+between them. Past the last keyframe the glide holds its target, since a gesture that has stopped
+travelling continues straight along the fret it stopped on. What is DRAWN is the caller's to
+bound — it evaluates only times within its extent, so a stop past the ink end moves nothing on the
+board.
 
 The dim spans a scrape's WHOLE path rather than one segment: a scrape's chained legs are one
 continuous release, so the alpha must never snap back to full at a direction reversal — only the
@@ -121,10 +117,8 @@ curve. On any other note the dim is the terminal slide-out's own leg.
     const common::core::NoteViewState& note, double base_x,
     const common::core::HighwayMetrics& metrics, bool mirrored, double seconds)
 {
-    // The gesture read as one uniform sequence — the note's position keyframes, then its
-    // slide-out terminal — through the shared stop accessor. Every stop, not only those within
-    // the drawn extent: the leg an extent cuts runs toward the first stop beyond it, and a
-    // release dims across its whole stored length.
+    // A travelling head is fretted, so `base_x` is its own fret's anchor and the walk's first leg
+    // leaves from exactly there.
     if (!common::core::headTravels(note))
     {
         return HighwaySlideState{.x_offset = 0.0, .alpha = 1.0};
@@ -148,33 +142,14 @@ curve. On any other note the dim is the terminal slide-out's own leg.
             run_span > 0.0 ? std::clamp((at - run_start_seconds) / run_span, 0.0, 1.0) : 1.0;
         return 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress);
     };
-    double segment_start_seconds = note.start_seconds;
-    double segment_start_x = base_x;
-    for (std::size_t index = 0; index < stop_count; ++index)
-    {
-        const common::core::SlideStopViewState& stop = note.slides[index];
-        const double stop_x = highwayNoteFretboardX(note, stop.fret, metrics, mirrored);
-        if (seconds <= stop.seconds)
-        {
-            const double span = stop.seconds - segment_start_seconds;
-            const double progress =
-                span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0) : 1.0;
-            const double weight = common::core::highwaySlideEaseWeight(progress, stop.slide_out);
-            return HighwaySlideState{
-                .x_offset = segment_start_x + ((stop_x - segment_start_x) * weight) - base_x,
-                .alpha = alpha_at(index, seconds),
-            };
-        }
-        segment_start_seconds = stop.seconds;
-        segment_start_x = stop_x;
-    }
-    // Past the last stop the glide holds where the head ends (common::core::headEndFret), and the
-    // dim holds where its run ended.
+    const common::core::HighwayGlideLeg leg =
+        common::core::highwayGlideLegAt(note, common::core::HighwayGlidePath::Rail, seconds);
+    const double from_x = highwayNoteFretboardX(note, leg.from_fret, metrics, mirrored);
+    const double to_x = highwayNoteFretboardX(note, leg.to_fret, metrics, mirrored);
+    // Past the last stop the dim holds where its run ended.
     return HighwaySlideState{
-        .x_offset =
-            highwayNoteFretboardX(note, common::core::headEndFret(note), metrics, mirrored) -
-            base_x,
-        .alpha = alpha_at(stop_count - 1, seconds),
+        .x_offset = from_x + ((to_x - from_x) * leg.weight) - base_x,
+        .alpha = alpha_at(std::min(leg.stop, stop_count - 1), seconds),
     };
 }
 

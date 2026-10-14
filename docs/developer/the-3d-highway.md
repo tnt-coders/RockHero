@@ -240,19 +240,22 @@ hand window instead and never asks it.) The stop is a parameter because one gest
 more than one of them: the onset from the note's own fret, a slide from each fret it travels to.
 
 **BOTH HANDS MOVE BY ONE MORPH.** The fretting hand's window and the picking hand's light are two
-tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand.track`, an
-arrival per placement and per slide-out ride merged in arrival order — the rides are derived
-motion, `ChartViewState::fret_hand_rides`, which only this track reads;
-`HighwayViewState::pick_hand.track`, an arrival per stop of the taps' travel), resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's
+tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand.track`, the
+chart's own track `ChartViewState::fret_hand_track` — an arrival per placement, per slide-out
+ride and per return after one, which only this track reads, the chips staying
+`fret_hand_positions`; `HighwayViewState::pick_hand.track`, an arrival per stop of the taps'
+travel), resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's
 passes only decide where to sample it. Each arrival carries its ramp, the ease family the rail
-draws with, and its SETTLE: the crop zone, from the rail's ink end to the arrival, over which the
-approach leaves the leg's curve where the rail is cut and comes to rest at the arrival with a
-continuous slope (`cubicHermite`, the one cubic the bend curve is also built from). The settle is a
-fact about the rail, so the chart projection derives it once beside the ramp
-(`FhpViewState::settle_seconds`) and the board copies it; the picking hand's track derives its own
-from the same ink end (`makePickHandLight`, `highway_projection.cpp`). A left-hand slide-out into
-the next head and a pick slide cut at its crop therefore look the same underneath: the light rides
-the rail's own curve to the crop and settles over the last margin.
+draws with, and its SETTLE: the final stretch over which the approach leaves the curve it follows
+and comes to rest at the arrival with a continuous slope (`cubicHermite`, the one cubic the bend
+curve is also built from). The curve heads for the settle's own window (`highwayHandHeading`): the
+arrival's, where the rail's ink is cut short of it, or the ridden window, where a slide-out carried
+the hand toward another window than the one arriving at its end. The settle is a fact about the
+rail, so the chart projection derives it once beside the ramp (`FretHandArrivalViewState::settle`)
+and the board copies it; the picking hand's track derives its own from the same ink end
+(`makePickHandLight`, `highway_projection.cpp`). A left-hand slide-out into the next head and a
+pick slide cut at its crop therefore look the same underneath: the light rides the rail's own
+curve to the crop and settles over the last margin.
 
 **A TAIL'S TIP FADE IS ONE RULE FOR BOTH SURFACES** (`tailFadeSeconds`, `chart_view_state.h`): the
 last 35% of the ink, never less than a fixed stretch of time clamped to the tail — the last 35%
@@ -307,7 +310,9 @@ physics — its ring is position-dependent, drawn at its node's absolute fret po
 `highwayNoteFretboardX`, so it never borrows the window and never moves with it.
 
 Where the gesture has TRAVELLED to at an instant is the companion in the same header,
-`highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
+`highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`, which places the one walk of a
+note's glide (`highwayGlideLegAt` in `highway_tail.h`, whose hand reading the picking hand's light
+follows too): the eased offset from that anchor
 (pitched and unpitched glides ease differently) plus the release dim — the slide-out's own leg on
 a fretted note, a scrape's whole path as one continuous release — holding the last target past the
 last STOP. Stop and not keyframe: the gesture is read as one uniform sequence — the note's position

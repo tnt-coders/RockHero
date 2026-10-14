@@ -85,26 +85,25 @@ namespace
     return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
 }
 
-// The approach a fret-hand placement rides when the placement lands exactly on a glide arrival,
-// keyed by the keyframe's whole-note place: where the leg into that arrival starts, and whether it
-// eases like unpitched travel. The arrival itself is the placement's own instant — nothing
-// presentation decides moves a statement — so the hand travels with the rail and completes where
-// the sound goes.
+// The approach a fret-hand arrival rides when it lands exactly on a PITCHED glide's arrival, keyed
+// by the keyframe's whole-note place: where the leg into that arrival starts. The arrival itself
+// is the placement's own instant — nothing presentation decides moves a statement — so the hand
+// travels with the rail and completes where the sound goes.
 struct SlideRamp
 {
     Fraction start{};
-    bool unpitched{false};
     // The note whose rail the ramp follows: its ink end is where the settle begins.
     std::size_t note{0};
 };
 
-// Walks every glide in the stored stream once and records the segment each arrival rides. A pass
-// of its own rather than a table filled inside the note loop below, because the key is a place the
-// fret-hand pass looks a ramp up by, and the note loop resolves seconds.
+// Walks every glide in the stored stream once and records the segment each pitched arrival rides.
+// A pass of its own rather than a table filled inside the note loop below, because the key is a
+// place the fret-hand pass looks a ramp up by, and the note loop resolves seconds.
 //
 // The SLIDE-OUT is the RESOLVED fact: a slide-out and a shift slide's arrival are the same
 // statement at the same place, and only the relation tells them apart (\ref arrivesIntoNextHead).
-// Asking position alone would ease every arrival with the slide-out curve.
+// A slide-out is no arrival the hand lands, so it files nothing; the window rides it as motion
+// (\ref FretHandResolutions::rides).
 [[nodiscard]] std::map<Fraction, SlideRamp> makeSlideRampStarts(const ChartConnections& connections)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
@@ -134,7 +133,7 @@ struct SlideRamp
             //
             // Bound to a local so the optional check and the access are provably the same object.
             const std::optional<int>& fret = keyframe.fret;
-            if (!fret.has_value())
+            if (!fret.has_value() || (slides_out && keyframe_index + 1 == note.keyframes.size()))
             {
                 continue;
             }
@@ -143,33 +142,70 @@ struct SlideRamp
             // it leaves from). Tying a placement's ramp to a hold's span would make the hand drift
             // the whole held stretch to arrive at a fret it never left, so holds fall through to
             // the margin morph. The segment start still advances, which is what gives the following
-            // glide its true, shorter span. The slide-out's segment starts where the last sounded
-            // fret left off and ends where the ring does, and is marked unpitched so the ease
-            // matches the slide-out.
-            const bool unpitched = slides_out && keyframe_index + 1 == note.keyframes.size();
+            // glide its true, shorter span.
             const Fraction keyframe_place = place + keyframe.offset;
-            if (*fret != segment_start_fret || unpitched)
+            if (*fret != segment_start_fret)
             {
-                const SlideRamp ramp{
-                    .start = segment_start,
-                    .unpitched = unpitched,
-                    .note = index,
-                };
-                // A PITCHED ramp outranks an unpitched one at a shared key: a slide-out on one
-                // string and a shift slide's arrival on another can end on the same head, and the
-                // placement standing there is the hand LANDING. The key names no string, so the tie
-                // is settled here rather than by which note the walk happened to reach first.
-                SlideRamp& filed = starts.try_emplace(keyframe_place, ramp).first->second;
-                if (filed.unpitched && !unpitched)
-                {
-                    filed = ramp;
-                }
+                starts.try_emplace(
+                    keyframe_place, SlideRamp{.start = segment_start, .note = index});
             }
             segment_start = keyframe_place;
             segment_start_fret = *fret;
         }
     }
     return starts;
+}
+
+// One arrival of the fretting hand's window before its approach is resolved: where it stands, the
+// window it rests on, and the ride ending exactly there if one does — the ride's own arrival, its
+// return, or the hand event its slide-outs lead into.
+struct TrackArrival
+{
+    Fraction front{};
+    FretWindow window{};
+    const FretHandRide* ride{nullptr};
+};
+
+// Every arrival of the window in ascending order: each hand event, each ride's own arrival where
+// nothing else stands at its end, and each return. No two share a front (\ref FretHandRide::back).
+[[nodiscard]] std::vector<TrackArrival> trackArrivals(const FretHandResolutions& hand)
+{
+    std::vector<TrackArrival> arrivals;
+    arrivals.reserve(hand.events.size() + (2 * hand.rides.size()));
+    for (const FretHandEvent& event : hand.events)
+    {
+        arrivals.push_back(TrackArrival{.front = event.front, .window = event.window});
+    }
+    for (const FretHandRide& ride : hand.rides)
+    {
+        const auto at_end = std::ranges::lower_bound(
+            hand.events, ride.end, std::ranges::less{}, &FretHandEvent::front);
+        const bool event_at_end = at_end != hand.events.end() && at_end->front == ride.end;
+        if (!event_at_end && ride.back != ride.end)
+        {
+            arrivals.push_back(TrackArrival{.front = ride.end, .window = ride.ridden});
+        }
+        // Bound to a local so the presence test and the read are provably the same object.
+        const std::optional<Fraction>& back = ride.back;
+        if (back.has_value())
+        {
+            arrivals.push_back(TrackArrival{.front = *back, .window = ride.standing});
+        }
+    }
+    std::ranges::sort(arrivals, std::ranges::less{}, &TrackArrival::front);
+    auto ride = hand.rides.begin();
+    for (TrackArrival& arrival : arrivals)
+    {
+        while (ride != hand.rides.end() && ride->end < arrival.front)
+        {
+            ++ride;
+        }
+        if (ride != hand.rides.end() && ride->end == arrival.front)
+        {
+            arrival.ride = &*ride;
+        }
+    }
+    return arrivals;
 }
 
 } // namespace
@@ -377,24 +413,14 @@ ChartViewState makeChartViewState(
         state.notes.push_back(std::move(view));
     }
 
-    // Every placement gets an eased approach ramp: a slide-matched placement ramps over its glide
-    // segment so a drawn hand travels with the note, any other placement morphs over the shared
-    // minimum-sustain-distance margin before the arrival, and crowded transitions shorten against
-    // the previous arrival rather than overlapping it. The synthetic pre-first nut window
-    // counts as arriving at the chart origin. One chip per hand event, derived and authored alike
-    // (FretHandResolutions::events); a position's identity is its grid position, so the authored
-    // position standing at a chip, if any, is the one stored at the chip's own. The slide-out rides
-    // (FretHandResolutions::rides) are arrivals like any other, so they ramp by the same rule and
-    // crowd the arrivals beside them, but they are published apart, where no chip reads them.
-    //
-    // Each MARGIN morph's start is kept, ascending, for the span pass below: it is where the hand
-    // leaves whatever grip it held (\ref drawnShapeExtent).
+    // One chip per hand event, derived and authored alike (FretHandResolutions::events); a
+    // position's identity is its grid position, so the authored position standing at a chip, if
+    // any, is the one stored at the chip's own.
     const std::vector<FretHandPosition>& authored = chart.fret_hand_positions;
-    Fraction previous_arrival{};
-    std::vector<Fraction> move_starts;
-    const auto arrival_of = [&](const FretHandEvent& event) {
-        const Fraction fhp_place = event.front;
-        const GridPosition fhp_position = tempo_map.gridPositionAtWholeNote(fhp_place);
+    state.fret_hand_positions.reserve(hand.events.size());
+    for (const FretHandEvent& event : hand.events)
+    {
+        const GridPosition fhp_position = tempo_map.gridPositionAtWholeNote(event.front);
         const auto stated = std::ranges::lower_bound(
             authored, fhp_position, std::ranges::less{}, &FretHandPosition::position);
         FhpAuthored statement = FhpAuthored::Nothing;
@@ -402,60 +428,86 @@ ChartViewState makeChartViewState(
         {
             statement = stated->end_fret.has_value() ? FhpAuthored::FretAndEnd : FhpAuthored::Fret;
         }
-        const double arrival_seconds = tempo_map.secondsAtWholeNote(fhp_place);
-        Fraction ramp_start{};
+        state.fret_hand_positions.push_back(
+            FhpViewState{
+                .seconds = tempo_map.secondsAtWholeNote(event.front),
+                .position = fhp_position,
+                .fret = event.window.fret,
+                .width = event.window.width,
+                .authored = statement,
+            });
+    }
+
+    // THE FRETTING HAND'S TRACK: every arrival gets an eased approach. One landing exactly on a
+    // pitched glide's arrival ramps over that glide's segment, and one where a ridden slide-out
+    // ends over the slide-out's, so a drawn hand travels with the note; any other morphs over the
+    // shared minimum-sustain-distance margin before the arrival, and crowded transitions shorten
+    // against the previous arrival rather than overlapping it. The glide's rail is drawn to its ink
+    // end and no further, so where that falls before the arrival the approach settles off the curve
+    // there. A ride carries the hand toward its ridden window, so an arrival resting elsewhere
+    // settles off the curve no later than where its own margin morph would begin.
+    //
+    // Each MARGIN morph's start is kept, ascending, for the span pass below: it is where the hand
+    // leaves whatever grip it held (\ref drawnShapeExtent).
+    const std::vector<TrackArrival> hand_arrivals = trackArrivals(hand);
+    Fraction previous_arrival{};
+    std::vector<Fraction> move_starts;
+    state.fret_hand_track.reserve(hand_arrivals.size());
+    for (const TrackArrival& arrival : hand_arrivals)
+    {
+        const double arrival_seconds = tempo_map.secondsAtWholeNote(arrival.front);
+        // A placement is not a head, so its margin is asked of the authority directly.
+        const Fraction margin_start =
+            arrival.front - minimumSustainDistance(tempo_map, arrival.front);
+        Fraction ramp_start = margin_start;
         bool unpitched_ramp = false;
-        // The settle is the stretch of the glide past its rail's ink end: the rail is drawn to
-        // the crop, the hand completes at the arrival, and the board eases the difference.
-        double settle_seconds = 0.0;
-        const auto slide = slide_ramp_starts.find(fhp_place);
-        const bool rides_glide = slide != slide_ramp_starts.end();
-        if (rides_glide)
+        std::optional<FretHandSettleViewState> settle;
+        const auto settle_from = [&](const double leaves_curve, const FretWindow& heading) {
+            if (arrival_seconds > leaves_curve)
+            {
+                settle = FretHandSettleViewState{
+                    .seconds = arrival_seconds - leaves_curve,
+                    .heading = heading,
+                };
+            }
+        };
+        // A hand LANDING a pitched glide follows that glide, even where a slide-out on another
+        // string ends at the same instant: the slide-out is motion, the landing a position.
+        const auto glide = slide_ramp_starts.find(arrival.front);
+        const bool rides_glide = glide != slide_ramp_starts.end() || arrival.ride != nullptr;
+        if (glide != slide_ramp_starts.end())
         {
-            ramp_start = slide->second.start;
-            unpitched_ramp = slide->second.unpitched;
-            settle_seconds =
-                std::max(0.0, arrival_seconds - state.notes[slide->second.note].ink_end_seconds);
+            ramp_start = glide->second.start;
+            settle_from(state.notes[glide->second.note].ink_end_seconds, arrival.window);
         }
-        else
+        else if (arrival.ride != nullptr)
         {
-            // A placement is not a head, so its margin is asked of the authority directly.
-            ramp_start = fhp_place - minimumSustainDistance(tempo_map, fhp_place);
+            const FretHandRide& ride = *arrival.ride;
+            ramp_start = ride.departure;
+            unpitched_ramp = true;
+            double leaves_curve = state.notes[ride.note].ink_end_seconds;
+            if (arrival.window != ride.ridden)
+            {
+                leaves_curve = std::min(leaves_curve, tempo_map.secondsAtWholeNote(margin_start));
+            }
+            settle_from(leaves_curve, ride.ridden);
         }
         // A ramp never reaches back past the previous arrival: crowded transitions shorten
         // against it rather than overlapping it.
-        ramp_start = std::clamp(ramp_start, previous_arrival, fhp_place);
-        previous_arrival = fhp_place;
+        ramp_start = std::clamp(ramp_start, previous_arrival, arrival.front);
+        previous_arrival = arrival.front;
         if (!rides_glide)
         {
             move_starts.push_back(ramp_start);
         }
-        return FhpViewState{
-            .seconds = arrival_seconds,
-            .position = fhp_position,
-            .fret = event.window.fret,
-            .width = event.window.width,
-            .authored = statement,
-            .ramp_seconds = arrival_seconds - tempo_map.secondsAtWholeNote(ramp_start),
-            .unpitched_ramp = unpitched_ramp,
-            .settle_seconds = settle_seconds,
-        };
-    };
-    // Walked in one ascending order: no ride fronts where a hand event does.
-    state.fret_hand_positions.reserve(hand.events.size());
-    state.fret_hand_rides.reserve(hand.rides.size());
-    auto ride = hand.rides.begin();
-    for (const FretHandEvent& event : hand.events)
-    {
-        for (; ride != hand.rides.end() && ride->front < event.front; ++ride)
-        {
-            state.fret_hand_rides.push_back(arrival_of(*ride));
-        }
-        state.fret_hand_positions.push_back(arrival_of(event));
-    }
-    for (; ride != hand.rides.end(); ++ride)
-    {
-        state.fret_hand_rides.push_back(arrival_of(*ride));
+        state.fret_hand_track.push_back(
+            FretHandArrivalViewState{
+                .seconds = arrival_seconds,
+                .window = arrival.window,
+                .ramp_seconds = arrival_seconds - tempo_map.secondsAtWholeNote(ramp_start),
+                .unpitched_ramp = unpitched_ramp,
+                .settle = settle,
+            });
     }
 
     state.shapes.reserve(resolutions.shapes.size());
