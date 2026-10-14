@@ -728,7 +728,7 @@ constexpr double g_inlay_double_string_spacings = 1.5;
 
 // A hand's continuous window extent at a time, as sorted world-X edges.
 [[nodiscard]] std::pair<double, double> handWindowXAt(
-    const std::span<const common::core::HighwayHandArrival> track, const double seconds,
+    const std::span<const common::core::HandArrival> track, const double seconds,
     const common::core::HighwayMetrics& metrics, const bool mirrored)
 {
     return handWindowX(common::core::highwayHandWindowAt(track, seconds), metrics, mirrored);
@@ -1642,7 +1642,7 @@ struct BoxDraw
     // The track of the hand that struck the box, whose window its sides stand at
     // (common::core::highwayBoxSidesAt): the fretting hand's for a strummed or arpeggio box, the
     // picking hand's for a tapped chord box.
-    std::reference_wrapper<const std::vector<common::core::HighwayHandArrival>> track;
+    std::reference_wrapper<const std::vector<common::core::HandArrival>> track;
     // The box's color: the same hand's color for the box's kind (HandLightStyle), which its frame,
     // fill, accent light and palm mark all wear.
     ArgbColor color;
@@ -2008,9 +2008,12 @@ struct HighwayRenderer::Impl
     }
 
     /*
-    THE MOTION DIM: how much a hand's light dims at an instant because its window is sweeping
-    across lanes, whichever hand moves it. The silhouette keeps the settled cross-section along the
-    whole eased contour, and the transition's fading lives in brightness instead: the leg the
+    THE MOTION DIM: how much a hand's light dims at an instant because its window is moving
+    between positions with no rail under it, whichever hand moves it. A leg following a rail — a
+    glide, a slide-out ride, a tap's glide or slide-out, a scrape — is the hand holding a sounding
+    note and is lit exactly as a still note's tail is. The silhouette keeps the settled
+    cross-section along the whole eased contour, and the transition's fading lives in brightness
+    instead: the leg the
     window is travelling (highwayHandLegAt, the one lookup the window itself eases through) dims
     along a sin-squared bell over its own progress — full brightness at the ramp's start and end,
     deepest exactly mid-transition — whose depth scales with the leg's overall steepness on the
@@ -2020,17 +2023,18 @@ struct HighwayRenderer::Impl
     Outside every leg the light is undimmed.
     */
     [[nodiscard]] double motionDim(
-        const std::vector<common::core::HighwayHandArrival>& track,
-        const double seconds) const noexcept
+        const std::vector<common::core::HandArrival>& track, const double seconds) const noexcept
     {
+        // A leg following a rail is the hand holding a note, lit like any held note; only a move
+        // between positions, with nothing under the hand, dims.
         const std::optional<common::core::HighwayHandLeg> leg =
             common::core::highwayHandLegAt(track, seconds);
-        if (!leg.has_value())
+        if (!leg.has_value() || leg->to->approach != common::core::HandApproach::Morph)
         {
             return 1.0;
         }
-        const common::core::HighwayHandArrival& from = *leg->from;
-        const common::core::HighwayHandArrival& to = *leg->to;
+        const common::core::HandArrival& from = *leg->from;
+        const common::core::HandArrival& to = *leg->to;
         // The leg's whole path runs through where its curve heads (highwayHandHeading), so a leg
         // that leaves and returns to one window still sweeps.
         const common::core::HighwayHandWindow heading = common::core::highwayHandHeading(to);
@@ -2174,7 +2178,7 @@ struct HighwayRenderer::Impl
                  hand.track,
                  from_seconds - decay_seconds,
                  std::ranges::less{},
-                 &common::core::HighwayHandArrival::seconds);
+                 &common::core::HandArrival::seconds);
              arrival != hand.track.end() && arrival->seconds - arrival->ramp_seconds <= to_seconds;
              ++arrival)
         {
@@ -3714,17 +3718,14 @@ void HighwayRenderer::Impl::draw(
         // it, so the walk carries no state of its own; a cursor into the tap onsets, both
         // ascending, tells a strike's arrival (at its onset, the same instant exactly) from a
         // station between strikes.
-        const std::vector<common::core::HighwayHandArrival>& pick_track = state->pick_hand.track;
+        const std::vector<common::core::HandArrival>& pick_track = state->pick_hand.track;
         auto onset = std::ranges::upper_bound(
             state->tap_onsets,
             now_seconds,
             std::ranges::less{},
             &common::core::HighwayTapOnsetViewState::start_seconds);
         for (auto arrival = std::ranges::upper_bound(
-                 pick_track,
-                 now_seconds,
-                 std::ranges::less{},
-                 &common::core::HighwayHandArrival::seconds);
+                 pick_track, now_seconds, std::ranges::less{}, &common::core::HandArrival::seconds);
              arrival != pick_track.end() && arrival->seconds <= span_end_seconds;
              ++arrival)
         {
@@ -3751,7 +3752,7 @@ void HighwayRenderer::Impl::draw(
                 continue;
             }
             // A station always has an arrival before it: the track opens on a strike.
-            const common::core::HighwayHandArrival& before = *std::prev(arrival);
+            const common::core::HandArrival& before = *std::prev(arrival);
             if (std::is_neq(before.low_line <=> arrival->low_line) ||
                 std::is_neq(before.high_line <=> arrival->high_line))
             {
@@ -4148,7 +4149,7 @@ void HighwayRenderer::Impl::draw(
             bool open_band_moves = false;
             if (common::core::openString(note))
             {
-                const std::vector<common::core::HighwayHandArrival>& track = state->fret_hand.track;
+                const std::vector<common::core::HandArrival>& track = state->fret_hand.track;
                 common::core::highwayTrackSampleTimes(track, tail_from, tail_to, window_times);
                 // The end comparison catches a tail shorter than one slice inside a ramp, which
                 // has no interior sample while the window still moves between its ends.
@@ -5719,7 +5720,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         .rhombus = false,
     };
     constexpr double rail_half_extent = g_shape_rail_emitter_half_width + g_shape_rail_reach;
-    const auto push_rail = [&](const std::vector<common::core::HighwayHandArrival>& track,
+    const auto push_rail = [&](const std::vector<common::core::HandArrival>& track,
                                const double from_seconds,
                                const double to_seconds,
                                const ArgbColor color) {

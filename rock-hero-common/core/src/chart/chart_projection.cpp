@@ -212,6 +212,18 @@ struct TrackArrival
 
 // Derives both layers and hands them to the projection proper; a chartless arrangement projects
 // the empty state.
+// Rationale lives on the declaration in chart_projection.h.
+double railLeavesCurveAt(
+    const HandApproach approach, const double arrival_seconds,
+    const double ink_end_seconds) noexcept
+{
+    if (approach == HandApproach::Release)
+    {
+        return std::min(ink_end_seconds, arrival_seconds - g_minimum_sustain_distance_seconds);
+    }
+    return ink_end_seconds;
+}
+
 ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
 {
     if (!arrangement.chart.has_value())
@@ -444,8 +456,8 @@ ChartViewState makeChartViewState(
     // shared minimum-sustain-distance margin before the arrival, and crowded transitions shorten
     // against the previous arrival rather than overlapping it. The glide's rail is drawn to its ink
     // end and no further, so where that falls before the arrival the approach settles off the curve
-    // there. A ride carries the hand toward its ridden window, so an arrival resting elsewhere
-    // settles off the curve no later than where its own margin morph would begin.
+    // there; a release rail ends at speed, so its leg settles off the curve no later than one
+    // margin before its arrival, whatever arrives there (railLeavesCurveAt).
     //
     // Each MARGIN morph's start is kept, ascending, for the span pass below: it is where the hand
     // leaves whatever grip it held (\ref drawnShapeExtent).
@@ -460,52 +472,55 @@ ChartViewState makeChartViewState(
         const Fraction margin_start =
             arrival.front - minimumSustainDistance(tempo_map, arrival.front);
         Fraction ramp_start = margin_start;
-        bool unpitched_ramp = false;
-        std::optional<FretHandSettleViewState> settle;
+        HandApproach approach = HandApproach::Morph;
+        std::optional<HandSettle> settle;
         const auto settle_from = [&](const double leaves_curve, const FretWindow& heading) {
             if (arrival_seconds > leaves_curve)
             {
-                settle = FretHandSettleViewState{
+                settle = HandSettle{
                     .seconds = arrival_seconds - leaves_curve,
-                    .heading = heading,
+                    .low_line = static_cast<double>(heading.fret - 1),
+                    .high_line = static_cast<double>(heading.top()),
                 };
             }
         };
         // A hand LANDING a pitched glide follows that glide, even where a slide-out on another
         // string ends at the same instant: the slide-out is motion, the landing a position.
         const auto glide = slide_ramp_starts.find(arrival.front);
-        const bool rides_glide = glide != slide_ramp_starts.end() || arrival.ride != nullptr;
         if (glide != slide_ramp_starts.end())
         {
             ramp_start = glide->second.start;
-            settle_from(state.notes[glide->second.note].ink_end_seconds, arrival.window);
+            approach = HandApproach::Glide;
+            settle_from(
+                railLeavesCurveAt(
+                    approach, arrival_seconds, state.notes[glide->second.note].ink_end_seconds),
+                arrival.window);
         }
         else if (arrival.ride != nullptr)
         {
             const FretHandRide& ride = *arrival.ride;
             ramp_start = ride.departure;
-            unpitched_ramp = true;
-            double leaves_curve = state.notes[ride.note].ink_end_seconds;
-            if (arrival.window != ride.ridden)
-            {
-                leaves_curve = std::min(leaves_curve, tempo_map.secondsAtWholeNote(margin_start));
-            }
-            settle_from(leaves_curve, ride.ridden);
+            approach = HandApproach::Release;
+            settle_from(
+                railLeavesCurveAt(
+                    approach, arrival_seconds, state.notes[ride.note].ink_end_seconds),
+                ride.ridden);
         }
         // A ramp never reaches back past the previous arrival: crowded transitions shorten
         // against it rather than overlapping it.
         ramp_start = std::clamp(ramp_start, previous_arrival, arrival.front);
         previous_arrival = arrival.front;
-        if (!rides_glide)
+        if (approach == HandApproach::Morph)
         {
             move_starts.push_back(ramp_start);
         }
         state.fret_hand_track.push_back(
-            FretHandArrivalViewState{
+            HandArrival{
                 .seconds = arrival_seconds,
-                .window = arrival.window,
+                .low_line = static_cast<double>(arrival.window.fret - 1),
+                .high_line = static_cast<double>(arrival.window.top()),
                 .ramp_seconds = arrival_seconds - tempo_map.secondsAtWholeNote(ramp_start),
-                .unpitched_ramp = unpitched_ramp,
+                .approach = approach,
                 .settle = settle,
             });
     }

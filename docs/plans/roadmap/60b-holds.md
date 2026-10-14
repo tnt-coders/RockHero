@@ -38,6 +38,12 @@ Derived yields, authored blocks: no derived span overlaps a hold, a hold's edge 
 derived neighbour and walls at another hold. Derived spans are unchanged: they never bridge a gap,
 and their ends follow the tails.
 
+**What a pin founds.** A `{start}` with no `end` founds a span at the hold's floor of two members
+— two stops stated at its onset, or one there and a second that joins while the first still rings
+— where sound alone would need three; its close then follows the continuity law like any derived
+close. A pin therefore states a two-note grip and a front, and nothing more: over notes that never
+ring together it founds no span, so the extent of such a figure is stated with `end`.
+
 ### What is derived
 
 One function, `resolvedGrip(span)`: the entry of the hold pinning the span's front, when its
@@ -50,21 +56,28 @@ shifts. Nothing before positions reads them.
 
 | Verb | Writes |
 |---|---|
-| `Ctrl+H` over selected notes | `{start, end}`, first onset to the last ring's end, two or more; the prune drops `end` where the notes already close there, so over one ringing span it writes `{start}` alone |
+| `Ctrl+H` over selected notes | `{start}` at the first onset, two or more notes, selected; real at once where it states something (a two-note grip, a new front), else silent until its end is walked or a grip assigned |
 | Assign a grip to a derived span | `{start: its front, grip}`; nothing changes on screen |
 | Assign a grip to a hold | its `grip` |
-| Clear a grip | unsets `grip`, nothing else; the prune then drops the hold only if what remains states nothing |
+| Clear a grip | unsets `grip`, nothing else; a hold left stating nothing is silent (the commit law, below) |
 | `Alt+←/→` on a hold | its `start`, one onset per step: a start between onsets states nothing new |
 | `Alt+←/→` on a derived span | `{start}` at the new onset: a pin, its end and content derived |
-| `Shift+Alt+←/→` on a hold | its `end`, by grid quanta, with the derived close as one more stop |
+| `Shift+Alt+←/→` on a hold | its `end`, by grid quanta from the derived close (the pin itself where it founds nothing), the derived close one more stop on the walk |
 | `Shift+Alt+←/→` on a derived span | `{start: its front, end}` |
 | Delete a derived arpeggio span | `{start, end, grip: "none"}` over its musical close |
 | Delete a hold | nothing: the derivation takes the stretch back |
 | `Ctrl+Shift+H` | selects the hold under the caret; a hold is also selected by its brackets |
 
-An end walked back onto the derived close writes no `end`: it dissolves at once, and the next
-press authors an end one step from the derived close again, so a held run passes straight through
-that instant. A held run is one undo entry through `commitChartGestureStep`. Acceptance case for
+**The commit law governs holds** (`keymap-matrix.md`, the keyframe commit law; user,
+2026-10-13). A hold is SILENT where it changes nothing the notes derive: a `{start}` at a front
+the notes date anyway, an `end` at the derived close. A silent `end` is never written; a hold
+silent whole pushes no undo entry, lives while selected, dissolves when the selection leaves it,
+and is never written. So `Ctrl+H` over one ringing span plants a provisional pin and nothing is
+saved until the charter walks its end or names it — the user's "save only the start" — while over
+a two-note accumulation the same press is a real statement at once. An end walked onto the
+derived close is silent, so a held run passes straight through that instant; a start walked back
+onto the front the notes date is the same. A held run is one undo entry through
+`commitChartGestureStep`, retired where it changed nothing. Acceptance case for
 the start key (`first-releasable-editor.md`, sighted): the Torn intro's span fronts at `3:3+1/2`;
 stepping its start back to `3:1` swallows the G-string 7 at `3:3` (above the grip's 5) and
 restores the front. A held stretch emptied of its notes stays, drawn empty; only Delete removes a
@@ -106,10 +119,14 @@ keeps every hold its own normal form:
 The rewrite lands in the note edit's own undo entry, and each one writes a log line naming the
 hold, the note and the grip. GP import writes notes and never a hold, so it meets none.
 
-### The prune
+### Silent holds
 
-A hold that states nothing is dropped, as 60a drops positions that state nothing: an `end` equal
-to the derived close, and a bare `{start}` at the front the notes would date anyway.
+Holds need no Prune command: the commit law above sheds what states nothing (RULED, user,
+2026-10-13, over keeping an authored end until an explicit Prune). A note edit that
+makes a stored hold silent — tails grown out to its authored `end`, or a figure that now founds
+at its pin by itself — sheds it in that edit's own commit, as a point the path now passes through
+anyway dissolves; a selected hold lives until the selection leaves it. The builder's one cost:
+"states nothing" is answered by deriving without the hold, which holds are few enough to afford.
 
 ### Export
 
@@ -123,11 +140,14 @@ Draw what is stored and nothing for what is derived; all editor-only, through Ed
 and the highway draws the derived result. The label chip at every span's start (built during 60a
 Phase 2) is the START's tell: FILLED in the span color for a hold, HOLLOW for a derived span,
 printing the grip's name or "?". An end tick in the span color draws only where `end` is stored.
-A not-held stretch draws its own rails over its whole duration and its end tick, and NO chip:
-there is no grip to name. PROPOSED (user, 2026-10-13, open to options): it reads by PATTERN, not by
-hue — hatched or dashed rails, or a hatched band, in a neutral EditorTheme color — because a theme
-may use red for its own chord or arpeggio ink, so a red "no span" style would clash. To be chosen
-from rendered options at a sighting.
+A silent hold draws as a hold for as long as it lives, so the charter sees what the next key will
+give meaning to.
+A not-held stretch is no span and has no grip to name, so it gets NO chip: its own rails over its
+whole duration are the tell for the record entire, with its end tick. PROPOSED (user,
+2026-10-13, open to options): it reads by PATTERN, not by hue — hatched or dashed rails, or a
+hatched band, in a neutral EditorTheme color — because a theme may use red for its own chord or
+arpeggio ink, so a red "no span" style would clash. To be chosen from rendered options at a
+sighting.
 
 ### The grip dictionary (`grips`, Phase 5)
 
@@ -247,15 +267,16 @@ strength; a span ending near the cursor; a landing successor abutting its predec
 
 **This phase builds THE HOLD** as the design section states it: the record `holds[] {start,
 end?, grip?}` without the grip id (Phase 5's), the pin, the verbs, the walls and floors, the hold
-normalizer, the prune, the 2D marks, and the not-held polarity that was plan 61's span-free zone
-(one kind with polarity; it blocks accumulation-founded openings only, statement openings are
-immune, a derived span closes at its edge, `Delete` on a derived arpeggio span authors it, its ink
-is editor-only). The background sighting triplet is judged here. The settlement edge (the 2-note
-statement-founded bracket of the sighting reel's measure 3) was CLAIM-founded, and claims are
-gone, so it is most likely moot — re-verify on the regenerated reel (`span-marker-redesign.md`,
-"THE SIGHTING FIXTURE NEEDS REBUILDING": the reel's `"attack": "none"` record no longer reads).
-The ≥3 minimum is already signed; what lands is the census re-sign of the accumulation checklist's
-section G and the FHP counter rows left unsigned for this bundle.
+normalizer, the commit law's silent holds, the 2D marks, and the not-held polarity that was plan
+61's span-free zone (one kind with polarity; it blocks accumulation-founded openings only,
+statement openings are immune, a derived span closes at its edge, `Delete` on a derived arpeggio
+span authors it, its ink is editor-only). The background sighting triplet is judged here. The
+settlement edge (the 2-note statement-founded bracket of the sighting reel's measure 3) was
+CLAIM-founded, and claims are gone, so it is most likely moot — re-verify on the regenerated reel
+(`span-marker-redesign.md`, "THE SIGHTING FIXTURE NEEDS REBUILDING": the reel's
+`"attack": "none"` record no longer reads). The ≥3 minimum is already signed; what lands is the
+census re-sign of the accumulation checklist's section G and the FHP counter rows left unsigned
+for this bundle.
 
 ### Phase 5 — templates, dictionary, editor and fingering coupling (gated on 60-Q3, 60-Q5)
 

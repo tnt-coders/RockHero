@@ -142,7 +142,16 @@ where the last ink under the old window ends — never earlier — and, where no
 up to a capped lead before the arrival, so the morph is truthful and lengthens whenever the hand is
 actually free. The derivation belongs in `chart_projection.cpp` beside the slide-ramp table.
 
-### The fret-hand window stops with a corner at a slide-out's end — trigger: plan 60 Phases 1–2 land (FHPs derived at read), then sight it
+### ~~The fret-hand window stops with a corner at a slide-out's end~~ — RETIRED 2026-10-13: every release settles
+
+**Retired 2026-10-13.** The user sighted the corner on derived FHPs (Basket Case, measure 125 of a
+test project: a slide-out from 16 to its exit at 2, then a gap before the chord at 2). A coast was
+built the same day and rejected at sight: the window overshot, by about 1.25 frets past the nut,
+after the slide-out's tail had already faded, so nothing drawn explained the excursion. The same
+slide-out extended to end on the chord settled smoothly over the crop zone, so both now behave that
+way: a leg following a release rail leaves its curve no later than one minimum sustain distance
+before its arrival, whatever arrives there, and settles into it (`railLeavesCurveAt`), for both
+hands. The derivation question below is unchanged. The history below stands as it was written.
 
 A slide-matched window ramp rides the rail's own curve, and a slide-out's rail is the release
 curve, which ends at full speed because its ink runs out there. The window persists, so at the

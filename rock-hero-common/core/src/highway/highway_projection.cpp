@@ -29,38 +29,6 @@ namespace
 // target at rest the longest but reads too static, so 2 gives the tighter, livelier frame.
 constexpr int g_camera_zone_measures = 2;
 
-// THE FRETTING HAND'S TRACK (HighwayViewState::fret_hand's track): the chart's arrivals in the
-// board's one motion element, each window as its fret-line edges.
-[[nodiscard]] std::vector<HighwayHandArrival> makeHighwayFretHand(const ChartViewState& scene)
-{
-    std::vector<HighwayHandArrival> track;
-    track.reserve(scene.fret_hand_track.size());
-    for (const FretHandArrivalViewState& arrival : scene.fret_hand_track)
-    {
-        std::optional<HighwayHandSettle> settle;
-        // Bound to a local so the presence test and the read are provably the same object.
-        const std::optional<FretHandSettleViewState>& settles = arrival.settle;
-        if (settles.has_value())
-        {
-            settle = HighwayHandSettle{
-                .seconds = settles->seconds,
-                .low_line = static_cast<double>(settles->heading.fret - 1),
-                .high_line = static_cast<double>(settles->heading.top()),
-            };
-        }
-        track.push_back(
-            HighwayHandArrival{
-                .seconds = arrival.seconds,
-                .low_line = static_cast<double>(arrival.window.fret - 1),
-                .high_line = static_cast<double>(arrival.window.top()),
-                .ramp_seconds = arrival.ramp_seconds,
-                .unpitched_ramp = arrival.unpitched_ramp,
-                .settle = settle,
-            });
-    }
-    return track;
-}
-
 // A member's position on its own rail at an instant, along the one walk of its glide
 // (highwayGlideLegAt), slide-out included. The DRAWN position (highwayDrawnStop), so a path cannot
 // walk off the board while the head it belongs to is held at the edge.
@@ -153,26 +121,32 @@ void forEachTapGroup(const std::vector<NoteViewState>& notes, const Visit& visit
 // the previous arrival would break the track's ordering for a glide the next strike's margin cuts.
 void appendTapGroupPath(
     const std::vector<NoteViewState>& notes, const HighwayTapOnsetViewState& strike,
-    const std::span<const std::size_t> members, std::vector<HighwayHandArrival>& track)
+    const std::span<const std::size_t> members, std::vector<HandArrival>& track)
 {
     const std::size_t head = track.size();
-    track.push_back(HighwayHandArrival{.seconds = strike.start_seconds});
+    track.push_back(HandArrival{.seconds = strike.start_seconds});
     for (const std::size_t member : members)
     {
         const NoteViewState& tap = notes[member];
         for (const SlideStopViewState& stop : tap.slides)
         {
-            // A stop past the ink end settles over the crop zone; its curve heads for the stop
-            // itself, whose edges are read below once the group's list is whole.
-            std::optional<HighwayHandSettle> settle;
-            if (stop.seconds > tap.ink_end_seconds)
+            // The leg settles off its rail's curve where the one rule says (railLeavesCurveAt):
+            // a stop past the ink end over the crop zone, and a release at most a margin before
+            // its end. Its curve heads for the stop itself, whose edges are read below once the
+            // group's list is whole.
+            const HandApproach approach =
+                stop.slide_out ? HandApproach::Release : HandApproach::Glide;
+            const double leaves_curve =
+                railLeavesCurveAt(approach, stop.seconds, tap.ink_end_seconds);
+            std::optional<HandSettle> settle;
+            if (stop.seconds > leaves_curve)
             {
-                settle = HighwayHandSettle{.seconds = stop.seconds - tap.ink_end_seconds};
+                settle = HandSettle{.seconds = stop.seconds - leaves_curve};
             }
             track.push_back(
-                HighwayHandArrival{
+                HandArrival{
                     .seconds = stop.seconds,
-                    .unpitched_ramp = stop.slide_out,
+                    .approach = approach,
                     .settle = settle,
                 });
             if (!instantDrawn(stop.seconds, tap.ink_end_seconds))
@@ -184,19 +158,22 @@ void appendTapGroupPath(
     std::ranges::sort(
         std::ranges::subrange(track.begin() + static_cast<std::ptrdiff_t>(head), track.end()),
         std::ranges::less{},
-        &HighwayHandArrival::seconds);
-    // Two members stopping at one instant are one arrival: an unpitched leg into it keeps the
-    // unpitched ease, and the longer settle wins, whichever the sort put first.
+        &HandArrival::seconds);
+    // Two members stopping at one instant are one arrival: a release leg into it keeps the release
+    // ease, and the longer settle wins, whichever the sort put first.
     std::size_t kept = head + 1;
     for (std::size_t at = head + 1; at < track.size(); ++at)
     {
-        HighwayHandArrival& last = track[kept - 1];
+        HandArrival& last = track[kept - 1];
         if (track[at].seconds - last.seconds < g_onset_match_epsilon)
         {
-            last.unpitched_ramp = last.unpitched_ramp || track[at].unpitched_ramp;
+            if (track[at].approach == HandApproach::Release)
+            {
+                last.approach = HandApproach::Release;
+            }
             // Bound once so each presence test and its read are provably the same object.
-            const std::optional<HighwayHandSettle>& other = track[at].settle;
-            std::optional<HighwayHandSettle>& longest = last.settle;
+            const std::optional<HandSettle>& other = track[at].settle;
+            std::optional<HandSettle>& longest = last.settle;
             if (other.has_value() && (!longest.has_value() || other->seconds > longest->seconds))
             {
                 longest = other;
@@ -219,11 +196,11 @@ void appendTapGroupPath(
     }
     if (light_release - track.back().seconds >= g_onset_match_epsilon)
     {
-        track.push_back(HighwayHandArrival{.seconds = light_release});
+        track.push_back(HandArrival{.seconds = light_release});
     }
     for (std::size_t at = head; at < track.size(); ++at)
     {
-        HighwayHandArrival& arrival = track[at];
+        HandArrival& arrival = track[at];
         double low = memberPositionAt(notes[members.front()], arrival.seconds);
         double high = low;
         for (const std::size_t member : members.subspan(1))
@@ -235,7 +212,7 @@ void appendTapGroupPath(
         arrival.low_line = low - 1.0;
         arrival.high_line = high;
         arrival.ramp_seconds = at == head ? 0.0 : arrival.seconds - track[at - 1].seconds;
-        std::optional<HighwayHandSettle>& settle = arrival.settle;
+        std::optional<HandSettle>& settle = arrival.settle;
         if (settle.has_value())
         {
             settle->low_line = arrival.low_line;
@@ -595,7 +572,7 @@ HighwayViewState makeHighwayViewState(
     state.pick_hand.pops = makePickHandPops(
         notes, state.tap_onsets, g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds);
     state.fret_hand = HighwayHandLight{
-        .track = makeHighwayFretHand(state.chart),
+        .track = state.chart.fret_hand_track,
         .lit = makeFretHandLight(state.chart),
         .pops = makeFretHandPops(
             notes,

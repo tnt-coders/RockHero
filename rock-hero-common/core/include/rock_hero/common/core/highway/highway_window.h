@@ -52,16 +52,18 @@ struct HighwayHandWindow
 \brief Returns the eased extent of a hand's window at an absolute time.
 
 THE ONE MORPH both hands move by. A track is arrivals in ascending order
-(\ref HighwayHandArrival): the fretting hand's placements, or the picking hand's strikes and their
+(\ref HandArrival): the fretting hand's placements, or the picking hand's strikes and their
 travel. Inside an arrival's [seconds - ramp_seconds, seconds] span both edges ease from the previous
 settled window toward the arriving one, so the window travels in lockstep with a gliding note and
-morphs smoothly for ordinary moves. Which easing applies is the arrival's own `unpitched_ramp`: a
-pitched approach takes the slide curve, an unpitched one the slide-out curve, which starts slowly
-because a hand letting go does not accelerate the way one arriving does. The curve heads for the
-arrival's \ref highwayHandHeading, and an arrival's `settle` is the stretch over which the approach
-leaves that curve — where the rail it follows is cut, or where a ridden slide-out carried it
-toward another window — and comes to rest at the arrival with a continuous slope, in place of the
-curve's stop with slope. Outside every ramp the settled window holds, and arrivals
+morphs smoothly for ordinary moves. Which easing applies is the arrival's own `approach`: a leg
+following a pitched rail takes the slide curve, one following a release rail the slide-out curve,
+which starts slowly because a hand letting go does not accelerate the way one arriving does. A rail
+leg's curve heads for the arrival's \ref highwayHandHeading, and its `settle` is the stretch over
+which the approach leaves that curve — where the rail it follows is cut, or where a ridden
+slide-out carried it toward another window — and comes to rest at the arrival with a continuous
+slope, in place of the curve's stop with slope. A release rail ends at speed, so its leg always
+settles, never more than a margin short of the arrival (\ref railLeavesCurveAt), and the hand never
+stops dead. Outside every ramp the settled window holds, and arrivals
 are inclusive: at exactly \p seconds the arrival has arrived. The first arrival's settled window
 already holds from the start of time — the opening scroll shows where the hand belongs before the
 first note arrives — and the reference nut window (lines 0 to 4) applies only when there are no
@@ -72,11 +74,11 @@ arrivals at all.
 \return Fractional window extent at the time.
 */
 [[nodiscard]] HighwayHandWindow highwayHandWindowAt(
-    std::span<const HighwayHandArrival> track, double seconds) noexcept;
+    std::span<const HandArrival> track, double seconds) noexcept;
 
 /*!
 \brief Returns the window an arrival's approach curve heads for: its settle's edges where it
-settles (\ref HighwayHandArrival::settle), otherwise the arrival's own.
+settles (\ref HandArrival::settle), otherwise the arrival's own.
 
 The approach's whole path runs from the previous settled window through this one to the arrival's
 own, so every reader of how far a leg travels — the sampler's slice density, the motion dim —
@@ -85,7 +87,7 @@ measures through it rather than between the two settled windows alone.
 \param arrival The arrival whose approach is read.
 \return The window the approach's curve heads for.
 */
-[[nodiscard]] HighwayHandWindow highwayHandHeading(const HighwayHandArrival& arrival) noexcept;
+[[nodiscard]] HighwayHandWindow highwayHandHeading(const HandArrival& arrival) noexcept;
 
 /*!
 \brief The leg a hand's window is travelling at one instant: the ramp from one arrival's settled
@@ -94,10 +96,10 @@ window into the next's.
 struct HighwayHandLeg
 {
     /*! \brief The arrival the leg leaves; never null. */
-    const HighwayHandArrival* from{nullptr};
+    const HandArrival* from{nullptr};
 
     /*! \brief The arrival the leg ramps into; never null. */
-    const HighwayHandArrival* to{nullptr};
+    const HandArrival* to{nullptr};
 
     /*! \brief How far through the ramp the instant lies, in [0, 1). */
     double progress{0.0};
@@ -119,7 +121,7 @@ The leg points into \p track, so it is valid only while the track is.
 \return The leg in progress, or no value where the window holds still.
 */
 [[nodiscard]] std::optional<HighwayHandLeg> highwayHandLegAt(
-    std::span<const HighwayHandArrival> track, double seconds) noexcept;
+    std::span<const HandArrival> track, double seconds) noexcept;
 
 /*!
 \brief Appends the instants a mark following a hand's window samples it at over [from, to].
@@ -148,7 +150,7 @@ The list is appended to unsorted and may repeat an instant; the caller finishes 
 \param times List the instants are appended to.
 */
 void highwayTrackSampleTimes(
-    std::span<const HighwayHandArrival> track, double from_seconds, double to_seconds,
+    std::span<const HandArrival> track, double from_seconds, double to_seconds,
     std::vector<double>& times);
 
 /*!
@@ -187,8 +189,7 @@ readings at two instants, which is what lets a drawer bound its samples.
 \return The absolute time the track is read at.
 */
 [[nodiscard]] double highwayLitTrackTime(
-    std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
-    double seconds) noexcept;
+    std::span<const HandArrival> track, const HighwayLitStretch& stretch, double seconds) noexcept;
 
 /*!
 \brief Returns the extent a lit light shows at an absolute time: its hand's window read at
@@ -204,8 +205,7 @@ the light itself does not make.
 \return Fractional window extent the light covers at the time.
 */
 [[nodiscard]] HighwayHandWindow highwayLitWindowAt(
-    std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
-    double seconds) noexcept;
+    std::span<const HandArrival> track, const HighwayLitStretch& stretch, double seconds) noexcept;
 
 /*!
 \brief Returns how much of a lit light a fret line keeps after the light has LEFT it, as [0, 1].
@@ -234,7 +234,7 @@ a line the picking hand releases goes dark over the whole decay.
 \return The level the line keeps, in [0, 1].
 */
 [[nodiscard]] double highwayLitLineAfterglowAt(
-    std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch, double line,
+    std::span<const HandArrival> track, const HighwayLitStretch& stretch, double line,
     double seconds, double decay_seconds) noexcept;
 
 /*!
@@ -252,7 +252,7 @@ hand's (\ref makePickHandLight).
 \return The window the box's sides stand at.
 */
 [[nodiscard]] HighwayHandWindow highwayBoxSidesAt(
-    std::span<const HighwayHandArrival> track, double onset_seconds, double now_seconds) noexcept;
+    std::span<const HandArrival> track, double onset_seconds, double now_seconds) noexcept;
 
 /*!
 \brief Returns how deeply the window contains a fret line, as [0, 1] coverage.

@@ -447,7 +447,7 @@ defect, why it needs a ruling rather than a fix, and the options with the agent'
   no longer bakes display padding into note strings — the scene carries chart strings on both
   surfaces and each renderer maps them to lanes per frame through `displayedStringCount` /
   `displayedLane`, the same two functions; (2) the placement ramps moved into the shared producer
-  (`FretHandArrivalViewState::ramp_seconds`), because when the hand starts moving is a chart
+  (`HandArrival::ramp_seconds`), because when the hand starts moving is a chart
   fact, and the one margin rule both it and the tap light rise read is `marginBefore` in grid
   arithmetic (since
   `987b62cf`, `minimumSustainDistance`, measured by `tickPlaceReached`). `linked` is

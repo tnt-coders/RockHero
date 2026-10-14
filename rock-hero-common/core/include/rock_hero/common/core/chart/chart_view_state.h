@@ -1130,19 +1130,41 @@ struct FhpViewState
 };
 
 /*!
-\brief The final stretch of a hand's approach that comes to rest off the curve it was following,
-and where that curve was heading (\ref FretHandArrivalViewState::settle).
+\brief What a hand's leg into an arrival follows, which decides how it eases (\ref HandArrival).
 */
-struct FretHandSettleViewState
+enum class HandApproach : std::uint8_t
+{
+    /*!
+    \brief A move between positions with no rail under it: the hand carries no note, so the board
+    dims a light making one.
+    */
+    Morph,
+
+    /*! \brief The hand follows a PITCHED glide's rail, on the rail's own curve. */
+    Glide,
+
+    /*!
+    \brief The hand follows an UNPITCHED rail — a slide-out or a scrape's terminal — on the
+    release curve, which ends at speed because the string is let go there, so the leg always
+    settles over its last margin (\ref railLeavesCurveAt).
+    */
+    Release,
+};
+
+/*!
+\brief The final stretch of a hand's approach over which it leaves the curve it was following and
+comes to rest at the arrival with a continuous slope (\ref HandArrival::settle).
+*/
+struct HandSettle
 {
     /*! \brief How long before the arrival the approach leaves its curve. */
     double seconds{0.0};
 
-    /*!
-    \brief The window the curve was carrying the hand toward: the arrival's own window where the
-    rail stops short of it, the ridden window where a slide-out carried the hand elsewhere.
-    */
-    FretWindow heading{};
+    /*! \brief Fret-line coordinate of the low-fret edge the curve was heading for. */
+    double low_line{0.0};
+
+    /*! \brief Fret-line coordinate of the high-fret edge the curve was heading for. */
+    double high_line{4.0};
 
     /*!
     \brief Compares two settles by their stored fields.
@@ -1150,72 +1172,88 @@ struct FretHandSettleViewState
     \param rhs Right-hand settle.
     \return True when both settles store equal values.
     */
-    friend constexpr bool operator==(
-        const FretHandSettleViewState& lhs, const FretHandSettleViewState& rhs) noexcept
+    friend constexpr bool operator==(const HandSettle& lhs, const HandSettle& rhs) noexcept
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.heading == rhs.heading;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.low_line <=> rhs.low_line) &&
+               std::is_eq(lhs.high_line <=> rhs.high_line);
     }
 };
 
 /*!
-\brief One arrival of the fretting hand's window, resolved to a timeline second with its eased
-approach: a hand event's, a slide-out ride's (\ref FretHandResolutions::rides), or the window's
-return after one.
+\brief One arrival of a hand's window: the extent the hand settles on, and the eased approach ending
+there.
 
-How the hand moves is a fact about the chart, not about a surface, so it is derived once here and
-the board's window track animates it (\ref HighwayHandArrival). The lane draws the chips alone.
+THE ONE MOTION ELEMENT BOTH HANDS SHARE, resolved by one rule (\ref highwayHandWindowAt): the
+fretting hand's arrivals are the chart's (\ref ChartViewState::fret_hand_track), derived once per
+chart revision because when the hand moves is a chart fact, and the picking hand's are an arrival
+per stop of the taps' travel (\ref HighwayViewState::pick_hand). Edges are fret-line coordinates
+(line 0 is the nut side of fret 1): a settled window covering frets [fret, fret + width - 1] has
+edges fret - 1 and fret + width - 1.
 */
-struct FretHandArrivalViewState
+struct HandArrival
 {
-    /*! \brief Absolute position the window arrives; arrivals ascend by this. */
+    /*! \brief Absolute position the hand arrives; arrivals ascend by this. */
     double seconds{0.0};
 
-    /*! \brief The window the hand comes to rest on. */
-    FretWindow window{};
+    /*! \brief Fret-line coordinate of the settled window's low-fret edge. */
+    double low_line{0.0};
+
+    /*! \brief Fret-line coordinate of the settled window's high-fret edge. */
+    double high_line{4.0};
 
     /*!
     \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
 
-    An arrival exactly on a pitched glide's arrival ramps over that glide's own segment, and one
-    where a ridden slide-out ends over the slide-out's, so a drawn hand travels with the drawn rail;
-    every other arrival morphs over the minimum-sustain-distance margin before it. A ramp never
-    reaches back past the arrival before it.
+    An arrival of the fretting hand exactly on a pitched glide's arrival ramps over that glide's
+    own segment, and one where a ridden slide-out ends over the slide-out's, so a drawn hand travels
+    with the drawn rail; every other morphs over the minimum-sustain-distance margin before it. On
+    the picking hand's track a strike's first arrival is instant, and every later arrival ramps
+    over the leg from the arrival before it. A ramp never reaches back past the arrival before it,
+    so ramp starts ascend with the arrivals.
     */
     double ramp_seconds{0.0};
 
     /*!
-    \brief True when the approach follows an UNPITCHED glide, so an animated hand eases with the
-    unpitched glide's curve instead of the pitched one.
+    \brief What the leg into this arrival follows: nothing, a pitched rail, or an unpitched one.
 
-    The hand follows whatever the rail draws, and the two families are different functions of
+    The hand follows whatever the rail draws, and the two rail families are different functions of
     progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve would leave the
     window and the rail sharing only their endpoints.
     */
-    bool unpitched_ramp{false};
+    HandApproach approach{HandApproach::Morph};
 
     /*!
-    \brief Present where the approach leaves its glide's curve before the arrival: over that final
-    stretch an animated hand comes to rest with a continuous slope instead of finishing the curve.
+    \brief Present where the approach leaves its rail's curve before the arrival; absent where it
+    settles on the curve's own end.
 
     Two causes. The rail's ink is cut short of the arrival (tail rule 1), so the curve is drawn to
-    the crop and no further while the hand completes at the arrival. And a ridden slide-out carries
-    the hand toward a window other than the one arriving at its end, so the hand leaves the curve
-    where its own margin morph into that window begins, or at the crop if that is earlier.
+    the crop and no further while the hand completes at the true instant: over this stretch the
+    window leaves the curve where the rail stops and comes to rest exactly at the arrival, in place
+    of the curve's stop with slope. And a release rail ends at speed, so its leg leaves the curve no
+    later than one margin before the arrival whatever arrives there (\ref railLeavesCurveAt). The
+    curve heads for the settle's own edges: the arrival's, except where a ridden slide-out carried
+    the hand toward another window than the one arriving at its end. Only a rail leg settles.
     */
-    std::optional<FretHandSettleViewState> settle{};
+    std::optional<HandSettle> settle{};
 
     /*!
     \brief Compares two arrivals by their stored fields.
     \param lhs Left-hand arrival.
     \param rhs Right-hand arrival.
     \return True when both arrivals store equal values.
+
+    Exact field equality: arrivals are compared against values the projection produced, so is_eq
+    keeps GCC's -Wfloat-equal satisfied that the exactness is intended. Callers checking an eased
+    mid-glide extent compare with a tolerance instead.
     */
-    friend constexpr bool operator==(
-        const FretHandArrivalViewState& lhs, const FretHandArrivalViewState& rhs) noexcept
+    friend constexpr bool operator==(const HandArrival& lhs, const HandArrival& rhs) noexcept
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.window == rhs.window &&
-               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp && lhs.settle == rhs.settle;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.low_line <=> rhs.low_line) &&
+               std::is_eq(lhs.high_line <=> rhs.high_line) &&
+               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) && lhs.approach == rhs.approach &&
+               lhs.settle == rhs.settle;
     }
 };
 
@@ -1329,7 +1367,7 @@ struct ChartViewState
     the slide-out rides and their returns between them (\ref FretHandResolutions). Read by the
     board's hand track alone: motion, so no surface draws a chip or a number for a ride.
     */
-    std::vector<FretHandArrivalViewState> fret_hand_track;
+    std::vector<HandArrival> fret_hand_track;
 
     /*!
     \brief Number of strings the chart's tuning declares; zero means no chart is loaded.

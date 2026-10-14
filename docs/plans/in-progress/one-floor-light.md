@@ -56,7 +56,10 @@ hand on its own code path is a defect.
   merge, never a branch. Sighted the same day: with one decay for every layer the lane-border
   ribbons flickered on every right-hand strike, so the ribbon layer's 0.45 s decay is back
   (section 2.4).
-- **The motion dim (D2)** is universal: a light moving across lanes dims by its slope and the share
+- **The motion dim (D2)** dims only a move between positions (re-ruled 2026-10-13): a leg that
+  follows a rail — a glide, a slide-out ride, a tap's glide or slide-out, a scrape — is the hand
+  holding a sounding note, lit exactly as a still note's tail is (`HandArrival::approach`). Such a
+  move, whichever hand makes it, dims by its slope and the share
   of its lanes it leaves, whichever hand moves it.
 - **The soft edge (D3)** is drawn in full for both hands. The tap light today ends in a hard 50%
   line exactly on its edge (it draws only the slots it touches, and the shader's band straddles
@@ -92,12 +95,12 @@ struct HighwayLitStretch          // WHEN one light is lit
     double start_seconds{0.0};    // full from here...
     double release_seconds{0.0};  // ...through here, then decays
     double rise_seconds{0.0};     // the rise ending at start_seconds, already crowding-clamped
-    // operator== hand-written with std::is_eq per field (CI's -Wfloat-equal), as HighwayHandArrival's.
+    // operator== hand-written with std::is_eq per field (CI's -Wfloat-equal), as HandArrival's.
 };
 ```
 
 WHERE a light stands is not part of the stretch: it is a hand's track in the board's one motion
-element, `std::vector<HighwayHandArrival>` read through `highwayHandWindowAt`, which both hands
+element, `std::vector<HandArrival>` read through `highwayHandWindowAt`, which both hands
 already share.
 
 Each hand is the same pair of lists — ONE track and the stretches lit over it:
@@ -105,7 +108,7 @@ Each hand is the same pair of lists — ONE track and the stretches lit over it:
 ```cpp
 struct HighwayHandLight            // one per hand, the same shape for both
 {
-    std::vector<HighwayHandArrival> track;   // where the hand's window stands, over time
+    std::vector<HandArrival> track;   // where the hand's window stands, over time
     std::vector<HighwayLitStretch> lit;      // when it is lit: disjoint, ascending
 };
 // HighwayViewState: HighwayHandLight fret_hand; HighwayHandLight pick_hand;
@@ -390,7 +393,8 @@ parameter named like an enclosing local); the merge's stretch count uses branche
    ribbon layer's own decay. Still open: overlapping taps at different frets under one track.
 3. The tapped chord's white rails through its hold, and its sides after D3 and D6, against a
    strummed chord under a posture span over the same frets.
-4. The universal motion dim on a tapped glide.
+4. ~~The universal motion dim on a tapped glide.~~ Retired 2026-10-13: a tapped glide follows its
+   rail and no longer dims (D2).
 5. An open-string tap harmonic's box and pop at its node (the only harmonic tap validation still
    allows).
 6. The rails after Phase 3.

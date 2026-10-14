@@ -240,22 +240,26 @@ hand window instead and never asks it.) The stop is a parameter because one gest
 more than one of them: the onset from the note's own fret, a slide from each fret it travels to.
 
 **BOTH HANDS MOVE BY ONE MORPH.** The fretting hand's window and the picking hand's light are two
-tracks of one motion element, `HighwayHandArrival` (`HighwayViewState::fret_hand.track`, the
+tracks of one motion element, `HandArrival` (`HighwayViewState::fret_hand.track`, the
 chart's own track `ChartViewState::fret_hand_track` — an arrival per placement, per slide-out
 ride and per return after one, which only this track reads, the chips staying
 `fret_hand_positions`; `HighwayViewState::pick_hand.track`, an arrival per stop of the taps'
 travel), resolved by the one function `highwayHandWindowAt` (`highway_window.h`). The renderer's
-passes only decide where to sample it. Each arrival carries its ramp, the ease family the rail
-draws with, and its SETTLE: the final stretch over which the approach leaves the curve it follows
-and comes to rest at the arrival with a continuous slope (`cubicHermite`, the one cubic the bend
-curve is also built from). The curve heads for the settle's own window (`highwayHandHeading`): the
-arrival's, where the rail's ink is cut short of it, or the ridden window, where a slide-out carried
-the hand toward another window than the one arriving at its end. The settle is a fact about the
-rail, so the chart projection derives it once beside the ramp (`FretHandArrivalViewState::settle`)
-and the board copies it; the picking hand's track derives its own from the same ink end
+passes only decide where to sample it. Each arrival carries its ramp, what its leg follows
+(`HandArrival::approach`: a move between positions, a pitched rail, or a release rail, whose curve
+the window takes), and its SETTLE: the final stretch over which a rail leg leaves the curve it
+follows and comes to rest at the arrival with a continuous slope (`cubicHermite`, the one cubic the
+bend curve is also built from). The curve heads for the settle's own window (`highwayHandHeading`):
+the arrival's, where the rail's ink is cut short of it, or the ridden window, where a slide-out
+carried the hand toward another window than the one arriving at its end. The settle is a fact
+about the rail, so the chart projection derives it once beside the ramp and the board takes the
+chart's arrivals as they are; the picking hand's track derives its own from the same ink end
 (`makePickHandLight`, `highway_projection.cpp`). A left-hand slide-out into the next head and a
 pick slide cut at its crop therefore look the same underneath: the light rides the rail's own
-curve to the crop and settles over the last margin.
+curve to the crop and settles over the last margin. A release rail lets the string go at speed, so
+both hands' legs following one settle no later than one margin before they arrive, whatever arrives
+there (`railLeavesCurveAt`, `chart_projection.h`, the one rule both producers read): a slide-out
+into blank space comes to rest the same way as one ending on the next note.
 
 **A TAIL'S TIP FADE IS ONE RULE FOR BOTH SURFACES** (`tailFadeSeconds`, `chart_view_state.h`): the
 last 35% of the ink, never less than a fixed stretch of time clamped to the tail — the last 35%
@@ -585,10 +589,11 @@ of the picking hand reads as jarring (sighted twice, 2026-09-25 included).
 **THE BRIGHTNESS RULE** is the one formula every layer draws, at any fret line and instant:
 `max over lights of coverage(highwayLitWindowAt(track, stretch, t), line) ×
 highwayLightLevel(stretch, t) × motionDim(track, highwayLitTrackTime(track, stretch, t))`, where the
-motion dim is the sin-squared bell a window sweeping across lanes dims by, whichever hand moves it,
-as deep as the leg is steep and as the share of the window that leaves its lanes (lanes both
+motion dim is the sin-squared bell a window moving between positions dims by, whichever hand moves
+it, as deep as the leg is steep and as the share of the window that leaves its lanes (lanes both
 windows cover stay lit) — read off the leg `highwayHandLegAt` finds, the same lookup the window
-eases through. Each light
+eases through. A leg following a rail (`HandApproach::Glide` or `Release`) is the hand holding a
+sounding note and never dims. Each light
 also contributes what the line keeps after the light LEFT it, and the larger of the two terms
 wins: `highwayLitLineAfterglowAt` is the LEAVING RULE, under which a line goes dark over the layer's
 decay from the instant its light leaves it — at the release for a light still standing on it, or at

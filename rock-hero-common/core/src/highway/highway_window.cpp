@@ -15,35 +15,36 @@ namespace rock_hero::common::core
 namespace
 {
 
-[[nodiscard]] HighwayHandWindow settledWindow(const HighwayHandArrival& arrival) noexcept
+[[nodiscard]] HighwayHandWindow settledWindow(const HandArrival& arrival) noexcept
 {
     return HighwayHandWindow{.low_line = arrival.low_line, .high_line = arrival.high_line};
 }
 
 // One edge of the approach at `progress` through a ramp of positive length, leaving `from`: the
-// ramp's own curve toward `heading` (\ref highwayHandHeading), and inside the settle stretch
-// (\ref HighwayHandArrival::settle, never more than the ramp) the cubic from that curve's value
-// and slope where the stretch begins to the arrival's own edge `to` with zero slope where it ends.
-// The slope is scaled into the stretch's own unit so the join is continuous in time, not only in
-// value.
+// ramp's own curve toward `heading` (\ref highwayHandHeading) — the release curve for a leg
+// following a release rail, the pitched one otherwise — and inside the settle stretch
+// (\ref HandArrival::settle, never more than the ramp) the cubic from that curve's value and slope
+// where the stretch begins to the arrival's own edge `to` with zero slope where it ends. The slope
+// is scaled into the stretch's own unit so the join is continuous in time, not only in value.
 [[nodiscard]] double approachEdge(
-    const HighwayHandArrival& arrival, const double from, const double heading, const double to,
+    const HandArrival& arrival, const double from, const double heading, const double to,
     const double progress) noexcept
 {
+    const bool unpitched = arrival.approach == HandApproach::Release;
     const double travel = heading - from;
     // Bound to a local so the presence test and the read are provably the same object.
-    const std::optional<HighwayHandSettle>& settle = arrival.settle;
+    const std::optional<HandSettle>& settle = arrival.settle;
     const double stretch =
         settle.has_value() ? std::min(settle->seconds, arrival.ramp_seconds) / arrival.ramp_seconds
                            : 0.0;
     const double knee = 1.0 - stretch;
     if (stretch <= 0.0 || progress <= knee)
     {
-        return from + (travel * highwaySlideEaseWeight(progress, arrival.unpitched_ramp));
+        return from + (travel * highwaySlideEaseWeight(progress, unpitched));
     }
     return cubicHermite(
-        from + (travel * highwaySlideEaseWeight(knee, arrival.unpitched_ramp)),
-        travel * highwaySlideEaseSlope(knee, arrival.unpitched_ramp) * stretch,
+        from + (travel * highwaySlideEaseWeight(knee, unpitched)),
+        travel * highwaySlideEaseSlope(knee, unpitched) * stretch,
         to,
         0.0,
         std::clamp((progress - knee) / stretch, 0.0, 1.0));
@@ -53,8 +54,8 @@ namespace
 // take): the leg is that arrival's ramp when it has begun by then. The first arrival never has one
 // — its window already holds before it arrives — and neither does a zero ramp.
 [[nodiscard]] std::optional<HighwayHandLeg> legBefore(
-    const std::span<const HighwayHandArrival> track,
-    const std::span<const HighwayHandArrival>::iterator next, const double seconds) noexcept
+    const std::span<const HandArrival> track, const std::span<const HandArrival>::iterator next,
+    const double seconds) noexcept
 {
     if (next == track.begin() || next == track.end() || next->ramp_seconds <= 0.0 ||
         seconds < next->seconds - next->ramp_seconds)
@@ -70,11 +71,10 @@ namespace
 
 // The first arrival strictly after `seconds`: arrivals are inclusive, so one AT `seconds` has
 // already arrived.
-[[nodiscard]] std::span<const HighwayHandArrival>::iterator nextArrival(
-    const std::span<const HighwayHandArrival> track, const double seconds) noexcept
+[[nodiscard]] std::span<const HandArrival>::iterator nextArrival(
+    const std::span<const HandArrival> track, const double seconds) noexcept
 {
-    return std::ranges::upper_bound(
-        track, seconds, std::ranges::less{}, &HighwayHandArrival::seconds);
+    return std::ranges::upper_bound(track, seconds, std::ranges::less{}, &HandArrival::seconds);
 }
 
 // THE ONE DENSITY POLICY every leg the sampler walks is sliced by, in slices per fret of travel.
@@ -100,7 +100,7 @@ constexpr int g_glide_slice_max = 64;
 
 // Rationale lives on the declaration in highway_window.h.
 std::optional<HighwayHandLeg> highwayHandLegAt(
-    const std::span<const HighwayHandArrival> track, const double seconds) noexcept
+    const std::span<const HandArrival> track, const double seconds) noexcept
 {
     return legBefore(track, nextArrival(track, seconds), seconds);
 }
@@ -110,8 +110,8 @@ std::optional<HighwayHandLeg> highwayHandLegAt(
 // first arrival after it, so no later leg can move the window inside the range. An arrival's own
 // instant is the end of its leg's last slice, which is why the slices stop short of it.
 void highwayTrackSampleTimes(
-    const std::span<const HighwayHandArrival> track, const double from_seconds,
-    const double to_seconds, std::vector<double>& times)
+    const std::span<const HandArrival> track, const double from_seconds, const double to_seconds,
+    std::vector<double>& times)
 {
     times.push_back(from_seconds);
     times.push_back(to_seconds);
@@ -126,14 +126,14 @@ void highwayTrackSampleTimes(
     const auto last = past == track.end() ? past : std::next(past);
     for (auto it = first; it != last; ++it)
     {
-        const HighwayHandArrival& arrival = *it;
+        const HandArrival& arrival = *it;
         keep_inside(arrival.seconds);
         if (it == track.begin() || arrival.ramp_seconds <= 0.0)
         {
             continue;
         }
         // The edges' whole path, through where the curve heads and on to where the leg rests.
-        const HighwayHandArrival& previous = *std::prev(it);
+        const HandArrival& previous = *std::prev(it);
         const HighwayHandWindow heading = highwayHandHeading(arrival);
         const double sweep = std::max(
             std::abs(heading.low_line - previous.low_line) +
@@ -172,7 +172,7 @@ void highwaySortUniqueTimes(std::vector<double>& times)
 // Per-frame consumers call this per element (and tails per sample), so the logarithmic bound
 // matters on long charts.
 HighwayHandWindow highwayHandWindowAt(
-    const std::span<const HighwayHandArrival> track, const double seconds) noexcept
+    const std::span<const HandArrival> track, const double seconds) noexcept
 {
     // The reference nut window applies only to chartless boards. With arrivals, the first one's
     // window already holds before its arrival: the song's opening scroll shows where the hand
@@ -207,10 +207,10 @@ HighwayHandWindow highwayHandWindowAt(
 }
 
 // Rationale lives on the declaration in highway_window.h.
-HighwayHandWindow highwayHandHeading(const HighwayHandArrival& arrival) noexcept
+HighwayHandWindow highwayHandHeading(const HandArrival& arrival) noexcept
 {
     // Bound to a local so the presence test and the read are provably the same object.
-    const std::optional<HighwayHandSettle>& settle = arrival.settle;
+    const std::optional<HandSettle>& settle = arrival.settle;
     if (settle.has_value())
     {
         return HighwayHandWindow{.low_line = settle->low_line, .high_line = settle->high_line};
@@ -221,7 +221,7 @@ HighwayHandWindow highwayHandHeading(const HighwayHandArrival& arrival) noexcept
 // Rationale lives on the declaration in highway_window.h. After the release the light follows only
 // the leg in progress AT the release, to that leg's end.
 double highwayLitTrackTime(
-    const std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
+    const std::span<const HandArrival> track, const HighwayLitStretch& stretch,
     const double seconds) noexcept
 {
     if (seconds < stretch.start_seconds)
@@ -238,7 +238,7 @@ double highwayLitTrackTime(
 
 // Rationale lives on the declaration in highway_window.h.
 HighwayHandWindow highwayLitWindowAt(
-    const std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
+    const std::span<const HandArrival> track, const HighwayLitStretch& stretch,
     const double seconds) noexcept
 {
     return highwayHandWindowAt(track, highwayLitTrackTime(track, stretch, seconds));
@@ -251,8 +251,8 @@ HighwayHandWindow highwayLitWindowAt(
 // lit — a strike stepping the picking hand straight off the last chord's window is exactly that —
 // and a light still at its start is lit where it stands, which the coverage term already draws.
 double highwayLitLineAfterglowAt(
-    const std::span<const HighwayHandArrival> track, const HighwayLitStretch& stretch,
-    const double line, const double seconds, const double decay_seconds) noexcept
+    const std::span<const HandArrival> track, const HighwayLitStretch& stretch, const double line,
+    const double seconds, const double decay_seconds) noexcept
 {
     if (track.empty() || seconds < stretch.start_seconds)
     {
@@ -281,7 +281,7 @@ double highwayLitLineAfterglowAt(
 
 // Rationale lives on the declaration in highway_window.h.
 HighwayHandWindow highwayBoxSidesAt(
-    const std::span<const HighwayHandArrival> track, const double onset_seconds,
+    const std::span<const HandArrival> track, const double onset_seconds,
     const double now_seconds) noexcept
 {
     return highwayHandWindowAt(track, std::max(onset_seconds, now_seconds));

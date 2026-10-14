@@ -75,6 +75,25 @@ end is what both surfaces stop at and what the scorer will judge to
     const TempoMap& tempo_map);
 
 /*!
+\brief Where a hand's leg following a rail leaves the rail's curve to settle into its arrival: the
+one rule both hands' tracks read.
+
+A rail is drawn to its ink end and no further, so no leg follows it past there. A RELEASE rail —
+a slide-out or a scrape's terminal — ends on a curve at full speed, because the string is let go
+there, and the hand does not stop dead: it leaves the curve no later than one minimum sustain
+distance before its arrival, whatever arrives there, and comes to rest with a continuous slope.
+Over that stretch the release has all but faded, so the hand leaves a rail no one can still see. A
+pitched rail arrives at rest on its own and leaves only where its ink stops.
+
+\param approach What the leg follows; a move between positions never asks.
+\param arrival_seconds When the leg arrives.
+\param ink_end_seconds Where the rail it follows stops being drawn.
+\return The instant the leg leaves its curve; at or after the arrival where it never does.
+*/
+[[nodiscard]] double railLeavesCurveAt(
+    HandApproach approach, double arrival_seconds, double ink_end_seconds) noexcept;
+
+/*!
 \brief Projects an arrangement's chart into its scene, deriving both layers on the way.
 
 For a caller that keeps no layers: the game's dev session builds each arrangement's scene once at

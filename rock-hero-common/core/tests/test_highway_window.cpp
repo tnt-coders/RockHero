@@ -32,23 +32,23 @@ namespace
 
 // Two arrivals: an instant arrival at fret 3 width 4 (lines 2-6), then a ramped move to a wider
 // fret-8 width-6 window (lines 7-13) whose two-second ramp starts at 4.0.
-[[nodiscard]] std::vector<HighwayHandArrival> makePlacements()
+[[nodiscard]] std::vector<HandArrival> makePlacements()
 {
     return {
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 2.0,
             .low_line = 2.0,
             .high_line = 6.0,
             .ramp_seconds = 0.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         },
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 6.0,
             .low_line = 7.0,
             .high_line = 13.0,
             .ramp_seconds = 2.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         },
     };
@@ -56,35 +56,34 @@ namespace
 
 // The same move with the arriving placement's ramp marked unpitched, so the two ease families can
 // be compared over identical geometry rather than against a second hand-written fixture.
-[[nodiscard]] std::vector<HighwayHandArrival> makeUnpitchedPlacements()
+[[nodiscard]] std::vector<HandArrival> makeUnpitchedPlacements()
 {
-    std::vector<HighwayHandArrival> placements = makePlacements();
-    placements.back().unpitched_ramp = true;
+    std::vector<HandArrival> placements = makePlacements();
+    placements.back().approach = HandApproach::Release;
     return placements;
 }
 
 // A settled window at lines 2-6, then an unpitched one-second approach to lines 7-13 arriving at
 // 6.0 whose final `settle_seconds` settle into the arrival, its curve heading for the arrival's own
 // edges.
-[[nodiscard]] std::vector<HighwayHandArrival> makeSettlingPlacements(const double settle_seconds)
+[[nodiscard]] std::vector<HandArrival> makeSettlingPlacements(const double settle_seconds)
 {
     return {
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 2.0,
             .low_line = 2.0,
             .high_line = 6.0,
             .ramp_seconds = 0.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         },
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 6.0,
             .low_line = 7.0,
             .high_line = 13.0,
             .ramp_seconds = 1.0,
-            .unpitched_ramp = true,
-            .settle =
-                HighwayHandSettle{.seconds = settle_seconds, .low_line = 7.0, .high_line = 13.0},
+            .approach = HandApproach::Release,
+            .settle = HandSettle{.seconds = settle_seconds, .low_line = 7.0, .high_line = 13.0},
         },
     };
 }
@@ -97,7 +96,7 @@ namespace
 // instant. The nut window applies only to chartless boards.
 TEST_CASE("Hand window holds settled extents outside ramps", "[core][highway][window]")
 {
-    const std::vector<HighwayHandArrival> placements = makePlacements();
+    const std::vector<HandArrival> placements = makePlacements();
 
     CHECK(highwayHandWindowAt({}, 5.0) == HighwayHandWindow{.low_line = 0.0, .high_line = 4.0});
     CHECK(
@@ -122,7 +121,7 @@ TEST_CASE("Hand window holds settled extents outside ramps", "[core][highway][wi
 // mechanism and the border leaves and rejoins the settled edges tangentially.
 TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window]")
 {
-    const std::vector<HighwayHandArrival> placements = makePlacements();
+    const std::vector<HandArrival> placements = makePlacements();
 
     // Ramp start is exact: at 4.0 the window has not yet moved.
     const HighwayHandWindow at_start = highwayHandWindowAt(placements, 4.0);
@@ -137,13 +136,13 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
 
     // The first placement never sweeps in from the nut window: its own window pre-holds, so a
     // ramp on the first placement degenerates to no motion.
-    const std::vector<HighwayHandArrival> opening{
-        HighwayHandArrival{
+    const std::vector<HandArrival> opening{
+        HandArrival{
             .seconds = 1.0,
             .low_line = 4.0,
             .high_line = 8.0,
             .ramp_seconds = 1.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         },
     };
@@ -158,7 +157,7 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
 // window reads it.
 TEST_CASE("Hand window eases an unpitched ramp with the slide-out curve", "[core][highway][window]")
 {
-    const std::vector<HighwayHandArrival> placements = makeUnpitchedPlacements();
+    const std::vector<HandArrival> placements = makeUnpitchedPlacements();
 
     // Ramp start: the slide-out curve is zero at zero progress, so the previous window still holds.
     const HighwayHandWindow at_start = highwayHandWindowAt(placements, 4.0);
@@ -189,7 +188,7 @@ TEST_CASE("Hand window eases an unpitched ramp with the slide-out curve", "[core
 TEST_CASE("Hand window settles an unpitched ramp over its crop zone", "[core][highway][window]")
 {
     // Ramp [5.0, 6.0], settle over its final 0.15 s: the knee sits at progress 0.85 (5.85 s).
-    const std::vector<HighwayHandArrival> settling = makeSettlingPlacements(0.15);
+    const std::vector<HandArrival> settling = makeSettlingPlacements(0.15);
     const auto expected_on_curve = [](const double curve_progress) {
         const double weight = highwaySlideEaseWeight(curve_progress, true);
         return HighwayHandWindow{
@@ -231,7 +230,7 @@ TEST_CASE("Hand window settles an unpitched ramp over its crop zone", "[core][hi
     CHECK(std::abs(after_knee.high_line - before_knee.high_line) < 1.0e-3);
 
     // (e) A zero settle is the plain curve all the way to the arrival.
-    const std::vector<HighwayHandArrival> plain = makeSettlingPlacements(0.0);
+    const std::vector<HandArrival> plain = makeSettlingPlacements(0.0);
     for (const double progress : {0.25, 0.9, 0.999})
     {
         const HighwayHandWindow window = highwayHandWindowAt(plain, 5.0 + progress);
@@ -249,8 +248,8 @@ TEST_CASE("Hand window follows a ride's curve and settles elsewhere", "[core][hi
 {
     // From lines 2-6, the curve heads for lines 10-14 over a ramp [5.0, 6.0], leaving it over the
     // final 0.15 s for the arrival's own lines 7-13.
-    std::vector<HighwayHandArrival> ride = makeSettlingPlacements(0.15);
-    ride.back().settle = HighwayHandSettle{.seconds = 0.15, .low_line = 10.0, .high_line = 14.0};
+    std::vector<HandArrival> ride = makeSettlingPlacements(0.15);
+    ride.back().settle = HandSettle{.seconds = 0.15, .low_line = 10.0, .high_line = 14.0};
 
     // Before the knee the window rides the curve toward the heading, not toward the arrival.
     for (const double progress : {0.25, 0.5, 0.85})
@@ -271,10 +270,10 @@ TEST_CASE("Hand window follows a ride's curve and settles elsewhere", "[core][hi
 
     // The dip: a leg from lines 2-6 back to lines 2-6, heading for lines 0-4, still moves, and its
     // sampled path is sliced like any travelling leg.
-    std::vector<HighwayHandArrival> dip = makeSettlingPlacements(0.15);
+    std::vector<HandArrival> dip = makeSettlingPlacements(0.15);
     dip.back().low_line = 2.0;
     dip.back().high_line = 6.0;
-    dip.back().settle = HighwayHandSettle{.seconds = 0.15, .low_line = 0.0, .high_line = 4.0};
+    dip.back().settle = HandSettle{.seconds = 0.15, .low_line = 0.0, .high_line = 4.0};
     CHECK(highwayHandWindowAt(dip, 5.5).low_line < 2.0);
     CHECK(highwayHandWindowAt(dip, 6.0) == HighwayHandWindow{.low_line = 2.0, .high_line = 6.0});
     std::vector<double> times;
@@ -288,7 +287,7 @@ TEST_CASE("Hand window follows a ride's curve and settles elsewhere", "[core][hi
 TEST_CASE("Hand window clamps a settle longer than its ramp", "[core][highway][window]")
 {
     // Ramp [5.0, 6.0] with a settle of 3 s.
-    const std::vector<HighwayHandArrival> overlong = makeSettlingPlacements(3.0);
+    const std::vector<HandArrival> overlong = makeSettlingPlacements(3.0);
     const HighwayHandWindow previous{.low_line = 2.0, .high_line = 6.0};
 
     // No jump at the ramp's start: the window there is the previous settled one, and an instant
@@ -304,7 +303,7 @@ TEST_CASE("Hand window clamps a settle longer than its ramp", "[core][highway][w
         HighwayHandWindow{.low_line = 7.0, .high_line = 13.0});
 
     // Through the ramp it is the settle as long as the ramp itself.
-    const std::vector<HighwayHandArrival> full = makeSettlingPlacements(1.0);
+    const std::vector<HandArrival> full = makeSettlingPlacements(1.0);
     for (const double progress : {0.1, 0.5, 0.9})
     {
         const HighwayHandWindow clamped = highwayHandWindowAt(overlong, 5.0 + progress);
@@ -338,7 +337,7 @@ TEST_CASE("Hand window line coverage ramps across the edges", "[core][highway][w
 // the light from the instant the light stopped standing on it, falling over one decay.
 TEST_CASE("Lit line afterglow falls from the instant the light leaves", "[core][highway][window]")
 {
-    const std::vector<HighwayHandArrival> track = makePlacements();
+    const std::vector<HandArrival> track = makePlacements();
     const HighwayLitStretch held{
         .start_seconds = 1.0, .release_seconds = 10.0, .rise_seconds = 0.0
     };
@@ -374,7 +373,7 @@ TEST_CASE("Lit line afterglow falls from the instant the light leaves", "[core][
 
     SECTION("a step with no ramp leaves at its arrival")
     {
-        std::vector<HighwayHandArrival> stepped = makePlacements();
+        std::vector<HandArrival> stepped = makePlacements();
         stepped.back().ramp_seconds = 0.0;
         CHECK(highwayLitLineAfterglowAt(stepped, held, 3.0, 6.5, 1.0) == Catch::Approx(0.5));
     }
@@ -385,7 +384,7 @@ TEST_CASE("Lit line afterglow falls from the instant the light leaves", "[core][
         // straight off the previous chord's window at the strike. That window stood until the
         // light's start and was never shown lit, so its lines keep nothing — the whole of the
         // strike's afterglow is its own window's, which the coverage term already draws.
-        std::vector<HighwayHandArrival> stepped = makePlacements();
+        std::vector<HandArrival> stepped = makePlacements();
         stepped.back().ramp_seconds = 0.0;
         const HighwayLitStretch strike{
             .start_seconds = 6.0, .release_seconds = 6.0, .rise_seconds = 0.0
@@ -399,17 +398,17 @@ TEST_CASE("Lit line afterglow falls from the instant the light leaves", "[core][
 // arrival exclusive, the first arrival never has one, and neither does a zero ramp.
 TEST_CASE("Hand leg lookup finds the ramp in progress", "[core][highway][window]")
 {
-    std::vector<HighwayHandArrival> track = makePlacements();
+    std::vector<HandArrival> track = makePlacements();
     // The first arrival carries a ramp of its own, which must still never be a leg.
     track.front().ramp_seconds = 1.0;
     // A zero-ramp step after the move: arrives instantly, so it is never a leg either.
     track.push_back(
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 8.0,
             .low_line = 1.0,
             .high_line = 5.0,
             .ramp_seconds = 0.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         });
 
@@ -444,18 +443,18 @@ TEST_CASE("Lit window holds still outside its stretch", "[core][highway][window]
 {
     const auto arrival =
         [](const double seconds, const double low, const double high, const double ramp) {
-            return HighwayHandArrival{
+            return HandArrival{
                 .seconds = seconds,
                 .low_line = low,
                 .high_line = high,
                 .ramp_seconds = ramp,
-                .unpitched_ramp = false,
+                .approach = HandApproach::Morph,
                 .settle = std::nullopt,
             };
         };
     // Lines 2-6 from the start; a move to 7-11 ramping over 2.5-3.0, wholly inside the gap; and a
     // move to 1-5 ramping over 4.5-5.0, under the second light's rise.
-    const std::vector<HighwayHandArrival> track{
+    const std::vector<HandArrival> track{
         arrival(0.0, 2.0, 6.0, 0.0), arrival(3.0, 7.0, 11.0, 0.5), arrival(5.0, 1.0, 5.0, 0.5)
     };
     const HighwayLitStretch first{
@@ -493,15 +492,15 @@ TEST_CASE("Lit window holds still outside its stretch", "[core][highway][window]
 // begins inside the decay never moves the light.
 TEST_CASE("Lit window finishes the leg in progress at its release", "[core][highway][window]")
 {
-    std::vector<HighwayHandArrival> track = makeSettlingPlacements(0.25);
+    std::vector<HandArrival> track = makeSettlingPlacements(0.25);
     // A later move to lines 1-5 whose ramp begins after the slide-out has landed.
     track.push_back(
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 7.0,
             .low_line = 1.0,
             .high_line = 5.0,
             .ramp_seconds = 0.5,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         });
     // Released halfway along the slide-out's one-second approach (5.0 to 6.0).
@@ -536,21 +535,21 @@ TEST_CASE("Track sampling slices a leg four per fret, bounded", "[core][highway]
     // 1.0-2.0, sampled over [0.5, 3] so every slice falls inside — the samples past the range's two
     // ends and the arrival are the slices.
     const auto slices_for = [](const double sweep) {
-        const std::vector<HighwayHandArrival> leg{
-            HighwayHandArrival{
+        const std::vector<HandArrival> leg{
+            HandArrival{
                 .seconds = 0.0,
                 .low_line = 0.0,
                 .high_line = 4.0,
                 .ramp_seconds = 0.0,
-                .unpitched_ramp = false,
+                .approach = HandApproach::Morph,
                 .settle = std::nullopt,
             },
-            HighwayHandArrival{
+            HandArrival{
                 .seconds = 2.0,
                 .low_line = sweep,
                 .high_line = 4.0 + sweep,
                 .ramp_seconds = 1.0,
-                .unpitched_ramp = false,
+                .approach = HandApproach::Morph,
                 .settle = std::nullopt,
             },
         };
@@ -601,7 +600,7 @@ TEST_CASE("Sorted sample times drop instants one epsilon apart", "[core][highway
 TEST_CASE("Track sample times slice only the ramps inside the range", "[core][highway][window]")
 {
     // Lines 2-6 at 2.0, then a two-second ramp over 4.0-6.0 to lines 7-13: seven lines of travel.
-    std::vector<HighwayHandArrival> track = makePlacements();
+    std::vector<HandArrival> track = makePlacements();
     const auto sampled = [&track](const double from_seconds, const double to_seconds) {
         std::vector<double> times;
         highwayTrackSampleTimes(track, from_seconds, to_seconds, times);
@@ -644,21 +643,21 @@ TEST_CASE("Track sample times slice only the ramps inside the range", "[core][hi
 
     // A zero-ramp step and a ramp that moves no edge each add their arrival and no slices.
     track.push_back(
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 8.0,
             .low_line = 1.0,
             .high_line = 5.0,
             .ramp_seconds = 0.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         });
     track.push_back(
-        HighwayHandArrival{
+        HandArrival{
             .seconds = 10.0,
             .low_line = 1.0,
             .high_line = 5.0,
             .ramp_seconds = 1.0,
-            .unpitched_ramp = false,
+            .approach = HandApproach::Morph,
             .settle = std::nullopt,
         });
     CHECK(sampled(7.0, 11.0) == std::vector<double>{7.0, 8.0, 10.0, 11.0});
@@ -668,7 +667,7 @@ TEST_CASE("Track sample times slice only the ramps inside the range", "[core][hi
 // onset, even while the window is still moving now, and from the onset on it rides the live window.
 TEST_CASE("Box sides hold the onset window, then ride the live one", "[core][highway][window]")
 {
-    const std::vector<HighwayHandArrival> track = makePlacements();
+    const std::vector<HandArrival> track = makePlacements();
 
     // Before the onset (mid-ramp at 5.0), the box reads the window at its onset, not at now.
     CHECK(highwayBoxSidesAt(track, 5.0, 1.0) == highwayHandWindowAt(track, 5.0));

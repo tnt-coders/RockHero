@@ -17,7 +17,7 @@ namespace rock_hero::common::core
 full through \ref release_seconds, then decaying.
 
 Where the light stands is not part of the stretch: that is the hand's track in the board's one
-motion element (\ref HighwayHandArrival). How fast it decays is not part of it either: the decay
+motion element (\ref HandArrival). How fast it decays is not part of it either: the decay
 belongs to the LAYER that draws the light, never to the hand. A stretch gathered as evidence, before
 \ref mergeLitEvidence, carries its rise unclamped.
 */

@@ -17,7 +17,7 @@ namespace
 // Builds a state with only the fretting hand's track, the sole input the camera focus consumes.
 // Each arrival's lines are its placement's settled window: frets [fret, fret + width - 1] sit on
 // lines fret - 1 through fret + width - 1.
-[[nodiscard]] HighwayViewState makeStateWithArrivals(std::vector<HighwayHandArrival> arrivals)
+[[nodiscard]] HighwayViewState makeStateWithArrivals(std::vector<HandArrival> arrivals)
 {
     HighwayViewState state;
     state.chart.open_strings = testing::standardTuning();
@@ -39,10 +39,10 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     // Active window at fret 5 width 4 (lines 4..8); an upcoming window at fret 9 width 4
     // (lines 8..12) in the next zone widens the range to lines 4..12.
     HighwayViewState state = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0},
-        HighwayHandArrival{.seconds = 1.5, .low_line = 8.0, .high_line = 12.0},
+        HandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0},
+        HandArrival{.seconds = 1.5, .low_line = 8.0, .high_line = 12.0},
         // Two zones out: not framed yet.
-        HighwayHandArrival{.seconds = 60.0, .low_line = 0.0, .high_line = 4.0},
+        HandArrival{.seconds = 60.0, .low_line = 0.0, .high_line = 4.0},
     });
     state.camera_zone_starts = {0.0, 4.0, 8.0};
 
@@ -61,7 +61,7 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     // Before the first arrival the first placement's window already holds (the opening scroll
     // shows where the hand belongs), so the camera frames it even from outside the scanned zones.
     HighwayViewState opening_state = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = 60.0, .low_line = 8.0, .high_line = 12.0},
+        HandArrival{.seconds = 60.0, .low_line = 8.0, .high_line = 12.0},
     });
     opening_state.camera_zone_starts = {0.0, 4.0, 8.0};
     const HighwayCameraTarget opening = makeHighwayCameraTarget(opening_state, 0.0, metrics, false);
@@ -79,9 +79,9 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
     const HighwayMetrics metrics{};
 
     HighwayViewState state = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = 0.5, .low_line = 4.0, .high_line = 8.0},    // zone 0
-        HighwayHandArrival{.seconds = 8.5, .low_line = 8.0, .high_line = 12.0},   // zone 1
-        HighwayHandArrival{.seconds = 16.5, .low_line = 13.0, .high_line = 17.0}, // zone 2
+        HandArrival{.seconds = 0.5, .low_line = 4.0, .high_line = 8.0},    // zone 0
+        HandArrival{.seconds = 8.5, .low_line = 8.0, .high_line = 12.0},   // zone 1
+        HandArrival{.seconds = 16.5, .low_line = 13.0, .high_line = 17.0}, // zone 2
     });
     state.camera_zone_starts = {0.0, 8.0, 16.0, 24.0};
     const auto target_at = [&](const double now) {
@@ -127,7 +127,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     const HighwayMetrics metrics{};
 
     HighwayViewState state = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}, // fret 5 width 4
+        HandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}, // fret 5 width 4
     });
     state.camera_zone_starts = {0.0, 1.0, 2.0, 3.0};
     // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a note
@@ -175,7 +175,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
 
     // The same hand window with no tap frames only itself (lines 4..8 = span 4).
     HighwayViewState windowed_state = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0},
+        HandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0},
     });
     windowed_state.camera_zone_starts = state.camera_zone_starts;
     CHECK(makeHighwayCameraTarget(windowed_state, 1.5, metrics, false).span == Catch::Approx(4.0));
@@ -190,7 +190,7 @@ TEST_CASE(
 {
     const HighwayMetrics metrics{};
     HighwayViewState state = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}, // fret 5 width 4
+        HandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}, // fret 5 width 4
     });
     state.camera_zone_starts = {0.0, 4.0};
     state.chart.notes.push_back(
@@ -229,8 +229,8 @@ TEST_CASE("Highway camera treats missing framing zones as one open zone", "[core
 
     // A hand-built state with content but no zones frames all of it at once, past and future.
     const HighwayViewState unzoned = makeStateWithArrivals({
-        HighwayHandArrival{.seconds = -30.0, .low_line = 1.0, .high_line = 5.0},
-        HighwayHandArrival{.seconds = 900.0, .low_line = 8.0, .high_line = 12.0},
+        HandArrival{.seconds = -30.0, .low_line = 1.0, .high_line = 5.0},
+        HandArrival{.seconds = 900.0, .low_line = 8.0, .high_line = 12.0},
     });
     CHECK(makeHighwayCameraTarget(unzoned, 0.0, metrics, false).span == Catch::Approx(11.0));
 }
@@ -444,8 +444,8 @@ TEST_CASE("Highway camera mirror reflects the projected picture", "[core][highwa
 {
     const HighwayMetrics metrics{};
 
-    const HighwayViewState state = makeStateWithArrivals(
-        {HighwayHandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}});
+    const HighwayViewState state =
+        makeStateWithArrivals({HandArrival{.seconds = 0.0, .low_line = 4.0, .high_line = 8.0}});
 
     const HighwayCameraTarget plain_target = makeHighwayCameraTarget(state, 0.0, metrics, false);
     const HighwayCameraTarget mirrored_target = makeHighwayCameraTarget(state, 0.0, metrics, true);

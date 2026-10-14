@@ -203,109 +203,6 @@ rounding of any kind here.
 }
 
 /*!
-\brief The final stretch of a hand's approach over which it leaves the curve it was following and
-comes to rest at the arrival with a continuous slope (\ref HighwayHandArrival::settle).
-*/
-struct HighwayHandSettle
-{
-    /*! \brief How long before the arrival the approach leaves its curve. */
-    double seconds{0.0};
-
-    /*! \brief Fret-line coordinate of the low-fret edge the curve was heading for. */
-    double low_line{0.0};
-
-    /*! \brief Fret-line coordinate of the high-fret edge the curve was heading for. */
-    double high_line{4.0};
-
-    /*!
-    \brief Compares two settles by their stored fields.
-    \param lhs Left-hand settle.
-    \param rhs Right-hand settle.
-    \return True when both settles store equal values.
-    */
-    friend constexpr bool operator==(
-        const HighwayHandSettle& lhs, const HighwayHandSettle& rhs) noexcept
-    {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.low_line <=> rhs.low_line) &&
-               std::is_eq(lhs.high_line <=> rhs.high_line);
-    }
-};
-
-/*!
-\brief One arrival of a hand's window on the board: the extent the hand settles on, and the eased
-approach ending there.
-
-THE ONE MOTION ELEMENT BOTH HANDS SHARE, resolved by one rule (\ref highwayHandWindowAt): the
-fretting hand's track (\ref HighwayViewState::fret_hand) is the chart's
-(\ref ChartViewState::fret_hand_track), and the picking hand's (\ref HighwayViewState::pick_hand) is
-an arrival per stop of the taps' travel.
-Edges are fret-line coordinates (line 0 is the nut side of fret 1): a settled window covering
-frets [fret, fret + width - 1] has edges fret - 1 and fret + width - 1.
-*/
-struct HighwayHandArrival
-{
-    /*! \brief Absolute position the hand arrives; arrivals ascend by this. */
-    double seconds{0.0};
-
-    /*! \brief Fret-line coordinate of the settled window's low-fret edge. */
-    double low_line{0.0};
-
-    /*! \brief Fret-line coordinate of the settled window's high-fret edge. */
-    double high_line{4.0};
-
-    /*!
-    \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
-
-    The fretting hand's is \ref FretHandArrivalViewState::ramp_seconds. On the picking hand's track
-    a strike's first arrival is instant, and every later arrival ramps over the leg from the
-    arrival before it. A ramp never reaches back past the arrival before it, so ramp starts ascend
-    with the arrivals.
-    */
-    double ramp_seconds{0.0};
-
-    /*!
-    \brief True when the ramp spans an UNPITCHED glide
-    (\ref FretHandArrivalViewState::unpitched_ramp), so the approach eases with the unpitched curve
-    instead of the pitched one.
-    */
-    bool unpitched_ramp{false};
-
-    /*!
-    \brief Present where the approach leaves its curve before the arrival; absent where it settles
-    on the curve's own end.
-
-    THE CROP ZONE: a leg the ink end cuts is drawn to the crop and no further while the hand
-    completes at the true instant, so over this stretch the window leaves the leg's curve where the
-    rail stops and comes to rest exactly at the arrival, in place of the curve's stop with slope.
-    The curve heads for the settle's own edges, which are the arrival's except where a ridden
-    slide-out carried the hand toward another window
-    (\ref FretHandArrivalViewState::settle).
-    */
-    std::optional<HighwayHandSettle> settle{};
-
-    /*!
-    \brief Compares two arrivals by their stored fields.
-    \param lhs Left-hand arrival.
-    \param rhs Right-hand arrival.
-    \return True when both arrivals store equal values.
-
-    Exact field equality: arrivals are compared against values the projection produced, so is_eq
-    keeps GCC's -Wfloat-equal satisfied that the exactness is intended. Callers checking an eased
-    mid-glide extent compare with a tolerance instead.
-    */
-    friend constexpr bool operator==(
-        const HighwayHandArrival& lhs, const HighwayHandArrival& rhs) noexcept
-    {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.low_line <=> rhs.low_line) &&
-               std::is_eq(lhs.high_line <=> rhs.high_line) &&
-               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp && lhs.settle == rhs.settle;
-    }
-};
-
-/*!
 \brief One hand's light: WHERE its window stands over time, and WHEN it is lit.
 
 The same pair for both hands (\ref HighwayViewState::fret_hand, \ref HighwayViewState::pick_hand),
@@ -317,7 +214,7 @@ that instant; what flashes on it is \ref pops.
 struct HighwayHandLight
 {
     /*! \brief Where the hand's window stands, over time: arrivals ascending. */
-    std::vector<HighwayHandArrival> track;
+    std::vector<HandArrival> track;
 
     /*!
     \brief When the light is lit: disjoint stretches in ascending order (\ref mergeLitEvidence),

@@ -37,7 +37,7 @@ malformed chart cannot place a strike off the board at either end.
 \brief Derives the picking hand's light from the same onset groups \ref makeHighwayTapOnsets
 strikes: one track the hand's window travels, and the stretches it is lit over.
 
-THE TRACK is every group's PATH in the board's one motion element (\ref HighwayHandArrival),
+THE TRACK is every group's PATH in the board's one motion element (\ref HandArrival),
 concatenated in time order. A group's path is the onset; every stop of the hand's travel a tap's
 glides and slide-out or a scrape's whole keyframe path make (\ref highwayGlideLegAt, the walk the
 rail is drawn by), up to and including the first stop past the ink end, whose leg the light follows
