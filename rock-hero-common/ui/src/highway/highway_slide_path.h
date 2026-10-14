@@ -94,9 +94,9 @@ struct HighwaySlideState
 /*!
 \brief Returns a note's glide state at a time: the eased X offset from its anchor, and the dim.
 
-The rail's walk of the glide (\ref common::core::highwayGlideLegAt over every stop), placed on the
-board: the leg's two stops are placed by \ref highwayNoteFretboardX and the leg's weight lerps
-between them. Past the last keyframe the glide holds its target, since a gesture that has stopped
+The one walk of the glide (\ref common::core::highwayGlideLegAt), placed on the board: the leg's
+two stops are placed by \ref highwayNoteFretboardX and the leg's weight lerps between them. Past
+the last keyframe the glide holds its target, since a gesture that has stopped
 travelling continues straight along the fret it stopped on. What is DRAWN is the caller's to
 bound — it evaluates only times within its extent, so a stop past the ink end moves nothing on the
 board.
@@ -142,8 +142,7 @@ curve. On any other note the dim is the terminal slide-out's own leg.
             run_span > 0.0 ? std::clamp((at - run_start_seconds) / run_span, 0.0, 1.0) : 1.0;
         return 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress);
     };
-    const common::core::HighwayGlideLeg leg =
-        common::core::highwayGlideLegAt(note, common::core::HighwayGlidePath::Rail, seconds);
+    const common::core::HighwayGlideLeg leg = common::core::highwayGlideLegAt(note, seconds);
     const double from_x = highwayNoteFretboardX(note, leg.from_fret, metrics, mirrored);
     const double to_x = highwayNoteFretboardX(note, leg.to_fret, metrics, mirrored);
     // Past the last stop the dim holds where its run ended.

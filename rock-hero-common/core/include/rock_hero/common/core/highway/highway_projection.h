@@ -39,15 +39,14 @@ strikes: one track the hand's window travels, and the stretches it is lit over.
 
 THE TRACK is every group's PATH in the board's one motion element (\ref HighwayHandArrival),
 concatenated in time order. A group's path is the onset; every stop of the hand's travel a tap's
-pitched glides or a scrape's whole keyframe path make, up to and including the first stop past the
-ink end, whose leg the light follows on the rail's own curve and settles over the crop zone; and the
-release where it extends the path (sustained contact keeps the light on through the sustain). A
-tap's unpitched slide-out contributes nothing — pressure is already releasing, so the light decays
-from the last pitched arrival. The extent at each arrival spans every member's position on its own
-rail at that instant. An earlier group's arrivals at or after the next group's onset are dropped:
-the hand has moved on, the same statement the fretting window makes when it shifts while a note
-rings. Each group's first arrival is instant; every later arrival ramps over the leg from the
-arrival before it.
+glides and slide-out or a scrape's whole keyframe path make (\ref highwayGlideLegAt, the walk the
+rail is drawn by), up to and including the first stop past the ink end, whose leg the light follows
+on the rail's own curve and settles over the crop zone; and the release where it extends the path
+(sustained contact keeps the light on through the sustain). The extent at each arrival spans every
+member's position on its own rail at that instant. An earlier group's arrivals at or after the
+next group's onset are dropped: the hand has moved on, the same statement the fretting window makes
+when it shifts while a note rings. Each group's first arrival is instant; every later arrival
+ramps over the leg from the arrival before it.
 
 THE LIT STRETCHES merge one item per tapped member — the group's onset, the member's release, the
 member's margin rise — through the same merge the fretting hand's evidence takes
@@ -69,8 +68,9 @@ The evidence is every note whose onset is not a right-hand onset (fretted, open,
 harmonic, legato, left tap) — an open string included, because it is drawn as a bar spanning the
 window and a dark window under it would read as a floating bar; every right-hand onset whose held
 stop is pressed, lit through its claim; and every hand-posture span over its drawn extent. A bare
-tap proves nothing. A note lights from its onset, rising over its margin, to its release (the drawn
-end, or the last pitched keyframe before a drawn slide-out); a span lights over its drawn extent
+tap proves nothing. A note lights from its onset, rising over its margin, to the end of its drawn
+tail, a slide-out's included, by the one rule the picking hand's light reads too; a span lights
+over its drawn extent
 with no rise of its own, because a span never OPENS a light — it starts at a note's onset, which
 carries the rise, or tiles onto its predecessor. The evidence merges under the one rest tolerance
 (\ref mergeLitEvidence, \ref g_hand_rest_seconds).

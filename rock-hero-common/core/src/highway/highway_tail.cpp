@@ -141,25 +141,13 @@ double highwaySlideEaseSlope(const double progress, const bool unpitched) noexce
     return half_pi * std::sin(p * std::numbers::pi);
 }
 
-bool highwayGlideWalks(
-    const NoteViewState& note, const SlideStopViewState& stop, const HighwayGlidePath path) noexcept
-{
-    return path == HighwayGlidePath::Rail ||
-           ((!stop.slide_out || isScrape(note.attack)) && stop.fret > 0);
-}
-
-HighwayGlideLeg highwayGlideLegAt(
-    const NoteViewState& note, const HighwayGlidePath path, const double seconds) noexcept
+HighwayGlideLeg highwayGlideLegAt(const NoteViewState& note, const double seconds) noexcept
 {
     double leg_start_seconds = note.start_seconds;
     int leg_start_fret = note.fret;
     for (std::size_t index = 0; index < note.slides.size(); ++index)
     {
         const SlideStopViewState& stop = note.slides[index];
-        if (!highwayGlideWalks(note, stop, path))
-        {
-            continue;
-        }
         if (seconds <= stop.seconds)
         {
             const double span = stop.seconds - leg_start_seconds;

@@ -40,8 +40,9 @@ hand on its own code path is a defect.
   are already in seconds; and the merge then needs no tempo map. The value is a sighting knob.
   The tolerance is the ONLY threshold; it is a
   parameter of the merge, not a second mechanism, and it lets both hands share one release rule
-  (`noteReleaseAt`: the drawn end, or the last pitched keyframe before a drawn slide-out) with no
-  second "hold" authority. The picking hand went through the same merge with the same tolerance
+  (`noteLitStretch`: the drawn end, a slide-out's included, since the finger stays on the string
+  to the ring's end — re-ruled 2026-10-13, superseding the release at the last pitched keyframe)
+  with no second "hold" authority. The picking hand went through the same merge with the same tolerance
   in the first build, and the user sighted it (2026-09-25): **the merged right hand was rejected
   — the per-strike pulse is the ruled look**, while the fretting hand's merged light is right at
   1.0 s (since lowered to 0.5 s, section 7). So the tolerance is per hand: `g_hand_rest_seconds`
@@ -154,7 +155,8 @@ std::vector<HighwayLitStretch> mergeLitEvidence(std::vector<HighwayLitStretch>, 
 least the tolerance. Phase 1 keeps them public for the tap producer and their own spec tests.
 
 Kept, one renamed: `memberReleaseAt` → `noteReleaseAt` (a note's release, not a chord member's;
-file-local in `highway_projection.cpp`, where both producers live); `marginBefore` (since
+file-local in `highway_projection.cpp`, where both producers live; since 2026-10-13
+`noteLitStretch`, the whole item both producers gather); `marginBefore` (since
 `987b62cf`, `minimumSustainDistance`);
 `highwayHandWindowAt`; `highwayHandWindowLineCoverage`.
 
@@ -165,8 +167,8 @@ file-local in `highway_projection.cpp`, where both producers live); `marginBefor
 - **Picking hand — `makeHighwayTapOnsets` and `makePickHandLight`.** The onset producer groups
   the right-hand onsets struck together (the onset epsilon) and builds each group's path
   (`memberPositionAt`, unchanged). The light producer concatenates those paths into
-  `pick_hand.track` (section 2.1), gathers one item per tapped member `{start = group onset,
-  noteReleaseAt(member), margin_rise[member]}`, and runs the SAME `mergeLitEvidence` with the same
+  `pick_hand.track` (section 2.1), gathers one item per tapped member (`noteLitStretch(member)`,
+  the item the fretting hand gathers too), and runs the SAME `mergeLitEvidence` with the same
   tolerance. In Phase 1 the gather is folded and crowded per onset, which reproduces today's
   arithmetic exactly (every item starts at the onset); the merge across onsets arrives in Phase 2
   with the track. Today's per-strike pulse ("the light pulses with each strike while the
@@ -174,7 +176,8 @@ file-local in `highway_projection.cpp`, where both producers live); `marginBefor
   reached by a per-hand tolerance of zero.
 - **Fretting hand — `makeFretHandLight(const ChartViewState&, std::span<const double>
   margin_rise)`.** Evidence items:
-  - every note with `!rightHandOnset(attack)`: `{start, noteReleaseAt(note), margin_rise[i]}`;
+  - every note with `!rightHandOnset(attack)`: `noteLitStretch(note)`, the item the picking
+    hand gathers too;
   - every right-hand onset with a held stop (`NoteViewState::held_fret`, always a pressed fret),
     same extent — a tap lit through the finger beneath it. No authorship tier is needed: a DEFAULT
     held stop exists only under a covering span, which is evidence anyway;
@@ -337,8 +340,7 @@ Core tests beside the tap cases in `test_highway_projection.cpp`; merge and enve
 - **Evidence:** a lone open note is lit with a margin rise; a bare tap leaves `fret_hand_light`
   empty while `tap_onsets` still holds it; a tap with an authored held stop is lit; a tap under a
   covering span is lit; a pick slide without a claim is dark; a left tap and a natural harmonic
-  are lit; a drawn slide-out releases at the last pitched keyframe and an undrawn one at the ink
-  end; chord heads with emptied tails under a span stay lit to `drawn_end_seconds`.
+  are lit; a slide-out releases at the ink end like any note, drawn or cropped; chord heads with emptied tails under a span stay lit to `drawn_end_seconds`.
 - **A span never opens a stretch:** carry-opened successors at a landing and at a member's death.
 - **Picking hand under the same rule:** a dense tap run inside the tolerance is ONE stretch over
   one track; two tap onsets a rest apart are two; the track leaves an earlier onset's position at

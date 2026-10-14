@@ -61,39 +61,28 @@ constexpr int g_camera_zone_measures = 2;
     return track;
 }
 
-// A member's position on its own rail at an instant, along the hand's walk of its glide
-// (highwayGlideLegAt): a tap's unpitched slide-out never moves the light, while a scrape's stops,
-// its slide-out included, ARE the hand's travel. The DRAWN position (highwayDrawnStop), so a path
-// cannot walk off the board while the head it belongs to is held at the edge.
+// A member's position on its own rail at an instant, along the one walk of its glide
+// (highwayGlideLegAt), slide-out included. The DRAWN position (highwayDrawnStop), so a path cannot
+// walk off the board while the head it belongs to is held at the edge.
 [[nodiscard]] double memberPositionAt(const NoteViewState& note, const double seconds)
 {
-    const HighwayGlideLeg leg = highwayGlideLegAt(note, HighwayGlidePath::Hand, seconds);
+    const HighwayGlideLeg leg = highwayGlideLegAt(note, seconds);
     const double from = highwayStopPosition(highwayDrawnStop(note, leg.from_fret));
     const double to = highwayStopPosition(highwayDrawnStop(note, leg.to_fret));
     return from + ((to - from) * leg.weight);
 }
 
-// When the note's hand leaves: the last pitched keyframe when a DRAWN unpitched slide-out
-// follows (pressure is already coming off), otherwise the drawn tail's end — which for a scrape
-// is where the pick lifts.
-[[nodiscard]] double noteReleaseAt(const NoteViewState& note)
+// THE ONE STATEMENT of how long a note lights the hand that plays it, read by both hands' lights:
+// from its onset, rising over its margin, to where its drawn tail ends. A slide-out holds like any
+// note, because the finger stays on the string to the ring's end (hand-position rule 6) and the
+// hand rides its rail to there.
+[[nodiscard]] HighwayLitStretch noteLitStretch(const NoteViewState& note)
 {
-    const bool drawn_slide_out = !isScrape(note.attack) && !note.slides.empty() &&
-                                 note.slides.back().slide_out &&
-                                 instantDrawn(note.slides.back().seconds, note.ink_end_seconds);
-    if (!drawn_slide_out)
-    {
-        return note.ink_end_seconds;
-    }
-    double last_pitched = note.start_seconds;
-    for (const SlideStopViewState& keyframe : note.slides)
-    {
-        if (!keyframe.slide_out && keyframe.fret > 0)
-        {
-            last_pitched = keyframe.seconds;
-        }
-    }
-    return last_pitched;
+    return HighwayLitStretch{
+        .start_seconds = note.start_seconds,
+        .release_seconds = note.ink_end_seconds,
+        .rise_seconds = note.marginRiseSeconds(),
+    };
 }
 
 // THE ONE WALK over the right-hand onset groups both picking-hand producers read, so the grouping
@@ -173,10 +162,6 @@ void appendTapGroupPath(
         const NoteViewState& tap = notes[member];
         for (const SlideStopViewState& stop : tap.slides)
         {
-            if (!highwayGlideWalks(tap, stop, HighwayGlidePath::Hand))
-            {
-                continue;
-            }
             // A stop past the ink end settles over the crop zone; its curve heads for the stop
             // itself, whose edges are read below once the group's list is whole.
             std::optional<HighwayHandSettle> settle;
@@ -222,7 +207,7 @@ void appendTapGroupPath(
         ++kept;
     }
     track.resize(kept);
-    // The LIGHT's release (the latest member's noteReleaseAt, the drawn end the per-strike pulse
+    // The LIGHT's release (the latest member's, noteLitStretch, the drawn end the per-strike pulse
     // fades from) extends the path only past its last stop: inside a cut leg it is where the light
     // fades, never a stop the hand makes, and an arrival there would split the leg. Not the
     // strike's own hold end, which runs to the true ring and so could read a leg the rail never
@@ -230,7 +215,7 @@ void appendTapGroupPath(
     double light_release = strike.start_seconds;
     for (const std::size_t member : members)
     {
-        light_release = std::max(light_release, noteReleaseAt(notes[member]));
+        light_release = std::max(light_release, noteLitStretch(notes[member]).release_seconds);
     }
     if (light_release - track.back().seconds >= g_onset_match_epsilon)
     {
@@ -520,12 +505,7 @@ HighwayHandLight makePickHandLight(const std::vector<NoteViewState>& notes)
         [&](const HighwayTapOnsetViewState& strike, const std::span<const std::size_t> members) {
             for (const std::size_t member : members)
             {
-                items.push_back(
-                    HighwayLitStretch{
-                        .start_seconds = strike.start_seconds,
-                        .release_seconds = noteReleaseAt(notes[member]),
-                        .rise_seconds = notes[member].marginRiseSeconds(),
-                    });
+                items.push_back(noteLitStretch(notes[member]));
             }
             // The hand has moved on: an earlier group's arrivals at or after this onset — the tail
             // of a leg still settling, or a release past this strike — are not where it stands.
@@ -553,12 +533,7 @@ std::vector<HighwayLitStretch> makeFretHandLight(const ChartViewState& scene)
         {
             continue;
         }
-        items.push_back(
-            HighwayLitStretch{
-                .start_seconds = note.start_seconds,
-                .release_seconds = noteReleaseAt(note),
-                .rise_seconds = note.marginRiseSeconds(),
-            });
+        items.push_back(noteLitStretch(note));
     }
     // A span never OPENS a light: it starts at a note's onset, which carries the rise, or tiles
     // onto its predecessor, so it lights its drawn extent with no rise of its own.

@@ -1564,8 +1564,8 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 }
 
 // A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
-// through the sustain, a tapped slide adds an arrival per pitched keyframe so the light morphs
-// with the glide, and an unpitched slide-out releases the light from the last pitched arrival.
+// through the sustain, and a tapped slide adds an arrival per keyframe so the light morphs with
+// the glide, its unpitched slide-out included: the finger rides it to the ring's end.
 TEST_CASE("Highway tap onsets carry the light path through glides", "[core][highway]")
 {
     std::vector<NoteViewState> notes;
@@ -1591,8 +1591,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     sliding.slides = {SlideStopViewState{.seconds = 4.0, .fret = 15}};
     notes.push_back(sliding);
 
-    // Tapped slide with an unpitched slide-out: the pitched glide ends at 6.0; the trail to 6.5
-    // is already releasing pressure, so the light must not follow it.
+    // Tapped slide with an unpitched slide-out: the pitched glide ends at 6.0, and the light
+    // follows the trail on to 6.5 like any leg.
     NoteViewState trailing;
     trailing.start_seconds = 5.0;
     trailing.margin_start_seconds = 5.0;
@@ -1608,11 +1608,12 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
 
     const HighwayHandLight light = makePickHandLight(notes);
 
-    // The three onsets' paths concatenated on the one track, two arrivals each. Each later
+    // The three onsets' paths concatenated on the one track, two arrivals each and a third for the
+    // slide-out. Each later
     // arrival ramps over the leg from the arrival before it; an onset ramps over its light rise,
     // which is zero here.
     const std::vector<HighwayHandArrival>& track = light.track;
-    REQUIRE(track.size() == 6);
+    REQUIRE(track.size() == 7);
     CHECK(
         track[0] == HighwayHandArrival{
                         .seconds = 1.0,
@@ -1667,16 +1668,23 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
                         .unpitched_ramp = false,
                         .settle = std::nullopt,
                     });
+    CHECK(
+        track[6] == HighwayHandArrival{
+                        .seconds = 6.5,
+                        .low_line = 7.0,
+                        .high_line = 8.0,
+                        .ramp_seconds = 0.5,
+                        .unpitched_ramp = true,
+                        .settle = std::nullopt,
+                    });
 
-    // The held tap and the plain slide release at their ink ends; the drawn slide-out releases at
-    // the last pitched keyframe, pressure already coming off. Each strike is its own light.
+    // Every tap releases at its ink end, the slide-out's included. Each strike is its own light.
     REQUIRE(light.lit.size() == 3);
     CHECK(light.lit[0].release_seconds == Catch::Approx(held.ink_end_seconds));
     CHECK(light.lit[1].release_seconds == Catch::Approx(sliding.ink_end_seconds));
-    CHECK(light.lit[2].release_seconds == Catch::Approx(trailing.slides.front().seconds));
-    // The STRIKE's hold end is the notes' true ring, not the light's release: a tapped chord's
-    // rails run as long as the fretting hand's boxes hold, so the slide-out's strike holds to its
-    // ring end although its light has already let go at the last pitched keyframe.
+    CHECK(light.lit[2].release_seconds == Catch::Approx(trailing.ink_end_seconds));
+    // The STRIKE's hold end is the notes' true ring: a tapped chord's rails run as long as the
+    // fretting hand's boxes hold.
     const std::vector<HighwayTapOnsetViewState> strikes = makeHighwayTapOnsets(notes);
     REQUIRE(strikes.size() == 3);
     CHECK(std::is_eq(strikes[0].release_seconds <=> held.ring_end_seconds));
@@ -1748,9 +1756,9 @@ TEST_CASE("Highway tapped chord keeps a margin before the head that closes it", 
     CHECK(std::is_eq(tight[0].release_seconds <=> 1.0625));
 }
 
-// The release is the hold end: the ink end, except where a DRAWN unpitched slide-out follows, when
-// it is the last pitched keyframe. A slide-out past the ink end is not drawn, so the tail it would
-// have released early simply ends — and releases — where its ink does.
+// The release is the hold end, the ink end, slide-out or not: the finger rides a slide-out to the
+// ring's end, so the light follows it as it follows any leg. A slide-out past the ink end is the
+// path's last stop like any cut leg: the light follows it to the crop and settles past it.
 TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
 {
     NoteViewState trailing;
@@ -1769,13 +1777,19 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
 
     const HighwayHandLight drawn = makePickHandLight({trailing});
     REQUIRE(drawn.lit.size() == 1);
-    CHECK(drawn.lit.front().release_seconds == Catch::Approx(2.0));
-    // The path ends at that last pitched keyframe: the slide-out adds nothing.
-    REQUIRE(drawn.track.size() == 3);
-    CHECK(drawn.track.back().seconds == Catch::Approx(2.0));
+    CHECK(drawn.lit.front().release_seconds == Catch::Approx(trailing.ink_end_seconds));
+    // The path runs on through the slide-out to its exit fret, on the unpitched curve.
+    REQUIRE(drawn.track.size() == 4);
+    const HighwayHandArrival& exit = drawn.track.back();
+    CHECK(exit.seconds == Catch::Approx(2.5));
+    CHECK(exit.low_line == Catch::Approx(7.0));
+    CHECK(exit.high_line == Catch::Approx(8.0));
+    CHECK(exit.unpitched_ramp);
+    CHECK_FALSE(exit.settle.has_value());
 
-    // The same note with its ink cut after the pitched glide: the slide-out is not drawn, so the
-    // light holds to the ink end and releases there, which extends the path by a release arrival.
+    // The same note with its ink cut after the pitched glide: the light still holds to the ink end
+    // and releases there, while the path follows the cut slide-out to its exit and settles over the
+    // stretch past the ink end. The path already runs past the release, so it adds no arrival.
     NoteViewState cut = trailing;
     cut.ink_end_seconds = 2.25;
     REQUIRE_FALSE(instantDrawn(cut.slides.back().seconds, cut.ink_end_seconds));
@@ -1783,13 +1797,18 @@ TEST_CASE("Highway tap light releases at the hold end", "[core][highway]")
     REQUIRE(undrawn.lit.size() == 1);
     CHECK(undrawn.lit.front().release_seconds == Catch::Approx(cut.ink_end_seconds));
     REQUIRE(undrawn.track.size() == 4);
-    const HighwayHandArrival& release = undrawn.track.back();
-    CHECK(release.seconds == Catch::Approx(cut.ink_end_seconds));
-    CHECK(release.low_line == Catch::Approx(12.0));
-    CHECK(release.high_line == Catch::Approx(13.0));
-    CHECK(release.ramp_seconds == Catch::Approx(0.25));
-    CHECK_FALSE(release.unpitched_ramp);
-    CHECK_FALSE(release.settle.has_value());
+    const HighwayHandArrival& cut_exit = undrawn.track.back();
+    CHECK(cut_exit.seconds == Catch::Approx(2.5));
+    CHECK(cut_exit.low_line == Catch::Approx(7.0));
+    CHECK(cut_exit.ramp_seconds == Catch::Approx(0.5));
+    CHECK(cut_exit.unpitched_ramp);
+    const std::optional<HighwayHandSettle>& settle = cut_exit.settle;
+    REQUIRE(settle.has_value());
+    if (settle.has_value())
+    {
+        CHECK(settle->seconds == Catch::Approx(2.5 - cut.ink_end_seconds));
+        CHECK(settle->low_line == Catch::Approx(cut_exit.low_line));
+    }
 }
 
 // A pitched tap glide the ink end cuts: the light follows the cut leg on the rail's own curve to
@@ -2506,10 +2525,10 @@ TEST_CASE("Fret-hand light reads the fretting hand's techniques only", "[core][h
         state.fret_hand.lit[1].start_seconds == Catch::Approx(state.chart.notes[1].start_seconds));
 }
 
-// Both hands release by one rule: a DRAWN unpitched slide-out lets go at the last pitched keyframe
-// (pressure is already coming off), while one past the ink end is not drawn, so the note holds to
-// its ink end and releases there.
-TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][highway][light]")
+// Both hands release by one rule, a slide-out like any note: the finger stays on the string to the
+// ring's end (hand-position rule 6), so the note holds its light to its ink end, drawn slide-out or
+// cropped.
+TEST_CASE("Fret-hand light holds a slide-out to its ink end", "[core][highway][light]")
 {
     NoteViewState trailing;
     trailing.start_seconds = 1.0;
@@ -2528,7 +2547,7 @@ TEST_CASE("Fret-hand light releases a slide-out at its last pitch", "[core][high
     CHECK(
         makeFretHandLight(scene) ==
         std::vector<HighwayLitStretch>{
-            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.0, .rise_seconds = 0.125},
+            HighwayLitStretch{.start_seconds = 1.0, .release_seconds = 2.5, .rise_seconds = 0.125},
         });
 
     scene.notes.front().ink_end_seconds = 2.25;

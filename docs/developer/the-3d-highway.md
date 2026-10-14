@@ -311,8 +311,8 @@ physics — its ring is position-dependent, drawn at its node's absolute fret po
 
 Where the gesture has TRAVELLED to at an instant is the companion in the same header,
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`, which places the one walk of a
-note's glide (`highwayGlideLegAt` in `highway_tail.h`, whose hand reading the picking hand's light
-follows too): the eased offset from that anchor
+note's glide (`highwayGlideLegAt` in `highway_tail.h`, which the picking hand's light follows
+too, slide-out and all): the eased offset from that anchor
 (pitched and unpitched glides ease differently) plus the release dim — the slide-out's own leg on
 a fretted note, a scrape's whole path as one continuous release — holding the last target past the
 last STOP. Stop and not keyframe: the gesture is read as one uniform sequence — the note's position
@@ -575,8 +575,8 @@ merges under it (a sustainless chug riff would otherwise strobe at every margin 
 repeated tap within it keeps its number unprinted (a `HighwayTapOnsetViewState` carries its strike's
 hold end, `release_seconds` — its notes' true ring, since a position stays established while they
 ring — for that test). Each stretch rises over its first note's arrival margin, clamped so it never
-reaches back past the previous release, holds to its release (the drawn end, or the last pitched
-keyframe before a drawn slide-out), and fades over a decay that belongs to the LAYER drawing it,
+reaches back past the previous release, holds to its release (the drawn end, a slide-out's
+included, `noteLitStretch` for both hands), and fades over a decay that belongs to the LAYER drawing it,
 never to the hand: `g_light_decay_seconds` (0.1 s) under the hand — the floor patch and the
 fret-line tier — because a release is a gesture, and the slower `g_ribbon_decay_seconds` (0.6 s)
 on the lane-border ribbons, because a full-length runway strip flashing on every per-strike pulse
