@@ -50,10 +50,10 @@ shifts. Nothing before positions reads them.
 
 | Verb | Writes |
 |---|---|
-| `Ctrl+H` over selected notes | `{start, end}`, first onset to the last ring's end; two or more |
+| `Ctrl+H` over selected notes | `{start, end}`, first onset to the last ring's end, two or more; the prune drops `end` where the notes already close there, so over one ringing span it writes `{start}` alone |
 | Assign a grip to a derived span | `{start: its front, grip}`; nothing changes on screen |
 | Assign a grip to a hold | its `grip` |
-| Clear a grip | unsets `grip`; `{start, grip}` would then state nothing, so that hold is deleted |
+| Clear a grip | unsets `grip`, nothing else; the prune then drops the hold only if what remains states nothing |
 | `Alt+←/→` on a hold | its `start`, one onset per step: a start between onsets states nothing new |
 | `Alt+←/→` on a derived span | `{start}` at the new onset: a pin, its end and content derived |
 | `Shift+Alt+←/→` on a hold | its `end`, by grid quanta, with the derived close as one more stop |
@@ -123,9 +123,11 @@ Draw what is stored and nothing for what is derived; all editor-only, through Ed
 and the highway draws the derived result. The label chip at every span's start (built during 60a
 Phase 2) is the START's tell: FILLED in the span color for a hold, HOLLOW for a derived span,
 printing the grip's name or "?". An end tick in the span color draws only where `end` is stored.
-A not-held stretch draws its own red-leaning rails over its whole duration, its chip in that style
-with its own glyph, and its end tick; a background tint under not-held stretches alone (the
-sighting triplet's third style) is the fallback if the rails read like a span.
+A not-held stretch draws its own rails over its whole duration and its end tick, and NO chip:
+there is no grip to name. PROPOSED (user, 2026-10-13, open to options): it reads by PATTERN, not by
+hue — hatched or dashed rails, or a hatched band, in a neutral EditorTheme color — because a theme
+may use red for its own chord or arpeggio ink, so a red "no span" style would clash. To be chosen
+from rendered options at a sighting.
 
 ### The grip dictionary (`grips`, Phase 5)
 
@@ -196,11 +198,12 @@ Each earlier ruling the design above reverses, with its old wording:
 
 ### Still OPEN
 
-- The not-held chip's glyph (not "?", which means unresolved).
-- By eye, at a sighting: whether a filled chip reads as "authored" against a hollow "?"; the end
-  tick's strength; rails alone or rails with the tint for a not-held stretch; whether a trimmed
-  end's tick should flash.
-- The fit test's exact clauses, re-read against the span derivation before the hold is built.
+- The not-held stretch's look (no chip; a pattern rather than a hue): options to sight.
+- By eye, from rendered options at a sighting (the user will choose among them): whether a filled
+  chip reads as "authored" against a hollow "?"; the end tick's strength; whether a trimmed end's
+  tick should flash.
+- The fit test's exact clauses, checked against the span derivation before the hold is built;
+  no user input expected unless a real question surfaces.
 - 60-Q3 (the fingering model and the GP parser's fingering scope), purge-on-save, and the
   derived-default question 60-Q5 (ruled NO, reopenable there) — the Phase 5 session's.
 
