@@ -3854,10 +3854,11 @@ void HighwayRenderer::Impl::draw(
         const common::core::NoteViewState& note = state->chart.notes[index];
         const std::size_t group_index = state->note_group[index];
         const common::core::HighwayChordGroupViewState& group = state->chord_groups[group_index];
-        if (!group.showsNotes())
+        if (!group.showsNotes() && note.start_seconds > now_seconds)
         {
-            // A repeat box stands in for its whole strum: no heads, shadows, tails, or
-            // note targets for the group's notes.
+            // A repeat box stands in for its strum as it approaches: no heads, shadows, tails, or
+            // note targets. Once struck, its heads take over the hit line from the strum before it
+            // (HighwayViewState::head_ends), so the held heads wear this strike's own marks.
             continue;
         }
         if (group_index != batched_group)

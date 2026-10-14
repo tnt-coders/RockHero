@@ -422,7 +422,8 @@ enum class HighwayChordBoxTreatment : std::uint8_t
     Full,
 
     /*!
-    \brief The half-height REPEAT box, which draws no heads at all.
+    \brief The half-height REPEAT box, which draws no heads in flight; once struck, its heads take
+    over the hit line like any strum's.
 
     The simile mark's idea, specialized and stricter: the same strings sounding at the same places
     struck again, immediately after the onset it repeats, inside one statement (\ref ChartStop —
@@ -501,17 +502,24 @@ struct HighwayChordGroupViewState
     HighwayChordBoxTreatment box_treatment{HighwayChordBoxTreatment::None};
 
     /*!
-    \brief Onset of the next note-showing strum, capping this group's span-hold display;
-           infinity when none follows in the song.
+    \brief Onset of the next strum to take over the hit line, capping this group's span-hold
+           display; infinity when none follows in the song.
+
+    Any strum of two or more members that are not all dead takes over, a repeat box included: its
+    heads draw once struck, so the held heads always show the marks of the strike now sounding.
 
     Whole-song on purpose: derived over the visible window, the last visible group's cap would
-    read as infinity even when a note-showing strum sat just past it, self-correcting only as that
+    read as infinity even when a taking-over strum sat just past it, self-correcting only as that
     strum scrolled in.
     */
     double hold_cap_seconds{0.0};
 
     /*!
-    \brief True unless a repeat box stands in for this strum, drawing none of its notes.
+    \brief True unless a repeat box stands in for this strum's notes as they approach.
+
+    A repeat box's heads draw only once struck, where they take over the hit line from the heads
+    before them, as any strum's do.
+
     \return False for \ref HighwayChordBoxTreatment::Repeat, true for every other treatment.
     */
     [[nodiscard]] bool showsNotes() const noexcept
@@ -702,7 +710,7 @@ struct HighwayViewState
     The ONE composition the head pass, the visibility test and the visible-range index all read,
     resolved once per revision, so the last instant a head draws and the instant the board stops
     keeping its note cannot part. A head pins for its hold (\ref ChartViewState::display_hold_ends),
-    released early where a later strum re-shows the chord
+    released early where a later strum takes over the hit line
     (\ref HighwayChordGroupViewState::hold_cap_seconds) and never before its ink end, then
     dissolves by the shared head rule (\ref headFade).
 
@@ -711,11 +719,12 @@ struct HighwayViewState
     stop that head is struck at (\ref headSoundingStop), stays fully lit and pinned until that head
     lands in its place, and is gone as it lands: the successor takes over the same spot, so only the
     chain's last head fades. A slide chains from where it lands, never from where it began. Per
-    head, so a partial chord repeat chains only its repeated members. A successor that draws no
-    head (a repeat box, \ref HighwayChordGroupViewState::showsNotes) has nothing to take over with,
-    so the head ends as that successor's would, standing through the run. The chain replaces the
-    head's own end outright, a hold included: whatever holds the head holds its successor to the
-    same end, so a held run hands over at each landing and dissolves only at its last head.
+    head, so a partial chord repeat chains only its repeated members. A repeat box's heads take
+    over too: they draw nothing as they approach but stand at the hit line once struck
+    (\ref HighwayChordGroupViewState::showsNotes), so the held heads always wear the marks of the
+    strike now sounding. The chain replaces the head's own end outright, a hold included: whatever
+    holds the head holds its successor to the same end, so a held run hands over at each landing
+    and dissolves only at its last head.
     */
     std::vector<HighwayHeadEnd> head_ends;
 
@@ -800,14 +809,15 @@ members becomes a tap — is a shrunk fretting set, which is a different onset a
 box, exactly as the exact string-set comparison says.
 
 THE DISPLAY-CAPABILITY GATE is untouched otherwise, and it is the one thing here that is about
-drawing rather than about the music: a repeat box has no heads, so it can only stand in for a strum
-whose whole statement it can draw itself — the mute profiles it wears a mark for, composed with the
-emphasis it carries. Anything else falls back to the full box, which keeps its heads and therefore
-keeps every mark on them. With the profile out of the identity the gate is what a mixed profile
-meets, so it is asked per group exactly as the tails a group happens to present are.
+drawing rather than about the music: a repeat box has no heads in flight, so it can only stand in
+for a strum whose whole statement it can draw itself — the mute profiles it wears a mark for,
+composed with the emphasis it carries. Anything else falls back to the full box, which keeps its
+heads and therefore keeps every mark on them. With the profile out of the identity the gate is what
+a mixed profile meets, so it is asked per group exactly as the tails a group happens to present
+are.
 
 The take-over cap is resolved over the whole song, which is what makes it stable: each group's
-span-hold display ends at the next note-showing strum wherever that strum is, not merely within
+span-hold display ends at the next taking-over strum wherever that strum is, not merely within
 whatever window a renderer happens to be drawing.
 
 \param notes Seconds-resolved notes sorted by start time.
@@ -989,10 +999,10 @@ whatever window a renderer happens to be drawing.
             any_marks = any_marks || note.harmonic_node.has_value() || attack_marks ||
                         isMuted(note.palm_mute, note.dead);
         }
-        // THE DISPLAY-CAPABILITY GATE, and the whole of it. A repeat box draws no heads, so it may
-        // only stand in for a strum whose entire statement the box itself can carry: the mute
-        // profile it wears a mark for, and the emphasis it already carries. A strum presenting a
-        // TAIL is out on the same grounds — a box is drawn at an instant and has nowhere to put a
+        // THE DISPLAY-CAPABILITY GATE, and the whole of it. A repeat box draws no heads in flight,
+        // so it may only stand in for a strum whose entire statement the box itself can carry: the
+        // mute profile it wears a mark for, and the emphasis it already carries. A strum presenting
+        // a TAIL is out on the same grounds — a box is drawn at an instant and has nowhere to put a
         // sustain — and so is any other mark a head would have shown. Those fall back to the full
         // box, which keeps its heads and therefore loses nothing.
         if (has_tails)
@@ -1010,16 +1020,17 @@ whatever window a renderer happens to be drawing.
     }
 
     // Span-hold take-over: a span-held strum's heads stay pinned at the hit line until the next
-    // strum that shows its notes arrives to re-pin the identical heads there, so the newcomer
-    // owns the hold display from its onset and the two never stack. Repeat boxes, dead chugs,
-    // and single notes continue the hold rather than taking it over.
-    double next_shown_onset = std::numeric_limits<double>::infinity();
+    // strum arrives to pin its own heads there, so the newcomer owns the hold display from its
+    // onset, wearing its own marks, and the two never stack. A repeat box takes over like any
+    // strum, its heads drawing once struck; dead chugs and single notes continue the hold rather
+    // than taking it over.
+    double next_strum_onset = std::numeric_limits<double>::infinity();
     for (HighwayChordGroupViewState& group : grouping.groups | std::views::reverse)
     {
-        group.hold_cap_seconds = next_shown_onset;
-        if (group.count >= 2 && group.showsNotes() && !group.all_dead)
+        group.hold_cap_seconds = next_strum_onset;
+        if (group.count >= 2 && !group.all_dead)
         {
-            next_shown_onset = group.start_seconds;
+            next_strum_onset = group.start_seconds;
         }
     }
 

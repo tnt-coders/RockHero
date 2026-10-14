@@ -435,20 +435,17 @@ void clampStrikePops(
     return pops;
 }
 
-// THE BOARD'S HEAD ENDS (HighwayViewState::head_ends, where the rule is stated). Walked backward
-// because a head a headless repeat follows ends as that repeat's head does, so the later end must
-// already be resolved; a chain's successor always lies later in the stream.
+// THE BOARD'S HEAD ENDS (HighwayViewState::head_ends, where the rule is stated).
 [[nodiscard]] std::vector<HighwayHeadEnd> makeHighwayHeadEnds(
     const ChartViewState& scene, const std::vector<HighwayChordGroupViewState>& groups,
     const std::vector<std::size_t>& note_group)
 {
     const std::vector<NoteViewState>& notes = scene.notes;
     std::vector<HighwayHeadEnd> ends(notes.size());
-    for (const std::size_t index :
-         std::views::iota(std::size_t{0}, notes.size()) | std::views::reverse)
+    for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const NoteViewState& note = notes[index];
-        // The head's own end: its hold, capped where a later strum re-shows the chord, never
+        // The head's own end: its hold, capped where a later strum takes over the hit line, never
         // before its ink end, dissolved by the shared head rule.
         const double pin_end_seconds = std::max(
             note.ink_end_seconds,
@@ -473,20 +470,12 @@ void clampStrikePops(
         {
             continue;
         }
-        // A successor drawing its head takes over in place, so this one stays whole until it lands
-        // and is gone as it does — an empty window there. One drawing none has nothing to take
-        // over with, so this head stands in for it and ends as it would.
-        if (groups[note_group[*successor]].showsNotes())
-        {
-            ends[index] = HighwayHeadEnd{
-                .pin_end_seconds = next.start_seconds,
-                .fade = TipFade{.end_seconds = next.start_seconds, .length_seconds = 0.0},
-            };
-        }
-        else
-        {
-            ends[index] = ends[*successor];
-        }
+        // The successor takes over in place, a repeat box's head included (it draws once struck),
+        // so this one stays whole until it lands and is gone as it does — an empty window there.
+        ends[index] = HighwayHeadEnd{
+            .pin_end_seconds = next.start_seconds,
+            .fade = TipFade{.end_seconds = next.start_seconds, .length_seconds = 0.0},
+        };
     }
     return ends;
 }

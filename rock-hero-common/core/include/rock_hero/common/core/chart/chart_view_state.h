@@ -763,7 +763,7 @@ goes with its tail at the tail's own rate; and for a note that draws no tail at 
 ring capped at the shortest tail (\ref g_tail_tip_fade_min_seconds), so such a head fades from
 the strike and is gone within that stretch however long the string rings — a dead note's ring
 can be long and draws nothing to fade with. Every window ENDS at that instant and none runs past
-it, so a head pinned until the next strum re-shows the chord is gone exactly as the newcomer lands
+it, so a head pinned until the next strum takes over is gone exactly as the newcomer lands
 and the two never stack. The window is never empty: a drawn tail and a pin past it have length by
 definition, and a stored ring has length by the positive-sustain invariant.
 

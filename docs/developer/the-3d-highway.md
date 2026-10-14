@@ -268,16 +268,16 @@ that draws no tail fades from the instant it is struck over its stored ring capp
 tail (`g_tail_tip_fade_min_seconds`), so a short stab and a long dead note alike are gone within
 that stretch; and one held past its ink end (a span-held strum, a
 handed-over member pinned to its stored ring) keeps its pin and fades by the same rule measured to
-the pin's end, gone exactly as the pin releases — so a head held until the next strum re-shows the
-chord is gone as the newcomer lands, and the two never stack. **A REPEAT CHAIN STAYS WHOLE**
+the pin's end, gone exactly as the pin releases — so a head held until the next strum takes over is
+gone as the newcomer lands, and the two never stack. **A REPEAT CHAIN STAYS WHOLE**
 (ruled 2026-10-11): a head whose stored ring ends exactly on the next head of its own string, and
 which ends where that head is struck (`NoteViewState::end_head`, `headEndFret`, `headSoundingStop`),
 stays fully lit and pinned until that head lands in its place, and is gone as it lands, so only the
 chain's last head fades. Where a head ends is where its glide comes to rest, so a slide chains from
 where it lands (ruled 2026-10-12): a slide from 5 to 7 chains into a repeat on 7, never into a note
 on 5, and a held bend chains from its own fret. It is judged
-per head, so a partial chord repeat chains only its repeated members; a successor that draws no head
-(a repeat box) cannot take over, so the head ends as that successor's would; and a head already
+per head, so a partial chord repeat chains only its repeated members; a repeat box's heads take over
+too, since they draw once struck and hide only in flight; and a head already
 held past the successor's onset keeps its hold. The board projection composes all of this once per
 revision into `HighwayViewState::head_ends` (`makeHighwayViewState`), and that one composition is
 what the head pass draws and what bounds the board's visible range, so a note cannot leave the range
@@ -447,14 +447,16 @@ held at all. A HANDED-OVER member is the one exception the tenure carves out
 hammer-on source's head pins only until its takeover — the next strike on its string, which sounds
 the destination there — never the grip's reach, because that head no longer sounds once the
 destination lands. That is what keeps a **repeat-box run** readable — the run's first strum shows
-its heads, every box after it draws none, and the pinned heads go on standing at the fretboard
-underneath the boxes for the whole run, exactly as a plain chord box's duration keeps them. The
-board projection clamps the pin with `HighwayChordGroupViewState::hold_cap_seconds`, the next
-note-showing strum's onset, because a re-shown chord takes over the pinned display. That clamp and
-the repeat chain's in-place takeover above are the only hand-offs, and both hand off only to a
-successor that draws its heads (`HighwayChordGroupViewState::showsNotes`), never to a repeat box: a
-successor that draws no head of its own has nothing to take over with. Both are board-only
-presentation with no 2D counterpart to diverge from.
+its heads in flight, every box after it draws none until it is struck, and heads go on standing at
+the fretboard underneath the boxes for the whole run, exactly as a plain chord box's duration keeps
+them. A repeat box's own heads take the fretboard over as it lands
+(`HighwayChordGroupViewState::showsNotes` hides them only in flight), so the standing heads always
+wear the marks and emphasis of the strike now sounding: a palm-muted or ghosted repeat after a
+plain chord changes the heads at the fretboard, not just the box. The board projection clamps the
+pin with `HighwayChordGroupViewState::hold_cap_seconds`, the next strum's onset (dead chugs and
+single notes excluded), because that strum takes over the pinned display. That clamp and the repeat
+chain's in-place takeover above are the only hand-offs. Both are board-only presentation with no 2D
+counterpart to diverge from.
 
 **Which box a strum draws is the projection's answer, never the renderer's**
 (`HighwayChordGroupViewState::box_treatment`, one of None / Full / Repeat). **A BOX MARKS

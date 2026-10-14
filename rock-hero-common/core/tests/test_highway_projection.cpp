@@ -1084,11 +1084,11 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 
 // The repeat chain's pinned heads. A stored chug chain is strike-into-strike — every member's ring
 // ends exactly where the next strike begins — and that adjacency is what merges the strums into ONE
-// hand-shape span and makes the later ones repeat boxes. A repeat box draws no heads, so the
-// chain's FIRST strum owns the only heads it has: they have to stay pinned at the fretboard for the
-// whole chain, exactly as a plain chord box's duration keeps its own. Capping each hold at the
-// note's own ring would end them at the second box's onset and drop the held shape one box into the
-// chain.
+// hand-shape span and makes the later ones repeat boxes. A repeat box draws no heads in flight, so
+// heads have to stand at the fretboard for the whole chain, exactly as a plain chord box's duration
+// keeps its own: each strum's heads hand over to the next one's as it lands, so the standing heads
+// are always the sounding strike's, and the last strum's are held to the span's close. Capping that
+// hold at the note's own ring would drop the held shape at the last box's onset.
 TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -1166,23 +1166,32 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
         CHECK(state.chart.display_hold_ends[index] == Catch::Approx(0.75));
     }
 
-    // And nothing clips the pin before then: the take-over is the next strum that SHOWS its notes,
-    // which sits well past the chain's end. A box-only repeat never takes the display over,
-    // because it has no head of its own to take it over with.
-    CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(2.0));
+    // Each strum's take-over is the next strum, repeat boxes included, since a repeat's heads draw
+    // once struck; the last box's is the fresh chord, well past the chain's end.
+    CHECK(state.chord_groups[0].hold_cap_seconds == Catch::Approx(0.25));
+    CHECK(state.chord_groups[1].hold_cap_seconds == Catch::Approx(0.5));
+    CHECK(state.chord_groups[2].hold_cap_seconds == Catch::Approx(2.0));
 
-    // The chain's rings abut, strike into strike at the same stops, and the later strums are boxes
-    // drawing no heads, so each span-held head of the first strum stands through the run and ends
-    // as the chain's last head does: pinned to the span's close and dissolving only there.
+    // The chain's rings abut, strike into strike at the same stops, so each strum's heads stand
+    // whole until the next strum's land in their place, and the last strum's are pinned to the
+    // span's close and dissolve only there.
     REQUIRE(state.head_ends.size() == state.chart.notes.size());
-    for (const std::size_t index : {std::size_t{0}, std::size_t{1}})
+    for (const std::size_t index : {std::size_t{0}, std::size_t{1}, std::size_t{2}, std::size_t{3}})
     {
         CAPTURE(index);
         REQUIRE(state.chart.notes[index].end_head.has_value());
+        const double takeover = state.chart.notes[index + 2].start_seconds;
         const HighwayHeadEnd& head_end = state.head_ends[index];
-        CHECK(head_end == state.head_ends[index + 4]);
+        CHECK(head_end.pin_end_seconds == Catch::Approx(takeover));
+        CHECK_THAT(head_end.fade.alphaAt(takeover - 0.001), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(head_end.fade.alphaAt(takeover), Catch::Matchers::WithinULP(0.0, 0));
+    }
+    for (const std::size_t index : {std::size_t{4}, std::size_t{5}})
+    {
+        CAPTURE(index);
+        const HighwayHeadEnd& head_end = state.head_ends[index];
         CHECK(head_end.pin_end_seconds == Catch::Approx(0.75));
-        CHECK_THAT(head_end.fade.alphaAt(0.25), Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(head_end.fade.alphaAt(0.5), Catch::Matchers::WithinULP(1.0, 0));
         CHECK(head_end.fade.alphaAt(0.7) < 1.0);
     }
 
@@ -1274,9 +1283,9 @@ TEST_CASE(
 
     SECTION("a chord chains through its repeat box into a held repeat that draws its heads")
     {
-        // A strum, its repeat (a box drawing no heads), then the same chord held long enough to
-        // draw tails, which makes it a full strum again. The first strum's heads stay whole
-        // through the box and hand over as the held chord lands, instead of dissolving into it.
+        // A strum, its repeat (a box drawing no heads in flight), then the same chord held long
+        // enough to draw tails, which makes it a full strum again. Each strum's heads stay whole
+        // until the next one's land in their place, the repeat box's included.
         const Fraction half{1, 2};
         const HighwayViewState state = board({
             note(1, 5, first, eighth),
@@ -1292,11 +1301,10 @@ TEST_CASE(
         REQUIRE(state.chord_groups[2].box_treatment == HighwayChordBoxTreatment::Full);
         REQUIRE(state.head_ends.size() == 6);
         CHECK(state.chart.notes[2].end_head.has_value());
-        for (std::size_t index = 0; index < 4; ++index)
-        {
-            CAPTURE(index);
-            check_handed_over(state.head_ends[index], 0.5);
-        }
+        check_handed_over(state.head_ends[0], 0.25);
+        check_handed_over(state.head_ends[1], 0.25);
+        check_handed_over(state.head_ends[2], 0.5);
+        check_handed_over(state.head_ends[3], 0.5);
     }
 
     SECTION("a ring stopping one tick short of the next head does not chain")
@@ -1388,11 +1396,11 @@ TEST_CASE(
         CHECK(moved.alphaAt(0.2) < 1.0);
     }
 
-    SECTION("a successor that draws no head cannot take over, so the head stands for the run")
+    SECTION("a repeat box's heads take over once struck, wearing their own marks")
     {
-        // A dead chug chain under one span: the repeat strums draw boxes and no heads, and a dead
-        // member is choked rather than span-held, so only the chain carries the first strum's
-        // heads.
+        // A dead chug chain under one span: the repeat strums draw boxes and no heads in flight,
+        // and a dead member is choked rather than span-held, so the chain alone carries the heads,
+        // each strum's handing over as the next one's land.
         std::vector<ChartNote> notes;
         for (const GridPosition& position : {first, second, third})
         {
@@ -1409,12 +1417,15 @@ TEST_CASE(
         CHECK_FALSE(state.chord_groups[1].showsNotes());
         CHECK_FALSE(state.chord_groups[2].showsNotes());
         REQUIRE(state.head_ends.size() == 6);
-        // The first strum's heads end exactly as the last chug's would: pinned to its onset, then
-        // fading from that strike by the shared rule.
-        for (const std::size_t index : {std::size_t{0}, std::size_t{1}})
+        check_handed_over(state.head_ends[0], 0.25);
+        check_handed_over(state.head_ends[1], 0.25);
+        check_handed_over(state.head_ends[2], 0.5);
+        check_handed_over(state.head_ends[3], 0.5);
+        // The last chug's heads end by their own rule: pinned to its onset, then fading from that
+        // strike.
+        for (const std::size_t index : {std::size_t{4}, std::size_t{5}})
         {
             CAPTURE(index);
-            CHECK(state.head_ends[index] == state.head_ends[index + 4]);
             CHECK(state.head_ends[index].pin_end_seconds == Catch::Approx(0.5));
             CHECK_THAT(
                 state.head_ends[index].fade.alphaAt(0.5), Catch::Matchers::WithinULP(1.0, 0));
@@ -3375,11 +3386,11 @@ TEST_CASE("Highway repeat boxes render every mute profile at every emphasis", "[
     }
 }
 
-// The span-hold take-over cap resolves over the WHOLE song: each group's cap is the next
-// note-showing strum wherever it is, and box-only repeats, dead chugs, and single notes continue
-// the hold rather than taking it over. Deriving this inside the renderer's window instead would cap
-// the last visible group at infinity whenever the taking-over strum sits just past the window's
-// edge.
+// The span-hold take-over cap resolves over the WHOLE song: each group's cap is the next strum
+// wherever it is, a repeat box included (its heads draw once struck), while dead chugs and single
+// notes continue the hold rather than taking it over. Deriving this inside the renderer's window
+// instead would cap the last visible group at infinity whenever the taking-over strum sits just
+// past the window's edge.
 TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
@@ -3398,9 +3409,9 @@ TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][h
 
     REQUIRE(grouping.groups.size() == 4);
     CHECK(grouping.groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
-    // The box-only repeat at 2.0 and the single note at 3.0 pass the hold through, so the strum
-    // at 1.0 is capped by the shown strum at 9.0 — far beyond any drawing window.
-    CHECK(grouping.groups[0].hold_cap_seconds == Catch::Approx(9.0));
+    // The repeat at 2.0 takes the strum at 1.0 over; the single note at 3.0 passes the hold
+    // through, so the repeat is capped by the strum at 9.0 — far beyond any drawing window.
+    CHECK(grouping.groups[0].hold_cap_seconds == Catch::Approx(2.0));
     CHECK(grouping.groups[1].hold_cap_seconds == Catch::Approx(9.0));
     CHECK(grouping.groups[2].hold_cap_seconds == Catch::Approx(9.0));
     CHECK(std::isinf(grouping.groups[3].hold_cap_seconds));
