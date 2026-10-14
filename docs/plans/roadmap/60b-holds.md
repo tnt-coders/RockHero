@@ -62,8 +62,8 @@ shifts. Nothing before positions reads them.
 | Clear a grip | unsets `grip`, nothing else; a hold left stating nothing is silent (the commit law, below) |
 | `Alt+←/→` on a hold | its `start`, one onset per step: a start between onsets states nothing new |
 | `Alt+←/→` on a derived span | `{start}` at the new onset: a pin, its end and content derived |
-| `Shift+Alt+←/→` on a hold | its `end`, by grid quanta from the derived close (the pin itself where it founds nothing), the derived close one more stop on the walk |
-| `Shift+Alt+←/→` on a derived span | `{start: its front, end}` |
+| `Shift+Alt+←/→` on a hold | its `end`, one note per step: growing, to the next fitting note's ring end, the wall (a misfit's onset, another hold, a stored position) the last stop; shrinking, back to the previous member's ring end, walled at two members or a struck chord. On a pin that founds nothing, the first step lands on the ring end that gives the hold its two members |
+| `Shift+Alt+←/→` on a derived span | `{start: its front, end}`, stepped as on a hold |
 | Delete a derived arpeggio span | `{start, end, grip: "none"}` over its musical close |
 | Delete a hold | nothing: the derivation takes the stretch back |
 | `Ctrl+Shift+H` | selects the hold under the caret; a hold is also selected by its brackets |
@@ -99,6 +99,14 @@ not-held stretch's floor is a non-empty extent. Both directions wall at another 
 
 **Edges never change a tail** (user, 2026-10-13: lengthening tails would make a span with rests
 inside impossible to author). A fretted note may ring past its bracket's end.
+
+**Edges step by the notes, never the grid** (RULED, user, 2026-10-14): starts by onsets, ends by
+ring ends. An end between a member's ring end and the next onset covers rest and nothing else, so
+it states nothing the next ring end does not; the one between-events stop is a wall, where the end
+lands at the misfit's onset. A hand released in a rest before a shift is a wall's answer (a
+stored position walls the hold). There is no fine tier: off-grid placement is the snap mode, and
+the edge keys do not read the grid. The derived close is a member's ring end, so walking back onto
+it is a stop by construction, and silent.
 
 **A hold across a position shift** (RULED 2026-10-13): refused across a STORED position change,
 since the charter said the hand moved; across a DERIVED shift the hold wins and pins the position,
@@ -195,6 +203,10 @@ plan's split did not bring across and the design above does not restate:
 
 Each earlier ruling the design above reverses, with its old wording:
 
+- **"The END steps one grid quantum, since an end is tail-valued and sits anywhere"** (2026-09-05,
+  restated 2026-10-13; reversed 2026-10-14): that reason belonged to the gesture that lengthened
+  tails; with tails untouched, the end steps by ring ends.
+
 - **"`start` … always comes with an `end`"** (2026-10-04): `end` is optional; `start` still names
   a range's start, and the range's close is derived where no `end` is stored.
 - **"The grip rides the hold at its current extent"** and the tension "resolving a span freezes
@@ -242,8 +254,8 @@ gestures the redesign closed, and the seam's census row. Phase 3's REVISED note 
 4. **The edge keys** (RULED; user, 2026-09-05, restated 2026-10-13): with a span or a hold
    selected, `Alt+←/→` moves its START and the note-tail keys (`Shift+Alt+←/→`) move its END —
    each key one edge, never both. The verbs table, the walls and floors and the tail ruling in the
-   design section are the whole rule: the start steps by onsets and the end by grid quanta with
-   the derived close as an extra stop; on a derived span the first step authors the hold the
+   design section are the whole rule: the start steps by onsets and the end by ring ends, one
+   note per press; on a derived span the first step authors the hold the
    table names, which is the one way to state a span across rests. A position marker's
    `Alt+←/→` (built) is unchanged: one placement quantum, refused at a duplicate front or off the
    chart's start. The content-editing front move of 2026-09-05 stays STRUCK (§9 item 8), and the
