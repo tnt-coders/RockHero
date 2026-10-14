@@ -139,10 +139,10 @@ is bookkeeping about that tenure.
      class still turns in place, the one surviving retroactive flip.
 
      THE PARTIAL SLIDE: a slot's statement is divided by its own notated rings when a held
-     member's ring ends STRICTLY BEFORE a co-struck glide arrives — that member's sound dies
-     while the statement is still in flight, so the figure necessarily sounds in parts from
-     that very slot. Against a never-in-parts span it is the statement coming apart AT the
-     slot even where it restates the whole grip: the box closes there and the slot founds the
+     member's ring ends while a co-struck glide is IN FLIGHT — strictly after it departs and
+     strictly before it arrives — so that member's sound dies mid-statement, and the figure
+     necessarily sounds in parts from that very slot. Against a never-in-parts span it is the
+     statement coming apart AT the slot even where it restates the whole grip: the box closes there and the slot founds the
      parts figure, dated at its own onset. A span such a slot FOUNDS is likewise born in
      parts. A voicing-shift slide whose held strings ring the whole transit stays one
      statement (the chug that slides up is still a chug), and a whole-grip travel — every

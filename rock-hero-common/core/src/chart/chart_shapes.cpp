@@ -952,12 +952,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         }
 
         // A PARTIAL SLIDE — a chord split mid sustain: this slot's statement is divided by its own
-        // notated rings — a held member's ring ends STRICTLY BEFORE a co-struck glide arrives, so
-        // that member's sound dies while the statement is still in flight and the figure
+        // notated rings — a held member's ring ends while a co-struck glide is IN FLIGHT, where the
+        // channel states no stop, so that member's sound dies mid-statement and the figure
         // necessarily sounds in parts from this very slot. A voicing-shift slide whose held strings
-        // ring the whole transit stays one statement (the chug that slides up is still a chug), and
-        // a whole-grip travel is shape rule 4's chord slide, with no holder to divide it.
-        Fraction latest_arrival{};
+        // ring the whole transit stays one statement (the chug that slides up is still a chug), a
+        // chord released exactly as one finger leaves on a glide sounded whole for its whole
+        // tenure, and a whole-grip travel is shape rule 4's chord slide, with no holder to divide
+        // it. The first holder to die is the one that bounds the span, so it alone is asked.
         std::optional<Fraction> shortest_hold;
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
@@ -967,17 +968,25 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 continue;
             }
             const ChartNote& member = saved_notes[*striking];
-            const StatedStop stated = statedStopFrom(member, Fraction{}, arrives_into[*striking]);
-            if (stated.travel.has_value())
-            {
-                latest_arrival = std::max(latest_arrival, stated.travel->arrival);
-            }
-            else if (!shortest_hold.has_value() || member.sustain < *shortest_hold)
+            const bool holds =
+                !statedStopFrom(member, Fraction{}, arrives_into[*striking]).travel.has_value();
+            if (holds && (!shortest_hold.has_value() || member.sustain < *shortest_hold))
             {
                 shortest_hold = member.sustain;
             }
         }
-        const bool partial_slide = shortest_hold.has_value() && *shortest_hold < latest_arrival;
+        bool partial_slide = false;
+        if (shortest_hold.has_value())
+        {
+            const Fraction hold_end = *shortest_hold;
+            partial_slide = std::ranges::any_of(
+                slot.strike_notes, [&](const std::optional<std::size_t>& striking) {
+                    return striking.has_value() &&
+                           !statedStopFrom(
+                                saved_notes[*striking], hold_end, arrives_into[*striking])
+                                .stop.has_value();
+                });
+        }
 
         // Whether a strike RESTATES a grip's own stop: it SOUNDS that very stop. A stroke says a
         // STOP, not a string: a strike at a DIFFERENT fret is not a restatement of this one.

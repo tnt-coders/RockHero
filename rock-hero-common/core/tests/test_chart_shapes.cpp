@@ -3538,9 +3538,9 @@ TEST_CASE("A tap at or below the standing grip's stop splits the span", "[core][
 }
 
 // THE PARTIAL-SLIDE SPLIT, sighted on the corpus's verse vamp as "that chord is split mid sustain":
-// a slot's statement is divided by its own notated rings when a held member's ring ends STRICTLY
-// BEFORE a co-struck glide arrives — that member's sound dies while the statement is still in
-// flight, so the figure necessarily sounds in parts from this very slot. Against a never-in-parts
+// a slot's statement is divided by its own notated rings when a held member's ring ends while a
+// co-struck glide is IN FLIGHT — strictly after it departs, strictly before it arrives — so the
+// figure necessarily sounds in parts from this very slot. Against a never-in-parts
 // span it is the statement coming apart AT that slot, even where it restates the whole grip: the
 // box closes there and the slot founds the parts figure, dated at its own onset and born in parts.
 // A voicing-shift slide whose held strings ring the whole transit stays one statement, and a
@@ -3611,6 +3611,23 @@ TEST_CASE("A partial slide closes the box and founds the parts figure", "[core][
     CHECK_FALSE(whole.shapes[0].sounds_in_parts);
     CHECK_FALSE(arpeggiosFrom(shifted)[0]);
     everySpanIsPositive(whole);
+
+    // The second discriminating negative — the corpus's chord released as its top finger leaves:
+    // the holders die EXACTLY where the glide departs, before it is in flight, so the chord sounded
+    // whole for its whole tenure and stays a box that closes at the release.
+    const std::vector<ChartNote> released = streamOf({
+        travellingAt(
+            noteAt(1, Fraction{}, 1, 7, Fraction{9, 8}),
+            {{Fraction{5, 8}, 7}, {Fraction{3, 4}, 16}}),
+        noteAt(1, Fraction{}, 2, 9, Fraction{5, 8}),
+        noteAt(1, Fraction{}, 3, 9, Fraction{5, 8}),
+    });
+    const ChartShapes held_whole = deriveFrom(released);
+    REQUIRE(held_whole.shapes.size() == 1);
+    CHECK(held_whole.shapes[0].sustain == Fraction{5, 8});
+    CHECK_FALSE(held_whole.shapes[0].sounds_in_parts);
+    CHECK_FALSE(arpeggiosFrom(released)[0]);
+    everySpanIsPositive(held_whole);
 }
 
 // LAW A at the join: a ring outliving the span that recorded it is still evidence, so a strike

@@ -167,11 +167,13 @@ takes the next one.
        only by the ordinary opening law over what they strike, the chord's rings now lying behind
        the frontier. A stroke only on strings the span never stated is growth instead. Neither a
        pull-off source riding above a stated stop nor its landing back on it counts as part.
-     - **The partial slide.** A slot whose held member's ring ends strictly before a co-struck
-       glide arrives sounds in parts from that very slot. Against a never-in-parts span it closes
-       the span even where it restates the whole grip, and the span it founds is born in parts at
-       its own onset. A voicing-shift slide whose held strings ring the whole transit stays one
-       statement, and a travel of the whole grip is a chord slide (rule 4).
+     - **The partial slide.** A slot whose first held member to fall silent does so while a
+       co-struck glide is in flight — strictly after it departs and strictly before it arrives —
+       sounds in parts from that very slot. Against a never-in-parts span it closes the span even
+       where it restates the whole grip, and the span it founds is born in parts at its own onset.
+       A voicing-shift slide whose held strings ring the whole transit stays one statement, a chord
+       released exactly where one finger departs on a glide sounded whole for its whole tenure, and
+       a travel of the whole grip is a chord slide (rule 4).
      - **Guards.** Neither split applies to a landing successor no event has stated yet: its first
        sounding turns its class in place. A member mid-travel blocks both splits and the class
        turn, because a glide is not the figure coming apart. A span already in parts rides its

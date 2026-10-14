@@ -396,10 +396,10 @@ than a retroactive verdict on everything it contained.
   bracket covers exactly the ground that sounds in parts. A stroke on strings the span never
   stated is not this direction at all: it is the statement still ASSEMBLING, which is growth.
 - **THE PARTIAL SLIDE.** A slot whose statement is divided by its own notated rings — a held
-  member's ring ending STRICTLY BEFORE a co-struck glide arrives — necessarily sounds in parts from
-  that slot, so it splits and the span it founds is born in parts. A voicing-shift slide whose held
-  strings ring the whole transit stays one statement, and a whole-grip travel is the ruled chord
-  slide with no holder to divide it.
+  member's ring ending while a co-struck glide is IN FLIGHT, strictly after it departs and strictly
+  before it arrives — necessarily sounds in parts from that slot, so it splits and the span it
+  founds is born in parts. A voicing-shift slide whose held strings ring the whole transit stays
+  one statement, and a whole-grip travel is the ruled chord slide with no holder to divide it.
 - **THE ABSORPTION RULE — box and boundary are two laws and they part company.** A whole-grip stroke
   is a span BOUNDARY, and a box-class statement, **only where it STANDS ALONE**. Where same-hold
   material sounds IN PARTS within the stroke's own ring extent the stroke is ABSORBED: the standing
