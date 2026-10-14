@@ -2193,11 +2193,11 @@ void resolveSlideIns(
     }
 }
 
-// Chooses every unpitched slide-out's exit fret from the hand's next move. When the next event of
-// the natural stream departs in the slide-out's direction AND arrives by the very next onset, the
-// slide-out IS the departure: the exit fret rides that travel (widened to GP import rule 4's
-// two-fret minimum). Otherwise the slide-out keeps the fixed four-fret gesture it was built with,
-// as does one ending past the next onset.
+// Chooses every unpitched slide-out's exit fret from the hand's next move. When the natural
+// stream's next event after the slide-out's departure moves in its direction AND arrives by the
+// next onset after that departure, the slide-out IS the departure: the exit fret rides that travel
+// (widened to GP import rule 4's two-fret minimum). Otherwise the slide-out keeps the fixed
+// four-fret gesture it was built with, as does one ending past the next onset.
 //
 // Every question here — where the slide-out ends, which fret it leaves from, whether it still
 // clears the next onset — is asked of the STORED note, whose ring is the truth; spacing before the
@@ -2221,12 +2221,15 @@ void resolveSlideOutExits(
         {
             continue;
         }
-        // Where the slide-out DEPARTS from, which is the note-local question: the guard above has
-        // already established that this end slides out, so the last stop stated inside the ring is
-        // the fret the gesture leaves.
+        // Where and when the slide-out DEPARTS, which is the note-local question: the guard above
+        // has already established that this end slides out, so the last stop stated inside the
+        // ring is the fret the gesture leaves. The hand and the next onset are asked at that
+        // instant, not at the onset: a chain that glides before sliding out has already moved the
+        // hand by then, and onsets it rang over are behind the gesture.
         const int departing = common::core::fretBeforeEnd(note);
         const bool downward = *slide_out < departing;
-        const auto after = common::core::firstFretHandEventAfter(hand, entry.place);
+        const Fraction departure = entry.place + common::core::offsetBeforeEnd(note);
+        const auto after = common::core::firstFretHandEventAfter(hand, departure);
         if (after == hand.begin())
         {
             continue;
@@ -2234,7 +2237,7 @@ void resolveSlideOutExits(
         const auto active = after - 1;
 
         std::size_t next_note = index + 1;
-        while (next_note < built.size() && built[next_note].place <= entry.place)
+        while (next_note < built.size() && built[next_note].place <= departure)
         {
             ++next_note;
         }

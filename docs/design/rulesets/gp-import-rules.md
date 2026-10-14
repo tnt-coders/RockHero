@@ -69,10 +69,11 @@ takes the next one.
    - **A slide-out is the slide-out keyframe**: the keyframe at the ring's end stating the gestured
      fret. A ring ending at or before the last fret its chain states grows to one minimum slide
      window past it. The exit fret is four frets out in the flag's direction, held on the playable
-     board. Where the natural stream's next hand event departs in that direction and arrives by the
-     very next onset, the slide-out is the departure and its exit rides that travel, widened to
-     rule 4's two-fret minimum (`resolveSlideOutExits`); a slide-out ringing past the next onset, or
-     with no onset after it, keeps the four frets. An exit that would name the stop the next head on
+     board. Where the natural stream's next hand event after the slide-out departs — the instant
+     its last fret is stated, not the note's onset — moves in that direction and arrives by the
+     next onset after that departure, the slide-out is the departure and its exit rides that
+     travel, widened to rule 4's two-fret minimum (`resolveSlideOutExits`); a slide-out ringing
+     past the next onset, or with no onset after it, keeps the four frets. An exit that would name the stop the next head on
      its string is struck at, and so read as an arrival, moves one fret further in its direction, or
      back at the board's edge (`slideOutExitClearOfNextHead`).
 2. **A legato slide is the same note continuing.** The landing is not re-picked, so it never becomes

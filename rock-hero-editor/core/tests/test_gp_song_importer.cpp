@@ -6563,6 +6563,65 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         CHECK(hands[1].fret == 8);
     }
 
+    SECTION("a chain's slide-out reads the hand where it departs, not at the onset")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // A legato glide 3 -> 12 and a downward slide-out from the 12, the next onset on another
+        // string at fret 2. From the ONSET the hand's next move is up, onto the glide's 12, which
+        // disagrees with the slide-out; at the slide-out's own departure the next move is the
+        // descent to 2, which the exit rides.
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 3, 0, 2),
+                     noteBeat(Fraction{1, 4}, 12, 0, 4),
+                     noteBeat(Fraction{1, 2}, 2, 1)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const std::vector<DerivedHand> hands = handsOf(chart, built->tempo_map);
+        REQUIRE(chart.notes.size() == 2);
+        REQUIRE(hands.size() == 3);
+        CHECK(hands[1].fret == 12);
+        CHECK(hands[2].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(hands[2].fret == 2);
+        // The ride's answer, rather than the four-fret default 8.
+        const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(*slide_out == 2);
+    }
+
+    SECTION("an onset the chain rang over before its slide-out departs is not the next onset")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // The same chain, with a second voice picking another string while the glide's origin
+        // still rings: that onset lies behind the slide-out's departure, so the onset the exit
+        // serves is still the fret-2 note.
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 3, 0, 2),
+                     noteBeat(Fraction{1, 4}, 12, 0, 4),
+                     noteBeat(Fraction{1, 2}, 2, 1)},
+                    {restBeat(Fraction{1, 8}),
+                     noteBeat(Fraction{1, 8}, 5, 2),
+                     restBeat(Fraction{1, 4}),
+                     restBeat(Fraction{1, 2})},
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(*slide_out == 2);
+    }
+
     SECTION("an upward slide-out at the top of the neck clamps to the last fret")
     {
         GpScore score = makeLinearScore(1, syncs);
