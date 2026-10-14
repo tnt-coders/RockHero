@@ -306,16 +306,16 @@ TEST_CASE("Atlas mip chain packs every level down to one texel", "[ui][highway]"
 {
     const juce::Colour opaque_blue{0xFF0000FF};
     // 5x3: levels 5x3, 2x1, 1x1.
-    CHECK(atlasMipChain(solidImage(5, 3, opaque_blue)).size() == (15U + 2U + 1U) * 4U);
+    CHECK(atlasMipChain(solidImage(5, 3, opaque_blue)).size() == std::size_t{4} * (15 + 2 + 1));
     // 1x4: levels 1x4, 1x2, 1x1.
-    CHECK(atlasMipChain(solidImage(1, 4, opaque_blue)).size() == (4U + 2U + 1U) * 4U);
+    CHECK(atlasMipChain(solidImage(1, 4, opaque_blue)).size() == std::size_t{4} * (4 + 2 + 1));
     // 1x1 is its own whole chain.
     CHECK(atlasMipChain(solidImage(1, 1, opaque_blue)).size() == 4U);
     // The shipped head atlas, spread: 384x480 down to 1x1 in nine levels.
     const juce::Image heads = solidImage(384, 480, opaque_blue);
     CHECK(
         atlasMipChain(heads).size() ==
-        4U * (184320U + 46080U + 11520U + 2880U + 720U + 180U + 42U + 9U + 1U));
+        std::size_t{4} * (184320 + 46080 + 11520 + 2880 + 720 + 180 + 42 + 9 + 1));
 
     // A solid image stays solid at every level, and level 0 is the image's own texels.
     const std::vector<std::uint8_t> chain = atlasMipChain(solidImage(4, 4, opaque_blue));
