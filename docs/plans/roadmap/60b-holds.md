@@ -100,11 +100,16 @@ not-held stretch's floor is a non-empty extent. Both directions wall at another 
 **Edges never change a tail** (user, 2026-10-13: lengthening tails would make a span with rests
 inside impossible to author). A fretted note may ring past its bracket's end.
 
-**Edges step by the notes, never the grid** (RULED, user, 2026-10-14): starts by onsets, ends by
-ring ends. An end between a member's ring end and the next onset covers rest and nothing else, so
-it states nothing the next ring end does not; the one between-events stop is a wall, where the end
-lands at the misfit's onset. A hand released in a rest before a shift is a wall's answer (a
-stored position walls the hold). There is no fine tier: off-grid placement is the snap mode, and
+**Every sizing operation steps by the notes, never the grid** (RULED, user, 2026-10-14). It
+covers holds and not-held stretches alike, and every verb that sizes one: the start key steps one
+onset per press, the end key one ring end per press (growing swallows the next note whole,
+shrinking releases the last), and `Ctrl+H` starts at the first selected onset. A start between
+onsets states nothing a neighbouring onset does not; an end between a member's ring end and the
+next onset covers rest and nothing else, so it states nothing the next ring end does not. The only
+stops that are not a note's onset or ring end are WALLS, where a walk ends: a misfit's onset,
+another hold's edge, a stored position change (which may sit in a rest), and, shrinking, two
+members or a struck chord. A hand released in a rest before a shift is a wall's answer (a stored
+position walls the hold). There is no fine tier: off-grid placement is the snap mode, and
 the edge keys do not read the grid. The derived close is a member's ring end, so walking back onto
 it is a stop by construction, and silent.
 
