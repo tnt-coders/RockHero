@@ -299,6 +299,12 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     const auto ring_end_of = [&saved_notes, &onset_place](const std::size_t note) {
         return onset_place[note] + saved_notes[note].sustain;
     };
+    // THE CHANNEL READER (\ref statedStopFrom) asked of one note at an instant on that axis: the
+    // one spelling every question below puts to a note's fret channel.
+    const auto channel_at =
+        [&saved_notes, &onset_place, &arrives_into](const std::size_t note, const Fraction at) {
+            return statedStopFrom(saved_notes[note], at - onset_place[note], arrives_into[note]);
+        };
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
 
@@ -315,17 +321,15 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 
     // What the fretting hand covers on one string as of `now` — the channel re-asked at the
     // hand's own finger, so a travel's landing caps the coverage without a second record.
-    const auto covers_at = [&saved_notes, &onset_place, &arrives_into, &hand](
-                               const std::size_t string_index,
-                               const Fraction now) -> std::optional<ChartStop> {
+    const auto covers_at =
+        [&channel_at,
+         &hand](const std::size_t string_index, const Fraction now) -> std::optional<ChartStop> {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
         if (!finger.has_value())
         {
             return std::nullopt;
         }
-        const StatedStop stated =
-            statedStopFrom(saved_notes[*finger], now - onset_place[*finger], arrives_into[*finger]);
-        return stated.stop;
+        return channel_at(*finger, now).stop;
     };
 
     // Whether one string still AUDIBLY sounds the fretting hand's finger as of `now`, read
@@ -353,21 +357,20 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // its landing, which the channel already knows — so the landing needs no write anywhere and a
     // lone glide under no span dates as honestly as one inside a shape. Zero where the hand has
     // never sounded the string.
-    const auto stated_since_at = [&saved_notes, &onset_place, &arrives_into, &hand](
-                                     const std::size_t string_index, const Fraction now) {
-        const std::optional<std::size_t>& finger = hand[string_index].finger;
-        if (!finger.has_value())
-        {
-            return Fraction{};
-        }
-        const StatedStop stated =
-            statedStopFrom(saved_notes[*finger], now - onset_place[*finger], arrives_into[*finger]);
-        // A finger that has LANDED somewhere new began its statement there, and one still on the
-        // stop it was struck at began it wherever the hand's column says — which may be long
-        // before this note, since the column is what a chain of restrikes carries.
-        return stated.stated_from == Fraction{} ? hand[string_index].stated_since
-                                                : onset_place[*finger] + stated.stated_from;
-    };
+    const auto stated_since_at =
+        [&channel_at, &onset_place, &hand](const std::size_t string_index, const Fraction now) {
+            const std::optional<std::size_t>& finger = hand[string_index].finger;
+            if (!finger.has_value())
+            {
+                return Fraction{};
+            }
+            const StatedStop stated = channel_at(*finger, now);
+            // A finger that has LANDED somewhere new began its statement there, and one still on
+            // the stop it was struck at began it wherever the hand's column says — which may be
+            // long before this note, since the column is what a chain of restrikes carries.
+            return stated.stated_from == Fraction{} ? hand[string_index].stated_since
+                                                    : onset_place[*finger] + stated.stated_from;
+        };
 
     // How far the fretting hand's own statement on this string reaches, measured from `now`: the
     // finger's ring, capped at the next landing of its channel (\ref StringHand::covers). ONE
@@ -377,7 +380,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // coverage exactly as a witnessed one does, and without the re-read a lone glide's coverage
     // would stay frozen at its first arrival forever, so the next span to fold that string in
     // would reach only as far as a landing long past.
-    const auto coverage_at = [&saved_notes, &onset_place, &arrives_into, &ring_end_of, &hand](
+    const auto coverage_at = [&channel_at, &onset_place, &ring_end_of, &hand](
                                  const std::size_t string_index, const Fraction now) {
         const std::optional<std::size_t>& finger = hand[string_index].finger;
         if (!finger.has_value())
@@ -385,8 +388,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             return Fraction{};
         }
         const Fraction onset = onset_place[*finger];
-        const StatedStop stated =
-            statedStopFrom(saved_notes[*finger], now - onset, arrives_into[*finger]);
+        const StatedStop stated = channel_at(*finger, now);
         const Fraction ring = ring_end_of(*finger);
         // Bound once so the presence test and the read are provably the same object.
         const std::optional<FretTravel>& leaves = stated.travel;
@@ -530,8 +532,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 {
                     continue;
                 }
-                const StatedStop stated = statedStopFrom(
-                    saved_notes[*finger], boundary - onset_place[*finger], arrives_into[*finger]);
+                const StatedStop stated = channel_at(*finger, boundary);
                 // Bound to a local so the presence test and the read are provably one object.
                 const std::optional<ChartStop>& stop = stated.stop;
                 if (!stop.has_value())
@@ -630,8 +631,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             if (string_index.has_value() && !rightHandOnset(member.attack))
             {
                 // A channel is never mid-travel at offset zero, so this always states a stop.
-                const StatedStop struck =
-                    statedStopFrom(member, Fraction{}, arrives_into[onset_end]);
+                const StatedStop struck = channel_at(onset_end, slot.place);
                 // Bound once so the presence test and the read are provably the same object.
                 const std::optional<ChartStop>& struck_stop = struck.stop;
                 if (struck_stop.has_value())
@@ -960,19 +960,16 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // tenure, and a whole-grip travel is shape rule 4's chord slide, with no holder to divide
         // it. The first holder to die is the one that bounds the span, so it alone is asked.
         std::optional<Fraction> shortest_hold;
-        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        for (const std::optional<std::size_t>& striking : slot.strike_notes)
         {
-            const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
-            if (!striking.has_value())
+            if (!striking.has_value() || channel_at(*striking, slot.place).travel.has_value())
             {
                 continue;
             }
-            const ChartNote& member = saved_notes[*striking];
-            const bool holds =
-                !statedStopFrom(member, Fraction{}, arrives_into[*striking]).travel.has_value();
-            if (holds && (!shortest_hold.has_value() || member.sustain < *shortest_hold))
+            const Fraction ring = saved_notes[*striking].sustain;
+            if (!shortest_hold.has_value() || ring < *shortest_hold)
             {
-                shortest_hold = member.sustain;
+                shortest_hold = ring;
             }
         }
         bool partial_slide = false;
@@ -982,9 +979,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             partial_slide = std::ranges::any_of(
                 slot.strike_notes, [&](const std::optional<std::size_t>& striking) {
                     return striking.has_value() &&
-                           !statedStopFrom(
-                                saved_notes[*striking], hold_end, arrives_into[*striking])
-                                .stop.has_value();
+                           !channel_at(*striking, slot.place + hold_end).stop.has_value();
                 });
         }
 
@@ -1084,7 +1079,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     continue;
                 }
                 const std::optional<ChartStop> sounded_stop =
-                    statedStopFrom(member, Fraction{}, arrives_into[ahead]).stop;
+                    channel_at(ahead, onset_place[ahead]).stop;
                 if (!stated.has_value() || !sounded_stop.has_value())
                 {
                     return false;
@@ -1122,8 +1117,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 {
                     continue;
                 }
-                const StatedStop held = statedStopFrom(
-                    saved_notes[*striking], next_place - slot.place, arrives_into[*striking]);
+                const StatedStop held = channel_at(*striking, next_place);
                 if (held.stop.has_value())
                 {
                     return true;
