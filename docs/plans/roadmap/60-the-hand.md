@@ -514,7 +514,7 @@ ruling; the full evidence lives in the design records.
 REVISED the same day by §1a, which closes several entries of this table: Phase 2's
 marker-semantics list and its selection-kind spelling (the names are ruled), Phase 3's END gesture,
 and Phase 4's zone-kind question. §1a's own "Still OPEN" list adds the not-held bracket's drawing,
-a hold across a position shift, and the fit test's clauses.
+~~a hold across a position shift~~ (RULED 2026-10-13, `60b-holds.md`), and the fit test's clauses.
 
 | Phase | Ruled | Still OPEN |
 |---|---|---|

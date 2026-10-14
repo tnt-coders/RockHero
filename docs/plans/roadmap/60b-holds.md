@@ -27,7 +27,8 @@ this plan carried: the authored span marker, the span-free zone, and the bare bo
 - **A held stretch takes every note inside it that fits, ringing or not.** That is how a muted or
   staccato arpeggio out of one shape is charted: the sound never proves that hold, so the
   derivation never asserts it, and the charter states it with its extent.
-- **A conflicting note inside a held stretch is REFUSED,** by chart validation, with ONE fit test —
+- **A conflicting note inside a held stretch is REFUSED** (SUPERSEDED in direction 2026-10-13:
+  the note stands and SPLITS the hold; see "Tensions" below), by chart validation, with ONE fit test —
   the test that walls an edge (§9 item 9's, rewritten without `held`). Entering, re-fretting,
   moving and pasting are refused alike, and a file holding the state does not read.
 - **A not-held stretch blocks arpeggio founding only.** Struck chords inside it stand as chord
@@ -80,9 +81,11 @@ closes.
 - **How a not-held stretch draws.** The 2026-09-01 zone rulings carry (editor-only, its own span
   style, red-leaning, the authored start line). PROPOSED: its bracket breaks around each chord
   span inside it and is still one object. A sighting, with the UI design review.
-- **A held stretch across a position shift.** Phase 6 clips a derived span at a shift; whether an
-  authored hold is refused across one, or pins the position the way a fingering will, is ruled
-  with Phase 6.
+- ~~**A held stretch across a position shift.**~~ **RULED 2026-10-13** by the hold's own law,
+  derived yields and authored blocks: a held stretch is refused across a STORED position change
+  (the charter said the hand moved), and across a DERIVED shift the hold wins and pins the
+  position, as a fingering will (the derivation's shift is an inference from the notes, not
+  proof). Phase 6 still clips derived spans at derived shifts.
 - **The fit test's exact clauses**, re-read against the span derivation before the hold is built.
 
 ### Carried from the older records (2026-10-13 sweep)
@@ -123,6 +126,14 @@ Tensions the sweep found, for the Phase 5 session:
   invalidation question by itself (refuse), unless the session rules otherwise. Their contradiction
   clauses differ too: the old law counts a sounded string the template does not state as a
   contradiction, while the extend law admits a note on a string the grip leaves free.
+  **Direction (user, 2026-10-13): never refuse the note; a contradiction SPLITS the hold.**
+  PROPOSED mechanism: the split is read-time, never a rewrite of the record. The derivation cuts
+  the hold at each contradicting onset, so the stored `{start, end, grip}` stays exactly what the
+  charter wrote, undoing or fixing the note restores the whole hold by itself, and validation's
+  refusal path is deleted rather than added to. The edge keys still wall at a contradiction,
+  since growing past one states a hold the notes break at once. Open within it: what the piece
+  after the cut holds (with no grip referenced, the contradicting note begins a new grip; with
+  one referenced, the grip resumes at the next onset that fits it), and how a cut draws.
 - **Resolving a span freezes it.** The grip rides the hold, so the resolver's apply authors a hold
   over a derived span, and an authored span's edges stop following note edits. Export blocks until
   every span is resolved, so every exported chart's spans would be frozen. The 2026-08-31 model
@@ -163,7 +174,8 @@ gestures the redesign closed, and the seam's census row. Phase 3's REVISED note 
    since an end is tail-valued and sits anywhere. Acceptance case (`first-releasable-editor.md`,
    sighted): the Torn intro's span fronts at `3:3+1/2`; walking its start back to `3:1` swallows
    the G-string 7 at `3:3` (above the grip's 5) and restores the front. This supersedes the 2026-10-02 "open question" wording
-   (§9 item 8) and the 2026-09-05 form that extended the members' tails as the end grew.
+   (§9 item 8) and the 2026-09-05 form that extended the members' tails as the end grew (user,
+   2026-10-13: lengthening tails would make a span with rests in it impossible to author).
    `Delete` on a DERIVED span waits for Phase 4's hold.
 5. **Riding the seam**: publish the OPENING SLOT on `ChartShape` (Q-D) so the strike-less census
    row is exact — NEEDS VERIFICATION whether ~~`bracket_position`~~ `bracket_place` (renamed;
