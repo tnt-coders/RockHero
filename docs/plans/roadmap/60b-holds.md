@@ -4,57 +4,128 @@
 
 **Sub-plan of `docs/plans/roadmap/60-the-hand.md`, split out 2026-10-04. NOT STARTED.** It begins
 after `60a-fret-hand-positions.md` is finished. Nothing here is built: no hold record, no `grips`
-dictionary, no edge verb. Re-verify every anchor below against the code before execution; the
-phase texts were written for the merged hand marker and the span-free zone, and read through the
-design section and their REVISED notes.
+dictionary, no edge verb. Re-verify every anchor below against the code before execution. The
+design section is the 2026-10-13 form and wins over anything below it.
 
 Section numbers are the family's (the master's §0 has the map): §§1–6, the G60 gate record of §9
 and §§10–12 are in the master.
 
-## The hold — the design (RULED 2026-10-04; from the master's §1a)
+## The hold — the design (RULED 2026-10-13; supersedes the 2026-10-04 form)
 
-Saved as `holds[]`; new.
+Saved as `holds[]`; new. A hold is the charter's statement about one stretch of the song: where a
+grip begins, optionally where it ends, and optionally which grip it is. It replaces the authored
+span marker, the span-free zone and the bare boundary marker of the earlier records. The grip
+reference rides the hold because a derived span has no record of its own, and a stored front the
+derivation OBEYS is the one anchor that restates nothing: it is a pin, never a copy kept in sync.
 
-A stretch of the song with a start and an end, in one of two polarities. It replaces three things
-this plan carried: the authored span marker, the span-free zone, and the bare boundary marker.
+### The records
 
-- **The record:** `{start, end, grip?}`, ascending and non-overlapping. `start` names the start of
-  a range and so always comes with an `end` (user, 2026-10-04, over `at` / `until`). `grip` absent
-  means ONE GRIP IS HELD, its content whatever the notes inside sound; `"none"` means NOTHING IS
-  HELD; from Phase 5 it may instead be the id of a `grips` entry, which then states the content.
-  One field, so "none plus a template" cannot be written. No fret is ever stored on a hold (the 2026-09-29 ruling
-  stands: a held stop is never typed).
-- **A held stretch takes every note inside it that fits, ringing or not.** That is how a muted or
-  staccato arpeggio out of one shape is charted: the sound never proves that hold, so the
-  derivation never asserts it, and the charter states it with its extent.
-- **A conflicting note inside a held stretch is REFUSED** (SUPERSEDED in direction 2026-10-13:
-  the note stands and SPLITS the hold; see "Tensions" below), by chart validation, with ONE fit test —
-  the test that walls an edge (§9 item 9's, rewritten without `held`). Entering, re-fretting,
-  moving and pasting are refused alike, and a file holding the state does not read.
-- **A not-held stretch blocks arpeggio founding only.** Struck chords inside it stand as chord
-  spans: a chord span is the minimum proven truth of a grip and can be neither shrunk nor deleted.
-- **Derived yields, authored blocks.** No derived span overlaps a hold; a hold's edge takes notes
-  from a derived neighbour and is refused at another hold.
-- **Derived spans are unchanged:** they never bridge a gap, and their ends follow the note tails.
+- **`holds[] {start, end?, grip?}`**, starts strictly ascending and unique (the rule
+  `fret_hand_positions` already carries), no start inside another hold's authored `[start, end)`.
+  - `start` is a PIN the derivation obeys: any standing span closes there, and the span of the
+    notes from there fronts there. Always an onset. The derived front at a pin IS the pin.
+  - `end` absent: the close follows the notes, as every derived close does. Present: the close is
+    stated, covers rests, and is the one edge that does not follow note edits.
+  - `grip` absent: ONE GRIP IS HELD, its content whatever the notes inside sound. The id of a
+    `grips` entry: that grip, including the stops nothing sounds. `"none"`: NOTHING IS HELD, which
+    requires `end` (nothing inside derives a close) and blocks arpeggio founding.
+  - No fret is ever stored on a hold (2026-09-29: a held stop is never typed).
+- **`grips[] {id, stops, fingers?, chord?}`**, song-scoped (Phase 5, below).
 
-The verbs, and what each saves:
+A hold-authored span takes every note inside its extent that fits, ringing or not: a muted or
+staccato arpeggio out of one shape is charted by stating the hold, since the sound never proves it.
+Derived yields, authored blocks: no derived span overlaps a hold, a hold's edge takes notes from a
+derived neighbour and walls at another hold. Derived spans are unchanged: they never bridge a gap,
+and their ends follow the tails.
 
-| Verb | Saved |
+### What is derived
+
+One function, `resolvedGrip(span)`: the entry of the hold pinning the span's front, when its
+`grip` is an id; otherwise nothing — the anonymous digits, no name, no fingering, no guess. The
+order is notes → spans (holds obeyed as pins, walls and statements) → `resolvedGrip` → positions
+(the fingering pins the anchor, unsounded stated stops join coverage) → Phase 6's clip at derived
+shifts. Nothing before positions reads them.
+
+### The verbs
+
+| Verb | Writes |
 |---|---|
-| `Ctrl+H` over selected notes | A held stretch, first onset to the last ring's end |
-| Move either edge of a derived span | A held stretch at the new extent — the span is now authored |
-| Delete a derived arpeggio span | A not-held stretch over it |
-| Move an edge of a hold | That edge |
-| Delete a hold | Nothing: the derivation takes the stretch back |
+| `Ctrl+H` over selected notes | `{start, end}`, first onset to the last ring's end; two or more |
+| Assign a grip to a derived span | `{start: its front, grip}`; nothing changes on screen |
+| Assign a grip to a hold | its `grip` |
+| Clear a grip | unsets `grip`; `{start, grip}` would then state nothing, so that hold is deleted |
+| `Alt+←/→` on a hold | its `start`, one onset per step: a start between onsets states nothing new |
+| `Alt+←/→` on a derived span | `{start}` at the new onset: a pin, its end and content derived |
+| `Shift+Alt+←/→` on a hold | its `end`, by grid quanta, with the derived close as one more stop |
+| `Shift+Alt+←/→` on a derived span | `{start: its front, end}` |
+| Delete a derived arpeggio span | `{start, end, grip: "none"}` over its musical close |
+| Delete a hold | nothing: the derivation takes the stretch back |
+| `Ctrl+Shift+H` | selects the hold under the caret; a hold is also selected by its brackets |
 
-- **Edges move outward** to a conflicting note or another hold, and **inward** to a struck chord
-  or two members (the hold's floor, below), a HARD STOP (the 2026-09-05 dissolve ruling, for its own reason: removal
-  is Delete, and two verbs do not produce one outcome).
-- **Resizing never changes a tail.** A fretted note may therefore ring past its bracket's end, the
-  picture the zone design already accepted.
-- **The cost accepted:** once a span is authored, NEITHER edge follows later note edits.
-- **A held stretch emptied of its notes stays,** drawn empty; only Delete removes a statement.
-- **`Ctrl+Shift+H`** jumps to the hold under the caret; a hold is also selected by its brackets.
+An end walked back onto the derived close writes no `end`: it dissolves at once, and the next
+press authors an end one step from the derived close again, so a held run passes straight through
+that instant. A held run is one undo entry through `commitChartGestureStep`. Acceptance case for
+the start key (`first-releasable-editor.md`, sighted): the Torn intro's span fronts at `3:3+1/2`;
+stepping its start back to `3:1` swallows the G-string 7 at `3:3` (above the grip's 5) and
+restores the front. A held stretch emptied of its notes stays, drawn empty; only Delete removes a
+statement.
+
+### Walls and floors
+
+Every wall is a hard stop with the refusal flash (the 2026-09-05 dissolve ruling: removal is
+Delete, and two verbs do not produce one outcome). Growing a held stretch walls at the first note
+that does not FIT — the extend law, master §9 item 9, rewritten without `held`: a note fits where
+it sounds on a string the grip leaves free, restates the grip's stop, or sounds above the stop the
+grip holds on its string; never an open string, a fret-hand harmonic over a gripped stop, or
+through the travelled range. A swallowed note's held stop is what `chartHeldStops` derives from
+the covering grip, so no per-note field exists. Growing a not-held stretch walls at any struck
+chord: a box is a grip held. Shrinking walls at a struck chord or two members — the held
+stretch's floor is TWO notes, not the accumulation minimum of three (one stop is a note, two held
+at once is a grip; the authored two-note span is the escape the signed minimum owes), and a
+not-held stretch's floor is a non-empty extent. Both directions wall at another hold.
+
+**Edges never change a tail** (user, 2026-10-13: lengthening tails would make a span with rests
+inside impossible to author). A fretted note may ring past its bracket's end.
+
+**A hold across a position shift** (RULED 2026-10-13): refused across a STORED position change,
+since the charter said the hand moved; across a DERIVED shift the hold wins and pins the position,
+as a fingering will. Phase 6 still clips derived spans at derived shifts.
+
+### The hold normalizer
+
+Never refuse a note. One normalizer, run by every producer as `normalizeSustainOverlaps` is —
+typing, re-fretting, moving, pasting, load, a moved edge, a re-pointed grip, an edited entry —
+keeps every hold its own normal form:
+
+- An authored `end` is TRIMMED to the first onset inside that does not fit; for `"none"`, the
+  first struck chord. The notes after it are derived, never a second held piece.
+- A `grip` whose stops no longer fit the hold's notes is CLEARED. Fixing the note back does not
+  restore it; undo does, and the "?" chip, the unresolved count and the save walk catch the span.
+- A hold with a derived end needs no clause: a misfit note closes it as it closes any span.
+
+The rewrite lands in the note edit's own undo entry, and each one writes a log line naming the
+hold, the note and the grip. GP import writes notes and never a hold, so it meets none.
+
+### The prune
+
+A hold that states nothing is dropped, as 60a drops positions that state nothing: an `end` equal
+to the derived close, and a bare `{start}` at the front the notes would date anyway.
+
+### Export
+
+Every span's `resolvedGrip` is non-empty (user, 2026-10-06: a valid chart's every span should have
+a template to be fully complete). Save WARNS on unresolved spans, export is BLOCKED until none
+remain, and the chrome shows a standing count.
+
+### The 2D marks
+
+Draw what is stored and nothing for what is derived; all editor-only, through EditorTheme roles,
+and the highway draws the derived result. The label chip at every span's start (built during 60a
+Phase 2) is the START's tell: FILLED in the span color for a hold, HOLLOW for a derived span,
+printing the grip's name or "?". An end tick in the span color draws only where `end` is stored.
+A not-held stretch draws its own red-leaning rails over its whole duration, its chip in that style
+with its own glyph, and its end tick; a background tint under not-held stretches alone (the
+sighting triplet's third style) is the fallback if the rails read like a span.
 
 ### The grip dictionary (`grips`, Phase 5)
 
@@ -71,36 +142,16 @@ edge while its span is scrolled. It prints "?" for a span with NO TEMPLATE (user
 "while the chart is VALID every span SHOULD have an associated template to be fully complete"),
 reversing an earlier blank-chip choice; abutting spans are separated by a 1 px trim of the
 earlier span's rails. Phase 5 feeds the chip's name, and must decide how a template WITHOUT a
-`chord` name reads, which is neither "?" nor a name. Owed here: (1) the grip name on the 3D highway, NOT as a trapezoid, in the conventional in-lane style
-the user has in mind; (2) a span-start mark on the highway, world-sized, since a pixel gap cannot
+`chord` name reads, which is neither "?" nor a name. Owed here: (1) the grip name on the 3D
+highway, NOT as a trapezoid, in the conventional in-lane style the user has in mind; (2) a span-start mark on the highway, world-sized, since a pixel gap cannot
 read through the rails' glow there. Until (1) lands, the 2D name is a surface divergence this plan
 closes.
 
-### Still OPEN
-
-- **How a not-held stretch draws.** The 2026-09-01 zone rulings carry (editor-only, its own span
-  style, red-leaning, the authored start line). PROPOSED: its bracket breaks around each chord
-  span inside it and is still one object. A sighting, with the UI design review.
-- ~~**A held stretch across a position shift.**~~ **RULED 2026-10-13** by the hold's own law,
-  derived yields and authored blocks: a held stretch is refused across a STORED position change
-  (the charter said the hand moved), and across a DERIVED shift the hold wins and pins the
-  position, as a fingering will (the derivation's shift is an inference from the notes, not
-  proof). Phase 6 still clips derived spans at derived shifts.
-- **The fit test's exact clauses**, re-read against the span derivation before the hold is built.
-
-### Carried from the older records (2026-10-13 sweep)
+### Carried from the older records
 
 `docs/plans/todo/span-marker-redesign.md` and `first-releasable-editor.md` hold rulings this
-plan's split did not bring across. The edge keys are folded into item 4 below; the rest:
+plan's split did not bring across and the design above does not restate:
 
-- **A held stretch's floor is TWO notes, not the accumulation minimum of three** (rider polarity
-  1, 2026-09-01: one stop is a note, two held at once is a grip). The authored two-note span is
-  the escape the signed three-note minimum owes, so the inward wall above reads "a struck chord or
-  two members", and `Ctrl+H` over fewer than two notes is refused. A not-held stretch has no
-  members; its floor is a non-empty extent.
-- **The authored tell** (2026-08-31 and the rider): every hold draws a selectable start line
-  behind the heads in its span color (chord blue, arpeggio purple, not-held red-leaning); a
-  derived span draws none, so the line answers "what did I author?". Editor 2D only.
 - **Grip entry content** (2026-09-05, fingering conversation; Phase 5 re-confirms): `{name,
   fingering, stops}`, fingering keyed by string, stacked fingers first-class (the 1-3-4 power
   chord), a barre one finger across strings. An entry's frets are authoritative only for stops
@@ -118,33 +169,40 @@ plan's split did not bring across. The edge keys are folded into item 4 below; t
   fret-optional hold marker shipped 2026-08-26 and replaced the next day. The hold is that idea
   returning, and the survey that killed it is the risk list.
 
-Tensions the sweep found, for the Phase 5 session:
+### Superseded today (2026-10-13)
 
-- **The fit test vs the 2026-08-31 invalidation law.** That law never refuses a note edit for a
-  template's sake (notes are primary; a re-fret may be a typo fix TOWARD the template); this
-  plan's hold refuses a conflicting note. With a grip referenced, the hold's refusal decides the
-  invalidation question by itself (refuse), unless the session rules otherwise. Their contradiction
-  clauses differ too: the old law counts a sounded string the template does not state as a
-  contradiction, while the extend law admits a note on a string the grip leaves free.
-  **RULED (user, 2026-10-13): a note that contradicts a hold's grip CLEARS the hold's `grip`**,
-  in the same undo entry as the note edit; the hold stays, and the save-walk resolver and the
-  unresolved count catch the span as needing a grip again. This is the 2026-08-31 record's Phase 3
-  item 5 (reference removal) with the user's confirming word, so the contradicted-tell state is
-  never built. Fixing the note back does not restore the grip; undo does.
-  **Direction (user, 2026-10-13): never refuse the note; a contradiction SPLITS the hold.** Even
-  with no grip, a held stretch says one grip is held throughout, so clearing the grip does not
-  settle a note that contradicts the other notes inside it; the split does.
-  PROPOSED mechanism: the split is read-time, never a rewrite of the record. The derivation cuts
-  the hold at each contradicting onset, so the stored `{start, end, grip}` stays exactly what the
-  charter wrote, undoing or fixing the note restores the whole hold by itself, and validation's
-  refusal path is deleted rather than added to. The edge keys still wall at a contradiction,
-  since growing past one states a hold the notes break at once. Open within it: what the piece
-  after the cut holds (with no grip referenced, the contradicting note begins a new grip; with
-  one referenced, the grip resumes at the next onset that fits it), and how a cut draws.
-- **Resolving a span freezes it.** The grip rides the hold, so the resolver's apply authors a hold
-  over a derived span, and an authored span's edges stop following note edits. Export blocks until
-  every span is resolved, so every exported chart's spans would be frozen. The 2026-08-31 model
-  avoided this by hanging the reference on a start-only marker whose span stayed derived.
+Each earlier ruling the design above reverses, with its old wording:
+
+- **"`start` … always comes with an `end`"** (2026-10-04): `end` is optional; `start` still names
+  a range's start, and the range's close is derived where no `end` is stored.
+- **"The grip rides the hold at its current extent"** and the tension "resolving a span freezes
+  it" (2026-10-04): a grip now rides a pinned start whose end follows the notes, so naming a span
+  freezes nothing.
+- **"A conflicting note inside a held stretch is REFUSED"** (2026-10-04), then **"a contradiction
+  SPLITS the hold"** (read-time, earlier today) and **"a misfitting grip resolves to nothing"**:
+  the hold normalizer trims an authored end and clears a misfitting grip instead. A record the
+  derivation silently overrides is not its own normal form; a refusal reserves the flash for
+  states that cannot exist, and a clashing note is a changed mind.
+- **"Struck chords inside a not-held stretch stand as chord spans"** (2026-10-04): the not-held
+  edge walls at a struck chord and the normalizer trims at one, so no box ever stands inside a
+  not-held stretch. A box inside one could never have been named: the stretch's one field was
+  `"none"`, holds do not overlap, and export requires every span named.
+- **The 2026-09-01 authored start line** behind the heads: the label chip's filled style is the
+  start's tell; no second mark states the same fact.
+- **"Once a span is authored, NEITHER edge follows later note edits"** (2026-10-04): only an
+  authored `end` is fixed; a pinned start is remedied by `Alt+←/→`.
+- **"The bare boundary marker is replaced"** (2026-10-04): `{start}` alone returns as the
+  smallest hold statement, which the start key must write anyway.
+
+### Still OPEN
+
+- The not-held chip's glyph (not "?", which means unresolved).
+- By eye, at a sighting: whether a filled chip reads as "authored" against a hollow "?"; the end
+  tick's strength; rails alone or rails with the tint for a not-held stretch; whether a trimmed
+  end's tick should flash.
+- The fit test's exact clauses, re-read against the span derivation before the hold is built.
+- 60-Q3 (the fingering model and the GP parser's fingering scope), purge-on-save, and the
+  derived-default question 60-Q5 (ruled NO, reopenable there) — the Phase 5 session's.
 
 ## 7. Phases — 4 and 5
 
@@ -158,32 +216,16 @@ gestures the redesign closed, and the seam's census row. Phase 3's REVISED note 
    event (`tabShapeRailBounds` exported from the paint core beside `tabFhpChipBounds`);
    `chartSpanRevealed` gains a fourth ground, the selected event, so a selected span draws to its
    musical close; the game-shared paint core stays selection-free.
-4. **The boundary gestures, as ruled (§9 item 8)**: `Alt+←/→` on an event WITH a marker moves
-   the marker one placement quantum (built — the marker owns the boundary and the derivation
-   answers), refused with the refusal flash at a duplicate front or off the chart's start; a
-   DERIVED span front has NO move verb — the signed content-editing front move (tail rewriting at
-   the boundary populations) is STRUCK, and a derived span changes only through the sound (the
-   tails' own verb) or a marker. **THE SPAN'S EDGE KEYS (RULED; user, 2026-09-05, restated
-   2026-10-13 after the split lost it):** with a span or a hold selected, the note-tail keys
-   (`Shift+Alt+←/→`) move its END and `Alt+←/→` moves its START, ONLY the start — each key one
-   edge, never both. On a derived span the first step authors a hold at the new extent (the
-   hold's table below), so this is the one way to state a span across rests: the hold covers the
-   silence by statement, and no tail changes. Growing walls at the first note that does not FIT
-   — the extend law of `first-releasable-editor.md`, signed as §9 item 9 and rewritten without
-   `held`: a note fits where it sounds on a string the grip leaves free, restates the grip's stop,
-   or sounds above the stop the grip holds on its string — never an open string, a fret-hand
-   harmonic over a gripped stop, or through the travelled range; a swallowed note's held stop is
-   then what `chartHeldStops` already derives from the covering grip, so no per-note field exists
-   or is needed. Shrinking walls at a struck chord or two members. Every wall is a hard
-   stop with the loud refusal style, and a held run is one undo entry through
-   `commitChartGestureStep`. Steps, from the 2026-09-05 ruling: the START steps to the adjacent
-   onset, since a start between onsets states nothing different, and the END one grid quantum,
-   since an end is tail-valued and sits anywhere. Acceptance case (`first-releasable-editor.md`,
-   sighted): the Torn intro's span fronts at `3:3+1/2`; walking its start back to `3:1` swallows
-   the G-string 7 at `3:3` (above the grip's 5) and restores the front. This supersedes the 2026-10-02 "open question" wording
-   (§9 item 8) and the 2026-09-05 form that extended the members' tails as the end grew (user,
-   2026-10-13: lengthening tails would make a span with rests in it impossible to author).
-   `Delete` on a DERIVED span waits for Phase 4's hold.
+4. **The edge keys** (RULED; user, 2026-09-05, restated 2026-10-13): with a span or a hold
+   selected, `Alt+←/→` moves its START and the note-tail keys (`Shift+Alt+←/→`) move its END —
+   each key one edge, never both. The verbs table, the walls and floors and the tail ruling in the
+   design section are the whole rule: the start steps by onsets and the end by grid quanta with
+   the derived close as an extra stop; on a derived span the first step authors the hold the
+   table names, which is the one way to state a span across rests. A position marker's
+   `Alt+←/→` (built) is unchanged: one placement quantum, refused at a duplicate front or off the
+   chart's start. The content-editing front move of 2026-09-05 stays STRUCK (§9 item 8), and the
+   2026-09-05 end form that lengthened tails is superseded by the tail ruling. `Delete` on a
+   DERIVED span waits for Phase 4's hold.
 5. **Riding the seam**: publish the OPENING SLOT on `ChartShape` (Q-D) so the strike-less census
    row is exact — NEEDS VERIFICATION whether ~~`bracket_position`~~ `bracket_place` (renamed;
    `std::optional<Fraction>`, `chart_shapes.h:284`, verified 2026-10-04) / `landing_opened` (still
@@ -200,61 +242,44 @@ strength; a span ending near the cursor; a landing successor abutting its predec
 
 ### Phase 4 — span-free zones and the settlement census (needs Phase 3)
 
-**REVISED 2026-10-04 (§1a) — this phase builds THE HOLD.** The zone is the hold's not-held
-polarity and is no longer a record of its own: one kind, `holds[] {start, end, grip?}`, answers the
-"one kind with polarity vs two kinds" question below. What carries from the zone text: it blocks
-accumulation-founded openings only, statement openings are immune, a derived span closes at its
-edge, `Delete` on a derived span authors it, and its ink is editor-only. What changes: BOTH
-polarities are resizable from either edge, "a marker inside a zone is refused" becomes "holds do
-not overlap", and the held polarity (the charter's own span, with its refusal of a conflicting
-note) is built here beside it. The census re-sign stands.
-
-Plan 61's Phase 2, unchanged in substance: the zone record (location-anchored range; one kind
-with polarity vs two kinds is the naming question — nothing is built, and the record's
-`SpanFounding` discriminator is a planned name, not a symbol) and its derivation wall (no
-accumulation-founded opening inside, spans close at its edge, statement openings immune);
-`Delete` on a derived span AUTHORS a zone over its musical close; zone resize via the note-tail
-keys, BLOCKED at an authored marker (the precedence law: derived yields to the zone, authored
-blocks it, only explicit deletion changes an authored statement); zone ink editor-only (red
-leaning, EditorTheme roles); a marker inside a zone refused at authoring; the background sighting
-triplet judged here. The settlement edge (the 2-note statement-founded bracket of the sighting
-reel's measure 3) was CLAIM-founded, and claims are gone, so it is most likely moot — re-verify
-on the regenerated reel (`span-marker-redesign.md`, "THE SIGHTING FIXTURE NEEDS REBUILDING": the
-reel's `"attack": "none"` record no longer reads and claims cannot replace it). The ≥3 minimum is
-already signed; what lands is the census re-sign of the accumulation checklist's section G and
-the FHP counter rows left unsigned for this bundle. (Verified 2026-10-04: nothing here has been
-renamed, and the span record's "sweep STILL OPEN" is moot — the sweep is deleted.)
+**This phase builds THE HOLD** as the design section states it: the record `holds[] {start,
+end?, grip?}` without the grip id (Phase 5's), the pin, the verbs, the walls and floors, the hold
+normalizer, the prune, the 2D marks, and the not-held polarity that was plan 61's span-free zone
+(one kind with polarity; it blocks accumulation-founded openings only, statement openings are
+immune, a derived span closes at its edge, `Delete` on a derived arpeggio span authors it, its ink
+is editor-only). The background sighting triplet is judged here. The settlement edge (the 2-note
+statement-founded bracket of the sighting reel's measure 3) was CLAIM-founded, and claims are
+gone, so it is most likely moot — re-verify on the regenerated reel (`span-marker-redesign.md`,
+"THE SIGHTING FIXTURE NEEDS REBUILDING": the reel's `"attack": "none"` record no longer reads).
+The ≥3 minimum is already signed; what lands is the census re-sign of the accumulation checklist's
+section G and the FHP counter rows left unsigned for this bundle.
 
 ### Phase 5 — templates, dictionary, editor and fingering coupling (gated on 60-Q3, 60-Q5)
 
-**REVISED 2026-10-04 (§1a).** The dictionary is saved as `grips`, its entries carry an optional
-`chord` name, and the reference rides the HOLD (`holds[].grip`), not a hand marker: read "markers
-reference entries" and "authors the reference on the marker at the span's front" below as the
-hold's `grip`. A grip's stops are stated ONLY here, never on a hold. Everything else in this phase
-stands, re-verified at its own session.
+The dictionary is saved as `grips`, its entries carry an optional `chord` name, and the
+reference is the hold's `grip`: assigning a grip to a derived span writes `{start, grip}` at its
+front, a pin with a derived end, so naming freezes nothing. A grip's stops are stated ONLY in the
+entry, never on a hold.
 
 **Prerequisite, unlisted until now:** the GP parser carries no fingering and no chord diagrams
 (`gp_score.h`), so the import wiring this phase assumes ("GP chord-diagram fingering assembles
 into template entries") needs the parser extended first — its own step, sized before the phase.
 
-Plan 61's Phase 3 and the fingering half of the former plan 60 Phase 3, one arc: the template
-save format and the template editor (the home of span-wide fret editing, and the only place a
-stop NOTHING sounds can be stated since `NoteAttack::None` and the stored `held` left — the two
-lapsed figures of `span-marker-redesign.md` "THE GAP WIDENED" return here); markers reference
-entries in the song-scoped dictionary (chord and arpeggio spans share ONE list; the dictionary's
-stamp model is superseded by its own 2026-09-05 section); save WARNS on template-less spans with
-EXPORT blocked until resolved and a standing unresolved count in the chrome; the save-walk
-resolver with the grip-matching suggestion sort (never an assignment) — its apply authors the
-reference on the marker at the span's front, which is also what gives a span a durable identity;
-the invalidation rule (RULED 2026-10-13: reference removal — a contradicting note clears the
-hold's `grip`; see the design section's "Tensions"); the purge-on-save question; the free-note finger, landing WITH its
-writer; the template coupling per the scoping law (the fingering pins the run its marker heads,
-unsounded stated stops join that run's coverage, contradiction is a per-onset test that drops the
-reference to notes-only fallback, references over silence feed nothing, no span extent
-consulted); a template that reintroduces a stop nothing sounds brings its own justification rule
-(LAW II's machinery was deleted as dead, not parked); the derived-default suggestion ships only
-if 60-Q5 re-confirms. **The sub-4 width truth amendment** (60-Q1(b)) is partly DISCHARGED by the
-authored end fret: a stated window is exactly `[fret, end_fret]`, however narrow, built and
+Plan 61's Phase 3 and the fingering half of the former plan 60 Phase 3, one arc: the entry save
+format and the template editor (the home of span-wide fret editing, and the only place a stop
+NOTHING sounds can be stated since `NoteAttack::None` and the stored `held` left — the two lapsed
+figures of `span-marker-redesign.md` "THE GAP WIDENED" return here); holds reference entries in
+the song-scoped dictionary (chord and arpeggio spans share ONE list; the dictionary's stamp model
+is superseded by its own 2026-09-05 section); save WARNS on unresolved spans with EXPORT blocked
+until resolved and a standing unresolved count in the chrome; the save-walk resolver with the
+grip-matching suggestion sort (never an assignment), whose apply is the assign verb of the design
+section; the normalizer's grip clearing; the purge-on-save question; the free-note finger, landing
+WITH its writer; the template coupling (`resolvedGrip` feeds positions: the fingering pins the
+anchor, unsounded stated stops join coverage, a hold over silence feeds nothing); a template that
+reintroduces a stop nothing sounds brings its own justification rule (LAW II's machinery was
+deleted as dead, not parked); the derived-default suggestion ships only if 60-Q5 re-confirms.
+**The sub-4 width truth amendment** (60-Q1(b)) is partly DISCHARGED by the authored end fret: a
+stated window is exactly `[fret, end_fret]`, however narrow, built and
 sighted 2026-09-29 on a 3-fret window, so the "does a sub-4 window read oddly" gate has an
 answer for the authored case; what this phase adds is the fingering-DERIVED form (both ends
 pinned by a template's fingers), which inherits that sighting. The width-consumers audit (highway

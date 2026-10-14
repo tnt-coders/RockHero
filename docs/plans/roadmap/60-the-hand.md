@@ -513,16 +513,16 @@ ruling; the full evidence lives in the design records.
 
 REVISED the same day by §1a, which closes several entries of this table: Phase 2's
 marker-semantics list and its selection-kind spelling (the names are ruled), Phase 3's END gesture,
-and Phase 4's zone-kind question. §1a's own "Still OPEN" list adds the not-held bracket's drawing,
-~~a hold across a position shift~~ (RULED 2026-10-13, `60b-holds.md`), and the fit test's clauses.
+and Phase 4's zone-kind question. The hold's design was re-ruled 2026-10-13 (`60b-holds.md`,
+whose own "Still OPEN" list is the hold's: by-eye judgments and the fit test's clauses).
 
 | Phase | Ruled | Still OPEN |
 |---|---|---|
 | 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. CLOSED 2026-10-04 |
 | 2 | 60-Q4 (item 5), items 4, 6 and 7 | Nothing. Ruled by §1a and 60a's Phase 2 build rulings (the exit ride KEPT as derived motion, the dips DROPPED); DONE 2026-10-08. |
 | 3 | Items 8 and 9; the edge keys (RULED 2026-10-13, restating 2026-09-05: `Shift+Alt+←/→` moves a selected span's or hold's end, `Alt+←/→` its start only, walled at the first misfit; `60b-holds.md` item 4) | ~~The END gesture (OPEN by design: build it, or let the members' tail keys serve).~~ The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. ~~How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate~~ |
-| 4 | none named | The zone record's kind: one kind with polarity, or two. The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet (a sighting) |
-| 5 | 60-Q5 (item 11) RULED NO, reopenable there | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save and the invalidation rule's confirming word (item 12) — all DEFERRED to the Phase 5 session |
+| 4 | The hold's design (RULED 2026-10-13, `60b-holds.md`: `holds[] {start, end?, grip?}`, a pinned start, an optional authored end, the hold normalizer that trims and clears instead of refusing) | The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet and the chip, tick and rail styles (a sighting) |
+| 5 | 60-Q5 (item 11) RULED NO, reopenable there; the invalidation rule (item 12's second half — RULED 2026-10-13 as the hold normalizer's grip clearing, `60b-holds.md`) | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save (item 12) — DEFERRED to the Phase 5 session |
 | 6 | The measure's DEFINITION (Q12) | The measure's slide split and the offender worklist's walk, both deferred from Phase 1's close. The pass threshold on seam-vs-shift agreement (the user's). The let-ring extension inside the stored sustain, which rule 6 pins on and this phase clips (§9 Q3), ruled before this phase. The drone watch item, re-read here |
 
 ## 10. Sequencing
