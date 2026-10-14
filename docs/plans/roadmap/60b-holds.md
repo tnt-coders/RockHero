@@ -126,7 +126,14 @@ Tensions the sweep found, for the Phase 5 session:
   invalidation question by itself (refuse), unless the session rules otherwise. Their contradiction
   clauses differ too: the old law counts a sounded string the template does not state as a
   contradiction, while the extend law admits a note on a string the grip leaves free.
-  **Direction (user, 2026-10-13): never refuse the note; a contradiction SPLITS the hold.**
+  **RULED (user, 2026-10-13): a note that contradicts a hold's grip CLEARS the hold's `grip`**,
+  in the same undo entry as the note edit; the hold stays, and the save-walk resolver and the
+  unresolved count catch the span as needing a grip again. This is the 2026-08-31 record's Phase 3
+  item 5 (reference removal) with the user's confirming word, so the contradicted-tell state is
+  never built. Fixing the note back does not restore the grip; undo does.
+  **Direction (user, 2026-10-13): never refuse the note; a contradiction SPLITS the hold.** Even
+  with no grip, a held stretch says one grip is held throughout, so clearing the grip does not
+  settle a note that contradicts the other notes inside it; the split does.
   PROPOSED mechanism: the split is read-time, never a rewrite of the record. The derivation cuts
   the hold at each contradicting onset, so the stored `{start, end, grip}` stays exactly what the
   charter wrote, undoing or fixing the note restores the whole hold by itself, and validation's
@@ -239,8 +246,8 @@ stamp model is superseded by its own 2026-09-05 section); save WARNS on template
 EXPORT blocked until resolved and a standing unresolved count in the chrome; the save-walk
 resolver with the grip-matching suggestion sort (never an assignment) — its apply authors the
 reference on the marker at the span's front, which is also what gives a span a durable identity;
-the invalidation rule (contradicted-tell vs reference removal — the record flags the user's
-confirming word as owed); the purge-on-save question; the free-note finger, landing WITH its
+the invalidation rule (RULED 2026-10-13: reference removal — a contradicting note clears the
+hold's `grip`; see the design section's "Tensions"); the purge-on-save question; the free-note finger, landing WITH its
 writer; the template coupling per the scoping law (the fingering pins the run its marker heads,
 unsounded stated stops join that run's coverage, contradiction is a per-onset test that drops the
 reference to notes-only fallback, references over silence feed nothing, no span extent
