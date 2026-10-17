@@ -8,8 +8,8 @@ The hand is one design built as two plans, in this order (user, 2026-10-04):
 2. **`docs/plans/roadmap/60a-fret-hand-positions.md`** — where the hand is. DONE: Phases 0–3,
    Phase 3's sighting signed 2026-10-09.
 3. **`docs/plans/roadmap/60b-holds.md`** — what the hand holds. NOT STARTED; Phases 4 and 5.
-4. **Phase 6, the let-ring hand coupling** (§7 here) — after Phase 4, because it needs the
-   positions and the hold; it needs nothing from Phase 5, which may follow it (§10).
+4. ~~**Phase 6, the let-ring hand coupling**~~ — RETIRED 2026-10-14 (§7 here): a grip is held
+   until its string releases it, so no hand event can leave one and there is nothing to clip.
 
 This file is the MASTER: the redesign both plans execute (§1a), the laws (§5), the current-state
 inventory (§6), the G60 gate record (§9), the sequencing, the final acceptance bundle and the docs
@@ -20,7 +20,7 @@ any of the three still names one place:
 
 | Where | Lives in |
 |---|---|
-| §§1–6, §9's gate record and its open-gates table, §§10–12, Phase 6 | this file |
+| §§1–6, §9's gate record and its open-gates table, §§10–12, Phase 6 (retired) | this file |
 | The position's design, Phases 0–3, §8, §9's Phase 1 build rulings, hand rulings and row decisions | `60a-fret-hand-positions.md` |
 | The hold's design, the grip dictionary, the former Phase 3 items 3–5, Phases 4 and 5 | `60b-holds.md` |
 
@@ -81,7 +81,7 @@ fret are gone. §1a supersedes §2 and revises Phases 2 to 5; read it before any
 on the rebuilt corpus, identical to its reference (§7, Phase 1, Acceptance). Two acceptance items
 were deferred at the close to Phase 6's entry, where the stream they measure is the final one: the
 per-file offender worklist with the user's sightings, and the slide split of the seam-vs-shift
-measure.
+measure. With Phase 6 retired (2026-10-14) the worklist moved to §11 and the slide split is moot.
 
 **PHASE 2 DONE 2026-10-08** (60a's status lists the commits).
 
@@ -130,10 +130,12 @@ text they supersede stays as the record of what was decided before.
 **The reversal, and its reason.** 60-H1 (§2) made the position marker and the span marker one
 object. For AUTHORED records that is reversed: a span is what states a grip, and a position does
 not. The physical law §2 rested on — a position cannot change inside a span — never needed a
-shared record: the derivation order states it once (positions feed spans, and Phase 6 clips a span
-at every shift). Stated on one record, the two halves have different lifetimes, never constrain
-each other, and force a bare "states nothing" marker into existence. The DERIVED hand events stay
-one stream.
+shared record: the derivation order states it once (written here as "positions feed spans, and
+Phase 6 clips a span at every shift"; since 2026-10-05 the order is the reverse — spans feed
+positions and a grip is held until its string releases it, so no hand event leaves a grip, and
+Phase 6 was retired 2026-10-14). Stated on one record, the two halves have different lifetimes,
+never constrain each other, and force a bare "states nothing" marker into existence. The DERIVED
+hand events stay one stream.
 
 **The principle for both kinds.** A derived statement is never deleted, because nothing of it is
 stored; it is SUPERSEDED by an authored one. The derivation asserts only what the chart proves, and
@@ -176,7 +178,8 @@ The physical argument (user): the hand's position cannot change during a span, b
 that hand holding a shape. A slide is the one motion inside a span, and the span ends at its
 landing, where a new position and shape are stated. The converse is already the ruled pipeline
 direction: written notes yield positions, and positions cut rings (the let-ring hand coupling in
-Phase 6 clips a span at a position shift), so a span can never straddle a position change by law.
+Phase 6 clips a span at a position shift — retired 2026-10-14, §7: the grip is held, so the
+window moves around it), so a span can never straddle a position change by law.
 "The position changes only at a span front or in a gap" is therefore structural, and two objects
 would have to restate it by hand — the project's named recurring defect.
 
@@ -217,8 +220,8 @@ its template
 reference; land the rest of the **hand marker** as the forced statement boundary both derivations
 honour — the derived events as the row's objects, rail selection, the authored tell, the signed
 boundary gestures; land **span-free zones**, **grip templates** in the song-scoped dictionary with
-the template editor; and close with the **let-ring hand coupling** that clips derived spans at
-position shifts.
+the template editor. ~~Close with the **let-ring hand coupling** that clips derived spans at
+position shifts~~ (Phase 6 retired 2026-10-14, §7).
 
 ## 4. Non-goals
 
@@ -258,7 +261,9 @@ without them in view.
    stopgap's width fold reads `held_stops` today (`chart_fret_hand.h`, `deriveHeldFretRanges`),
    which is legal only while spans do not yet read positions. ~~Phase 1 replaces that fold.~~
    SUPERSEDED 2026-10-04 (§9 Q10): the fold stays through Phase 1 and goes in Phase 2; still
-   legal, since spans read no positions until Phase 6.
+   legal, since spans read no positions until Phase 6. **The arrow itself REVERSED 2026-10-05**
+   (`60a-fret-hand-positions.md`, HOLDS ARE DEMANDS): notes → spans → positions, a grip a hold
+   the hand never leaves. Spans never read positions, and Phase 6 is retired (§7).
 3. **The zero-authored-input invariant** (user, 2026-09-05). Positions must derive sanely from a
    fresh import with NO manually authored records, and cleanly with NO fingering information
    anywhere — imports may carry none, so fingerless is the PRIMARY mode, not a degraded one. The
@@ -393,9 +398,23 @@ its anchors corrected, and the importer passes it had missed added.
 Each phase is built, committed and sighted on its own. Gates are named where a Q blocks.
 
 Phases 0 to 3 are in `60a-fret-hand-positions.md` and Phases 4 and 5 in `60b-holds.md`.
-Phase 6, which needs both plans, is here.
+Phase 6, which needed both plans, is here, retired.
 
-### Phase 6 — the let-ring hand coupling (closes the sequence; gated on the census measure)
+### Phase 6 — the let-ring hand coupling — RETIRED 2026-10-14
+
+**Retired by the user; carried over provisionally** (`60b-holds.md` §7 B): it reopens if the
+census row "spans holding a stop outside the window" is ever not zero. The clip assumed a hand
+event inside a span means the hand left it. Since HOLDS ARE DEMANDS (2026-10-05) a grip's stops are
+held from the span's front until their strings release them (hand-position rule 6), so every
+derived event inside a span still covers the grip: the census counts zero spans holding a stop
+outside the window, while the 145 spans an event crosses are a window widening or sliding around a
+grip it keeps (for instance a note joining on a free string, shape rule 2). A span splits where the
+grip's own fingers move, a slide's landing, which the derivation already does; a stored position
+inside a span is judged by the coverage rule alone. Clipping would split grips the hand provably
+kept.
+The measure's slide split, its pass threshold and §9 Q3's reconciliation served only the clip and
+are moot; the offender worklist and the drone watch item's re-read moved to §11. The text below is
+the record.
 
 Derived spans clip at any emitted position shift not carried by a slide. Readiness gate: the
 census seam-vs-shift agreement measure — defined 2026-10-04 (§9 Q12) from
@@ -523,13 +542,16 @@ whose own "Still OPEN" list is the hold's: by-eye judgments and the fit test's c
 | 3 | Items 8 and 9; the edge keys (RULED 2026-10-13, restating 2026-09-05: `Shift+Alt+←/→` moves a selected span's or hold's end, `Alt+←/→` its start only, walled at the first misfit; `60b-holds.md` item 4) | ~~The END gesture (OPEN by design: build it, or let the members' tail keys serve).~~ The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. ~~How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate~~ |
 | 4 | The hold's design (RULED 2026-10-13, `60b-holds.md`: `holds[] {start, end?, grip?}`, a pinned start, an optional authored end, the hold normalizer that trims and clears instead of refusing) | The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet and the chip, tick and rail styles (a sighting) |
 | 5 | 60-Q5 (item 11) RULED NO, reopenable there; the invalidation rule (item 12's second half — RULED 2026-10-13 as the hold normalizer's grip clearing, `60b-holds.md`) | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save (item 12) — DEFERRED to the Phase 5 session |
-| 6 | The measure's DEFINITION (Q12) | The measure's slide split and the offender worklist's walk, both deferred from Phase 1's close. The pass threshold on seam-vs-shift agreement (the user's). The let-ring extension inside the stored sustain, which rule 6 pins on and this phase clips (§9 Q3), ruled before this phase. The drone watch item, re-read here |
+| 6 | RETIRED 2026-10-14 (§7) | Nothing: the slide split, the threshold and §9 Q3 are moot; the offender worklist and the drone watch item moved to §11 |
 
 ## 10. Sequencing
 
+**REVISED 2026-10-14:** Phases 0 to 3 are done and Phase 6 is retired (§7). Next: `60b-holds.md`,
+then `60c-grips.md`.
+
 **REVISED 2026-10-04 (the split, §0):** Phases 0 and 1 are done. Done: the rename sweep and Phase
 2. Next: Phase 3 → Phase 4 → Phase 6 → Phase 5. The order below is the one this replaces; its
-reasoning for the coupling ahead of the templates stands.
+reasoning for the coupling ahead of the templates stood until Phase 6's retirement.
 
 Revise the plan (done 2026-10-02; re-verified 2026-10-04) → G60 (ruled 2026-10-02) → the Phase 1
 build rulings (ruled 2026-10-04) → Phase 1 → Phase 2 → Phase 3 remainder → Phase 4 →
@@ -550,8 +572,7 @@ Build + tests green with the relink forced; the dataset scorer's coverage and ex
 numbers recorded beside the harness's; census re-run with the position counters re-signed (fold
 the three drifted rows and the stale-baseline re-sign into this pass); the offender worklist
 walked with the user until the pins column is explained (FIXED-CLASS / OPINION / SIGHTED per
-file); the seam-vs-shift agreement measure (defined §9 Q12) produced and consumed at Phase 6
-(Phase 1 took its unsplit ceiling); the
+file); the same-voice drone watch item re-read (moved here from the retired Phase 6); the
 sighting gates of Phases 3, 4 and 5 recorded; CI blind-spot reading pass over every touched hunk
 (new variant alternatives → designated initializers, `-Wswitch-enum` on `MarkerRow`, optional
 access in tests).
