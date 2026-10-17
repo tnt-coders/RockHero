@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -415,6 +416,33 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // Bound once so the presence test and the read are provably the same object.
         const std::optional<FretTravel>& leaves = stated.travel;
         return leaves.has_value() ? std::min(ring, onset + leaves->arrival) : ring;
+    };
+
+    // HAND-POSITION RULE 6's RELEASE (\ref stringReleasesStopAt) of a stop a span states, by the
+    // note sounding its string from `from`: the instant that note proves the finger on the stop
+    // lifted, or nothing while it sounds. A release inside a glide lies at the glide's landing
+    // (shape rule 4). An open string or a node holds no finger to release.
+    const auto released_at = [&connections, &channel_at, &onset_place, &ring_end_of](
+                                 const std::size_t string_index,
+                                 const ChartStop& stop,
+                                 const Fraction from,
+                                 const std::size_t note) -> std::optional<Fraction> {
+        if (!pressedFret(stop.fret).has_value())
+        {
+            return std::nullopt;
+        }
+        const Fraction ring = ring_end_of(note);
+        const Fraction released =
+            stringReleasesStopAt(connections, string_index, stop.fret, from, ring);
+        if (!(released < ring))
+        {
+            return std::nullopt;
+        }
+        const StatedStop stated = channel_at(note, released);
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<FretTravel>& travel = stated.travel;
+        return !stated.stop.has_value() && travel.has_value() ? onset_place[note] + travel->arrival
+                                                              : released;
     };
 
     // Whether the span's statement is still standing at `now` — the continuity law over SOUNDS
@@ -893,24 +921,35 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             }
         }
 
+        // THE BREAK VERDICT has two parts. A HAND CONFLICT is the hand provably letting go of the
+        // span's grip: a strike releasing a stop it states (hand-position rule 6), or the tap's
+        // floor. A NOTATION SPLIT is every other break: the notation divides the span where the
+        // hand may still hold its shape. The derivation breaks on either.
+        //
         // A CONTRADICTION breaks the grip (shape rule 3): a statement naming a different stop on
         // a string whose stop the span SOUNDED, displacing a stop the hand still audibly holds
         // anywhere (Law A's foreign-ring break: the grip provably moved even where the span never
-        // stated that string).
-        bool contradiction = false;
+        // stated that string). On a stated string it is a release, a hand conflict, or a higher
+        // fret restated, another finger leaving the stop held; every other contradiction is
+        // notation.
+        bool hand_conflict = false;
+        bool notation_contradiction = false;
         if (standing)
         {
-            for (std::size_t string_index = 0; string_index < string_count && !contradiction;
-                 ++string_index)
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
+                // Bound once so each presence test and its reads are provably the same object.
                 const std::optional<ChartStop>& stated_stop = slot.strikes[string_index];
-                if (!stated_stop.has_value())
+                const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+                if (!stated_stop.has_value() || !striking.has_value())
                 {
                     continue;
                 }
-                if (displaced_here[string_index])
+                const std::optional<ChartStop>& stated = open->stops[string_index];
+                if (stated.has_value() &&
+                    released_at(string_index, *stated, slot.place, *striking) == slot.place)
                 {
-                    contradiction = true;
+                    hand_conflict = true;
                     continue;
                 }
                 // Judged against the strike's GRIP STATEMENT where one strikes: a source over the
@@ -918,40 +957,32 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 // what it sounds — a node strike, which states no grip, on its node.
                 const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 const ChartStop here_stop = statement.value_or(*stated_stop);
-                const std::optional<ChartStop>& stated = open->stops[string_index];
-                if (stated.has_value() && differs_by_hand(string_index, *stated, here_stop))
-                {
-                    contradiction = true;
-                    continue;
-                }
                 // LAW A AT THE JOIN: the founding's dating floor (front at or after every stated
                 // string's foreign-sound end) is an invariant, and growth cannot move the front to
                 // keep it, so a string whose foreign sound ended INSIDE the span — a natural
                 // harmonic's chime, an open ring dying under the shape, a free glide landing under
-                // it — breaks rather than joins. The displacement above is this rule's special
-                // case, the ring still sounding at the strike; where the ring ended is no
-                // difference in what the hand did. Without it the fret would join and the bracket
-                // would print it over the chime's tail.
-                if (!stated.has_value() && statement.has_value() &&
-                    open->front_place < foreign_until_at(string_index, slot.place))
-                {
-                    contradiction = true;
-                    continue;
-                }
+                // it — breaks rather than joins. The displacement is this rule's special case, the
+                // ring still sounding at the strike; where the ring ended is no difference in what
+                // the hand did. Without it the fret would join and the bracket would print it over
+                // the chime's tail.
+                notation_contradiction =
+                    notation_contradiction || displaced_here[string_index] ||
+                    (stated.has_value() && differs_by_hand(string_index, *stated, here_stop)) ||
+                    (!stated.has_value() && statement.has_value() &&
+                     open->front_place < foreign_until_at(string_index, slot.place));
             }
             // THE TAP'S FLOOR. A picking-hand stop sounds only ABOVE the finger holding its
             // string, so a tap whose path reaches the standing grip's fret or below it — struck
             // there, or slid there — says that finger is gone: the grip moved and the span splits.
             // Over an open-string entry the tap proves nothing, since no finger is down.
-            for (std::size_t string_index = 0; string_index < string_count && !contradiction;
-                 ++string_index)
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<int>& tap_floor = slot.tap_floors[string_index];
                 const std::optional<ChartStop>& gripped = gripped_before[string_index];
                 if (tap_floor.has_value() && gripped.has_value() && gripped->fret > 0 &&
                     *tap_floor <= gripped->fret)
                 {
-                    contradiction = true;
+                    hand_conflict = true;
                 }
             }
         }
@@ -1185,7 +1216,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 
         bool unison_restatement = false;
         bool partial_sounding = false;
-        if (standing && !contradiction)
+        if (standing && !hand_conflict && !notation_contradiction)
         {
             std::size_t stated_count = 0;
             std::size_t touched_stated = 0;
@@ -1241,7 +1272,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         }
 
         // ---- 4. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
-        if (standing && !contradiction && !unison_restatement && !partial_sounding)
+        // The notation half of the break verdict: a contradiction no hand conflict makes, or the
+        // statement changing character.
+        const bool notation_split =
+            notation_contradiction || unison_restatement || partial_sounding;
+        if (standing && !hand_conflict && !notation_split)
         {
             // GROWTH IS ACCUMULATION (shape rule 2): every struck stop the grip lacks joins in
             // place; the quit arm is what guarantees absorption only ever unions grips whose sounds
@@ -1282,10 +1317,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         }
         else
         {
-            // The grip broke here (a contradiction, or the statement no longer stands). The close
-            // carries a sounding head only where the FRETTING hand strikes here: the display trim
-            // keeps its distance from a head that states the new grip, and a slot of held fingers
-            // or bare taps states none.
+            // The grip broke here (a hand conflict, a notation split, or the statement no longer
+            // stands). The close carries a sounding head only where the FRETTING hand strikes here:
+            // the display trim keeps its distance from a head that states the new grip, and a slot
+            // of held fingers or bare taps states none.
             emit(slot.place, slot.struck > 0 ? std::optional<Fraction>{slot.place} : std::nullopt);
 
             // THE SLOT OPEN (shape rule 1's two thresholds, one disjunction): the slot's own stated
