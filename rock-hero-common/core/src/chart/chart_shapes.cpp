@@ -447,21 +447,31 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 
     // Whether the span's statement is still standing at `now` — the continuity law over SOUNDS
     // (shape rule 3's quit arm), with its per-string renewal: a member string whose sound ends
-    // exactly here and is re-sounded by this slot was REPLACED, not silenced.
-    const auto in_force = [&hand](
+    // exactly here and is re-sounded by this slot was REPLACED, not silenced. Judged per stop: a
+    // string still sounding keeps the span's stop in force only while its finger states that stop,
+    // rides above it, or is gliding (the span covers the glide, shape rule 4).
+    const auto in_force = [&hand, &covers_at](
                               const OpenSpan& span,
                               const Fraction now,
                               const std::vector<std::optional<Fraction>>& sounding) {
         for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
         {
-            if (!span.stops[string_index].has_value() || !hand[string_index].finger.has_value())
+            // Bound once so the presence test and every read are provably the same object.
+            const std::optional<ChartStop>& stop = span.stops[string_index];
+            if (!stop.has_value() || !hand[string_index].finger.has_value())
             {
                 continue;
             }
             const Fraction sounds = hand[string_index].sounds;
             if (now < sounds)
             {
-                continue;
+                const std::optional<ChartStop> finger_stop = covers_at(string_index, now);
+                if (!finger_stop.has_value() || *finger_stop == *stop ||
+                    hand[string_index].stated_beneath == stop)
+                {
+                    continue;
+                }
+                return false;
             }
             if (now != sounds || !sounding[string_index].has_value())
             {

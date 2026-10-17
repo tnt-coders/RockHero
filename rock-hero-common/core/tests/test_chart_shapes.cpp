@@ -1852,6 +1852,25 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
     }
 }
 
+// A landing that opens no successor (shape rule 4) still ends the span's statement: the landed
+// finger states another stop, so the stop the span states is no longer in force at the slot struck
+// there, and the span closes at that slot with its head. Here the open string's ring ends at the
+// landing, leaving one survivor, and the open string is restruck exactly there.
+TEST_CASE("A span closes at the slot where its member's glide lands alone", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 2, 0, Fraction{1, 8}),
+        travellingAt(noteAt(1, Fraction{}, 3, 7, Fraction{1, 4}), {{Fraction{1, 8}, 5}}),
+        noteAt(1, Fraction{1, 2}, 2, 0, Fraction{1, 8}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{});
+    CHECK(derived.shapes[0].sustain == Fraction{1, 8});
+    CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 8}});
+}
+
 // Shape rule 4 — the split falls at the LANDING. What that BUYS, case by case: the transit rides
 // the predecessor, so every slot inside a glide is inside a span; the two spans TILE; and no span
 // with sound in it is ever emitted at zero length. Each section here is a hole a departure split
