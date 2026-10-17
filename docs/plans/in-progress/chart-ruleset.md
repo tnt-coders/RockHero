@@ -482,7 +482,7 @@ glide, and the break lands where the new grip ESTABLISHES.
 
 **THE NODE GRIP — a grip statement is a PLACE, not a fret number.** A grip statement is a place on
 the fret axis: a fret pressed, the open string, or a node touched (`ChartStop`, the `(fret, node)`
-pair the chart already spells, built only by `frettedStop` and `nodeStop`). A fretting-hand harmonic
+pair the chart already spells, built only by `fretStop` and `nodeStop`). A fretting-hand harmonic
 states its NODE (`frettingStopAt`), which differs from the same-numbered fret AND from the open
 string, because the finger is on the string pressing nothing. Two harmonics at one node restate one
 statement; a co-struck node chord founds a span like any co-struck grip; a node landing on a string

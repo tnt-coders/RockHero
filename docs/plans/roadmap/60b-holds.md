@@ -28,8 +28,9 @@ a slide landing exactly at the end.
 
 ## 2. Validity: the one predicate
 
-An unnamed hold states, on each string, the stop of the FIRST fretting-hand note struck on that
-string inside it. Notes ringing in from before the start state nothing. A hold is valid when:
+An unnamed hold states, on each string, the PRESSED stop of the first fretting-hand note struck on
+that string inside it; open strings and natural harmonics state nothing (hand-position rule 6).
+Notes ringing in from before the start state nothing. A hold is valid when:
 
 1. **No conflict inside.** A conflict is a note that DEFINITIVELY contradicts a stated stop: a
    later note that releases it under hand-position rule 6's release predicate (a lower fret on the
