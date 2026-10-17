@@ -1086,11 +1086,11 @@ void EditorView::resized()
     // grid selector, then the tempo lock and the Note Lock — grid/tempo editing modes, so they
     // sit beside the grid control they shape rather than with playback. The playback block —
     // transport buttons plus the position readout — centers as a whole on the WINDOW's center
-    // line. The block only slides off center when the left cluster would overlap it, and the
-    // master meter takes whatever right-edge width the block leaves free (hiding below its
-    // minimum), so the centered block wins over the meter's preferred width. The readout slot
-    // width already includes the g_content_inset its bounds trim off, so the block width is a
-    // plain sum.
+    // line. The block only slides off center when the left cluster would overlap it. The
+    // selection-count chip's slot stands right of the block, and the master meter takes whatever
+    // right-edge width the two leave free (hiding below its minimum), so the centered block and
+    // the chip win over the meter's preferred width. The readout and chip slot widths already
+    // include the g_content_inset their bounds trim off, so the widths are plain sums.
     m_arrangement_caption.setBounds(
         control_row.removeFromLeft(std::min(g_arrangement_caption_width, control_row.getWidth())));
     // The combo fills the strip height with the same 4px inner gap as the grid selector's box so
@@ -1125,7 +1125,8 @@ void EditorView::resized()
     };
 
     const int master_meter_width = std::min(
-        g_master_meter_width, control_row.getRight() - playback_area.getRight() - g_content_inset);
+        g_master_meter_width,
+        control_row.getRight() - playback_area.getRight() - g_selection_count_display_width);
     if (master_meter_width >= g_master_meter_min_width)
     {
         m_master_output_meter.setVisible(true);
@@ -1143,9 +1144,9 @@ void EditorView::resized()
     m_position_display.setBounds(
         playback_area.removeFromLeft(std::min(g_position_display_width, playback_area.getWidth()))
             .withTrimmedLeft(g_content_inset));
+    juce::Rectangle<int> chip_area = control_row.withLeft(playback_area.getRight());
     m_selection_count_display.setBounds(
-        playback_area
-            .removeFromLeft(std::min(g_selection_count_display_width, playback_area.getWidth()))
+        chip_area.removeFromLeft(std::min(g_selection_count_display_width, chip_area.getWidth()))
             .withTrimmedLeft(g_content_inset));
 
     auto bottom_area = trackViewportBounds();

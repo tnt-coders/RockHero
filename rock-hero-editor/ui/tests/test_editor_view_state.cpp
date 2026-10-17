@@ -1231,9 +1231,10 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     CHECK(audio_button.getText() == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
 }
 
-// Verifies the transport-strip selection-count chip appears from two selected chart notes up,
-// reporting the selection size, and hides below that threshold: typing acts on the whole
-// selection, so its size must stay visible even when the highlighted notes scroll off-screen.
+// Verifies the transport-strip selection-count chip prints "999 notes" between the readout and the
+// meter; appears from two selected chart notes up, reporting the selection size; and hides below
+// that threshold: typing acts on the whole selection, so its size must stay visible even when the
+// highlighted notes scroll off-screen.
 TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1246,8 +1247,20 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
         juce::File{},
         fixtureHighwayThemeRegistry()
     };
+    view.setBounds(0, 0, 1280, 800);
     const auto& selection_count_chip =
         findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
+    const auto& position_display =
+        findRequiredDescendant<juce::Label>(view, "transport_position_display");
+    const auto& master_meter = findRequiredDescendant<juce::Component>(view, "master_output_meter");
+    CHECK(selection_count_chip.getX() > position_display.getRight());
+    CHECK(master_meter.isVisible());
+    CHECK(selection_count_chip.getRight() <= master_meter.getX());
+    CHECK(
+        juce::GlyphArrangement::getStringWidth(selection_count_chip.getFont(), "999 notes") <=
+        static_cast<float>(
+            selection_count_chip.getWidth() -
+            selection_count_chip.getBorderSize().getLeftAndRight()));
 
     // The default state carries no chart selection, so the chip stays hidden.
     view.setState(core::EditorViewState{});
