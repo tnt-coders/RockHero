@@ -26,46 +26,44 @@ derivation is exactly what it is on `master` today. At a hold's end the derivati
 does after any derived span closes with rings still sounding (shape rule 4's hand-off), including
 a slide landing exactly at the end.
 
-## 2. Validity: the one predicate
+## 2. Validity: the walk is the one authority
 
-An unnamed hold states, on each string, the PRESSED stop of the first fretting-hand note struck on
-that string inside it; open strings and natural harmonics state nothing (hand-position rule 6).
-Notes ringing in from before the start state nothing. A hold is valid when:
+A hold never restates a derivation rule. It changes only the edges; everything inside is the span
+walk's own judgement (shape rules 1 to 5, hand-position rule 6).
 
-1. **No conflict inside.** A conflict is a note that DEFINITIVELY contradicts a stated stop: a
-   later note that releases it under hand-position rule 6's release predicate (a lower fret on the
-   string, the open string, a node, the stating finger's own glide leaving it, a tap reaching it).
-   A higher fret on the same string is another finger and fits. Other strings, rests and silence
-   never conflict. The conflict's instant is the release instant (a struck note's onset; a glide's
-   landing).
-2. **A stated stop has stopped sounding at the end.** The end is invalid where EVERY stop the hold
-   states is still sounding across it, from a note struck inside the hold on each. If any
-   stated stop has stopped ringing, notes may ring on past the end, as they do past a derived
-   span's close. A hold that states no fretted stop always passes.
+**What a hold inherits.** Grip statements and plants, membership and founding, hand-position rule
+6's release, shape rule 4's landing instant, the span's class and posture. Inside an unnamed hold
+the walk founds and accumulates members by its normal rules; the hold's front is its stated start.
 
-A `none` hold is always valid. A hold with nothing sounding inside is valid and stands.
+**What a hold suppresses.** The walk's notation splits: a higher fret on a stated string, foreign
+rings and displacement on strings the span does not state, the join break, the unison-restatement,
+partial-sounding and character splits, the whole-stroke boundary, the drop of a crowded landing,
+and front dating. These split a derived span where the hand provably keeps its shape.
 
-Rule 1 reuses rule 6's predicate; it is never restated. That predicate is fixed first (§6 step 0).
+**The break verdict has two named parts.** A *hand conflict* is hand-position rule 6's release
+against the open span's own grip (its plants and statements), the tap's floor, or a glide's landing
+(shape rule 4). A *notation split* is every other break. The derivation breaks on either; inside a
+hold only a hand conflict breaks. "In force" is judged per stop: a string still sounding a
+different stop no longer keeps the span's stop in force.
+
+**The one close rule.** An unnamed hold's span closes at the first hand conflict inside it, or at
+the first break at or after its stated end (either kind, the next hold's start, or the song's end);
+the walk publishes it there. **A hold is valid when its published extent equals its stated
+extent.** So an end in the middle of a sustain, where nothing breaks, is invalid; every derived
+span is a valid hold by construction, and authoring one exactly changes nothing.
+
+A hold whose notes never found a span still publishes its span over `[start, end)` with whatever
+posture its notes give (possibly empty), and is valid. A `none` hold is always valid. A hold with
+nothing sounding inside is valid and stands.
 
 ## 3. Keeping holds valid after other edits
 
 An edit that is not a hold verb (a note edit, a tempo edit, a load) always lands. Afterwards one
-normalizer, run once in the timeline funnel and logged once per rewrite:
-
-1. **extends** a hold whose end fails §2.2 to the smallest later end at which §2.2 holds, judged
-   over the extended hold's own stated stops (a string first struck inside the extension counts);
-2. **crops** a hold whose first conflict lies after its start so it ends at the conflict's instant,
-   valid by construction: the conflicting string's stated stop stops sounding there, because no
-   stored ring crosses the next onset on its own string (the same-string clamp,
-   `normalizeSustainOverlaps`, `docs/design/rulesets/gp-import-rules.md`);
-3. **drops** a hold whose result is empty or overlaps another hold (touching is legal: holds are
-   half-open).
-
-Each step runs at most once, in that order; a crop never makes an end need extending, so there is
-no fixpoint loop. "Sounding" is per stop, not per string: a higher fret on the same string (another
-finger) means the stated stop no longer sounds. No stated stop can be contradicted inside an
-extension (a note on its string would have ended it sooner), so step 2 after step 1 only meets a
-string first struck inside the extension.
+normalizer, run once in the timeline funnel and logged once per rewrite, writes back each hold's
+published extent: that one rule is both the crop (a conflict inside) and the extension (an end
+where nothing breaks). A hold whose published extent is empty, or that would overlap another hold,
+is dropped (touching is legal: holds are half-open). One pass is stable: a crop lands on a
+conflict, which is a break, and an extension stops at the first break with no conflict before it.
 
 Inside an unsettled gesture (a held run of note or edge keys) the normalizer runs on each candidate
 replayed from the pre-gesture chart, never on that base, so every extend, crop and drop it makes
@@ -129,8 +127,8 @@ and the grip picker belong to `60c`.
    tests.
 2. **Derivation.** Holds as spans and walls in the span walk; `none` suppressing arpeggio spans.
    **Census gate:** authoring `Ctrl+H` over every derived span of the corpus must leave the
-   resolutions identical (zero row), and the count it refuses must be zero or each case explained
-   and ruled before step 3.
+   resolutions identical and refuse none: both rows are pinned ZERO, the proof that the walk is the
+   one authority (§2).
 3. **Normalizer** in the timeline funnel, logged once; idempotent over the corpus.
 4. **Verbs** of §4 with the refusal flash and undo.
 5. **Marks**, then the user's sighting.
