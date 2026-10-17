@@ -260,7 +260,7 @@ a finger, and the figure splits at 76:2.
 
 **What changes.** The release must inherit the statement the tap's plant already made. The clean
 form is the same one item 8 needs and is stated there: a right-hand onset's CLAIM enters the hand
-table, so the string's finger under a tap is the tap, and both the plant bridge and the tie doctrine
+table, so the string's finger under a tap is the tap, and both the plant bridge and re-articulation
 see it. Do NOT add a second bridge keyed on claims beside the finger one — that is the same rule
 stated twice, and the two would drift.
 

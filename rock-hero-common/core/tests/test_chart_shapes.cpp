@@ -226,6 +226,17 @@ void derivesLike(const std::vector<ChartNote>& notes, const std::vector<ChartNot
         [](const std::optional<ChartStop>& stop) { return stop.has_value(); }));
 }
 
+// The grip every dating-floor figure states in its first span: string 6 at 5, string 5 at 4, and
+// string 4 at 3.
+void holdsTheFloorGrip(const ChartShapes& derived)
+{
+    const std::vector<std::optional<ChartStop>>& stops = derivedStops(derived, 0);
+    REQUIRE(stops.size() >= 6);
+    CHECK(stops[5] == std::optional{frettedStop(5)});
+    CHECK(stops[4] == std::optional{frettedStop(4)});
+    CHECK(stops[3] == std::optional{frettedStop(3)});
+}
+
 // A note whose fret channel TRAVELS: the same slot note with fret statements added along its ring,
 // listed as (offset, fret) pairs so a case reads as the path the hand takes. That path is the whole
 // of what shape rule 4's two moments are read off, so nothing here is incidental either.
@@ -2896,15 +2907,16 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
     }
 
-    SECTION("THE TIE DOCTRINE stops at the coverage frontier: a restrike dates from the close")
+    SECTION("A restrike at the coverage frontier dates the next span from the close")
     {
         // The My Sacrifice bar-11 figure. String 2's fret 2 fronts the first span and rings
         // exactly to its close, where the same fret is struck again and rings on under the next
-        // accumulation. Uncapped, the restrike would inherit a beginning INSIDE the emitted span,
-        // fall behind the dating floor and date nothing — so the second span would front at the
-        // next member's onset, an eighth late, over a restrike it plainly began with. The
-        // inherited beginning is spent up to the frontier, so the restrike dates the span from the
-        // close and the two spans tile.
+        // accumulation. Every ring of the first span ends at the close, so nothing else of the
+        // figure sounds at the restrike: it is the next figure's first articulation and begins its
+        // own statement there (re-articulation). Had a member still sounded, the beginning it
+        // inherited would lie inside the emitted span and the dating floor would clamp it to the
+        // close all the same — either way the restrike dates the span from the close, never from
+        // the next member's onset an eighth late, and the two spans tile.
         const std::vector<ChartNote> notes = streamOf({
             noteAt(1, Fraction{}, 2, 2, Fraction{3, 8}),
             noteAt(1, Fraction{1, 2}, 4, 0, Fraction{1, 4}),
@@ -3755,9 +3767,9 @@ TEST_CASE("A contradiction split emits no piece the opening gate refused", "[cor
 // and the reel figure musters its opening minimum only AFTER the junction — so unclamped the span
 // would open later and back-date its front across the instant the contradicted string audibly held
 // another stop, and the fronted bracket would claim a grip that did not yet exist there. The
-// foreign-sound floor bounds the dating instead: a member behind the end of any stated string's
-// foreign sound rides extent-inert, and the span dates from the junction — the displacement case of
-// the general bound the next case reaches through gaps of silence.
+// foreign-sound floor bounds the dating instead: a member whose statement began behind the end of
+// any stated string's foreign sound is clamped to it, and the span dates from the junction — the
+// displacement case of the general bound the next case reaches through gaps of silence.
 TEST_CASE("A span cannot date across the junction that established its grip", "[core][chart]")
 {
     // The reel's own shape: string one sounds fret 7 up to the junction at beat 4, where the
@@ -3778,9 +3790,9 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
         const ChartShapes derived = deriveFrom(figure(6));
 
         // One span, dated at the junction where the 6's grip became possible — the string-two
-        // member behind the bound is stated but extent-inert, exactly like a member behind the
-        // coverage frontier. Unclamped the front would back-date to beat 2 and the bracket would
-        // claim the 6 while string one still sounds 7.
+        // member stated behind the bound dates the span from the bound itself, exactly like a
+        // member stated behind the coverage frontier. Unclamped the front would back-date to beat 2
+        // and the bracket would claim the 6 while string one still sounds 7.
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].place == Fraction{3, 4});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
@@ -3791,13 +3803,14 @@ TEST_CASE("A span cannot date across the junction that established its grip", "[
 
     SECTION("a same-fret junction records nothing and the front dates from the chain's start")
     {
-        // The control, differing ONLY by the restated fret: the tie doctrine records no foreign
-        // sound, so no floor rises and the ordinary dating stands. This is also the
+        // The control, differing ONLY by the restated fret: a same-stop restrike records no
+        // foreign sound, so no floor rises and the ordinary dating stands. This is also the
         // discrimination proof — a dead clamp would date both sections alike.
         //
-        // TRANSITIVE TIE-DATING: the front is string ONE's own onset, not string two's. The
-        // junction restates the very stop string one is already sounding, so the two f7 notes are
-        // ONE statement said twice and the second inherits the first's beginning — the beat-1
+        // TRANSITIVE RE-ARTICULATION: the front is string ONE's own onset, not string two's. The
+        // junction restates the very stop string one has sounded up to it, with string two
+        // sounding at the junction, so the two f7 notes are ONE statement said twice and the
+        // second inherits the first's beginning — the beat-1
         // onset. A single-lookback dating loop reads a note onset where the contract asks when the
         // STATEMENT began, and answers beat 2 instead.
         const ChartShapes derived = deriveFrom(figure(7));
@@ -5139,9 +5152,10 @@ TEST_CASE("Fretted rings under a moving line found nothing after their span", "[
     }
 }
 
-// THE STATEMENT-BEGAN COLUMN (transitive tie-dating, sighted on corpus material). The build
-// contract asks the hand table for WHEN THE CURRENT STOP'S STATEMENT BEGAN — "the tie doctrine: a
-// same-stop restrike whose predecessor's ring reaches it inherits". Substituting the founding
+// THE STATEMENT-BEGAN COLUMN (transitive re-articulation, sighted on corpus material). The build
+// contract asks the hand table for WHEN THE CURRENT STOP'S STATEMENT BEGAN — re-articulation: a
+// same-stop restrike whose predecessor's ring reaches it, with another member of the figure
+// sounding at the restrike, inherits. Substituting the founding
 // slot's own note onset answers correctly only where the founding slot states the string for the
 // FIRST time: where it RESTRIKES a stop already down, the statement began earlier and the span
 // dates itself past its own front. Single-lookback is an arbitrary rider; one statement has one
@@ -5167,10 +5181,10 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
 
     SECTION("the restrike inherits its predecessor's beginning")
     {
-        // The sighting itself. The pull-off's ring reaches the restrike exactly — the end-INCLUSIVE
-        // window the contradiction witness reads — and the restrike names the very stop the channel
-        // states there, so the two notes are one statement of fret 5 and the span fronts where that
-        // statement began. Without the column the front would be string five's onset an eighth
+        // The sighting itself. The pull-off's ring abuts the restrike, the restrike names the very
+        // stop the channel states there, and string five is sounding at the restrike
+        // (re-articulation), so the two notes are one statement of fret 5 and the span fronts where
+        // that statement began. Without the column the front would be string five's onset an eighth
         // later, because the restrike's own onset is the only date a loop can read for string
         // four.
         //
@@ -5205,10 +5219,11 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
 
     SECTION("a ring that dies before the restrike hands nothing on")
     {
-        // The control the doctrine needs: the pull-off's ring is short of the restrike, so there is
-        // no predecessor sounding to tie to and the restrike begins its own statement. The front
-        // falls back to the earliest other member — string five's onset — which is exactly the
-        // answer a missing column gives for the first section. Nothing here but the ring differs.
+        // The control re-articulation needs: the pull-off's ring is short of the restrike, so no
+        // predecessor reaches it to inherit from and the restrike begins its own statement. The
+        // front falls back to the earliest other member — string five's onset — which is exactly
+        // the answer a missing column gives for the first section. Nothing here but the ring
+        // differs.
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 8}, 5));
 
         REQUIRE(derived.shapes.size() == 1);
@@ -5219,10 +5234,10 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
 
     SECTION("a restrike at another fret inherits nothing and the foreign floor holds")
     {
-        // The discrimination proof: the tie test is POSITIVE — the channel must state EXACTLY the
-        // struck stop — so a restrike at another fret is a displacement, not a tie. It records the
-        // foreign sound's end at its own instant, and that floor puts the front at the founding
-        // slot: string five's onset lies behind it, extent-inert.
+        // The discrimination proof: the identity test is POSITIVE — the channel must state EXACTLY
+        // the struck stop — so a restrike at another fret is a displacement, not a re-articulation.
+        // It records the foreign sound's end at its own instant, and that floor puts the front at
+        // the founding slot: string five's statement began behind it and is clamped to it.
         const ChartShapes derived = deriveFrom(figure(Fraction{1, 4}, 7));
 
         REQUIRE(derived.shapes.size() == 1);
@@ -5235,15 +5250,65 @@ TEST_CASE("A restruck stop dates its span from where its statement began", "[cor
     }
 }
 
-// THE TIE DOCTRINE'S LIMIT: a WHOLE-GRIP STROKE standing alone is a span boundary (the absorption
+// RE-ARTICULATION (shape rule 1): a restrike continues its string's earlier statement for dating
+// only where another member of the figure is SOUNDING at the restrike. A stab whose ring abuts its
+// own restrike, with nothing else sounding there, is a gesture of its own: the restrike is the
+// figure's first articulation, and the arpeggio that grows from it fronts at the restrike. A tail
+// is `[start, end)`, so the stab abutting the restrike sounds nothing there itself.
+TEST_CASE(
+    "A restrike with nothing else sounding is the figure's first articulation", "[core][chart]")
+{
+    const auto figure = [](const bool drone) {
+        std::vector<ChartNote> notes{
+            noteAt(1, Fraction{}, 3, 14, Fraction{1, 4}),
+            noteAt(2, Fraction{}, 3, 14, Fraction{3, 4}),
+            noteAt(3, Fraction{}, 4, 16, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 5, 13, Fraction{1, 4}),
+        };
+        if (drone)
+        {
+            // An open string struck between the stab and its restrike and dying before the
+            // arpeggio founds: it sounds ACROSS the restrike, and joins nothing.
+            notes.push_back(noteAt(1, Fraction{1, 2}, 6, 0, Fraction{1, 4}));
+        }
+        return streamOf(std::move(notes));
+    };
+
+    SECTION("the stab abutting its restrike stands alone")
+    {
+        const ChartShapes derived = deriveFrom(figure(false));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{1, 4});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+        CHECK(memberCount(derived, 0) == 3);
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a drone sounding across the restrike makes the stab the figure's first note")
+    {
+        // The drone is the other member sounding at the restrike, so the restrike continues the
+        // stab's statement and the span fronts at the stab. The drone itself has died by the
+        // founding and is no member, so the front is the inherited beginning alone.
+        const ChartShapes derived = deriveFrom(figure(true));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(memberCount(derived, 0) == 3);
+        everySpanIsPositive(derived);
+    }
+}
+
+// RE-ARTICULATION'S LIMIT: a WHOLE-GRIP STROKE standing alone is a span boundary (the absorption
 // rule), so the box it founds dates from the stroke itself and reads no statement column. The
 // corpus figure is a rhythm stab: a lone palm-muted eighth on one string dying exactly into a
-// chord that restates that stop among others struck whole. Read through the tie, the stop's
-// statement begins at the stab — a ring abutting the strike is inside its end-inclusive window —
-// and the box would date an eighth before the stroke that says it whole, over a slot where the
-// posture was one finger. Only the box is fenced: a stab ringing under a stroke that does NOT
-// restate its string is a carry, the stroke is not whole over it, and the bracket that results
-// dates from the stab exactly as the drone under stabs does.
+// chord that restates that stop among others struck whole. Read through an inheriting column,
+// the stop's statement would begin at the stab, whose ring abuts the strike, and the box would
+// date an eighth before the stroke that says it whole, over a slot where the posture was one
+// finger. Only the box is fenced: a stab ringing under a stroke that does NOT restate its string is
+// a carry, the stroke is not whole over it, and the bracket that results dates from the stab
+// exactly as the drone under stabs does.
 TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates", "[core][chart]")
 {
     const auto stab_into_chord = [](const Fraction stab_ring) {
@@ -5273,8 +5338,8 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
 
     SECTION("a chain of stabs dying into one another, the last into the stroke")
     {
-        // The other sighted shape: two abutting sixteenths on the string, the tie chaining the
-        // statement back through both. The box still fronts at the stroke.
+        // The other sighted shape: two abutting sixteenths on the string, an inheriting column
+        // chaining the statement back through both. The box still fronts at the stroke.
         std::vector<ChartNote> notes{
             noteAt(3, Fraction{}, 3, 14, Fraction{1, 16}),
             noteAt(3, Fraction{1, 4}, 3, 14, Fraction{1, 16}),
@@ -5319,7 +5384,7 @@ TEST_CASE("A whole stroke dates its box at itself, past a lone note it restates"
 // it rides — the mirror of the restrike, which begins earlier. Both are read off one channel (\ref
 // StatedStop::stated_from), so the landing needs no record of its own.
 //
-// The defect this pins is the tie doctrine's sibling: dating a lone glide under no span at its
+// The defect this pins is re-articulation's sibling: dating a lone glide under no span at its
 // NOTE's onset would make the first span to fold it in front over the very beats the string spent
 // on the old stop and in transit. Its coverage would freeze at that first landing for the same
 // reason — nothing is standing to restart it — so the bogus front would come with a bogus reach,
@@ -5380,12 +5445,13 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
             noteAt(4, Fraction{}, 3, 0, Fraction{5, 16}),
         })));
 
-        // One span with the whole grip, dated at the f7 strike — the earliest member onset past the
-        // f0's death. Without the floor it would front at measure 2 beat 1 and the bracket would
-        // print 7 on a string audibly ringing 0 for another sixteenth.
+        // One span with the whole grip, dated at the f0's death — the floor, where the second
+        // string's 5 struck at measure 2 beat 1 is already in force. Without the floor it would
+        // front at measure 2 beat 1 and the bracket would print 7 on a string audibly ringing 0
+        // for another sixteenth.
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].place == Fraction{9, 8});
-        CHECK(derived.shapes[0].sustain == Fraction{5, 8});
+        CHECK(derived.shapes[0].place == Fraction{17, 16});
+        CHECK(derived.shapes[0].sustain == Fraction{11, 16});
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& frets =
             derived.postures[derived.shapes[0].posture].stops;
@@ -5416,6 +5482,195 @@ TEST_CASE("A span cannot date across a foreign ring that died before its strike"
         CHECK(derived.shapes[1].sustain == Fraction{5, 8});
         everySpanIsPositive(derived);
     }
+}
+
+// THE DATING FLOOR IS A CLAMP (shape rule 1). A member whose statement began behind the floor is
+// already in force there, so it dates the span FROM the floor rather than dating nothing. The
+// figures share one shape: string 5's foreign 5 gives way to the grip's 4, string 6 holds its 5
+// from before that foreign sound ends, and string 4 arrives last.
+TEST_CASE("A member stated behind the dating floor dates its span from the floor", "[core][chart]")
+{
+    SECTION("the floor at the displacing strike")
+    {
+        // String 5's 5 rings exactly to the 4 that replaces it, so its foreign sound ends at the
+        // 4's strike, and string 6's 5 has been sounding since the beat before. The span founds at
+        // the third string's arrival and fronts at the floor, where the 4 begins.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 5, 5, Fraction{1, 2}),
+            noteAt(2, Fraction{}, 6, 5, Fraction{3, 4}),
+            noteAt(3, Fraction{}, 5, 4, Fraction{1, 2}),
+            noteAt(4, Fraction{}, 4, 3, Fraction{1, 4}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{1, 2});
+        CHECK(derived.shapes[0].sustain == Fraction{1, 2});
+        holdsTheFloorGrip(derived);
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("the floor where a foreign ring died into silence")
+    {
+        // String 5's 5 rings an eighth note past the third beat and dies, and the 4 arrives
+        // with string 4 a beat later. The floor is the 5's death, between every member onset: the
+        // span fronts there, where string 6's statement is already in force — not at the 4.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 5, 5, Fraction{5, 8}),
+            noteAt(2, Fraction{}, 6, 5, Fraction{3, 4}),
+            noteAt(4, Fraction{}, 5, 4, Fraction{1, 4}),
+            noteAt(4, Fraction{}, 4, 3, Fraction{1, 4}),
+        }));
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{5, 8});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 8});
+        holdsTheFloorGrip(derived);
+        everySpanIsPositive(derived);
+    }
+}
+
+// The clamp's reason to exist: a statement extended BACKWARD never moves a front later. String 6's
+// 5 struck exactly at the floor and the same 5 struck on the second beat are one front, the floor.
+// Read as a filter, the earlier statement fell behind the floor and dated nothing, and the front
+// slipped forward to the next member's onset.
+TEST_CASE(
+    "Extending a member's statement backward never moves its span's front later", "[core][chart]")
+{
+    const auto figure = [](const int beat, const Fraction offset, const Fraction ring) {
+        return streamOf({
+            noteAt(1, Fraction{}, 5, 5, Fraction{5, 8}),
+            noteAt(beat, offset, 6, 5, ring),
+            noteAt(4, Fraction{}, 5, 4, Fraction{1, 4}),
+            noteAt(4, Fraction{}, 4, 3, Fraction{1, 4}),
+        });
+    };
+    const ChartShapes at_floor = deriveFrom(figure(3, Fraction{1, 2}, Fraction{3, 8}));
+    const ChartShapes earlier = deriveFrom(figure(2, Fraction{}, Fraction{3, 4}));
+
+    REQUIRE(at_floor.shapes.size() == 1);
+    REQUIRE(earlier.shapes.size() == 1);
+    CHECK(at_floor.shapes[0].place == Fraction{5, 8});
+    CHECK(earlier.shapes[0].place == at_floor.shapes[0].place);
+    CHECK(earlier.shapes[0].sustain == at_floor.shapes[0].sustain);
+    CHECK(derivedStops(earlier, 0) == derivedStops(at_floor, 0));
+}
+
+// The sighted figure (a power-chord riff into an arpeggiated grip): string 5's 5 rings from the
+// last sixteenth of the bar before to the second beat, string 6's 5 is struck on the downbeat and
+// restruck on the second beat with no gap between the two, and the grip's 4 and 3 follow on the
+// third and fourth beats. The restrike inherits the downbeat's beginning, which lies behind the
+// floor the 5's death sets, so the span fronts at the floor — the restrike's own onset — and never
+// at the 4 a beat later.
+TEST_CASE(
+    "A restated string held across a foreign ring's death fronts at that death", "[core][chart]")
+{
+    const ChartShapes derived = deriveFrom(streamOf({
+        noteAt(4, Fraction{3, 4}, 5, 5, Fraction{5, 16}),
+        inMeasure(2, noteAt(1, Fraction{}, 6, 5, Fraction{1, 4})),
+        inMeasure(2, noteAt(2, Fraction{}, 6, 5, Fraction{3, 4})),
+        inMeasure(2, noteAt(3, Fraction{}, 5, 4, Fraction{1, 2})),
+        inMeasure(2, noteAt(4, Fraction{}, 4, 3, Fraction{1, 4})),
+    }));
+
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{5, 4});
+    CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+    holdsTheFloorGrip(derived);
+    everySpanIsPositive(derived);
+}
+
+// A SLID STRING'S FOREIGN SOUND ENDS AT ITS LANDING (shape rule 1's floor, read off the channel):
+// before the landing the string audibly sounds its departure stop, which is not the stop the grip
+// states. The sighted arpeggio: open strings 3 and 5 are already in force when string 1 strikes 3
+// and slides to 5, and the grip states the 5. The open neighbours' statements are clamped to the
+// floor like any member's, so the span fronts at the landing — never where the open strings began,
+// and never at the slide's strike, either of which prints the 5 over the 3 still sounding.
+TEST_CASE(
+    "A carried member's open neighbours do not date a span before a slid member's landing",
+    "[core][chart]")
+{
+    const auto figure = [](const bool open_ring_before) {
+        std::vector<ChartNote> notes{
+            inMeasure(2, noteAt(1, Fraction{}, 2, 3, Fraction{1, 8})),
+            inMeasure(2, noteAt(1, Fraction{}, 5, 3, Fraction{1, 8})),
+            inMeasure(2, pullOffAt(1, Fraction{1, 2}, 5, 0, Fraction{1})),
+            inMeasure(2, noteAt(2, Fraction{}, 4, 0, Fraction{1})),
+            inMeasure(2, noteAt(2, Fraction{1, 2}, 3, 0, Fraction{1, 4})),
+            inMeasure(2, noteAt(3, Fraction{}, 2, 3, Fraction{1, 8})),
+            inMeasure(2, noteAt(3, Fraction{1, 2}, 3, 3, Fraction{1, 8})),
+            inMeasure(2, noteAt(4, Fraction{}, 2, 2, Fraction{5, 8})),
+            inMeasure(3, noteAt(1, Fraction{1, 2}, 5, 0, Fraction{5, 8})),
+            inMeasure(3, noteAt(2, Fraction{}, 4, 0, Fraction{19, 8})),
+            inMeasure(3, noteAt(2, Fraction{1, 2}, 3, 0, Fraction{1, 2})),
+            inMeasure(
+                3,
+                travellingAt(noteAt(3, Fraction{}, 1, 3, Fraction{1, 2}), {{Fraction{1, 8}, 5}})),
+            inMeasure(3, noteAt(4, Fraction{}, 5, 0, Fraction{5, 4})),
+            inMeasure(3, noteAt(4, Fraction{1, 2}, 3, 0, Fraction{1, 8})),
+        };
+        if (open_ring_before)
+        {
+            // String 1 rings open from a short dyad of its own until the slide's strike displaces
+            // it, so its recorded foreign sound ends at the strike: a floor still short of the
+            // landing.
+            notes.push_back(noteAt(3, Fraction{}, 1, 0, Fraction{2}));
+            notes.push_back(noteAt(3, Fraction{}, 6, 0, Fraction{1, 4}));
+        }
+        return streamOf(std::move(notes));
+    };
+    // The slide strikes at measure 3 beat 3 and lands an eighth note later.
+    const Fraction landing{21, 8};
+
+    for (const bool open_ring_before : {false, true})
+    {
+        CAPTURE(open_ring_before);
+        const ChartShapes derived = deriveFrom(figure(open_ring_before));
+
+        REQUIRE_FALSE(derived.shapes.empty());
+        const ChartShape& slid = derived.shapes.back();
+        CHECK(slid.place == landing);
+        CHECK(slid.sustain == Fraction{3, 8});
+        const std::vector<std::optional<ChartStop>>& stops =
+            derivedStops(derived, derived.shapes.size() - 1);
+        REQUIRE(stops.size() >= 5);
+        CHECK(stops[0] == std::optional{frettedStop(5)});
+        CHECK(stops[2] == std::optional{frettedStop(0)});
+        CHECK(stops[4] == std::optional{frettedStop(0)});
+        everySpanIsPositive(derived);
+    }
+}
+
+// THE SAME TERM AT THE JOIN (shape rule 3's floor arm): a free string that glides and LANDS inside
+// a standing span sounded its departure stop until the landing, so a strike restating the landed
+// stop finds its foreign sound ending after the span's front, and breaks the span rather than
+// joining it. Joined, the bracket would print the landed 5 from the box's front, over the 3 the
+// string still sounded there.
+//
+// String 3 strikes its 3 an eighth before the chord and glides to 5, landing an eighth after it:
+// mid-travel at the stroke, it is no member of the box. Struck inside the box, the glide would
+// join it at its strike and the landing would split the span instead (shape rule 4), so the
+// glide is struck before the stroke to reach the join with the string still free.
+TEST_CASE(
+    "A free string that landed inside a standing span breaks it when restruck", "[core][chart]")
+{
+    const ChartShapes derived = deriveFrom(streamOf({
+        travellingAt(noteAt(4, Fraction{1, 2}, 3, 3, Fraction{3, 4}), {{Fraction{1, 4}, 5}}),
+        inMeasure(2, noteAt(1, Fraction{}, 1, 5, Fraction{1})),
+        inMeasure(2, noteAt(1, Fraction{}, 2, 7, Fraction{1})),
+        inMeasure(2, noteAt(3, Fraction{1, 4}, 3, 5, Fraction{1, 4})),
+    }));
+
+    // One span, the box, closed at the restrike; the chord's rings were struck behind the new
+    // frontier, so nothing founds after it.
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{1});
+    CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{25, 16}});
+    const std::vector<std::optional<ChartStop>>& stops = derivedStops(derived, 0);
+    REQUIRE(stops.size() >= 3);
+    CHECK(stops[0] == std::optional{frettedStop(5)});
+    CHECK(stops[1] == std::optional{frettedStop(7)});
+    CHECK_FALSE(stops[2].has_value());
+    everySpanIsPositive(derived);
 }
 
 // A fretting-hand onset IS the hand, so the one second stop it can hold is the one a pull-off

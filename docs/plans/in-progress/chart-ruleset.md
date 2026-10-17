@@ -308,20 +308,24 @@ as evidence of a grip.
 
 **THE FRONT — a span dates from WHEN EACH MEMBER'S STATEMENT BEGAN**, never from the onset of the
 note the member happens to ride, and never across ground a preceding span covered. One floor: the
-coverage frontier, raised by the end of the last FOREIGN sound on every stated string. The earliest
-member statement at or after that floor dates the span; members behind it state their stops and date
-nothing.
+coverage frontier, raised by the end of the last FOREIGN sound on every stated string. The floor
+CLAMPS the earliest member statement: a member whose statement began behind the floor dates the span
+from the floor, where it is already in force, so a front is the later of the floor and the earliest
+member statement and extending a statement backward never moves a front later. A slid string's
+foreign sound ends at its landing, which the channel knows.
 
-- **The tie doctrine.** A same-stop restrike whose predecessor's ring reaches it — read
-  END-INCLUSIVELY, the window the contradiction witness already uses — is ONE statement said twice,
-  so it inherits the beginning rather than starting its own. **TRANSITIVE**: what it inherits may
-  itself have been inherited, because one statement has one beginning however many times it is said.
-  A single-lookback reading was rejected as an arbitrary rider on the contract's own words. The tie
-  is tested POSITIVELY — the string's channel must state EXACTLY the struck stop at that instant —
-  and never as a negated displacement, so a mid-glide finger inherits nothing; a slide-out
-  predecessor is exempt exactly as LAW I's junction exemption has it, since a ring whose finger is
-  leaving the board asserts no grip to inherit. Identity is judged on GRIP STATEMENTS, so a source
-  planting the still-held stop states that stop and its ornament rides above.
+- **Re-articulation** (retires the name "tie doctrine"). A same-stop restrike whose predecessor's
+  ring reaches it, abutting or overlapping it, is ONE statement said twice for DATING only where
+  another member of the figure is SOUNDING (half-open) at the restrike, and then it inherits the
+  beginning rather than starting its own; a restrike with nothing else sounding is the figure's
+  first articulation. **TRANSITIVE**: what it inherits may itself have been inherited, because one
+  statement has one beginning however many times it is said. A single-lookback reading was rejected
+  as an arbitrary rider on the contract's own words. The identity is tested POSITIVELY — the
+  string's channel must state EXACTLY the struck stop at that instant — and never as a negated
+  displacement, so a mid-glide finger inherits nothing; a slide-out predecessor is exempt exactly as
+  LAW I's junction exemption has it, since a ring whose finger is leaving the board asserts no grip
+  to inherit. Identity is judged on GRIP STATEMENTS, so a source planting the still-held stop states
+  that stop and its ornament rides above.
 - **The landing.** A glide's arrival establishes a new stop, so a slid finger's statement begins AT
   THE LANDING and not at the note it rides — the mirror case, and the reason the column cannot be a
   stored onset in either direction. It needs no record: the fret channel already knows where a
@@ -358,7 +362,8 @@ MEMBER QUITS, or a STATEMENT CONTRADICTS the grip.
   Min-extent is this law's box case rather than a rule beside it:
   two strings of one strum with unequal rings end their box together at the shorter.
 - **The CONTRADICTION arm.** The hand's SOUNDING stop and the span's SOUNDED stops always witness —
-  sound is evidence — and a same-stop restatement is the tie doctrine and witnesses nothing.
+  sound is evidence — and a same-stop restatement is re-articulation's question and witnesses
+  nothing.
 - **The close** is the breaking event's onset or the instant the statement ran out, whichever is
   earlier. The closing HEAD belongs to the close only where the event actually cut a live statement
   — a statement that had already run out was reach-closed and owes no distance to a head that

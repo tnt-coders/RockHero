@@ -157,27 +157,30 @@ struct StringHand
     Fraction sounds{};
 
     // WHEN THE CURRENT STOP'S STATEMENT BEGAN — the dating rule's whole state, and the one thing a
-    // span's front is measured from. THE TIE DOCTRINE: a same-stop restrike whose predecessor's
-    // ring reaches it is one statement said twice, not a new one, so it INHERITS the beginning
-    // rather than starting its own — transitively, since the value it inherits may itself be
-    // inherited, and a chain of restrikes is still one statement with one beginning — clamped to
-    // the coverage frontier at the strike, since a beginning an emitted span already fronted is
-    // spent up to that span's close. Written only by a fretting-hand strike, because only the
-    // fretting hand states a stop; the LANDING half needs no record at all, since \ref
-    // StatedStop::stated_from re-asks the channel for it exactly as \ref covers_at re-asks the
-    // stop. Zero where the hand has never sounded the string. Read through \ref stated_since_at,
-    // never bare — a bare read misses the landing.
+    // span's front is measured from. RE-ARTICULATION: a same-stop restrike whose predecessor's ring
+    // reaches it, with another member of the figure sounding at the restrike, is one statement said
+    // twice, not a new one, so it INHERITS the beginning rather than starting its own —
+    // transitively, since the value it inherits may itself be inherited, and a chain of restrikes
+    // is still one statement with one beginning. Recorded unclamped: the dating floor clamps it
+    // where a span is fronted, since a beginning an emitted span already fronted is spent up to
+    // that span's close. Written only by a fretting-hand strike, because only the fretting hand
+    // states a stop; the LANDING half needs no record at all, since \ref StatedStop::stated_from
+    // re-asks the channel for it exactly as \ref covers_at re-asks the stop. Zero where the hand
+    // has never sounded the string. Read through \ref stated_since_at, never bare — a bare read
+    // misses the landing.
     Fraction stated_since{};
 
     // The end of the last FOREIGN sound on this string — the latest instant it audibly sounded a
-    // stop other than the one its current grip states. The dating clamp's whole state (Law A): a
-    // span may not date its front across an instant at which one of its stated strings audibly
-    // held another stop, because the fronted bracket asserts its whole grip from its start. A
-    // displacement is the special case whose foreign end IS the displacing strike (the
-    // same-string clamp puts them on one instant); a foreign ring that died into silence bounds
-    // just as hard at its own end (the sighted gap figures), so nothing resets this — the bound
-    // records what the string audibly did, not how the grip was established. Zero where the
-    // string never sounded a foreign stop.
+    // stop other than the one its current grip states, as the string's strikes record it. The
+    // dating clamp's state (Law A): a span may not date its front across an instant at which one of
+    // its stated strings audibly held another stop, because the fronted bracket asserts its whole
+    // grip from its start. A displacement is the special case whose foreign end IS the displacing
+    // strike (the same-string clamp puts them on one instant); a foreign ring that died into
+    // silence bounds just as hard at its own end (the sighted gap figures), so nothing resets this
+    // — the bound records what the string audibly did, not how the grip was established. Zero
+    // where the string never sounded a foreign stop. A glide's departure ends at its landing,
+    // which the channel already knows, so it is no record here: read through \ref
+    // foreign_until_at, never bare — a bare read misses the landing.
     Fraction foreign_until{};
 
     // The stop `finger`'s strike STATED beneath the fret it sounds (\ref gripStatement), empty
@@ -353,7 +356,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // When the statement of the stop this string holds as of `now` BEGAN — the hand's own column
     // (\ref StringHand::stated_since) re-asked at the channel, exactly as \ref covers_at re-asks
     // the stop. The two halves of one question: a strike's statement begins where the strike does
-    // unless the tie doctrine hands it an earlier beginning, and a TRAVEL's statement begins at
+    // unless re-articulation hands it an earlier beginning, and a TRAVEL's statement begins at
     // its landing, which the channel already knows — so the landing needs no write anywhere and a
     // lone glide under no span dates as honestly as one inside a shape. Zero where the hand has
     // never sounded the string.
@@ -370,6 +373,25 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             // long before this note, since the column is what a chain of restrikes carries.
             return stated.stated_from == Fraction{} ? hand[string_index].stated_since
                                                     : onset_place[*finger] + stated.stated_from;
+        };
+
+    // The end of this string's last FOREIGN sound as of `now` — the hand's own record
+    // (\ref StringHand::foreign_until) re-asked at the channel, the third half the landing hands on
+    // beside \ref stated_since_at and \ref coverage_at. A slid string sounded its departure stop
+    // until the landing, so a finger that has LANDED somewhere new ended its foreign sound there:
+    // re-ask the channel, so the landing needs no record.
+    const auto foreign_until_at =
+        [&channel_at, &onset_place, &hand](const std::size_t string_index, const Fraction now) {
+            const Fraction recorded = hand[string_index].foreign_until;
+            const std::optional<std::size_t>& finger = hand[string_index].finger;
+            if (!finger.has_value())
+            {
+                return recorded;
+            }
+            const StatedStop stated = channel_at(*finger, now);
+            return stated.stated_from == Fraction{}
+                       ? recorded
+                       : std::max(recorded, onset_place[*finger] + stated.stated_from);
         };
 
     // How far the fretting hand's own statement on this string reaches, measured from `now`: the
@@ -663,27 +685,26 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             gripped_before = open->stops;
         }
 
-        // THE DISPLACEMENT WITNESS (Law A), against the PRE-instant hand and read
-        // end-INCLUSIVELY: a statement replacing a DIFFERENT sounding stop is the finger
-        // observably moving, whether or not any span stands — the same-string clamp puts the
-        // displaced ring's end exactly on the displacing strike, so this instant is the only one
-        // at which the two coexist. A slide-out ring asserts no grip: by its end the finger is
-        // off the board (the GP import figure law's exemption, mirrored). Same stop is the tie
-        // doctrine and witnesses nothing. The witness feeds shape rule 3's foreign-ring break
-        // below; the FOREIGN-SOUND record beside it is the dating floor's state, written here —
-        // from the pre-instant table, before any verdict — so a span opening at this very slot
-        // reads a current bound.
+        // THE DISPLACEMENT WITNESS (Law A), against the PRE-instant hand and read end-INCLUSIVELY:
+        // a statement replacing a DIFFERENT sounding stop is the finger observably moving, whether
+        // or not any span stands — the same-string clamp puts the displaced ring's end exactly on
+        // the displacing strike, so this instant is the only one at which the two coexist. A
+        // slide-out ring asserts no grip: by its end the finger is off the board (the GP import
+        // figure law's exemption, mirrored). Same stop is re-articulation's question and witnesses
+        // nothing. The witness feeds shape rule 3's foreign-ring break below; the FOREIGN-SOUND
+        // record beside it is the dating floor's state, written here — from the pre-instant table,
+        // before any verdict — so a span opening at this very slot reads a current bound.
         //
-        // THE STATEMENT-BEGAN COLUMN for this instant rides the same pass, for the same reason:
-        // the dating below reads it before step 6 applies the slot to the hand, so it is a
-        // pre-instant verdict like every other. A string this slot does not strike keeps the
-        // beginning it already had (its statement did not change here); a strike begins its own
-        // statement unless THE TIE DOCTRINE hands it one — the predecessor's ring reaches this
-        // onset end-inclusively, the channel states EXACTLY this stop there (positive, so a
-        // mid-glide finger inherits nothing), and the predecessor is not a slide-out asserting no
-        // grip at all. Inheritance is transitive by construction: what it inherits was itself
-        // read through \ref stated_since_at, so a chain of restrikes is one statement with one
-        // beginning.
+        // THE STATEMENT-BEGAN COLUMN for this instant rides the same pass, for the same reason: the
+        // dating below reads it before step 6 applies the slot to the hand, so it is a pre-instant
+        // verdict like every other. A string this slot does not strike keeps the beginning it
+        // already had (its statement did not change here); a strike begins its own statement unless
+        // RE-ARTICULATION hands it one — the predecessor's ring reaches this onset end-inclusively,
+        // the channel states EXACTLY this stop there (positive, so a mid-glide finger inherits
+        // nothing), the predecessor is not a slide-out asserting no grip at all, and another member
+        // of the figure sounds at the restrike. Inheritance is transitive by construction: what it
+        // inherits was itself read through \ref stated_since_at, so a chain of restrikes is one
+        // statement with one beginning.
         std::vector<bool> displaced_here(string_count, false);
         std::vector<bool> sounding_before(string_count, false);
         std::vector<Fraction> stated_since_here(string_count);
@@ -709,7 +730,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // THE FOLD, the statement-began column and the foreign-sound floor, so a span
         // fronts where the held evidence began. \c grip_statement_of carries the same verdict
         // into the grip column, so an ornament never rewrites the entry it rides above. A genuine
-        // foreign restrike still pushes the front (the 17:3.5 figure) because the floor's skip
+        // foreign restrike still pushes the front (the 17:3.5 figure) because the floor's clamp
         // below excludes only ground the law accounts for.
         //
         // An OPEN ring is held by no finger, so a source can ride it only as the standing grip's
@@ -777,6 +798,24 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             const std::optional<ChartStop>& struck = slot.strikes[string_index];
             return struck.has_value() && nodeGrip(*struck) ? std::nullopt : struck;
         };
+        // THE RE-ARTICULATION WITNESS: whether another member of the figure is SOUNDING at this
+        // slot beside `string_index` — a fretting-hand finger struck since the coverage frontier
+        // and before this slot, its sound reaching strictly past it. A tail is `[start, end)`, so a
+        // ring ending exactly here sounds nothing at the restrike.
+        const auto figure_sounds_beside =
+            [&hand, &onset_place, &covered, &slot](const std::size_t string_index) {
+                for (std::size_t other = 0; other < string_count; ++other)
+                {
+                    const std::optional<std::size_t>& finger = hand[other].finger;
+                    if (other != string_index && finger.has_value() &&
+                        covered <= onset_place[*finger] && onset_place[*finger] < slot.place &&
+                        slot.place < hand[other].sounds)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
             stated_since_here[string_index] = stated_since_at(string_index, slot.place);
@@ -822,10 +861,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     hand[string_index].foreign_until = sounded_until;
                 }
             }
-            // THE TIE DOCTRINE, judged on GRIP STATEMENTS like every identity question under the
+            // RE-ARTICULATION, judged on GRIP STATEMENTS like every identity question under the
             // grip-statement law: a strike whose statement matches the statement the string's
-            // sounding finger holds inherits that statement's beginning, and every other strike
-            // begins its own. THE FOLD's two arms ARE this equality — a source over the still-held
+            // sounding finger holds inherits that statement's beginning WHERE ANOTHER MEMBER OF THE
+            // FIGURE IS SOUNDING at the restrike (\c figure_sounds_beside), and every other strike
+            // begins its own — a restrike with nothing else sounding is the figure's first
+            // articulation, and the lone note before it is its own gesture. THE FOLD's two arms ARE
+            // this equality — a source over the still-held
             // stop states that stop (the ornament rides above), and the slide-out of such a source
             // states the stop the source stated beneath itself — so one 5-7-5 figure is one
             // statement of 5 with one beginning (the Torn intro fronting at its first note), while
@@ -839,7 +881,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     ? hand[string_index].stated_beneath
                     : held;
             const bool statement_continues = statement.has_value() && held_statement.has_value() &&
-                                             *statement == *held_statement;
+                                             *statement == *held_statement &&
+                                             figure_sounds_beside(string_index);
             if (!statement_continues)
             {
                 stated_since_here[string_index] = slot.place;
@@ -878,15 +921,15 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     continue;
                 }
                 // LAW A AT THE JOIN: the founding's dating floor (front at or after every stated
-                // string's foreign-sound end) is an invariant, and growth cannot move the front
-                // to keep it, so a string whose foreign sound ended INSIDE the span — a natural
-                // harmonic's chime, an open ring dying under the shape — breaks rather than
-                // joins. The displacement above is this rule's special case, the ring still
-                // sounding at the strike; where the ring ended is no difference in what the hand
-                // did. Without it the fret would join and the bracket would print it over the
-                // chime's tail.
+                // string's foreign-sound end) is an invariant, and growth cannot move the front to
+                // keep it, so a string whose foreign sound ended INSIDE the span — a natural
+                // harmonic's chime, an open ring dying under the shape, a free glide landing under
+                // it — breaks rather than joins. The displacement above is this rule's special
+                // case, the ring still sounding at the strike; where the ring ended is no
+                // difference in what the hand did. Without it the fret would join and the bracket
+                // would print it over the chime's tail.
                 if (!stated.has_value() && statement.has_value() &&
-                    open->front_place < hand[string_index].foreign_until)
+                    open->front_place < foreign_until_at(string_index, slot.place))
                 {
                     contradiction = true;
                     continue;
@@ -1353,41 +1396,39 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 if (!whole_stroke)
                 {
                     // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
-                    // every stated string — and the earliest member STATEMENT at or after it
-                    // dates the span. Members behind the floor state their stops and date
-                    // nothing: a tie-inherited beginning an emitted span already fronted, or a
-                    // string this slot's own foreign restrike bounds.
+                    // every stated string — CLAMPS the earliest member STATEMENT. A member whose
+                    // statement began behind the floor dates the span from the floor itself, where
+                    // that statement is already in force: an inherited beginning an emitted
+                    // span already fronted, or a string held through another string's foreign
+                    // sound. The front is the later of the floor and the earliest member
+                    // statement, so extending a member's statement backward never moves a front
+                    // later.
                     //
-                    // Every dating string reads the ONE statement-began column, struck and
-                    // carried alike: a member's own onset is not the question — it is only a
-                    // substitute for the beginning of the statement that onset makes, and it
-                    // answers wrongly in both directions. A restrike of a stop already held began
-                    // its statement earlier (the tie doctrine), and a slid finger began its
-                    // statement LATER than the note it rides, at the landing. A whole stroke
-                    // never reads this column: the tie would date its box from a lone note before
-                    // it that happened to hold one of its stops with a ring abutting the stroke —
-                    // a palm-muted stab into the chord that restates it — and a box fronting
-                    // before the stroke that says it whole misstates what a box is.
+                    // Every dating string reads the ONE statement-began column, struck and carried
+                    // alike: a member's own onset is not the question — it is only a substitute for
+                    // the beginning of the statement that onset makes, and it answers wrongly in
+                    // both directions. A restrike of a stop already held began its statement
+                    // earlier (re-articulation), and a slid finger began its statement LATER than
+                    // the note it rides, at the landing. A whole stroke never reads this column:
+                    // re-articulation would date its box from a note before it that happened to
+                    // hold one of its stops with a ring abutting the stroke — a palm-muted stab
+                    // into the chord that restates it — and a box fronting before the stroke that
+                    // says it whole misstates what a box is.
                     Fraction floor = covered;
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
                         if (stops[string_index].has_value())
                         {
-                            floor = std::max(floor, hand[string_index].foreign_until);
+                            floor = std::max(floor, foreign_until_at(string_index, slot.place));
                         }
                     }
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        if (!stops[string_index].has_value())
+                        if (stops[string_index].has_value())
                         {
-                            continue;
+                            front_place = std::min(
+                                front_place, std::max(stated_since_here[string_index], floor));
                         }
-                        const Fraction stated_since = stated_since_here[string_index];
-                        if (stated_since < floor)
-                        {
-                            continue;
-                        }
-                        front_place = std::min(front_place, stated_since);
                     }
                 }
                 // The opening mark draws at the front: the chord frame states the grip where its
@@ -1438,15 +1479,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             string_hand.stated_beneath =
                 gripStatement(member, planted_stops[note_at], gripped_before[*string_index]);
             // The statement this strike makes began where the pre-instant witness above said it
-            // began — its own onset, or the beginning it inherited under the tie doctrine — but
-            // NO EARLIER THAN THE COVERAGE FRONTIER. A beginning an emitted span already fronted
-            // is spent up to that span's close (the frontier is read here, after this slot's own
-            // close has advanced it), so a restrike of a stop the closed span held dates the next
-            // span from the frontier rather than dating nothing: the hand never left the stop, and
-            // the two spans tile at the close. Without the clamp the inherited beginning would
-            // fall behind the dating floor and the restrike could not date the span it founds, so
-            // the front would slip to the next member's onset (My Sacrifice, bar 11).
-            string_hand.stated_since = std::max(stated_since_here[*string_index], covered);
+            // began — its own onset, or the beginning it inherited under re-articulation.
+            string_hand.stated_since = stated_since_here[*string_index];
             string_hand.covers = coverage_at(*string_index, slot.place);
         }
 

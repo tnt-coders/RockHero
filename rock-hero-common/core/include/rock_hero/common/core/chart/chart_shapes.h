@@ -91,13 +91,13 @@ struct ChartShape
     struck — so the rails run from there and the later members arrive inside it, rather than the
     mark starting at whichever arrival happened to reach the threshold. A member's onset stands in
     for the beginning of the STATEMENT it makes: a restrike of a stop still held began its
-    statement earlier (the tie doctrine) — though no earlier than the coverage frontier at the
-    restrike, since a beginning an emitted span already fronted is spent up to that span's close,
-    so a restrike of a stop the closed span held dates the next span from where the last one
-    ended — and a slid finger's began at the landing. A WHOLE-GRIP STROKE
-    standing alone reads none of that — it is a span boundary (the absorption rule), and the box it
-    founds dates from the stroke itself, never from a lone note before it that happened to hold one
-    of its stops.
+    statement earlier where another member of the figure sounds at the restrike (re-articulation)
+    — though no span dates behind the coverage frontier, since a beginning an emitted span already
+    fronted is spent up to that span's close, so a restrike of a stop the closed span held dates
+    the next span from where the last one ended — and a slid finger's began at the landing. A
+    WHOLE-GRIP STROKE standing alone reads none of that — it is a span boundary (the absorption
+    rule), and the box it founds dates from the stroke itself, never from a lone note before it
+    that happened to hold one of its stops.
 
     The second half is what keeps spans from overlapping: a ring whose onset lies inside a span
     already emitted is CARRIED, and a carry never backdates. That is one comparison with two

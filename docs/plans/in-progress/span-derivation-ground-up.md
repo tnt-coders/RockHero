@@ -84,11 +84,11 @@ is bookkeeping about that tenure.
      and there is ONE kind of member: LAW III's classifies-never-bounds rider is overruled, with
      the import's contradiction cut of co-terminating let-ring rings at grip changes as what keeps
      this from fragmenting passages.
-   - A CONTRADICTION — a statement naming a different stop on a string the grip states or the
-     hand audibly holds (Law A): the hand's SOUNDING stop and the span's SOUNDED stops witness
-     (same-stop is the tie doctrine), and a right-hand onset contradicts only through THE TAP'S
-     FLOOR (a right-hand onset states no grip, ruled 2026-09-29). The seam ownership stands: a ring dying where a
-     new grip begins belongs to its own span; onsets at a seam belong to the opener.
+   - A CONTRADICTION — a statement naming a different stop on a string the grip states or the hand
+     audibly holds (Law A): the hand's SOUNDING stop and the span's SOUNDED stops witness (same-stop
+     is re-articulation's question), and a right-hand onset contradicts only through THE TAP'S FLOOR
+     (a right-hand onset states no grip, ruled 2026-09-29). The seam ownership stands: a ring dying
+     where a new grip begins belongs to its own span; onsets at a seam belong to the opener.
    - THE STATEMENT-CHARACTER SPLITS: a span's statements keep ONE character — whole or in parts —
      and the walk splits where the character turns, so the class is a fact of the span's founding
      rather than a retroactive verdict on everything it ever contained. Two directions.
@@ -239,24 +239,25 @@ audibility cap; voices exist only in the importer.
 The shape of the walk, from the five designs that converged on it (minimal-state, invariants,
 event-algebra, edge-first, deletion-first).
 
-- THE EVIDENCE OUTLIVES SPANS. One per-string table (the hand) owned by the walk, holding: the
-  note whose statement the string carries, from which the CURRENT STOP is read (empty mid-travel —
-  a finger between stops is on none, which is how staggered slides refuse themselves); TWO reach
-  columns — `covers`, the fretting hand's own reach, written only by a member strike and capped at
-  a travel's landing, THE ONLY input to the span's reach and close, and `sounds`, renewed by any
+- THE EVIDENCE OUTLIVES SPANS. One per-string table (the hand) owned by the walk, holding: the note
+  whose statement the string carries, from which the CURRENT STOP is read (empty mid-travel — a
+  finger between stops is on none, which is how staggered slides refuse themselves); TWO reach
+  columns — `covers`, the fretting hand's own reach, written only by a member strike and capped at a
+  travel's landing, THE ONLY input to the span's reach and close, and `sounds`, renewed by any
   sounding onset of either hand, THE ONLY input to renewal and continuity, so the tap chains a
   statement through without ever moving a close; `stated_since`, when the current stop's statement
-  began (the tie doctrine: a same-stop restrike whose predecessor's ring reaches it inherits); and
-  `foreign_until`, the end of the string's last FOREIGN sound — the latest instant it audibly
-  sounded a stop other than its current grip's, which is the dating clamp's whole state. A
-  displacement is the special case whose foreign end is the displacing strike, and a foreign ring
+  began (re-articulation: a same-stop restrike whose predecessor's ring reaches it inherits where
+  another member of the figure sounds at the restrike); and `foreign_until`, the end of the string's
+  last FOREIGN sound — the latest instant it audibly sounded a stop other than its current grip's,
+  which, with a slid string's landing re-asked from the channel, is the dating clamp's whole state.
+  A displacement is the special case whose foreign end is the displacing strike, and a foreign ring
   dead into silence bounds at its own end, so nothing resets it. Splitting the reach in two is what
   lets the table outlive spans, and it is why a ring can contradict a grip that no longer records
   it. TWO QUERY WINDOWS over the one stop, named so the builder cannot collapse them: the
   CONTRADICTION and DISPLACEMENT witnesses read end-INCLUSIVELY (the same-string clamp puts a
-  displaced ring's end exactly on the displacing strike — read strictly, the junction is
-  invisible), while MEMBERSHIP, the fold-in, and the open count read STRICTLY (a ring ending at a
-  slot crosses no slot; the inclusive reading births zero-length spans).
+  displaced ring's end exactly on the displacing strike — read strictly, the junction is invisible),
+  while MEMBERSHIP, the fold-in, and the open count read STRICTLY (a ring ending at a slot crosses
+  no slot; the inclusive reading births zero-length spans).
 - THREE EVENT KINDS — a slot, a landing, an expiry — with the within-instant law in three
   sentences. LANDINGS RESOLVE FIRST (the predecessor's close and its successor stand before the
   slot is judged — settle before branch); EVERY VERDICT — break, contradiction, displacement, the

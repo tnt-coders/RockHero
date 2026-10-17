@@ -1387,12 +1387,6 @@ against the tree on the date above.
   with a tap lick over a held grip exists, add it to the local corpus and check the census's
   derived-held row moves off zero.
 
-- **The span machine states "a beginning an emitted span already fronted is spent" twice.** In
-  `deriveChartShapes`, a strike clamps `stated_since` to the frontier, and the front computation
-  separately skips a member whose `stated_since` lies behind the floor. The clamp's comment argues
-  such a member dates the next span FROM the frontier; the skip makes it date NOTHING. Merging to
-  one authority changes where some spans front, so it needs a ruling and a corpus measurement.
-
 - **Three guards in the span machine can never fire.** `!hand[i].finger.has_value()` in
   `in_force`, `span_reach` and `member_travelling`: `finger` is never cleared and every write into
   a span's stops comes from a path that set it. Prove it with an assert run over the corpus, then

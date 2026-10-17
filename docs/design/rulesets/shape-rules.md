@@ -80,19 +80,25 @@ takes the next one.
      chart. It carries no name and no fingering, because nothing authors either.
    - **The dating rule: a span dates from its front, the earliest member statement not covered by a
      preceding span.** A broken chord's bracket starts at its first note, not at the arrival that
-     reached the threshold. The date is where a member's statement began, not its onset. A
-     same-stop restrike whose predecessor's ring reaches it, end-inclusively, inherits the earlier
-     beginning, transitively; it inherits no earlier than the coverage frontier at the restrike, so
-     a restrike of a stop a closed span held dates the next span from that close. A slid finger's
-     statement begins at the landing where its new stop is established (rule 4). A whole-grip
-     stroke standing alone (rule 3) reads none of this: the span it founds dates from the stroke.
+     reached the threshold. The date is where a member's statement began, not its onset.
+     **Re-articulation:** a same-stop restrike whose predecessor's ring reaches it, abutting or
+     overlapping it, continues its string's earlier statement for dating, transitively, only where
+     another member of the figure is sounding at the restrike; a restrike with nothing else sounding
+     is the figure's first articulation, and the lone note before it is its own gesture. Nothing
+     inherits earlier than the coverage frontier, so a restrike of a stop a closed span held dates
+     the next span from that close. Continuity (rule 3's renewal) is untouched. A slid finger's
+     statement begins at the landing where its new stop is established (rule 4). A whole-grip stroke
+     standing alone (rule 3) reads none of this: the span it founds dates from the stroke.
    - **The dating floor.** A front never dates behind the later of the coverage frontier and, on
      every stated string, the end of its last foreign sound: the last instant it audibly sounded a
      stop other than the one its grip states, whether a displacing strike ended that sound or it
-     died into silence. Members behind the floor state their stops into the posture and date
-     nothing. The floor is an invariant, not a founding step: growth cannot move a front, so a
-     strike on a string whose foreign sound ended after the standing span's front breaks the span
-     rather than joining it (rule 3). The frontier is a dating floor only and never enters a reach.
+     died into silence. A member statement that began behind the floor dates the span from the floor
+     itself, where it is already in force: a front is the later of the floor and the earliest member
+     statement, so extending a member's statement backward never moves a front later. The floor is
+     an invariant, not a founding step: growth cannot move a front, so a strike on a string whose
+     foreign sound ended after the standing span's front breaks the span rather than joining it
+     (rule 3). The frontier is a dating floor only and never enters a reach. A slid string's foreign
+     sound ends at its landing, which the channel knows (rule 4), so no record is written for it.
    - **There are no founding modes.** How a span was born is not a fact anything reads, so the span
      publishes no such field.
 2. **Restatements of one grip share one span.** Consecutive onsets stating the same stops are the
@@ -134,19 +140,19 @@ takes the next one.
      own strike writes how far the span reaches, because a reach a tap wrote would let a tapped
      sixteenth decide a chord's extent.
    - **A statement contradicts the grip.** A strike naming a different stop on a string the grip
-     states, or on a string still audibly sounding another stop, breaks it; a same-stop
-     restatement never does (the tie doctrine). The displacement is read end-inclusively, because
-     the same-string clamp puts the displaced ring's end exactly on the displacing strike. A ringing
-     open string is evidence too: a fret or a node struck over it displaces it. A slide-out ring
-     witnesses nothing, its finger being off the board by its end. A span opening over a ring that
-     sounds another stop contradicts nothing until it states that string, and a foreign ring never
-     joins a posture: it contradicts or it is a tail. A strike on a string the grip does not state,
-     whose last foreign sound ended after the span's front, breaks the span rather than growing it
-     (rule 1's dating floor). A pull-off source riding above a stop the grip holds, and its release
-     back onto that stop, contradict nothing (rule 7). The one contradiction a right-hand onset
-     makes is **the tap's floor**: a picking-hand stop whose path reaches the standing grip's fret
-     on its string, or goes below it, says that finger is gone. Over an open-string entry it proves
-     nothing.
+     states, or on a string still audibly sounding another stop, breaks it; a same-stop restatement
+     never does (rule 1's re-articulation). A ring the same-string clamp ends exactly at the
+     displacing strike is displaced by it: the displacement is that relation between the two notes,
+     the ring abutting the strike, not the ring sounding at its end. A ringing open string is
+     evidence too: a fret or a node struck over it displaces it. A slide-out ring witnesses nothing,
+     its finger being off the board by its end. A span opening over a ring that sounds another stop
+     contradicts nothing until it states that string, and a foreign ring never joins a posture: it
+     contradicts or it is a tail. A strike on a string the grip does not state, whose last foreign
+     sound ended after the span's front, breaks the span rather than growing it (rule 1's dating
+     floor). A pull-off source riding above a stop the grip holds, and its release back onto that
+     stop, contradict nothing (rule 7). The one contradiction a right-hand onset makes is **the
+     tap's floor**: a picking-hand stop whose path reaches the standing grip's fret on its string,
+     or goes below it, says that finger is gone. Over an open-string entry it proves nothing.
    - **The statement changes character.** A span's statements keep one character, whole or in
      parts, so its class is a fact of how it was founded rather than a verdict on everything it
      later contains.
@@ -198,9 +204,11 @@ takes the next one.
      when the current stop's statement began (rule 1); and `foreign_until`, the end of the string's
      last foreign sound. Splitting the reach in two lets the table outlive spans, which is why a
      ring can contradict a grip that no longer records it.
-   - **Two query windows over one stop.** The contradiction and displacement witnesses read
-     end-inclusively. Membership, the fold-in and the opening count read strictly, because a ring
-     ending at a slot crosses no slot and an inclusive read would found zero-length spans.
+   - **A tail is `[start, end)`; abutment is a relation.** Membership, the fold-in, the opening
+     count and re-articulation's witness read sounding strictly, because a ring ending at a slot
+     crosses no slot and an inclusive read would found zero-length spans. The contradiction and
+     displacement witnesses also take a ring ending exactly at a strike, as the relation between the
+     two notes: the ring abuts the strike.
    - **Every span with a sounding member is strictly positive.** Every member reaches strictly past
      its span's start, and the close is the earlier of two instants at or after the start.
    - **What the tenure holds.** A span shortens and hides no ring. The 3D board pins each covered
@@ -238,15 +246,16 @@ takes the next one.
    - **The landing open.** Where a travel lands with the grip held, at least one member arriving
      exactly there and two or more of the closing span's own members sounding strictly past it at a
      stop, a span opens at the landing. Two, not the accumulation minimum, because a landing's
-     members were already established members of the span that just closed, and nothing arrives at
-     a landing. Being held through the slide is end-inclusive at the landing: a ring dying exactly
-     there belonged to the predecessor. The survivors carry the stops their channels state at the
-     landing, open strings included as part of the chord landed on; a member that stayed put keeps
-     its stop. The successor runs by rule 3 over those rings, which bound it. It opens exactly
-     where its predecessor closes, so the two tile with no gap and no zero-length span, and the
-     chain terminates: each successor starts strictly later than its predecessor and holds strictly
-     fewer members than the rings that reached its start. A lone re-pick or a full restatement of
-     the landed grip rides the successor like any other restatement (rule 2).
+     members were already established members of the span that just closed, and nothing arrives at a
+     landing. A ring abutting the landing, ending exactly there, was held through the slide and
+     belonged to the predecessor; only a ring sounding strictly past the landing carries into the
+     successor. The survivors carry the stops their channels state at the landing, open strings
+     included as part of the chord landed on; a member that stayed put keeps its stop. The successor
+     runs by rule 3 over those rings, which bound it. It opens exactly where its predecessor closes,
+     so the two tile with no gap and no zero-length span, and the chain terminates: each successor
+     starts strictly later than its predecessor and holds strictly fewer members than the rings that
+     reached its start. A lone re-pick or a full restatement of the landed grip rides the successor
+     like any other restatement (rule 2).
    - **A landing reached after the grip broke opens nothing.** Where a contradiction ends a span
      mid-glide, its survivors ring out as tails and the landed grip lives in their tails alone. One
      span stands at a time, so nothing remembers a grip it has not arrived at.

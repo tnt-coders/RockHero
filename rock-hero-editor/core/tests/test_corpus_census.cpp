@@ -2687,12 +2687,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // covered-carry half — a strike-less opening that folded in an UNCOVERED ring
                 // backdates onto that ring's own strike and is invisible from published data — so
                 // the row is a FLOOR on the ruling's price and never the price itself, and a
-                // movement here says nothing about the half nothing publishes. It reads zero
-                // because the span machine dates every span at a strike; the other half stays
-                // unmeasured until the walk publishes the slot it opened at.
+                // movement here says nothing about the half nothing publishes. A span is dated at
+                // its dating floor wherever a member statement is already in force there, and a
+                // floor need not be an onset: the one span it counts is It's Only Smiles bar 86,
+                // dated at the instant string 3's fretted 4 died under a lone tap, with strings 2
+                // and 4 holding their 4s. The other half stays unmeasured until the walk publishes
+                // the slot it opened at.
                 .label = "spans DATED at a strike-less slot (floor)",
                 .rig = static_cast<double>(census.derivation.strikeless_front_spans),
-                .expected = 0.0,
+                .expected = 1.0,
             },
             CrossCheck{
                 // THE FHP CONVERGENCE INSTRUMENT'S PRECONDITION: a span no fret-hand window
@@ -2728,15 +2731,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // than once.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included.
+                // width alone included. A span whose front moves onto its slid member's landing is
+                // no longer crossed by that landing's shift: Weathered m4, m48 and m84 front at
+                // string 1's landing (shape rule 1's floor), so none of the three is counted.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 148.0,
+                .expected = 145.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 148.0,
+                .expected = 145.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
