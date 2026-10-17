@@ -38,7 +38,10 @@ the walk founds and accumulates members by its normal rules; the hold's front is
 **What a hold suppresses.** The walk's notation splits: a higher fret on a stated string, foreign
 rings and displacement on strings the span does not state, the join break, the unison-restatement,
 partial-sounding and character splits, the whole-stroke boundary, the drop of a crowded landing,
-and front dating. These split a derived span where the hand provably keeps its shape.
+and front dating. These split a derived span where the hand provably keeps its shape. A hold
+also suppresses the continuity close: a derived span ends where its statement stops being proven
+(a rest, its notes running out), while a hold is the charter's statement, so rests inside it are
+legal.
 
 **The break verdict has two named parts.** A *hand conflict* is hand-position rule 6's release
 against the open span's own grip (its plants and statements), the tap's floor, or a glide's landing
@@ -47,7 +50,9 @@ hold only a hand conflict breaks. "In force" is judged per stop: a string still 
 different stop no longer keeps the span's stop in force.
 
 **The one close rule.** An unnamed hold's span closes at the first hand conflict inside it, or at
-the first break at or after its stated end (either kind, the next hold's start, or the song's end);
+the first instant at or after its stated end where the walk would close it: a break of either
+kind, its statement no longer in force (a rest, or a stated stop no longer sounding), the next
+hold's start, or the song's end;
 the walk publishes it there. **A hold is valid when its published extent equals its stated
 extent.** So an end in the middle of a sustain, where nothing breaks, is invalid; every derived
 span is a valid hold by construction, and authoring one exactly changes nothing.
