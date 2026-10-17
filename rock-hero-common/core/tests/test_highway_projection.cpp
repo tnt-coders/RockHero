@@ -901,7 +901,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .fret = 5,
             // An eighth, which at this tempo lasts exactly the kept-sustain bound and no longer,
             // so tail rule 2 drops it. The pair presents no tail, and the span rule is what answers
-            // how long the hand stays down.
+            // how long the board shows it as still in play.
             .sustain = Fraction{1, 8},
             .bend = {},
             .keyframes = {},
@@ -1100,7 +1100,7 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     // Eighth-note chugs, struck an eighth apart: at this tempo that ring lasts exactly the
     // kept-sustain bound and no longer, so they present no tail at all and the span is what
-    // answers how long the hand stays down.
+    // answers how long the board shows them as still in play.
     const auto chug = [](int string, int fret, GridPosition position) {
         return ChartNote{
             .position = position,

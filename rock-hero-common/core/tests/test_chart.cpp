@@ -3939,8 +3939,9 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
     SECTION("a hand-shape span implies a hold for the display, never for a claim")
     {
-        // The span convention answers how long the HAND stays down (chartNoteLengths), which is a
-        // display length. What a claim reads is the stored ring, so a span cannot lend one.
+        // The span convention answers how long the board shows a note as still in play
+        // (chartNoteLengths), which is a display length. What a claim reads is the stored ring,
+        // so a span cannot lend one.
         //
         // The covering span is not supplied — a two-string strum DERIVES one, which is what the
         // hold assertion below also proves.

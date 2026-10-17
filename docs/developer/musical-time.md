@@ -179,8 +179,8 @@ surface **draws**.
   — growth is accumulation in place, so nothing turns on how a span was born — and no travel flag
   either, because the tail law never hides a ring that STATES something and so needs no span-level
   exemption for a travelling member.
-- `chartNoteLengths(presentation, connections, shapes)` — how long the hand stays down,
-  which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS
+- `chartNoteLengths(presentation, connections, shapes)` — how long the 3D board shows a note as
+  still in play, which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS
   or was never earned, covered by a span, is held to the span's reach — while the grip is held, the
   board pins what is held. Resting members and those tail rule 2 emptied take the same extension
   because they are the same physical fact: under grip tenure a covered member's un-renewed death

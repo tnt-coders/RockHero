@@ -1193,9 +1193,10 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
 }
 
 // The two lengths a note has on screen, and where each comes from: `ink_end_seconds` is the DRAWN
-// tail (what is drawn and scored) and `note_length_ends` is the note length (how long the hand
-// stays down, which a hand-shape span can outlive the tail by). Both are resolved from the one
-// resolutions pass, so this pins the projection's wiring as much as the values.
+// tail (what is drawn and scored) and `note_length_ends` is the note length (how long the board
+// shows the note as still in play, which a hand-shape span can outlive the tail by). Both are
+// resolved from the one resolutions pass, so this pins the projection's wiring as much as the
+// values.
 TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][chart]")
 {
     Chart chart;

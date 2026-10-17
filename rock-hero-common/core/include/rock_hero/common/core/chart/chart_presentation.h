@@ -102,9 +102,10 @@ tail on a dead note that makes no noise, and mark where each tail that shows no 
     const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map);
 
 /*!
-\brief Resolves each note's LENGTH: how long the player keeps the string down.
+\brief Resolves each note's LENGTH: how long the 3D board shows the note as still in play.
 
-The 3D board pins a head for this length, and it is not the same question as what a tail draws. A
+The board pins the note's head at the hit line for this length, and it is not the same question
+as what a tail draws. A
 chugged riff under a hand-shape span draws no tails at all — no ring runs longer than the
 kept-sustain bound — yet the shape is what tells the player to keep holding it, so the note
 length outlives the picture. The 2D lane spends none of this.

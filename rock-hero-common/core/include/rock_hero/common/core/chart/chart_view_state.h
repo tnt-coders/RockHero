@@ -1306,9 +1306,9 @@ struct ChartViewState
     and they go on standing there while repeat boxes restate the same shape over them.
 
     The CLOSE and not the drawn rails, shape rule 6's margin belonging to the projection: a note's
-    length is how long the hand is down, and the margin is ink spacing. So a held head stands right
-    up to the onset that ended the shape, which is the honest answer and the one the rails are not
-    the authority for.
+    length is how long it is still in play, and the margin is ink spacing. So a held head stands
+    right up to the onset that ended the shape, which is the honest answer and the one the rails are
+    not the authority for.
 
     **The 2D lane does not read this.** It draws and hit-tests each note to the extent
     \ref drawnEndSeconds names and never further, so the ribbons under chugs inside the

@@ -473,7 +473,7 @@ struct ChartResolutions
     std::vector<std::optional<int>> held_stops;
 
     /*!
-    \brief Each note's length in whole notes: how long the hand stays down on it.
+    \brief Each note's length in whole notes: how long the 3D board shows it as still in play.
 
     For a note inside a span the length follows from the span, which holds the shape. ONE RULE,
     and \ref chartNoteLengths states it — including which populations stand outside it. Nothing
