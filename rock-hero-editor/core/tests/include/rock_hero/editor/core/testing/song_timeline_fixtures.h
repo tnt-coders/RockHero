@@ -49,6 +49,8 @@ using common::core::Fraction;
 using common::core::FretHandPosition;
 using common::core::GridPosition;
 using common::core::Keyframe;
+using common::core::NoArpeggio;
+using common::core::ShapeHold;
 using common::core::SongSection;
 using common::core::SongTimeline;
 using common::core::TempoMap;
@@ -57,6 +59,7 @@ using common::core::TimeSignatureChange;
 using common::core::ToneAutomationPoint;
 using common::core::ToneParameterAutomation;
 using common::core::ToneRegion;
+using common::core::UnnamedGrip;
 using common::core::testing::anchor;
 using common::core::testing::beatAt;
 using common::core::testing::downbeat;
@@ -153,6 +156,10 @@ inline void requireValid(const SongTimeline& timeline)
     chart.fret_hand_positions = {
         FretHandPosition{.position = at("1:1"), .fret = 3, .end_fret = std::nullopt},
         FretHandPosition{.position = at("3:3+1/2"), .fret = 5, .end_fret = std::nullopt},
+    };
+    chart.shape_holds = {
+        ShapeHold{.start = at("1:1"), .end = at("2:3"), .grip = UnnamedGrip{}},
+        ShapeHold{.start = at("3:3+1/2"), .end = at("4:2"), .grip = NoArpeggio{}},
     };
     return ArrangementTimeline{
         .id = std::move(id),
@@ -555,6 +562,7 @@ enum class SliceKind : std::uint8_t
     RingEnd,
     Keyframe,
     HandPosition,
+    HoldEdge,
     ToneRegionStart,
     AutomationPoint,
 };
@@ -590,8 +598,9 @@ struct SlicePair
 }
 
 // Calls check once per position: the sections, then per arrangement each note's onset, ring end
-// and keyframes, its hand positions, its tone region starts and its automation points. Every list
-// must hold as many entries in both timelines; notes pair by their rank on their string.
+// and keyframes, its hand positions, its shape holds' two edges, its tone region starts and its
+// automation points. Every list must hold as many entries in both timelines; notes pair by their
+// rank on their string.
 template <typename Check>
 void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, const Check& check)
 {
@@ -666,6 +675,14 @@ void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, con
                     SliceKind::HandPosition,
                     old_chart.fret_hand_positions[index].position,
                     new_chart.fret_hand_positions[index].position);
+            }
+            REQUIRE(new_chart.shape_holds.size() == old_chart.shape_holds.size());
+            for (std::size_t index = 0; index < old_chart.shape_holds.size(); ++index)
+            {
+                const ShapeHold& old_hold = old_chart.shape_holds[index];
+                const ShapeHold& new_hold = new_chart.shape_holds[index];
+                plain(SliceKind::HoldEdge, old_hold.start, new_hold.start);
+                plain(SliceKind::HoldEdge, old_hold.end, new_hold.end);
             }
         }
         REQUIRE(new_share.tone_track.regions.size() == old_share.tone_track.regions.size());
@@ -760,6 +777,11 @@ inline void checkTimesHeld(
             for (FretHandPosition& placement : chart.fret_hand_positions)
             {
                 placement.position = {};
+            }
+            for (ShapeHold& hold : chart.shape_holds)
+            {
+                hold.start = {};
+                hold.end = {};
             }
         }
         for (ToneRegion& region : share.tone_track.regions)

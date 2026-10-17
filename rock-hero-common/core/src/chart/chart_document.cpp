@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -27,14 +28,17 @@ constexpr int g_chart_format_version{1};
     return ChartError{.code = ChartErrorCode::MalformedDocument, .message = detail};
 }
 
-[[nodiscard]] std::expected<GridPosition, ChartError> readPosition(
-    const juce::var& object, const TempoMap& tempo_map)
+// Reads the place under `key`. A missing or wrong-typed key reads as the empty token, which no
+// place parses, so it is refused with the malformed one.
+[[nodiscard]] std::expected<GridPosition, ChartError> readPlace(
+    const juce::var& object, const char* key, const TempoMap& tempo_map)
 {
-    const std::string text = Json::readOptionalString(object, "at", "");
+    const std::string text = Json::readOptionalString(object, key, "");
     const auto position = parsePlaceToken(tempo_map, text);
     if (!position.has_value())
     {
-        return std::unexpected{malformed("chart position is not a whole-note place: " + text)};
+        return std::unexpected{malformed(
+            std::string{"chart place is not a whole-note place: "} + key + "=" + text)};
     }
     return *position;
 }
@@ -191,7 +195,7 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
 [[nodiscard]] std::expected<ChartNote, ChartError> readNote(
     const juce::var& note_json, const TempoMap& tempo_map)
 {
-    auto position = readPosition(note_json, tempo_map);
+    auto position = readPlace(note_json, "at", tempo_map);
     if (!position.has_value())
     {
         return std::unexpected{std::move(position.error())};
@@ -443,6 +447,37 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
     }
 
     return note;
+}
+
+// The one spelling of the no-arpeggio grip, read and written. An unnamed grip is the absent key.
+constexpr std::string_view g_no_arpeggio_token{"none"};
+
+// One shape hold: both edges required, the grip optional. A present grip must be the one token,
+// since a wrong-typed or unknown one read as absent would turn a stated no-arpeggio into a grip.
+[[nodiscard]] std::expected<ShapeHold, ChartError> readShapeHold(
+    const juce::var& hold_json, const TempoMap& tempo_map)
+{
+    auto start = readPlace(hold_json, "at", tempo_map);
+    if (!start.has_value())
+    {
+        return std::unexpected{std::move(start.error())};
+    }
+    auto end = readPlace(hold_json, "end", tempo_map);
+    if (!end.has_value())
+    {
+        return std::unexpected{std::move(end.error())};
+    }
+    HoldGrip grip = UnnamedGrip{};
+    if (const juce::var& grip_json = Json::value(hold_json, "grip"); !grip_json.isVoid())
+    {
+        const std::string token = grip_json.isString() ? grip_json.toString().toStdString() : "";
+        if (token != g_no_arpeggio_token)
+        {
+            return std::unexpected{malformed("chart hold \"grip\" is not a known grip: " + token)};
+        }
+        grip = NoArpeggio{};
+    }
+    return ShapeHold{.start = *start, .end = *end, .grip = grip};
 }
 
 // ---- writer -------------------------------------------------------------------------------
@@ -726,7 +761,7 @@ std::expected<Chart, ChartError> parseChartDocument(
         for (int index = 0; index < positions_json.size(); ++index)
         {
             const juce::var& fhp_json = positions_json[index];
-            auto position = readPosition(fhp_json, tempo_map);
+            auto position = readPlace(fhp_json, "at", tempo_map);
             if (!position.has_value())
             {
                 return std::unexpected{std::move(position.error())};
@@ -760,6 +795,21 @@ std::expected<Chart, ChartError> parseChartDocument(
                                     ? std::nullopt
                                     : std::optional{Json::readOptionalInt(fhp_json, "endFret", 0)},
                 });
+        }
+    }
+
+    const juce::var& holds_json = Json::value(root, "holds");
+    if (holds_json.isArray())
+    {
+        chart.shape_holds.reserve(static_cast<std::size_t>(holds_json.size()));
+        for (int index = 0; index < holds_json.size(); ++index)
+        {
+            auto hold = readShapeHold(holds_json[index], tempo_map);
+            if (!hold.has_value())
+            {
+                return std::unexpected{std::move(hold.error())};
+            }
+            chart.shape_holds.push_back(*hold);
         }
     }
 
@@ -819,6 +869,15 @@ namespace
         if (const std::optional<int>& end_fret = fhp.end_fret; end_fret.has_value())
         {
             line += R"(, "endFret": )" + std::to_string(*end_fret);
+        }
+        return line + " }";
+    });
+    append_array("holds", chart.shape_holds, [&tempo_map](const ShapeHold& hold) {
+        std::string line = R"({ "at": ")" + formatPlaceToken(tempo_map, hold.start) +
+                           R"(", "end": ")" + formatPlaceToken(tempo_map, hold.end) + '"';
+        if (std::holds_alternative<NoArpeggio>(hold.grip))
+        {
+            line += R"(, "grip": ")" + std::string{g_no_arpeggio_token} + '"';
         }
         return line + " }";
     });

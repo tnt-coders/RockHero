@@ -203,6 +203,10 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     {
         return std::unexpected{std::move(placements.error())};
     }
+    if (auto holds = validateShapeHolds(chart.shape_holds, tempo_map); !holds.has_value())
+    {
+        return std::unexpected{std::move(holds.error())};
+    }
     if (auto notes = validateChartNotes(chart.notes, chart.tuning, tempo_map); !notes.has_value())
     {
         return std::unexpected{std::move(notes.error())};
@@ -264,6 +268,42 @@ std::expected<void, ChartError> validateFretHandPositions(
             }};
         }
         previous_fhp = &fhp;
+    }
+    return {};
+}
+
+// Each hold's own edges, then its start against the previous hold's end. Holds are half-open, so
+// one may begin exactly where the last ended, and an end may lie exactly at the song's end.
+std::expected<void, ChartError> validateShapeHolds(
+    const std::vector<ShapeHold>& holds, const TempoMap& tempo_map)
+{
+    const auto refused = [](const std::string& rule, const GridPosition& at) {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidShapeHold,
+            .message = rule + " at " + formatGridPositionToken(at),
+        }};
+    };
+    const GridPosition song_end = terminalGridPosition(tempo_map);
+    const ShapeHold* previous = nullptr;
+    for (const ShapeHold& hold : holds)
+    {
+        if (!markerCanStartAt(hold.start, tempo_map))
+        {
+            return refused("shape hold starts off the grid or past the song", hold.start);
+        }
+        if (!isValidGridPosition(hold.end, tempo_map) || song_end < hold.end)
+        {
+            return refused("shape hold ends off the grid or past the song", hold.end);
+        }
+        if (!(hold.start < hold.end))
+        {
+            return refused("shape hold does not end after its start", hold.start);
+        }
+        if (previous != nullptr && hold.start < previous->end)
+        {
+            return refused("shape hold begins before the previous one ends", hold.start);
+        }
+        previous = &hold;
     }
     return {};
 }

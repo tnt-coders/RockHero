@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <span>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -2288,6 +2289,69 @@ struct FretHandPosition
         const FretHandPosition& lhs, const FretHandPosition& rhs) noexcept = default;
 };
 
+/*!
+\brief The grip of a hold that names none: the hand holds one shape, read from the notes inside.
+*/
+struct UnnamedGrip
+{
+    /*!
+    \brief Compares two unnamed grips; all are equal, the grip carrying nothing.
+    \param lhs Left-hand grip.
+    \param rhs Right-hand grip.
+    \return Always true.
+    */
+    friend constexpr bool operator==(const UnnamedGrip& lhs, const UnnamedGrip& rhs) noexcept =
+        default;
+};
+
+/*!
+\brief The grip of a hold stating that no arpeggio shape is held: its notes sound one by one, though
+a chord struck inside still grips its own shape.
+*/
+struct NoArpeggio
+{
+    /*!
+    \brief Compares two no-arpeggio grips; all are equal, the grip carrying nothing.
+    \param lhs Left-hand grip.
+    \param rhs Right-hand grip.
+    \return Always true.
+    */
+    friend constexpr bool operator==(const NoArpeggio& lhs, const NoArpeggio& rhs) noexcept =
+        default;
+};
+
+/*! \brief What a hold states the hand grips: a sum, so each grip carries exactly its own facts. */
+using HoldGrip = std::variant<UnnamedGrip, NoArpeggio>;
+
+/*!
+\brief A shape hold: the charter's statement of what the fretting hand holds over `[start, end)` —
+shape rule 9 (\ref design_rulesets_shapes).
+
+Both edges are stated, so the extent is exact: no note edit moves it. Not the derived
+\ref FretHandHold, which is one stop the hand provably keeps pressed.
+*/
+struct ShapeHold
+{
+    /*! \brief Where the hold begins. */
+    GridPosition start;
+
+    /*! \brief Where the hold ends, exclusive; strictly after \ref start. */
+    GridPosition end;
+
+    /*! \brief What the hand grips over the hold. */
+    HoldGrip grip{};
+
+    /*!
+    \brief Compares two holds by their stored fields.
+    \param lhs Left-hand hold.
+    \param rhs Right-hand hold.
+    \return True when both holds store equal values.
+
+    Not `noexcept`: a variant's comparison can reach `std::get`, which may throw.
+    */
+    friend bool operator==(const ShapeHold& lhs, const ShapeHold& rhs) = default;
+};
+
 /*! \brief Instrument tuning for one arrangement. */
 struct ChartTuning
 {
@@ -2324,10 +2388,10 @@ struct ChartTuning
 
 Notes say where each finger goes and what it sounds; the authored hand positions say where the
 charter states the hand sits on the neck, and every other position is derived. What the hand HOLDS
-— the chord boxes and arpeggio brackets both surfaces draw — is derived from those two rather than
-stored beside them
+— the chord boxes and arpeggio brackets both surfaces draw — is derived from the notes
 (\ref deriveChartShapes), because a span is a statement about the notes under it and a stored one
-could only ever disagree with them. There is exactly one chart per arrangement — difficulty is a
+could only ever disagree with them; the charter's shape holds state only where a hold begins and
+ends and whether it grips one shape. There is exactly one chart per arrangement — difficulty is a
 derived rating, never authored variants.
 */
 struct Chart
@@ -2343,6 +2407,12 @@ struct Chart
     every other position is derived (\ref deriveFretHandEvents).
     */
     std::vector<FretHandPosition> fret_hand_positions;
+
+    /*!
+    \brief The shape holds the charter authored, ascending and never overlapping; one may end
+    exactly where the next begins.
+    */
+    std::vector<ShapeHold> shape_holds;
 
     /*!
     \brief Compares two charts by their stored fields.

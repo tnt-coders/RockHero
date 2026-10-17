@@ -4,6 +4,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <compare>
+#include <cstddef>
 #include <limits>
 #include <map>
 #include <optional>
@@ -194,7 +195,42 @@ constexpr Fraction g_fixture_ring{1, 32};
         FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 7},
     };
+    // Touching, as holds may: the second begins exactly where the first ends.
+    chart.shape_holds = {
+        ShapeHold{
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 2, .beat = 1},
+            .grip = UnnamedGrip{},
+        },
+        ShapeHold{
+            .start = GridPosition{.measure = 2, .beat = 1},
+            .end = GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 2}},
+            .grip = NoArpeggio{},
+        },
+    };
     return chart;
+}
+
+// A one-string chart document whose `holds` array is `holds_json`, for the shape-hold read cases.
+[[nodiscard]] std::string holdsDocument(const std::string& holds_json)
+{
+    return R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [], "holds": [)" +
+           holds_json + "] }";
+}
+
+// A one-string chart holding `holds` and no note, for the shape-hold rule cases.
+[[nodiscard]] Chart chartWithHolds(std::vector<ShapeHold> holds)
+{
+    Chart chart;
+    chart.tuning.strings = {"E2"};
+    chart.shape_holds = std::move(holds);
+    return chart;
+}
+
+// A hold over `[start, end)` gripping the unnamed shape.
+[[nodiscard]] ShapeHold unnamedHold(const GridPosition& start, const GridPosition& end)
+{
+    return ShapeHold{.start = start, .end = end, .grip = UnnamedGrip{}};
 }
 
 // Classifies the span the derivation produces at `position`, end to end from one stream.
@@ -2610,6 +2646,87 @@ TEST_CASE("Chart document refuses a hand position without a fret", "[core][chart
     const auto parsed = parseChartDocument(text, makeTempoMap());
     REQUIRE_FALSE(parsed.has_value());
     CHECK(parsed.error().code == ChartErrorCode::MalformedDocument);
+}
+
+// A hold writes both edges always and its grip only where it states no arpeggio: an absent key is
+// the unnamed grip, so the full fixture's two holds carry one grip key between them.
+TEST_CASE("Chart document writes a shape hold's grip only where it states none", "[core][chart]")
+{
+    const std::string text = chartDocumentText(makeFullChart(), makeTempoMap());
+    CHECK(text.find(R"({ "at": "0", "end": "1" })") != std::string::npos);
+    CHECK(text.find(R"({ "at": "1", "end": "2+3/8", "grip": "none" })") != std::string::npos);
+}
+
+// Both edges are required places and a present grip must be the one token: a missing, wrong-typed
+// or unknown value is refused, never read as an unnamed grip or a hold with no end.
+TEST_CASE("Chart document refuses a malformed shape hold", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto parsed = parseChartDocument(
+        holdsDocument(R"({ "at": "0", "end": "1" }, { "at": "1", "end": "2", "grip": "none" })"),
+        tempo_map);
+    const std::vector<ShapeHold> expected{
+        unnamedHold(GridPosition{.measure = 1, .beat = 1}, GridPosition{.measure = 2, .beat = 1}),
+        ShapeHold{
+            .start = GridPosition{.measure = 2, .beat = 1},
+            .end = GridPosition{.measure = 3, .beat = 1},
+            .grip = NoArpeggio{},
+        },
+    };
+    REQUIRE(parsed.has_value());
+    if (parsed.has_value())
+    {
+        CHECK(parsed->shape_holds == expected);
+    }
+
+    for (const std::string_view refused :
+         {R"({ "end": "1" })",
+          R"({ "at": "0" })",
+          R"({ "at": 0, "end": "1" })",
+          R"({ "at": "0", "end": "1/7" })",
+          R"({ "at": "0", "end": "1", "grip": 0 })",
+          R"({ "at": "0", "end": "1", "grip": "unnamed" })"})
+    {
+        CAPTURE(refused);
+        const auto result = parseChartDocument(holdsDocument(std::string{refused}), tempo_map);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == ChartErrorCode::MalformedDocument);
+    }
+}
+
+// The hold stream's structure: every hold non-empty, inside the song, and beginning at or after the
+// previous one's end. Holds are half-open, so touching is legal and an end may be the song's end.
+TEST_CASE("Chart rules refuse an empty, unordered or overlapping shape hold", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const GridPosition song_end = terminalGridPosition(tempo_map);
+    const auto bar = [](const int measure) { return GridPosition{.measure = measure, .beat = 1}; };
+
+    CHECK(validateChartRules(chartWithHolds({}), tempo_map).has_value());
+    CHECK(validateChartRules(
+              chartWithHolds({unnamedHold(bar(1), bar(2)), unnamedHold(bar(2), bar(3))}), tempo_map)
+              .has_value());
+    CHECK(
+        validateChartRules(
+            chartWithHolds({unnamedHold(bar(1), bar(2)), unnamedHold(bar(4), song_end)}), tempo_map)
+            .has_value());
+
+    const std::vector<std::vector<ShapeHold>> refused{
+        {unnamedHold(bar(2), bar(2))},
+        {unnamedHold(bar(3), bar(2))},
+        {unnamedHold(bar(1), bar(3)), unnamedHold(bar(2), bar(4))},
+        {unnamedHold(bar(3), bar(4)), unnamedHold(bar(1), bar(2))},
+        {unnamedHold(song_end, bar(10))},
+        {unnamedHold(bar(1), bar(10))},
+        {unnamedHold(GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 7}}, bar(2))},
+    };
+    for (std::size_t index = 0; index < refused.size(); ++index)
+    {
+        CAPTURE(index);
+        const auto result = validateChartRules(chartWithHolds(refused[index]), tempo_map);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == ChartErrorCode::InvalidShapeHold);
+    }
 }
 
 // Verifies the structural rules no repair can express are refused, beside the forms the load

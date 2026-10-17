@@ -138,6 +138,11 @@ common::core::SongTimeline readdressTimeline(
             {
                 placement.position = mapped(placement.position);
             }
+            for (common::core::ShapeHold& hold : chart.shape_holds)
+            {
+                hold.start = mapped(hold.start);
+                hold.end = mapped(hold.end);
+            }
         }
         for (common::core::ToneRegion& region : arrangement.tone_track.regions)
         {

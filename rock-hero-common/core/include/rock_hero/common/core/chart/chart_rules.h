@@ -194,6 +194,8 @@ enum class ChartErrorCode : std::uint8_t
     position leaves a fretted note sounding at its instant uncovered.
     */
     InvalidFretHandPosition,
+    /*! \brief A shape hold is off the grid, past the song, empty, or overlaps the one before. */
+    InvalidShapeHold,
     /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
     InvalidPickSlide
 };
@@ -726,6 +728,20 @@ judged by exactly the rules a package load applies without re-judging every note
     const TempoMap& tempo_map);
 
 /*!
+\brief Validates the shape-hold stream's structure: every start on the grid and before the song's
+end, every end on the grid and at or before it, every end after its start, and each hold beginning
+at or after the previous one's end.
+
+Only the stated extents are judged: no note is read.
+
+\param holds Shape holds to validate.
+\param tempo_map Song tempo map the edges must lie on.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateShapeHolds(
+    const std::vector<ShapeHold>& holds, const TempoMap& tempo_map);
+
+/*!
 \brief An authored position that breaks the hand-position coverage rule, with the first demand it
 misses.
 */
@@ -806,15 +822,16 @@ Broadly, the structural half: a usable tuning and the cent-offset bound; notes s
 and keyframe on the tick lattice; strings in range; non-negative frets, and a strictly positive
 sustain on every note; keyframe offsets strictly positive and ascending within the sustain, none
 stating a negative fret or bend; fret-hand positions strictly ascending and unique by position;
-harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the
-attack that cannot carry every technique, that the note already equals its own
-\ref savedChartNote form — a pick slide's pitched fields being in-memory latents the writer omits.
+shape holds non-empty, in order and never overlapping (\ref validateShapeHolds); harmonic-node
+range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the attack that
+cannot carry every technique, that the note already equals its own \ref savedChartNote form — a
+pick slide's pitched fields being in-memory latents the writer omits.
 Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
 position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).
 
 Hand-posture spans and their postures are absent by construction, not by omission: they are
-derived from the notes (\ref deriveChartShapes), so there is no authored span that could be invalid
+derived from the notes (\ref deriveChartShapes), so there is no stored span that could be invalid
 and nothing for a rule to refuse.
 
 \param chart Chart to validate.
