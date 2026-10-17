@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <iterator>
@@ -14,6 +15,8 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -83,6 +86,45 @@ namespace
 {
     return fretHandHolds(
         connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}), 0);
+}
+
+// One stream's spans and the holds derived through them, ring holds first.
+struct SpanHolds
+{
+    ChartShapes shapes;
+    std::vector<FretHandHold> holds;
+    // How many of `holds` lead as ring holds: the ones a stream derives through no span at all.
+    std::size_t ring_holds{0};
+};
+
+[[nodiscard]] SpanHolds spanHoldsOf(const std::vector<ChartNote>& notes)
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const ChartConnections connections = chartConnections(notes, tempo_map);
+    ChartShapes shapes = deriveChartShapes(connections, HeadMargins{connections.places, tempo_map});
+    std::vector<FretHandHold> holds = fretHandHolds(connections, shapes, 0);
+    const std::size_t ring_holds = fretHandHolds(connections, ChartShapes{}, 0).size();
+    return SpanHolds{
+        .shapes = std::move(shapes),
+        .holds = std::move(holds),
+        .ring_holds = ring_holds,
+    };
+}
+
+// Where `note`, alone on its string, releases the `stop` held there, judged from `from`.
+[[nodiscard]] std::optional<Fraction> releaseOf(
+    const ChartNote& note, const Fraction from, const int stop)
+{
+    return noteReleasesStopAt(chartConnections({note}, makeTempoMap()), 0, from, stop);
+}
+
+// Whether `holds` carries a hold of exactly `expected`'s fret over exactly its stretch.
+[[nodiscard]] bool containsHold(
+    const std::span<const FretHandHold> holds, const FretHandHold& expected)
+{
+    return std::ranges::any_of(holds, [&expected](const FretHandHold& hold) {
+        return hold.from == expected.from && hold.to == expected.to && hold.fret == expected.fret;
+    });
 }
 
 // The hand events the 13 hand-position rules derive from one stream, under a capo where a case
@@ -303,6 +345,224 @@ TEST_CASE("Fret-hand coverage holds a slide-out's stop to its ring end", "[core]
     CHECK(holds[0].fret == 5);
     CHECK_FALSE(coveredBy({sliding_out}, positionAt(1, 2, 7)));
     CHECK(coveredBy({sliding_out}, positionAt(1, 3, 7)));
+}
+
+// A span's grip holds every pressed stop from the span's front until its string releases it, else
+// to the close: a free string joining a ringing chord is held from the front, and a pull-off source
+// riding above the grip's stop is another finger, which leaves that stop down beneath it (shape
+// rule 7). The finger on the stop sliding away releases it, and so do the open string and a tap on
+// the stop, while a tap above it or a fretting-hand restrike of it leaves it held. The grip holds
+// follow every ring hold.
+TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
+{
+    SECTION("a chord ringing while a free string joins")
+    {
+        const SpanHolds derived = spanHoldsOf({
+            noteAt(1, 1, 1, 5, Fraction{1}),
+            noteAt(1, 1, 2, 7, Fraction{1}),
+            noteAt(1, 3, 3, 9),
+        });
+        REQUIRE(derived.shapes.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.shapes.front();
+        const Fraction close = shape.place + shape.sustain;
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(grip.size() == 3);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 7}));
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+    }
+
+    SECTION("a pull-off source riding above the grip's stop")
+    {
+        // The 5's ring ends where its string is struck again, so only the grip can hold it there.
+        const SpanHolds derived = spanHoldsOf({
+            noteAt(1, 1, 1, 5),
+            noteAt(1, 1, 2, 7, Fraction{1}),
+            noteAt(1, 2, 1, 7),
+            legatoAt(1, 3, 1, 5),
+        });
+        REQUIRE(derived.shapes.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.shapes.front();
+        const Fraction close = shape.place + shape.sustain;
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(grip.size() == 2);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
+        const std::span<const FretHandHold> rings =
+            std::span{derived.holds}.first(derived.ring_holds);
+        CHECK(containsHold(
+            rings, FretHandHold{.from = Fraction{1, 4}, .to = Fraction{1, 2}, .fret = 7}));
+    }
+
+    SECTION("a chord whose fingers slide off the grip")
+    {
+        // One travel (shape rule 4): the fingers glide through 6/8 and land on 7/9 at 1/4, where
+        // the span closes. The grip is released at the fingers' first statement off it.
+        const SpanHolds derived = spanHoldsOf({
+            withFretAt(
+                withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 8}, 6),
+                Fraction{1, 4},
+                7),
+            withFretAt(
+                withFretAt(noteAt(1, 1, 2, 7, Fraction{1, 2}), Fraction{1, 8}, 8),
+                Fraction{1, 4},
+                9),
+        });
+        REQUIRE_FALSE(derived.shapes.shapes.empty());
+        const ChartShape& shape = derived.shapes.shapes.front();
+        REQUIRE(shape.place == Fraction{});
+        REQUIRE(shape.sustain == Fraction{1, 4});
+        const Fraction slide = shape.place + Fraction{1, 8};
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = slide, .fret = 5}));
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = slide, .fret = 7}));
+        CHECK_FALSE(
+            containsHold(grip, FretHandHold{.from = shape.place, .to = Fraction{1, 4}, .fret = 5}));
+        const std::span<const FretHandHold> rings =
+            std::span{derived.holds}.first(derived.ring_holds);
+        CHECK(containsHold(rings, FretHandHold{.from = slide, .to = Fraction{1, 4}, .fret = 6}));
+        CHECK(containsHold(rings, FretHandHold{.from = slide, .to = Fraction{1, 4}, .fret = 8}));
+    }
+
+    SECTION("a tap on a joining string's stop before the fretting hand strikes it")
+    {
+        // The tap sounds the 9 before the string joins the grip, so shape rule 3's tap floor has no
+        // gripped fret to reach and the span stands; hand-position rule 6 still holds the 9 from
+        // the front, and the tap on it says the finger there has lifted.
+        const SpanHolds derived = spanHoldsOf({
+            noteAt(1, 1, 1, 5, Fraction{1}),
+            noteAt(1, 1, 2, 7, Fraction{1}),
+            tapAt(1, 2, 3, 9),
+            noteAt(1, 3, 3, 9),
+        });
+        REQUIRE(derived.shapes.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.shapes.front();
+        const Fraction close = shape.place + shape.sustain;
+        const Fraction tap_onset{1, 4};
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = tap_onset, .fret = 9}));
+        CHECK_FALSE(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 7}));
+    }
+
+    SECTION("a tap above a joining string's stop")
+    {
+        const SpanHolds derived = spanHoldsOf({
+            noteAt(1, 1, 1, 5, Fraction{1}),
+            noteAt(1, 1, 2, 7, Fraction{1}),
+            tapAt(1, 2, 3, 11),
+            noteAt(1, 3, 3, 9),
+        });
+        REQUIRE(derived.shapes.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.shapes.front();
+        const Fraction close = shape.place + shape.sustain;
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+    }
+
+    SECTION("a fretting-hand restrike of a joining string's stop")
+    {
+        const SpanHolds derived = spanHoldsOf({
+            noteAt(1, 1, 1, 5, Fraction{1}),
+            noteAt(1, 1, 2, 7, Fraction{1}),
+            noteAt(1, 2, 3, 9),
+            noteAt(1, 3, 3, 9),
+        });
+        REQUIRE(derived.shapes.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.shapes.front();
+        const Fraction close = shape.place + shape.sustain;
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+    }
+
+    SECTION("an open strike on a gripped string")
+    {
+        // The open strike sounds the string with no finger down, so it releases the grip's 5. The
+        // walk closes the span at that strike too, so the release and the close coincide.
+        const SpanHolds derived = spanHoldsOf({
+            noteAt(1, 1, 1, 5, Fraction{1}),
+            noteAt(1, 1, 2, 7, Fraction{1}),
+            noteAt(1, 3, 1, 0),
+        });
+        REQUIRE(derived.shapes.shapes.size() == 1);
+        const ChartShape& shape = derived.shapes.shapes.front();
+        const Fraction close = shape.place + shape.sustain;
+        const Fraction open_onset{1, 2};
+        CHECK(close == open_onset);
+        const std::span<const FretHandHold> grip =
+            std::span{derived.holds}.subspan(derived.ring_holds);
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
+        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 7}));
+    }
+}
+
+// Hand-position rule 6's release: the note gripping a stop lets go of it where its finger slides
+// away, and any other note where it sounds the string open, at a node, or at or below the stop — a
+// tap on the stop included; a note above is another finger and leaves the stop held.
+TEST_CASE("A note releases a held stop where its channel leaves it held", "[core][chart]")
+{
+    SECTION("a tap struck on the held fret releases it at its onset")
+    {
+        CHECK(releaseOf(tapAt(1, 2, 1, 5), Fraction{}, 5) == Fraction{1, 4});
+    }
+
+    SECTION("a tap above the held fret never releases it")
+    {
+        CHECK_FALSE(releaseOf(tapAt(1, 2, 1, 7), Fraction{}, 5).has_value());
+    }
+
+    SECTION("the gripping note sliding away releases at its new fret")
+    {
+        const ChartNote sliding = withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 4}, 7);
+        CHECK(releaseOf(sliding, Fraction{}, 5) == Fraction{1, 4});
+    }
+
+    SECTION("a note above the stop never releases it")
+    {
+        CHECK_FALSE(releaseOf(noteAt(1, 2, 1, 7, Fraction{1, 2}), Fraction{}, 5).has_value());
+    }
+
+    SECTION("a note below the stop releases it at its onset")
+    {
+        CHECK(releaseOf(noteAt(1, 3, 1, 3), Fraction{}, 5) == Fraction{1, 2});
+    }
+
+    SECTION("a note sliding down from above releases where it reaches the stop")
+    {
+        const ChartNote falling = withFretAt(noteAt(1, 1, 1, 7, Fraction{1}), Fraction{1, 2}, 4);
+        CHECK(releaseOf(falling, Fraction{1, 4}, 5) == Fraction{1, 2});
+    }
+
+    SECTION("the open string releases it")
+    {
+        CHECK(releaseOf(noteAt(1, 2, 1, 0), Fraction{}, 5) == Fraction{1, 4});
+    }
+
+    SECTION("a natural harmonic's node releases it")
+    {
+        ChartNote chime = noteAt(1, 2, 1, 0);
+        chime.harmonic_node = 12.0;
+        CHECK(releaseOf(chime, Fraction{}, 5) == Fraction{1, 4});
+    }
+
+    SECTION("over an open stop only a node releases another note's statement")
+    {
+        CHECK_FALSE(releaseOf(noteAt(1, 2, 1, 3), Fraction{}, 0).has_value());
+        ChartNote chime = noteAt(1, 2, 1, 0);
+        chime.harmonic_node = 12.0;
+        CHECK(releaseOf(chime, Fraction{}, 0) == Fraction{1, 4});
+    }
+
+    SECTION("a ring ended before the judgement begins releases nothing")
+    {
+        CHECK_FALSE(releaseOf(noteAt(1, 1, 1, 0), Fraction{1, 4}, 5).has_value());
+    }
 }
 
 // A natural harmonic's node is demanded at its strike, and its chime holds nothing after it,

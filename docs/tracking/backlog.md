@@ -1595,12 +1595,6 @@ against the tree on the date above.
 - **Rename `ChartResolutions::holds` to `held_lengths`.** The field is each note's held LENGTH in
   whole notes, and the layer also carries `hand_demands.holds`, the stops the fretting hand holds,
   which are a different thing with nearly the same name.
-- **`fretHandHolds`' `ringing_member` test compares a demand with a stop (re-verify).** It asks
-  whether a note sits on the grip's stop by comparing the note's DEMAND (`fretHandDemandAt`) with
-  the grip's pressed fret; that comparison is in the code. The consequence is NOT reproduced: since
-  the demand is lifted to the first playable fret, a harmonic whose node rounds to the capo should
-  demand capo+1 and so match a grip stop at capo+1 by demand alone. Confirm with a figure before
-  changing anything; if it holds, comparing stops (`fretHandStopAt`) says what the test means.
 - **A clamped gesture press derives for nothing.** A held key at the end of travel replays to a plan
   equal to the burst's, which `commitChartGestureStep` discards (the `plan->plan.removed ==
   burst->plan.removed` test in `chart_handlers.cpp`) only after `finalizePlan` has derived the

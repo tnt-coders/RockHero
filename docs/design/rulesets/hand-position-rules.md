@@ -56,10 +56,13 @@ it touches and where the previous one ends.
    not what causes one, and every rest threshold measured made the result worse.
 5. **One-fret runs stay.** A run the standing window already covers, all on one fret, moves nothing.
 6. **Holds pin the hand.** A pressed stop is held from where the note's fret channel states it until
-   the channel's next statement or the end of the ring; a chord member struck after its chord's
-   front is held from the front. Open strings and natural harmonics hold nothing. A run the
-   standing window already covers moves nothing while any hold begun before it still holds.
-   (`fretHandHolds`)
+   the channel's next statement or the end of the ring; every pressed stop of a span's grip is held
+   from the span's front until its string releases it — the finger on it sliding away, or a note of
+   either hand sounding the string open, at a node, or at or below the stop — else to the close. A
+   note sounding above the stop is another finger and leaves it held, so a tap releases it only
+   where it reaches it. Open strings and natural harmonics hold nothing. A run the standing window
+   already covers moves nothing while any hold begun before it still holds. (`fretHandHolds`,
+   `noteReleasesStopAt`)
 7. **The floor.** A run's window sits on the run's lowest demanded fret: the index finger.
 8. **The width.** A window spans the run's hull, never fewer than four frets. The same
    `max(4, hull)` is the capacity rule 3 tests a run against. (`runWidth`)

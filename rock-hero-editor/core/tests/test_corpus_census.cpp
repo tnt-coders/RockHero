@@ -615,8 +615,8 @@ struct DerivationCounters
     // voicing member no finger holds.
     //
     // ZERO BY CONSTRUCTION. The positions are derived after the spans, and every pressed stop of a
-    // span's grip is a hold the derivation demands across the whole span (\ref fretHandHolds), so
-    // any count here is a hold the derivation dropped.
+    // span's grip is a hold the derivation demands from the span's front until its string releases
+    // it (\ref fretHandHolds), so any count here is a hold the derivation dropped.
     //
     // `fhp_unwindowed_spans` is the instrument's own PRECONDITION: a span no window stands before
     // cannot be compared at all, and a hold demands where it begins, so the promise is zero.
@@ -913,8 +913,9 @@ void countDerivation(
                 ++out.spans_crossed_by_fhp_shift;
                 out.fhp_shifts_inside_spans += static_cast<long long>(inside);
                 // A WIDENING: every interior window keeps the whole window before it, so the hand
-                // only reaches further. Every other crossing is a shift that still covers the grip,
-                // since the grip is a hold (\ref fretHandHolds) the derivation never leaves.
+                // only reaches further. Every other crossing is a shift that still covers the grip
+                // stops held there, since each is a hold (\ref fretHandHolds) the derivation never
+                // leaves until its string releases it.
                 bool widens_only = first_inside != hand_events.begin();
                 for (auto at = first_inside; widens_only && at != past_run; ++at)
                 {
@@ -2705,11 +2706,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             CrossCheck{
                 // THE FHP CONVERGENCE: whether the position story and the grip story describe one
                 // hand. The positions are derived AFTER the spans, and every pressed stop of a
-                // span's grip is a hold the derivation demands across the whole span
-                // (\ref fretHandHolds), so ZERO BY CONSTRUCTION: no window can stand inside a span
-                // without its grip. Exact-match, so a single span the hand leaves FLAGS. The stop
-                // row beside it counts the same population per STOP (88 / 128 before the grips
-                // became holds).
+                // span's grip is a hold the derivation demands from the span's front until its
+                // string releases it (\ref fretHandHolds), so ZERO BY CONSTRUCTION: no window can
+                // stand at a span's front without its grip. Exact-match, so a single span the hand
+                // leaves FLAGS. The stop row beside it counts the same population per STOP (88 /
+                // 128 before the grips became holds).
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
                 .expected = 0.0,
@@ -2720,15 +2721,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
-                // THE HAND-COUPLING GATE's ceiling: spans a window arrives strictly inside. Each
-                // is either a span the planned coupling would split or a window the derivation
-                // should not have moved, and slide carriage is not subtracted — the figure is the
-                // refinement's whole reach. The shift row beside it counts the ARRIVALS, since
-                // one long span can be crossed more than once.
+                // Spans a window arrives strictly inside: each crossing is a window that widens or
+                // slides over the grip stops still held there, since each is a hold until its
+                // string releases it (\ref fretHandHolds). Slide carriage is not subtracted. The
+                // shift row beside it counts the ARRIVALS, since one long span can be crossed more
+                // than once.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included. Every crossing keeps the span's grip (a grip is a hold), so
-                // what is left is a window widening or sliding over a grip it still covers.
+                // width alone included.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
                 .expected = 148.0,

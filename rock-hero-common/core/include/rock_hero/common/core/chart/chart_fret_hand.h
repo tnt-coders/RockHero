@@ -198,6 +198,33 @@ bend, which demands the first playable fret, and a node nearest a fret at or bel
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset, int capo);
 
 /*!
+\brief Hand-position rule 6's release, stated once: the first instant at or after \p from at which
+a note lets go of the \p stop a finger holds on its string.
+
+The note GRIPPING the stop is a fretting-hand note whose channel states it where the judgement
+begins — at \p from, or at its onset where it starts later — and it releases the stop at its first
+statement of any other stop: the finger slid away. Any other note, of either hand, releases it where
+it states a node, or, under a pressed stop, the open string or a fret at or below it. A fret above
+is another finger and leaves the stop held, so a tap releases it only where it reaches it: the
+picking hand sounds a string above the finger holding it, so a tap at or below proves it lifted.
+
+Read from the note's fret statements: the onset, then every fret-stating keyframe but a slide-out,
+each in force until the next or the ring's end, and each as the hand that makes it states it — the
+fretting hand's node-aware stop (\ref frettingStopAt), or the picking hand's own fret where that
+hand stops the string (\ref pickingHandStopsString).
+
+\param connections The resolved connections (\ref chartConnections).
+\param index The note judged, an index into \p connections.
+\param from Where the judgement begins on the whole-note axis.
+\param stop The fret held on the note's string; 0 is the open string, which no other note
+       releases but at a node.
+\return The release instant on the whole-note axis, or nothing where the note never releases the
+        stop after \p from.
+*/
+[[nodiscard]] std::optional<Fraction> noteReleasesStopAt(
+    const ChartConnections& connections, std::size_t index, Fraction from, int stop);
+
+/*!
 \brief Hand-position rule 6, stated once: every stop the fretting hand provably holds, and for how
 long — what the derivation keeps covered and what pins it (\ref deriveFretHandEvents), and what an
 authored position must cover (\ref validateFretHandCoverage).
@@ -208,9 +235,10 @@ arrives at from there — and the last to the end of its stored ring. So an arri
 holds nothing past the ring, a slide-out holds the stop it slides from until the ring ends (the
 finger stays pressed while it slides), and bends and vibrato, which state no fret, keep holding. A
 dead note holds like any other: its stored ring is the proof, and only its tail's display differs.
-A GRIP: a span's member struck after its front (\ref deriveChartShapes) holds its pressed stop from
-the front up to its strike, after which its ring holds what it states. An open string holds
-nothing, and neither does a natural harmonic's ring or node: its node is demanded at the onset only.
+A GRIP: every pressed stop of a span's posture is held from the span's front until a note on its
+string releases it (\ref noteReleasesStopAt), else to the close. The members' own statements are
+the ring holds beside it. An open string holds nothing, and neither does a natural harmonic's ring
+or node: its node is demanded at the onset only.
 
 \param connections The resolved connections (\ref chartConnections).
 \param shapes The spans and postures derived from the same connections (\ref deriveChartShapes).
@@ -231,7 +259,7 @@ What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset an
 keyframe fret statement but a slide-out (hand-position rule 2); a pull-off source's onset also
 demands the stop the pull-off plants beneath it (\ref chartPlantedStops), which widens every instant
 up to the pull-off (hand-position rule 12). Every stop the hand provably holds — each note's stops
-in turn, and a span member's from the span's front — is demanded the same way, from where its hold
+in turn, and a span's grip from the span's front — is demanded the same way, from where its hold
 begins up to, not including, its end. The demands are merged by instant into the hull each one
 states, so a held stop fronting where nothing fretted is struck is still an instant the hand covers.
 A demand reached by a fretting finger sliding from a different pressed stop marks its instant a
