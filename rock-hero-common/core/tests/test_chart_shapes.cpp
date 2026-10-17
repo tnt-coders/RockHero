@@ -4093,6 +4093,95 @@ TEST_CASE(
     }
 }
 
+// AN OPEN RING IS FOREIGN SOUND (shape rule 3): no finger holds it, so a pull-off source struck
+// over an open string that rings outside the grip displaces it exactly as the same fret plainly
+// picked does, and its pull-off onto the open string bridges nothing. Riding it instead, the source
+// would grow the standing grip, or date a span it founds back across the open ring, and the bracket
+// would print its fret over a stretch in which the string rang open. The open ring here is a tail
+// of the first chord (A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so it is no grip's entry.
+TEST_CASE("A pull-off source over an open ring outside the grip displaces it", "[core][chart]")
+{
+    // The first chord on strings 4 and 5, with string 3's open ring struck beside it and still
+    // sounding after it closes; `later` follows.
+    const auto figure = [](std::vector<ChartNote> later) {
+        later.push_back(noteAt(1, Fraction{}, 4, 3, Fraction{1, 4}));
+        later.push_back(noteAt(1, Fraction{}, 5, 5, Fraction{1, 4}));
+        later.push_back(noteAt(1, Fraction{}, 3, 0, Fraction{1, 2}));
+        return streamOf(std::move(later));
+    };
+
+    SECTION("a source struck after the front breaks the standing span at its strike")
+    {
+        const std::vector<ChartNote> chord{
+            noteAt(2, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{1}),
+        };
+        const auto with = [&chord](ChartNote source, ChartNote release) {
+            std::vector<ChartNote> later = chord;
+            later.push_back(std::move(source));
+            later.push_back(std::move(release));
+            return later;
+        };
+        const std::vector<ChartNote> notes = figure(with(
+            noteAt(3, Fraction{}, 3, 2, Fraction{1, 8}),
+            pullOffAt(3, Fraction{1, 2}, 3, 0, Fraction{1, 4})));
+        derivesLike(
+            notes,
+            figure(with(
+                noteAt(3, Fraction{}, 3, 2, Fraction{1, 8}),
+                noteAt(3, Fraction{1, 2}, 3, 0, Fraction{1, 4}))));
+
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() >= 2);
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 4});
+        CHECK_FALSE(derivedStops(derived, 1)[2].has_value());
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a source founding a span dates its front no earlier than the open ring's end")
+    {
+        // Two open strings arrive one after the other and ring on, too few to found alone; the
+        // source on string 3 is the third member sounding, so its slot founds the span. Its front
+        // may date back to the first open's statement only where string 3 rang nothing foreign
+        // since, and string 3 rang open up to the source's own strike.
+        const std::vector<ChartNote> notes = figure({
+            noteAt(2, Fraction{}, 1, 0, Fraction{1}),
+            noteAt(2, Fraction{1, 2}, 2, 0, Fraction{1}),
+            noteAt(3, Fraction{}, 3, 2, Fraction{1, 8}),
+            pullOffAt(3, Fraction{1, 2}, 3, 0, Fraction{1, 4}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() >= 2);
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
+        CHECK(derivedStops(derived, 1)[2] == std::optional{frettedStop(2)});
+        everySpanIsPositive(derived);
+    }
+
+    SECTION("a source struck at the front, where the open ring ended, founds with the chord")
+    {
+        // The open ring ends exactly where the chord and the source strike together, so it rang
+        // nothing foreign inside the span and the source joins the grip it founds with.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 4, 3, Fraction{1, 4}),
+            noteAt(1, Fraction{}, 5, 5, Fraction{1, 4}),
+            noteAt(1, Fraction{}, 3, 0, Fraction{1, 4}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{1, 2}),
+            noteAt(2, Fraction{}, 2, 7, Fraction{1, 2}),
+            noteAt(2, Fraction{}, 3, 2, Fraction{1, 8}),
+            pullOffAt(2, Fraction{1, 2}, 3, 0, Fraction{1, 4}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() >= 2);
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
+        const std::vector<std::optional<ChartStop>>& stops = derivedStops(derived, 1);
+        CHECK(stops[0] == std::optional{frettedStop(5)});
+        CHECK(stops[1] == std::optional{frettedStop(7)});
+        CHECK(stops[2] == std::optional{frettedStop(2)});
+        everySpanIsPositive(derived);
+    }
+}
+
 // THE LAW AT ITS WIDEST, stated as an EQUALITY. A pull-off proves a finger on its landing stop at
 // the RELEASE and at no earlier instant, so unless a span is ALREADY STANDING and gripping that
 // stop on the string, a source states the fret it SOUNDS and its release is an ordinary new

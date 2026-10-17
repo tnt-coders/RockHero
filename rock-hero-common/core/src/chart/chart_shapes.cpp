@@ -711,8 +711,17 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // into the grip column, so an ornament never rewrites the entry it rides above. A genuine
         // foreign restrike still pushes the front (the 17:3.5 figure) because the floor's skip
         // below excludes only ground the law accounts for.
-        const auto plants_under = [&saved_notes, &planted_stops, &slot](
+        //
+        // An OPEN ring is held by no finger, so a source can ride it only as the standing grip's
+        // own open entry. Outside the grip the open ring is foreign sound like any other (shape
+        // rule 3): a source struck over it displaces it and ends a foreign spell, so no span dates
+        // its front back across the open ring and prints the source's fret over it.
+        const auto plants_under = [&saved_notes, &planted_stops, &slot, &gripped_before](
                                       const std::size_t string_index, const ChartStop& stop) {
+            if (!pressedFret(stop.fret).has_value() && gripped_before[string_index] != stop)
+            {
+                return false;
+            }
             // Bound once so the presence test and the read are provably the same object.
             const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
             return striking.has_value() &&
