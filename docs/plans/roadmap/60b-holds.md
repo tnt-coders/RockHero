@@ -90,9 +90,9 @@ with the refusal flash.
 
 **Overlap.** Every NEW hold, whatever verb authors it (a selection's `Ctrl+H`, or a derived span
 converted by `Ctrl+H`, an edge key or `Delete`, such as a chord box inside a `none` hold), carves
-its range out of every authored hold it overlaps: one it straddles is cropped to the new hold's start or end; one it lies inside is
-split into the parts before and after it. Each surviving part must be valid, or the verb is
-refused.
+its range out of every authored hold it overlaps: one it straddles is cropped to the new hold's
+start or end; one it lies inside is split into the parts before and after it. Each surviving part
+must be valid, or the verb is refused.
 
 **Pushing.** An edge key that moves an edge into a neighbouring hold pushes that hold's facing
 edge along with it. Both holds must stay valid and the pushed one non-empty, or the press is
