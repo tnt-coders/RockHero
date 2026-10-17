@@ -37,8 +37,8 @@ string inside it. Notes ringing in from before the start state nothing. A hold i
    A higher fret on the same string is another finger and fits. Other strings, rests and silence
    never conflict. The conflict's instant is the release instant (a struck note's onset; a glide's
    landing).
-2. **A finger is free at the end.** The end is invalid where EVERY stop the hold states is still
-   ringing across it, a note struck inside the hold on each: no finger could have lifted. If any
+2. **A stated stop has stopped sounding at the end.** The end is invalid where EVERY stop the hold
+   states is still sounding across it, from a note struck inside the hold on each. If any
    stated stop has stopped ringing, notes may ring on past the end, as they do past a derived
    span's close. A hold that states no fretted stop always passes.
 
@@ -51,12 +51,14 @@ Rule 1 reuses rule 6's predicate; it is never restated. That predicate is fixed 
 An edit that is not a hold verb (a note edit, a tempo edit, a load) always lands. Afterwards one
 normalizer, run once in the timeline funnel and logged once per rewrite:
 
-1. **extends** a hold whose end fails §2.2 to the first instant a stated stop stops sounding (the
-   first finger the notes free), which is a valid end by construction;
+1. **extends** a hold whose end fails §2.2 to the smallest later end at which §2.2 holds, judged
+   over the extended hold's own stated stops (a string first struck inside the extension counts);
 2. **crops** a hold whose first conflict lies after its start so it ends at the conflict's instant,
-   also valid by construction (the conflicting string's stop stops sounding there);
-3. **drops** a hold whose first conflict lies at its start, or whose extension reaches the next
-   hold.
+   valid by construction: the conflicting string's stated stop stops sounding there, because no
+   stored ring crosses the next onset on its own string (the same-string clamp,
+   `normalizeSustainOverlaps`, `docs/design/rulesets/gp-import-rules.md`);
+3. **drops** a hold whose result is empty or overlaps another hold (touching is legal: holds are
+   half-open).
 
 Each step runs at most once, in that order; a crop never makes an end need extending, so there is
 no fixpoint loop. "Sounding" is per stop, not per string: a higher fret on the same string (another
@@ -86,8 +88,9 @@ with the refusal flash.
 | Note selection | `Ctrl+H` | One unnamed hold from the first onset to the last tail end; refused if invalid |
 | Bare caret | `Ctrl+H` | Refused |
 
-**Overlap.** A new hold from a time or note selection carves its range out of every authored hold
-it overlaps: one it straddles is cropped to the new hold's start or end; one it lies inside is
+**Overlap.** Every NEW hold, whatever verb authors it (a selection's `Ctrl+H`, or a derived span
+converted by `Ctrl+H`, an edge key or `Delete`, such as a chord box inside a `none` hold), carves
+its range out of every authored hold it overlaps: one it straddles is cropped to the new hold's start or end; one it lies inside is
 split into the parts before and after it. Each surviving part must be valid, or the verb is
 refused.
 
@@ -108,7 +111,8 @@ and the grip picker belong to `60c`.
   Reuse the branch's `b660bf94` paint core and `248088ab`'s span selection.
 - **Save format:** `holds[] {at, end, grip?}`; `grip` absent is unnamed, `"none"` is `none`
   (`60c` adds template ids to the same field). The loader rejects overlapping or empty holds, then
-  the normalizer runs.
+  the normalizer runs; a rewrite it makes at load is logged and marks the document dirty, so it is
+  visible and saved.
 - The ruleset gains the hold clause (shape rules, plus a pointer from hand-position rule 6); the
   developer guide's file-format and editor-action pages are updated in the same change set.
 
