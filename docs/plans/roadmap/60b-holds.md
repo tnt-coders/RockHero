@@ -51,12 +51,23 @@ Rule 1 reuses rule 6's predicate; it is never restated. That predicate is fixed 
 An edit that is not a hold verb (a note edit, a tempo edit, a load) always lands. Afterwards one
 normalizer, run once in the timeline funnel and logged once per rewrite:
 
-- **crops** a hold whose first conflict lies after its start so it ends at the conflict's instant
-  (a valid end: the conflicting string's stop stops ringing there);
-- **extends** a hold whose end fails §2.2 (every stated stop still rings across it) to the first
-  instant a stated stop stops ringing, the first finger the notes free. That one candidate is
-  judged by §2 and must not reach the next hold; there is no second try;
-- **drops** a hold whose first conflict lies at its start, or whose extension fails.
+1. **extends** a hold whose end fails §2.2 to the first instant a stated stop stops sounding (the
+   first finger the notes free), which is a valid end by construction;
+2. **crops** a hold whose first conflict lies after its start so it ends at the conflict's instant,
+   also valid by construction (the conflicting string's stop stops sounding there);
+3. **drops** a hold whose first conflict lies at its start, or whose extension reaches the next
+   hold.
+
+Each step runs at most once, in that order; a crop never makes an end need extending, so there is
+no fixpoint loop. "Sounding" is per stop, not per string: a higher fret on the same string (another
+finger) means the stated stop no longer sounds. No stated stop can be contradicted inside an
+extension (a note on its string would have ended it sooner), so step 2 after step 1 only meets a
+string first struck inside the extension.
+
+Inside an unsettled gesture (a held run of note or edge keys) the normalizer runs on each candidate
+replayed from the pre-gesture chart, never on that base, so every extend, crop and drop it makes
+reverses as the gesture steps back. Once the gesture settles, the result is written and only undo
+restores it.
 
 A hold verb never relies on it: a verb whose result would need cropping or dropping is refused
 with the refusal flash.
