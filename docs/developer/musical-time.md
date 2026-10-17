@@ -354,7 +354,9 @@ driver states the new map on the whole-note axis — the placed `TimeSignatureCh
 plus a content map from each old whole-note place to its new one. The transform builds the new map
 from those places, derives the anchors' tokens, and maps every position in every arrangement
 through the content map (`readdressedPosition`), rounding onto the tick lattice
-(`nearestTickPlace`, common core) only where the mapped place lies off it. The drivers:
+(`nearestTickPlace`, common core) only where the mapped place lies off it. Two notes on different
+strings can round onto one onset that way, so the notes are then stably re-sorted into slot order.
+The drivers:
 
 - **meter edits** — `readdressUnderMeters` (`meter_edits.h`): anchors where they stood, the
   content map `keptPlace`, so nothing rounds (a debug assert holds it to that);
