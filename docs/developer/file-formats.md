@@ -219,8 +219,8 @@ postures they held are derived from the notes wherever they are read (`deriveCha
 a span is a statement about the notes under it and a stored one could only ever disagree with them.
 Chord names and fingerings went with them — nothing authored either; when they are authored they
 become a dictionary keyed by a posture rather than fields on one. The posture facts the chart
-stores are a note's own fret and the extent of a shape hold; everything else about a hand is
-derived, the hold's grip and every held stop included.
+stores are a note's own fret and a shape hold's extent and grip, unnamed or `none`; everything
+else about a hand is derived, the stops an unnamed grip holds and every held stop included.
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
 validated after load, not by the parser. The one exception is the note array's own ORDER: `notes[]`
