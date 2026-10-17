@@ -7,8 +7,9 @@ grip, from when to when, which grip it is, and whether the notation marks it wit
 arpeggio bracket. No span is stored. A span is a statement about the notes under it, so every reader
 derives the spans from the settled note stream, once per chart revision inside `chartResolutions`.
 The one authored statement about a hand shape is the charter's shape hold (rule 9), which states
-where the hand holds one shape and is judged against the notes like any other claim about them. The stream is read as stored: a note's ring is
-the duration its string truly sounds, and a new onset on a string ends the ring before it.
+where the hand holds one shape and is judged against the notes like any other claim about them.
+The stream is read as stored: a note's ring is the duration its string truly sounds, and a new
+onset on a string ends the ring before it.
 
 Code cites a rule as **shape rule N**. Rules 1 to 4, which decide when a span opens, runs and ends,
 are also called **the grip-tenure law**. The rules are implemented in
@@ -400,9 +401,10 @@ takes the next one.
      struck on the string has ended the stated stop's sound. Once any stated stop has stopped,
      notes may ring on past the end, as they do past a derived span's close. A hold stating no
      pressed stop always passes.
-   - **A valid hold is its own normal end.** A hold is valid where no conflict lies inside it and
-     its end passes. Its normal end is its first conflict where one lies inside it, its own end
-     where that passes, and otherwise the earliest later end that does, judged over the stops the
-     longer hold states, a string first struck inside the extension included. No conflict can lie
-     inside the extension: a note releasing a stop there would have ended that stop's sound first.
-     (`shapeHoldNormalEnd`, `shapeHoldIsValid`)
+   - **A hold fits its notes where it is its own normal end.** It fits where no conflict lies
+     inside it and its end passes. Its normal end is its first conflict where one lies inside it,
+     its own end where that passes, and otherwise the earliest later end that does, judged over the
+     stops the longer hold states, a string first struck inside the extension included, and never
+     past the song's end, past which nothing sounds. No conflict can lie inside the extension: a
+     note releasing a stop there would have ended that stop's sound first.
+     (`shapeHoldNormalEnd`, `shapeHoldFitsNotes`)

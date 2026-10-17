@@ -2308,20 +2308,19 @@ struct UnnamedGrip
 \brief The grip of a hold stating that no arpeggio shape is held: its notes sound one by one, though
 a chord struck inside still grips its own shape.
 */
-struct NoArpeggio
+struct NoneGrip
 {
     /*!
-    \brief Compares two no-arpeggio grips; all are equal, the grip carrying nothing.
+    \brief Compares two none grips; all are equal, the grip carrying nothing.
     \param lhs Left-hand grip.
     \param rhs Right-hand grip.
     \return Always true.
     */
-    friend constexpr bool operator==(const NoArpeggio& lhs, const NoArpeggio& rhs) noexcept =
-        default;
+    friend constexpr bool operator==(const NoneGrip& lhs, const NoneGrip& rhs) noexcept = default;
 };
 
 /*! \brief What a hold states the hand grips: a sum, so each grip carries exactly its own facts. */
-using HoldGrip = std::variant<UnnamedGrip, NoArpeggio>;
+using HoldGrip = std::variant<UnnamedGrip, NoneGrip>;
 
 /*!
 \brief A shape hold: the charter's statement of what the fretting hand holds over `[start, end)` —

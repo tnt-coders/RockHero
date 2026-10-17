@@ -449,11 +449,11 @@ constexpr std::array<std::pair<std::string_view, VibratoState>, 2> g_vibrato_tok
     return note;
 }
 
-// The one spelling of the no-arpeggio grip, read and written. An unnamed grip is the absent key.
-constexpr std::string_view g_no_arpeggio_token{"none"};
+// The one spelling of the none grip, read and written. An unnamed grip is the absent key.
+constexpr std::string_view g_none_grip_token{"none"};
 
 // One shape hold: both edges required, the grip optional. A present grip must be the one token,
-// since a wrong-typed or unknown one read as absent would turn a stated no-arpeggio into a grip.
+// since a wrong-typed or unknown one read as absent would turn a stated none grip into unnamed.
 [[nodiscard]] std::expected<ShapeHold, ChartError> readShapeHold(
     const juce::var& hold_json, const TempoMap& tempo_map)
 {
@@ -471,11 +471,11 @@ constexpr std::string_view g_no_arpeggio_token{"none"};
     if (const juce::var& grip_json = Json::value(hold_json, "grip"); !grip_json.isVoid())
     {
         const std::string token = grip_json.isString() ? grip_json.toString().toStdString() : "";
-        if (token != g_no_arpeggio_token)
+        if (token != g_none_grip_token)
         {
             return std::unexpected{malformed("chart hold \"grip\" is not a known grip: " + token)};
         }
-        grip = NoArpeggio{};
+        grip = NoneGrip{};
     }
     return ShapeHold{.start = *start, .end = *end, .grip = grip};
 }
@@ -875,9 +875,9 @@ namespace
     append_array("holds", chart.shape_holds, [&tempo_map](const ShapeHold& hold) {
         std::string line = R"({ "at": ")" + formatPlaceToken(tempo_map, hold.start) +
                            R"(", "end": ")" + formatPlaceToken(tempo_map, hold.end) + '"';
-        if (std::holds_alternative<NoArpeggio>(hold.grip))
+        if (std::holds_alternative<NoneGrip>(hold.grip))
         {
-            line += R"(, "grip": ")" + std::string{g_no_arpeggio_token} + '"';
+            line += R"(, "grip": ")" + std::string{g_none_grip_token} + '"';
         }
         return line + " }";
     });

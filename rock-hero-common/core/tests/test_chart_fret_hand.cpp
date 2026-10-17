@@ -111,19 +111,16 @@ struct SpanHolds
     };
 }
 
-// Where `note`, alone on its string, releases the `held_fret` there, judged from `from`; nothing
-// where it never does before the end of the timeline.
-[[nodiscard]] std::optional<Fraction> releaseOf(
-    const ChartNote& note, const Fraction from, const int held_fret)
+// Where `note`, alone on its string, releases the `held_fret` there, judged from `from` up to the
+// end of the first bar, which is the answer where it never does.
+[[nodiscard]] Fraction releaseOf(const ChartNote& note, const Fraction from, const int held_fret)
 {
-    const Fraction never{8};
-    const Fraction released = stringReleasesStopAt(
+    return stringReleasesStopAt(
         chartConnections({note}, makeTempoMap()),
-        static_cast<std::size_t>(note.string - 1),
+        chartStringIndex(note).value(),
         held_fret,
         from,
-        never);
-    return released < never ? std::optional{released} : std::nullopt;
+        Fraction{1});
 }
 
 // Whether `holds` carries a hold of exactly `expected`'s fret over exactly its stretch.
@@ -522,7 +519,7 @@ TEST_CASE("A note releases a held stop where its channel leaves it held", "[core
 
     SECTION("a tap above the held fret never releases it")
     {
-        CHECK_FALSE(releaseOf(tapAt(1, 2, 1, 7), Fraction{}, 5).has_value());
+        CHECK(releaseOf(tapAt(1, 2, 1, 7), Fraction{}, 5) == Fraction{1});
     }
 
     SECTION("the gripping note sliding away releases at its new fret")
@@ -533,7 +530,7 @@ TEST_CASE("A note releases a held stop where its channel leaves it held", "[core
 
     SECTION("a note above the stop never releases it")
     {
-        CHECK_FALSE(releaseOf(noteAt(1, 2, 1, 7, Fraction{1, 2}), Fraction{}, 5).has_value());
+        CHECK(releaseOf(noteAt(1, 2, 1, 7, Fraction{1, 2}), Fraction{}, 5) == Fraction{1});
     }
 
     SECTION("a note below the stop releases it at its onset")
@@ -568,7 +565,7 @@ TEST_CASE("A note releases a held stop where its channel leaves it held", "[core
 
     SECTION("a ring ended before the judgement begins releases nothing")
     {
-        CHECK_FALSE(releaseOf(noteAt(1, 1, 1, 0), Fraction{1, 4}, 5).has_value());
+        CHECK(releaseOf(noteAt(1, 1, 1, 0), Fraction{1, 4}, 5) == Fraction{1});
     }
 }
 

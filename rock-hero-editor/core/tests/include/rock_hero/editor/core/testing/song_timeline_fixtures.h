@@ -49,7 +49,7 @@ using common::core::Fraction;
 using common::core::FretHandPosition;
 using common::core::GridPosition;
 using common::core::Keyframe;
-using common::core::NoArpeggio;
+using common::core::NoneGrip;
 using common::core::ShapeHold;
 using common::core::SongSection;
 using common::core::SongTimeline;
@@ -159,7 +159,7 @@ inline void requireValid(const SongTimeline& timeline)
     };
     chart.shape_holds = {
         ShapeHold{.start = at("1:1"), .end = at("2:3"), .grip = UnnamedGrip{}},
-        ShapeHold{.start = at("3:3+1/2"), .end = at("4:2"), .grip = NoArpeggio{}},
+        ShapeHold{.start = at("3:3+1/2"), .end = at("4:2"), .grip = NoneGrip{}},
     };
     return ArrangementTimeline{
         .id = std::move(id),

@@ -205,7 +205,7 @@ constexpr Fraction g_fixture_ring{1, 32};
         ShapeHold{
             .start = GridPosition{.measure = 2, .beat = 1},
             .end = GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 2}},
-            .grip = NoArpeggio{},
+            .grip = NoneGrip{},
         },
     };
     return chart;
@@ -2670,7 +2670,7 @@ TEST_CASE("Chart document refuses a malformed shape hold", "[core][chart]")
         ShapeHold{
             .start = GridPosition{.measure = 2, .beat = 1},
             .end = GridPosition{.measure = 3, .beat = 1},
-            .grip = NoArpeggio{},
+            .grip = NoneGrip{},
         },
     };
     REQUIRE(parsed.has_value());

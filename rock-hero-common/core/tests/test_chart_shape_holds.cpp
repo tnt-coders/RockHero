@@ -64,11 +64,11 @@ namespace
     return shapeHoldNormalEnd(chartConnections(notes, tempo_map), tempo_map, hold);
 }
 
-// Whether shape rule 9 finds `hold` valid over `notes`.
-[[nodiscard]] bool validOver(const std::vector<ChartNote>& notes, const ShapeHold& hold)
+// Whether `hold` fits `notes` by shape rule 9.
+[[nodiscard]] bool fitsNotes(const std::vector<ChartNote>& notes, const ShapeHold& hold)
 {
     const TempoMap tempo_map = makeTempoMap();
-    return shapeHoldIsValid(chartConnections(notes, tempo_map), tempo_map, hold);
+    return shapeHoldFitsNotes(chartConnections(notes, tempo_map), tempo_map, hold);
 }
 
 } // namespace
@@ -83,7 +83,7 @@ TEST_CASE("A shape hold conflicts where a stated stop is released", "[core][char
 
     SECTION("a higher fret on the string is another finger and fits")
     {
-        CHECK(validOver({stated, noteAt(1, 3, 1, 7)}, hold));
+        CHECK(fitsNotes({stated, noteAt(1, 3, 1, 7)}, hold));
     }
 
     SECTION("a lower fret conflicts at its onset")
@@ -107,7 +107,7 @@ TEST_CASE("A shape hold conflicts where a stated stop is released", "[core][char
     {
         CHECK(normalEndOf({stated, tapAt(1, 3, 1, 5)}, hold) == Fraction{1, 2});
         CHECK(normalEndOf({stated, tapAt(1, 3, 1, 3)}, hold) == Fraction{1, 2});
-        CHECK(validOver({stated, tapAt(1, 3, 1, 7)}, hold));
+        CHECK(fitsNotes({stated, tapAt(1, 3, 1, 7)}, hold));
     }
 
     SECTION("the stating finger sliding away conflicts where it lands")
@@ -125,12 +125,12 @@ TEST_CASE("A shape hold conflicts where a stated stop is released", "[core][char
 
     SECTION("a rest and a restrike of the stop never conflict")
     {
-        CHECK(validOver({stated, noteAt(2, 1, 1, 5)}, hold));
+        CHECK(fitsNotes({stated, noteAt(2, 1, 1, 5)}, hold));
     }
 
     SECTION("another string never conflicts")
     {
-        CHECK(validOver({stated, noteAt(1, 2, 2, 0), noteAt(1, 3, 2, 2)}, hold));
+        CHECK(fitsNotes({stated, noteAt(1, 2, 2, 0), noteAt(1, 3, 2, 2)}, hold));
     }
 
     SECTION("the earliest conflict across the strings is the answer")
@@ -147,12 +147,12 @@ TEST_CASE("A shape hold conflicts where a stated stop is released", "[core][char
 TEST_CASE("A ring sounding into a shape hold states nothing", "[core][chart]")
 {
     const ShapeHold hold = holdOver(1, 3, 3, 1);
-    CHECK(validOver({noteAt(1, 1, 1, 5, Fraction{1}), noteAt(2, 1, 1, 3)}, hold));
+    CHECK(fitsNotes({noteAt(1, 1, 1, 5, Fraction{1}), noteAt(2, 1, 1, 3)}, hold));
 }
 
-// A hold stating no pressed stop always passes, whatever rings across its end, and a no-arpeggio
-// hold states no stop at all.
-TEST_CASE("A shape hold stating no pressed stop is valid", "[core][chart]")
+// A hold stating no pressed stop always passes, whatever rings across its end, and a none hold
+// states no stop at all.
+TEST_CASE("A shape hold stating no pressed stop fits its notes", "[core][chart]")
 {
     const ShapeHold hold = holdOver(1, 1, 2, 1);
 
@@ -160,14 +160,14 @@ TEST_CASE("A shape hold stating no pressed stop is valid", "[core][chart]")
     {
         ChartNote chime = noteAt(1, 2, 2, 0, Fraction{2});
         chime.harmonic_node = 12.0;
-        CHECK(validOver({noteAt(1, 1, 1, 0, Fraction{2}), chime, tapAt(1, 3, 3, 9)}, hold));
+        CHECK(fitsNotes({noteAt(1, 1, 1, 0, Fraction{2}), chime, tapAt(1, 3, 3, 9)}, hold));
     }
 
-    SECTION("a no-arpeggio hold keeps its end over a conflict and a ring across it")
+    SECTION("a none hold keeps its end over a conflict and a ring across it")
     {
         ShapeHold none = hold;
-        none.grip = NoArpeggio{};
-        CHECK(validOver({noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 3, Fraction{2})}, none));
+        none.grip = NoneGrip{};
+        CHECK(fitsNotes({noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 3, Fraction{2})}, none));
     }
 }
 
@@ -184,12 +184,12 @@ TEST_CASE("A shape hold's end passes once a stated stop falls silent", "[core][c
 
     SECTION("a ring ending exactly at the end has stopped sounding")
     {
-        CHECK(validOver({noteAt(1, 1, 1, 5, Fraction{1})}, hold));
+        CHECK(fitsNotes({noteAt(1, 1, 1, 5, Fraction{1})}, hold));
     }
 
     SECTION("one stated stop silent before the end passes, though another rings across")
     {
-        CHECK(validOver({noteAt(1, 1, 1, 5, Fraction{3, 2}), noteAt(1, 1, 2, 7)}, hold));
+        CHECK(fitsNotes({noteAt(1, 1, 1, 5, Fraction{3, 2}), noteAt(1, 1, 2, 7)}, hold));
     }
 
     SECTION("every stated stop across the end extends to the first that falls silent")
@@ -203,7 +203,7 @@ TEST_CASE("A shape hold's end passes once a stated stop falls silent", "[core][c
     SECTION("a higher fret ringing across the end has ended the stated stop's sound")
     {
         CHECK(
-            validOver({noteAt(1, 1, 1, 5, Fraction{1, 2}), noteAt(1, 3, 1, 7, Fraction{1})}, hold));
+            fitsNotes({noteAt(1, 1, 1, 5, Fraction{1, 2}), noteAt(1, 3, 1, 7, Fraction{1})}, hold));
     }
 
     SECTION("a restrike of the stated stop inside the hold still sounds it")
@@ -229,7 +229,7 @@ TEST_CASE("A shape hold's end passes once a stated stop falls silent", "[core][c
     }
 }
 
-// The smallest valid end comes from one sweep past the end: a string first struck inside the
+// The earliest fitting end comes from one sweep past the end: a string first struck inside the
 // extension states its stop there, and ends the extension sooner where that stop falls silent
 // first. An open string so struck states nothing.
 TEST_CASE("A shape hold's extension counts a string first struck inside it", "[core][chart]")
@@ -251,6 +251,21 @@ TEST_CASE("A shape hold's extension counts a string first struck inside it", "[c
     {
         CHECK(normalEndOf({ringing, noteAt(2, 4, 2, 7, Fraction{1})}, hold) == Fraction{2});
     }
+
+    SECTION("a glide away on a string first struck inside the extension ends it where it lands")
+    {
+        const ChartNote gliding = withFretAt(noteAt(2, 2, 2, 7, Fraction{1}), Fraction{1, 4}, 9);
+        CHECK(normalEndOf({ringing, gliding}, hold) == Fraction{3, 2});
+    }
+}
+
+// Nothing sounds past the song's end, so a ring crossing it extends no hold: a hold ending at the
+// song's end fits its notes there. The timeline's last bar is the eighth, ending at 8.
+TEST_CASE("A shape hold never extends past the song's end", "[core][chart]")
+{
+    const ShapeHold last_bar = holdOver(8, 1, 9, 1);
+    CHECK(fitsNotes({noteAt(8, 1, 1, 5, Fraction{2})}, last_bar));
+    CHECK(normalEndOf({noteAt(8, 1, 1, 5, Fraction{2})}, holdOver(8, 1, 8, 3)) == Fraction{8});
 }
 
 } // namespace rock_hero::common::core
