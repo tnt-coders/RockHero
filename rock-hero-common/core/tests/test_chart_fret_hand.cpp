@@ -111,11 +111,11 @@ struct SpanHolds
     };
 }
 
-// Where `note`, alone on its string, releases the `stop` held there, judged from `from`.
+// Where `note`, alone on its string, releases the `held_fret` there, judged from `from`.
 [[nodiscard]] std::optional<Fraction> releaseOf(
-    const ChartNote& note, const Fraction from, const int stop)
+    const ChartNote& note, const Fraction from, const int held_fret)
 {
-    return noteReleasesStopAt(chartConnections({note}, makeTempoMap()), 0, from, stop);
+    return noteReleasesStopAt(chartConnections({note}, makeTempoMap()), 0, from, held_fret);
 }
 
 // Whether `holds` carries a hold of exactly `expected`'s fret over exactly its stretch.
@@ -539,6 +539,13 @@ TEST_CASE("A note releases a held stop where its channel leaves it held", "[core
         CHECK(releaseOf(falling, Fraction{1, 4}, 5) == Fraction{1, 2});
     }
 
+    SECTION("a note sliding exactly onto the held fret releases where it lands")
+    {
+        // Two fingers cannot share one fret on one string, so arriving AT it proves the lift.
+        const ChartNote landing = withFretAt(noteAt(1, 1, 1, 7, Fraction{1}), Fraction{1, 2}, 5);
+        CHECK(releaseOf(landing, Fraction{1, 4}, 5) == Fraction{1, 2});
+    }
+
     SECTION("the open string releases it")
     {
         CHECK(releaseOf(noteAt(1, 2, 1, 0), Fraction{}, 5) == Fraction{1, 4});
@@ -549,14 +556,6 @@ TEST_CASE("A note releases a held stop where its channel leaves it held", "[core
         ChartNote chime = noteAt(1, 2, 1, 0);
         chime.harmonic_node = 12.0;
         CHECK(releaseOf(chime, Fraction{}, 5) == Fraction{1, 4});
-    }
-
-    SECTION("over an open stop only a node releases another note's statement")
-    {
-        CHECK_FALSE(releaseOf(noteAt(1, 2, 1, 3), Fraction{}, 0).has_value());
-        ChartNote chime = noteAt(1, 2, 1, 0);
-        chime.harmonic_node = 12.0;
-        CHECK(releaseOf(chime, Fraction{}, 0) == Fraction{1, 4});
     }
 
     SECTION("a ring ended before the judgement begins releases nothing")

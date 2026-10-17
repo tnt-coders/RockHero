@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <iterator>
@@ -56,23 +57,26 @@ void forEachChannelStretch(
     const ChartNote& note, const bool arrives_into_next_head, const Visit& visit)
 {
     const bool picked = pickingHandStopsString(note.attack, note.harmonic_node);
-    const auto stretch_from = [&note, picked](const Fraction from) {
-        const int fret = ringStateAt(note, from).fret;
+    // A stretch's fret is the one its opening statement names: the note's own at the onset, then
+    // each fret keyframe's.
+    const auto stretch_from = [&note, picked](const Fraction from, const int fret) {
         return ChannelStretch{
             .from = from,
             .to = note.sustain,
             .stop = picked ? fretStop(fret) : frettingStopAt(note, fret),
         };
     };
-    ChannelStretch pending = stretch_from(Fraction{});
+    ChannelStretch pending = stretch_from(Fraction{}, note.fret);
     const Keyframe* const slide_out = slideOutKeyframe(note, arrives_into_next_head);
     for (const Keyframe& keyframe : note.keyframes)
     {
-        if (keyframe.fret.has_value() && &keyframe != slide_out)
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<int>& fret = keyframe.fret;
+        if (fret.has_value() && &keyframe != slide_out)
         {
             pending.to = keyframe.offset;
             visit(pending);
-            pending = stretch_from(keyframe.offset);
+            pending = stretch_from(keyframe.offset, *fret);
         }
     }
     visit(pending);
@@ -94,11 +98,11 @@ void collectNoteDemands(
         bool onset = true;
         forEachChannelStretch(
             note, connections.arrives_into[index], [&](const ChannelStretch& stretch) {
-                const std::optional<int> stop = fretHandDemandAt(note, stretch.from, capo);
+                const std::optional<int> demand = fretHandDemandAt(note, stretch.from, capo);
                 // The fret this stretch is reached from: the one the channel demanded before it.
-                const std::optional<int> from = std::exchange(previous, stop);
+                const std::optional<int> from = std::exchange(previous, demand);
                 const bool struck = std::exchange(onset, false);
-                if (!stop.has_value())
+                if (!demand.has_value())
                 {
                     return;
                 }
@@ -109,10 +113,10 @@ void collectNoteDemands(
                 demands.push_back(
                     HandDemand{
                         .place = place + stretch.from,
-                        .fret = *stop,
+                        .fret = *demand,
                         .struck = struck,
-                        .travel = from.has_value() && *from != *stop
-                                      ? std::optional<int>{*stop - *from}
+                        .travel = from.has_value() && *from != *demand
+                                      ? std::optional<int>{*demand - *from}
                                       : std::nullopt,
                     });
             });
@@ -280,14 +284,14 @@ struct HeldSlideOut
     return slide_outs;
 }
 
-// Where a string releases the pressed `stop` a span grips on it from `front`: the earliest release
+// Where a string releases the `held_fret` a span grips on it from `front`: the earliest release
 // of any note on it (\ref noteReleasesStopAt), else `close`. `string_notes` are every note on the
 // string, of both hands, ascending by onset. No ring crosses the next onset on its own string, so
 // the scan starts at the one note that can still ring at the front and stops at the first onset at
 // or past a release already found.
 [[nodiscard]] Fraction stringReleasesStopAt(
     const ChartConnections& connections, const std::vector<std::size_t>& string_notes,
-    const int stop, const Fraction front, const Fraction close)
+    const int held_fret, const Fraction front, const Fraction close)
 {
     const auto place_of = [&connections](const std::size_t index) {
         return connections.places[index];
@@ -301,7 +305,7 @@ struct HeldSlideOut
     for (; note != string_notes.end() && place_of(*note) < released; ++note)
     {
         const std::optional<Fraction> note_release =
-            noteReleasesStopAt(connections, *note, front, stop);
+            noteReleasesStopAt(connections, *note, front, held_fret);
         if (note_release.has_value())
         {
             released = std::min(released, *note_release);
@@ -336,12 +340,13 @@ std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset
 // Judges each statement in force after `from`; the first of them decides whether the note grips.
 std::optional<Fraction> noteReleasesStopAt(
     const ChartConnections& connections, const std::size_t index, const Fraction from,
-    const int stop)
+    const int held_fret)
 {
+    assert(pressedFret(held_fret).has_value() && "a hold states only a pressed fret");
     const ChartNote& note = connections.saved_notes[index];
     const Fraction place = connections.places[index];
     const bool fretting = !pickingHandStopsString(note.attack, note.harmonic_node);
-    const bool pressed = pressedFret(stop).has_value();
+    const ChartStop held = fretStop(held_fret);
     std::optional<bool> gripping;
     std::optional<Fraction> released;
     forEachChannelStretch(
@@ -352,13 +357,12 @@ std::optional<Fraction> noteReleasesStopAt(
             }
             const bool grips = gripping.has_value()
                                    ? *gripping
-                                   : gripping.emplace(fretting && stretch.stop == fretStop(stop));
-            // The gripping finger lets go where it slides away. Any other note sounding at a node,
-            // or under a pressed stop open or at or below it, proves the finger lifted; above it is
-            // another finger, and over an open stop the open string restates it.
-            const bool releases =
-                grips ? stretch.stop != fretStop(stop)
-                      : stretch.stop.node.has_value() || (pressed && stretch.stop.fret <= stop);
+                                   : gripping.emplace(fretting && stretch.stop == held);
+            // The gripping finger lets go where it slides away. Any other note proves it lifted
+            // where it sounds the string at or below it, a node and the open string (both fret 0)
+            // included; one above is another finger. One AT it does too: two fingers cannot share
+            // one fret on one string.
+            const bool releases = grips ? stretch.stop != held : stretch.stop.fret <= held_fret;
             if (releases)
             {
                 released = std::max(place + stretch.from, from);
@@ -390,13 +394,13 @@ std::vector<FretHandHold> fretHandHolds(
             [&holds, &note, place, capo](const ChannelStretch& stretch) {
                 // A stretch is a hold where a fretting finger presses its stop: an open string, a
                 // natural harmonic's node and a picking-hand onset press nothing.
-                const std::optional<int> fret = fretHandDemandAt(note, stretch.from, capo);
-                if (fret.has_value() && pressedFret(stretch.stop.fret).has_value() &&
+                const std::optional<int> demand = fretHandDemandAt(note, stretch.from, capo);
+                if (demand.has_value() && pressedFret(stretch.stop.fret).has_value() &&
                     stretch.from < stretch.to)
                 {
                     holds.push_back(
                         FretHandHold{
-                            .from = place + stretch.from, .to = place + stretch.to, .fret = *fret
+                            .from = place + stretch.from, .to = place + stretch.to, .fret = *demand
                         });
                 }
             });

@@ -199,14 +199,15 @@ bend, which demands the first playable fret, and a node nearest a fret at or bel
 
 /*!
 \brief Hand-position rule 6's release, stated once: the first instant at or after \p from at which
-a note lets go of the \p stop a finger holds on its string.
+a note lets go of the pressed \p held_fret a finger holds on its string.
 
-The note GRIPPING the stop is a fretting-hand note whose channel states it where the judgement
-begins — at \p from, or at its onset where it starts later — and it releases the stop at its first
+The note GRIPPING the fret is a fretting-hand note whose channel states it where the judgement
+begins — at \p from, or at its onset where it starts later — and it releases the fret at its first
 statement of any other stop: the finger slid away. Any other note, of either hand, releases it where
-it states a node, or, under a pressed stop, the open string or a fret at or below it. A fret above
-is another finger and leaves the stop held, so a tap releases it only where it reaches it: the
-picking hand sounds a string above the finger holding it, so a tap at or below proves it lifted.
+it sounds the string below the held fret, a node and the open string included, or AT it, since two
+fingers cannot share one fret on one string. A fret above is another finger and leaves the fret
+held, so a tap releases it only where it reaches it: the picking hand sounds a string above the
+finger holding it, so a tap at or below proves that finger lifted.
 
 Read from the note's fret statements: the onset, then every fret-stating keyframe but a slide-out,
 each in force until the next or the ring's end, and each as the hand that makes it states it — the
@@ -216,13 +217,13 @@ hand stops the string (\ref pickingHandStopsString).
 \param connections The resolved connections (\ref chartConnections).
 \param index The note judged, an index into \p connections.
 \param from Where the judgement begins on the whole-note axis.
-\param stop The fret held on the note's string; 0 is the open string, which no other note
-       releases but at a node.
+\param held_fret The fret held on the note's string. MUST be pressed (\ref pressedFret): a hold
+       states only pressed stops, since an open string and a natural harmonic hold nothing.
 \return The release instant on the whole-note axis, or nothing where the note never releases the
-        stop after \p from.
+        fret after \p from.
 */
 [[nodiscard]] std::optional<Fraction> noteReleasesStopAt(
-    const ChartConnections& connections, std::size_t index, Fraction from, int stop);
+    const ChartConnections& connections, std::size_t index, Fraction from, int held_fret);
 
 /*!
 \brief Hand-position rule 6, stated once: every stop the fretting hand provably holds, and for how
