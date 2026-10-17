@@ -4,9 +4,10 @@
 
 These rules derive the chart's hand-posture spans from its notes: where the fretting hand holds a
 grip, from when to when, which grip it is, and whether the notation marks it with a chord box or an
-arpeggio bracket. Nothing about a hand shape is authored and nothing is stored. A span is a
-statement about the notes under it, so every reader derives the spans from the settled note stream,
-once per chart revision inside `chartResolutions`. The stream is read as stored: a note's ring is
+arpeggio bracket. No span is stored. A span is a statement about the notes under it, so every reader
+derives the spans from the settled note stream, once per chart revision inside `chartResolutions`.
+The one authored statement about a hand shape is the charter's shape hold (rule 9), which states
+where the hand holds one shape and is judged against the notes like any other claim about them. The stream is read as stored: a note's ring is
 the duration its string truly sounds, and a new onset on a string ends the ring before it.
 
 Code cites a rule as **shape rule N**. Rules 1 to 4, which decide when a span opens, runs and ends,
@@ -22,6 +23,8 @@ are also called **the grip-tenure law**. The rules are implemented in
 - `makeChartViewState` (`chart_projection.h`) draws each span short of its close through
   `drawnSpanExtent` (rule 6) and decides the column of each posture digit (rule 7).
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
+- `shapeHoldNormalEnd` (`chart_shape_holds.h`) judges a shape hold against its notes (rule 9), and
+  `validateShapeHolds` (`chart_rules.h`) the hold stream's structure.
 
 Whether a tail rests is tail rule 4 (\ref design_rulesets_tails), which reads no span.
 
@@ -46,6 +49,8 @@ takes the next one.
 - **Travel**, **landing** — a fret channel moving between stops, and the instant it comes to rest or
   turns back (rule 4).
 - **Coverage frontier** — the close of the last span emitted.
+- **Shape hold** — the charter's statement that the hand holds one shape over a stated extent
+  (`ShapeHold`, rule 9). Not hand-position rule 6's hold, which is one stop kept pressed.
 - **Front** — where a span dates from (rule 1). **Reach** — how far its members' statements run.
   **Close** — where it ended, the musical close (rule 3).
 
@@ -377,3 +382,27 @@ takes the next one.
    - Nothing stores a held stop, feeds one to the spans or draws one on a note: `chartHeldStops` is
      the one table the hand windows and the fret-hand light read, re-derived whenever the spans
      reflow.
+9. **A shape hold states where the hand holds one shape.** The charter authors it over
+   `[start, end)`, both edges stated, and holds never overlap, though one may begin where the last
+   ends. Its grip is unnamed — the hand holds one shape there, read from the notes inside — or
+   none: no arpeggio shape is held there, though a chord struck inside still grips its own.
+   - **What a hold states.** On each string, an unnamed hold states the pressed stop of the first
+     fretting-hand note struck on it inside the hold. Open strings, natural harmonics and the
+     picking hand state nothing, and neither does a ring sounding in from before the start. A none
+     hold states no stop.
+   - **No conflict inside.** A conflict is a later note releasing a stated stop under
+     hand-position rule 6's release: a lower fret on the string, the open string, a node, the
+     stating finger's own glide leaving it, a tap at or below it, or another note arriving at it.
+     A higher fret is another finger and fits, and other strings, rests and silence never
+     conflict. A conflict lies at its release instant: a struck note's onset, or a glide's landing.
+   - **A stated stop has stopped sounding at the end.** The end fails where every stated stop
+     still sounds across it, from a note struck inside the hold that grips it, so a higher fret
+     struck on the string has ended the stated stop's sound. Once any stated stop has stopped,
+     notes may ring on past the end, as they do past a derived span's close. A hold stating no
+     pressed stop always passes.
+   - **A valid hold is its own normal end.** A hold is valid where no conflict lies inside it and
+     its end passes. Its normal end is its first conflict where one lies inside it, its own end
+     where that passes, and otherwise the earliest later end that does, judged over the stops the
+     longer hold states, a string first struck inside the extension included. No conflict can lie
+     inside the extension: a note releasing a stop there would have ended that stop's sound first.
+     (`shapeHoldNormalEnd`, `shapeHoldIsValid`)

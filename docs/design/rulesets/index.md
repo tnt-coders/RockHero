@@ -9,7 +9,8 @@ one document here, and code cites its rules by the ruleset's name and the rule's
 - \subpage design_rulesets_tails — what a surface draws of each stored ring: where its ink stops,
   and where its tail rests.
 - \subpage design_rulesets_shapes — where the fretting hand holds a grip: when a span opens, runs
-  and ends (the grip-tenure law), its class, and what the surfaces draw of it.
+  and ends (the grip-tenure law), its class, what the surfaces draw of it, and the charter's
+  shape holds.
 - \subpage design_rulesets_techniques — which techniques may combine on a note, and what a
   combination draws, refuses or normalizes.
 - \subpage design_rulesets_gp_import — what the Guitar Pro import does to a score beyond literal

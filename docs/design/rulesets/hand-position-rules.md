@@ -61,8 +61,8 @@ it touches and where the previous one ends.
    either hand sounding the string open, at a node, or at or below the stop — else to the close. A
    note sounding above the stop is another finger and leaves it held, so a tap releases it only
    where it reaches it. Open strings and natural harmonics hold nothing. A run the standing window
-   already covers moves nothing while any hold begun before it still holds. (`fretHandHolds`,
-   `stringReleasesStopAt`)
+   already covers moves nothing while any hold begun before it still holds. The same release decides
+   a shape hold's conflicts (shape rule 9). (`fretHandHolds`, `stringReleasesStopAt`)
 7. **The floor.** A run's window sits on the run's lowest demanded fret: the index finger.
 8. **The width.** A window spans the run's hull, never fewer than four frets. The same
    `max(4, hull)` is the capacity rule 3 tests a run against. (`runWidth`)
