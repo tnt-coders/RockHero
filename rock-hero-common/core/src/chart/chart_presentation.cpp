@@ -162,8 +162,8 @@ ChartPresentation chartPresentation(
             // The tail law's SCOPE: judged of fretting-hand members alone — a right-hand onset
             // joins no posture and extends no ring (\ref deriveChartShapes), so it is no member of
             // what a grip states — and of tails that still draw, so a tail that tail rules 2 and 3
-            // emptied never rests and the hold channel never claims a length those rules judged
-            // away.
+            // emptied never rests and the note-length channel never claims a length those rules
+            // judged away.
             const Fraction ink_end = presentation.ink_end[index];
             presentation.rested_from.push_back(
                 rightHandOnset(notes[index].attack) || ink_end.numerator <= 0
@@ -196,7 +196,7 @@ bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const Fract
 // COVERAGE and not on the verdict: a covered resting member raises to its stored ring and then to
 // the span's reach, while a lone resting note — every plain note on open board is one — holds for
 // the tail it draws.
-std::vector<Fraction> chartHolds(
+std::vector<Fraction> chartNoteLengths(
     const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes)
 {

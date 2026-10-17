@@ -262,10 +262,10 @@ struct ChartConnections
 
     A TRANSFER rather than a slide-out — the finger stays down and the next strike takes the sound
     off it — which is why it lives beside the relation that answers it rather than inside the
-    span-scoped display rules that read it (\ref chartPresentation and \ref chartHolds: furniture
-    states GRIP, and a handover is sound moving from one strike to the next, which no furniture on
-    the lane states — so the ring keeps its whole ribbon, its statement finishing at the takeover,
-    and its head pins only until then).
+    span-scoped display rules that read it (\ref chartPresentation and \ref chartNoteLengths:
+    furniture states GRIP, and a handover is sound moving from one strike to the next, which no
+    furniture on the lane states — so the ring keeps its whole ribbon, its statement finishing at
+    the takeover, and its head pins only until then).
 
     Read off the STORED claim, never the resolved direction: \ref legatoClaimed plus
     \ref predecessorHoldReaches, the resolver's own strict-adjacency test called rather than
@@ -473,16 +473,17 @@ struct ChartResolutions
     std::vector<std::optional<int>> held_stops;
 
     /*!
-    \brief Each note's held length in whole notes: how long the hand stays down.
+    \brief Each note's length in whole notes: how long the hand stays down on it.
 
-    ONE RULE, and \ref chartHolds states it — including which populations stand outside it.
-    Nothing is restated here, because a summary at the field is a second place to keep true.
+    For a note inside a span the length follows from the span, which holds the shape. ONE RULE,
+    and \ref chartNoteLengths states it — including which populations stand outside it. Nothing
+    more is restated here, because a summary at the field is a second place to keep true.
     */
-    std::vector<Fraction> holds;
+    std::vector<Fraction> note_lengths;
 };
 
 /*!
-\brief Resolves a chart's notes layer once: connections, spans, hand demands, ink ends, held
+\brief Resolves a chart's notes layer once: connections, spans, hand demands, ink ends, note
 lengths.
 
 A function of the notes, the capo and the tempo map. The connections come from

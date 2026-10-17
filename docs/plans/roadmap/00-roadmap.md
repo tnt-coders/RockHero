@@ -421,8 +421,8 @@ plan's Gate record.**
   duration rules. (a) score what is drawn only; (b) that plus a span-extent handshape bonus;
   (c) score every member for the span's extent. Full record in 22's Open questions §6.
   **No R** — the user's call; DRAWN = SCORED stands until it is made. NARROWED 2026-09-04 by the
-  tail law: a COVERED resting member's hold is at least its own STORED RING (`chartHolds`), which
-  is what both candidate answers ask for. RE-STATED 2026-09-07 with the universal curtain: the
+  tail law: a COVERED resting member's hold is at least its own STORED RING (`chartNoteLengths`),
+  which is what both candidate answers ask for. RE-STATED 2026-09-07 with the universal curtain: the
   floor is keyed on span COVERAGE now that every plain note rests, so an uncovered resting note
   holds only the tail it presents and owes a bracket nothing. The question is still only about the
   BONUS, not about what a covered member owes.

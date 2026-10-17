@@ -73,9 +73,9 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   bound where `target` would reach or pass it: `normalizeSustainOverlaps` truncates a stored ring
   to it, the editor's duration verb grows a ring toward it, and its move verb steps a slide-out
   toward it, so "a ring's end reaching the next head on its string" has one answer wherever it is
-  asked. It bounds the RING and nothing else: the span-implied
-  hold `chartHolds` answers deliberately runs past it, because a re-strike stops a string without
-  releasing the shape (see that function).
+  asked. It bounds the RING and nothing else: the span-implied note length `chartNoteLengths`
+  answers deliberately runs past it, because a re-strike stops a string without releasing the shape
+  (see that function).
 - `predecessorHoldReaches(sustain, onset_gap)` — the connection hold test, and it is plain: true
   when the predecessor's stored ring reaches the onset, both in whole notes. Strict adjacency
   against the stored ring, with no kept-bound assumption and no margin slack, because the stored
@@ -179,10 +179,10 @@ surface **draws**.
   — growth is accumulation in place, so nothing turns on how a span was born — and no travel flag
   either, because the tail law never hides a ring that STATES something and so needs no span-level
   exemption for a travelling member.
-- `chartHolds(presentation, connections, shapes, tempo_map)` — how long the hand stays down, which
-  is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS or was
-  never earned, covered by a span, is held to the span's reach — while the grip is held, the board
-  pins what is held. Resting members and those tail rule 2 emptied take the same extension
+- `chartNoteLengths(presentation, connections, shapes)` — how long the hand stays down,
+  which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS
+  or was never earned, covered by a span, is held to the span's reach — while the grip is held, the
+  board pins what is held. Resting members and those tail rule 2 emptied take the same extension
   because they are the same physical fact: under grip tenure a covered member's un-renewed death
   would have BROKEN the grip, so coverage past a member's ring IS the record that the finger never
   lifted (a re-strike replaces the sound, never the hand). There is no strum-size gate — a lone
@@ -197,8 +197,8 @@ surface **draws**.
   longer holds the same strum just as well, and keying on the latest start would let a short span
   beginning inside a long one shadow it, silently costing a held chord its extension and making the
   connection that extension justifies read as a plain pick. Scoring is RULED ("detection scores what
-  the surface demands"), and the hold channel is a surface convention that ruling reads, not one it
-  waits on.
+  the surface demands"), and the note-length channel is a surface convention that ruling reads, not
+  one it waits on.
 - **THE TAIL LAW**, tail rule 4 and the last pass inside `chartPresentation`. **A tail that shows
   no technique information RESTS**, whether or not a span stands over it: THE CURTAIN IS UNIVERSAL.
   It is VERDICT-ONLY: it reads the STORED rings, judges, and MARKS the tails it hides, emptying

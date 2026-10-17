@@ -403,7 +403,7 @@ whole, which is always correct.
   `inkEndOf` lookahead reaches into it (found through the prefix-max ring-end table). Holds and
   `SpanCover` re-derive for the spans overlapping the window. Projection seconds and
   `margin_start_seconds` re-derive for notes in the changed tempo spans plus heads whose margin
-  window crosses them. Index-keyed fields (`end_head`, `note_group`, `display_hold_ends`) are
+  window crosses them. Index-keyed fields (`end_head`, `note_group`, `note_length_ends`) are
   remapped by the insert/delete offset; the prefix-max tables are recomputed from the splice point
   to the end — O(n) over doubles, ≈ 0.1 ms at 50k, accepted as the floor.
 - **2d The board, windowed.** `makeHighwayViewState`: chord groups compare only with the previous

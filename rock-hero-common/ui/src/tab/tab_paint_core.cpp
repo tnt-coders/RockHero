@@ -822,10 +822,10 @@ void drawNoteTail(
 {
     // The DRAWN extent and nothing else — the ink end, or the ring end under a reveal — so a note
     // that draws no tail draws none, including a chugged member of a strum a hand-shape span
-    // holds, which the span-implied hold (ChartViewState::display_hold_ends) does extend on the 3D
-    // board. This lane says the same thing in its own idiom: the shape's own rails over the strum
-    // already state how long the posture is fretted, and a ribbon under every chug would restate
-    // it in the one mark that means "this string is still ringing".
+    // holds, which the span-implied note length (ChartViewState::note_length_ends) does extend on
+    // the 3D board. This lane says the same thing in its own idiom: the shape's own rails over the
+    // strum already state how long the posture is fretted, and a ribbon under every chug would
+    // restate it in the one mark that means "this string is still ringing".
     //
     // `onset_x` is the head's own column, and the tail's ink begins there exactly as every other
     // mark on the note does — no ribbon this lane draws can begin anywhere but at a head.

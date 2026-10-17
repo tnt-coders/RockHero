@@ -150,7 +150,7 @@ struct SpanFigure
 
 // Where each stored note's ink stops: tail rules 1 through 3, which the tail law never moves. There
 // is no furniture argument — the curtain is universal and presentation reads no spans at all — so
-// every case below asks presentation one way, and only \ref holdsUnderSpans names a span.
+// every case below asks presentation one way, and only \ref noteLengthsUnderSpans names a span.
 [[nodiscard]] std::vector<Fraction> inkEndsOf(
     const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
 {
@@ -192,17 +192,17 @@ struct SpanFigure
     return presentationOf(chartConnections(saved, tempo_map), tempo_map).rested_from;
 }
 
-// The holds a stated span implies, asked the way \ref chartResolutions asks them: the drawn
+// The note lengths a stated span implies, asked the way \ref chartResolutions asks them: the drawn
 // stream and the law's verdict together, against the stream they came from. The SPAN is an input
-// here, and this is the only helper for which that is true — the hold channel is where coverage
-// means something.
-[[nodiscard]] std::vector<Fraction> holdsUnderSpans(
+// here, and this is the only helper for which that is true — the note-length channel is where
+// coverage means something.
+[[nodiscard]] std::vector<Fraction> noteLengthsUnderSpans(
     const std::vector<ChartNote>& saved, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map)
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
     const ChartPresentation presentation = presentationOf(connections, tempo_map);
-    return chartHolds(presentation, connections, shapes);
+    return chartNoteLengths(presentation, connections, shapes);
 }
 
 } // namespace
@@ -953,10 +953,10 @@ TEST_CASE("Ink ends reproduce the import policy's pinned crops", "[core][chart]"
     }
 }
 
-// The span-implied hold: a chug under a hand shape presents no tail at all, yet the shape is what
-// tells the player to keep holding it — so the SPAN is the whole answer and each member's own ring
-// does not cut it short. This is the repeat-chain shape: three identical strums under one span,
-// which is exactly the arrangement the board draws as one chord box followed by repeat boxes.
+// The span-implied note length: a chug under a hand shape presents no tail at all, yet the shape is
+// what tells the player to keep holding it — so the SPAN is the whole answer and each member's own
+// ring does not cut it short. This is the repeat-chain shape: three identical strums under one
+// span, which is exactly the arrangement the board draws as one chord box followed by repeat boxes.
 // Capping at the ring would end the first strum's hold at the second strum's onset, and the boxes
 // that follow draw no heads of their own, so the pinned shape would vanish one box into the chain.
 TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
@@ -976,8 +976,8 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
         ChartShape{.place = Fraction{}, .sustain = Fraction{9, 16}},
     };
 
-    const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-    REQUIRE(holds.size() == saved.size());
+    const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+    REQUIRE(note_lengths.size() == saved.size());
     // Every chug is an eighth-note effect-free ring, so tail rule 2 presents no tail on any of them
     // — and the tail law never sees one, because it skips a tail that is already empty.
     for (const Fraction shown : inkEndsOf(saved, map))
@@ -986,18 +986,18 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
     }
     // The first strum is held for the whole span — past its own eighth-note ring and past the two
     // restrikes that cut it, because a restrike stops the string without releasing the shape.
-    CHECK(holds[0] == Fraction{9, 16});
-    CHECK(holds[1] == Fraction{9, 16});
+    CHECK(note_lengths[0] == Fraction{9, 16});
+    CHECK(note_lengths[1] == Fraction{9, 16});
     // And the hold ends at the LAST restatement's end, not at the first's: every strum in the
     // chain reaches the same span end, so each one's remainder is shorter than the last's.
-    CHECK(holds[2] == Fraction{5, 16});
-    CHECK(holds[3] == Fraction{5, 16});
-    CHECK(holds[4] == Fraction{1, 16});
-    CHECK(holds[5] == Fraction{1, 16});
+    CHECK(note_lengths[2] == Fraction{5, 16});
+    CHECK(note_lengths[3] == Fraction{5, 16});
+    CHECK(note_lengths[4] == Fraction{1, 16});
+    CHECK(note_lengths[5] == Fraction{1, 16});
 }
 
-// The two cases the span-implied hold deliberately does NOT claim: drawn tails and chokes — and,
-// beside them, the lone covered member, which is a grip member exactly as a strummed one is.
+// The two cases the span-implied note length deliberately does NOT claim: drawn tails and chokes —
+// and, beside them, the lone covered member, which is a grip member exactly as a strummed one is.
 TEST_CASE("Inked tails and dead groups hold what they show", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1007,21 +1007,21 @@ TEST_CASE("Inked tails and dead groups hold what they show", "[core][chart]")
 
     SECTION("a resting spill holds its own stored ring past the reach")
     {
-        // The first member LEAVES the span; the stroke rests anyway, and the hold channel answers
-        // honestly on both sides of the reach: the spilling ring exceeds the span's four quarters
-        // and keeps its own 9/2 (the string genuinely rings there), while its short partner is
-        // pinned to the reach — the tenure the grip states.
+        // The first member LEAVES the span; the stroke rests anyway, and the note-length channel
+        // answers honestly on both sides of the reach: the spilling ring exceeds the span's four
+        // quarters and keeps its own 9/2 (the string genuinely rings there), while its short
+        // partner is pinned to the reach — the tenure the grip states.
         const std::vector<ChartNote> saved = {
             note(at(1, 1), 1, Fraction{9, 8}),
             note(at(1, 1), 2, Fraction{1, 8}, 7),
             note(at(2, 1), 3, Fraction{1, 4}, 3),
         };
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
-        CHECK(holds[0] == Fraction{9, 8});
-        CHECK(holds[1] == Fraction{1});
-        CHECK(holds[2] == Fraction{1, 4});
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
+        CHECK(note_lengths[0] == Fraction{9, 8});
+        CHECK(note_lengths[1] == Fraction{1});
+        CHECK(note_lengths[2] == Fraction{1, 4});
     }
 
     SECTION("an all-dead group is choked rather than held")
@@ -1037,11 +1037,11 @@ TEST_CASE("Inked tails and dead groups hold what they show", "[core][chart]")
         saved[0].dead = true;
         saved[1].dead = true;
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
-        CHECK(holds[0] == Fraction{});
-        CHECK(holds[1] == Fraction{});
-        CHECK(holds[2] == Fraction{1, 4});
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
+        CHECK(note_lengths[0] == Fraction{});
+        CHECK(note_lengths[1] == Fraction{});
+        CHECK(note_lengths[2] == Fraction{1, 4});
     }
 
     SECTION("a lone covered chug is held to the reach like a strummed one")
@@ -1055,13 +1055,13 @@ TEST_CASE("Inked tails and dead groups hold what they show", "[core][chart]")
             note(at(2, 1), 3, Fraction{1, 4}, 3),
         };
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
-        CHECK(holds[0] == Fraction{1});
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
+        CHECK(note_lengths[0] == Fraction{1});
         // The seam note stands exactly where the span's reach ends, so the extension adds nothing
         // and it states its own hold — the in-case control that the extension takes only what a
         // reach actually covers.
-        CHECK(holds[1] == Fraction{1, 4});
+        CHECK(note_lengths[1] == Fraction{1, 4});
     }
 }
 
@@ -1092,8 +1092,8 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
             note(at(1, 2), 2, Fraction{1, 8}, 7),
         };
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
         // Every ring here is an effect-free eighth, so tail rule 2 empties all four tails and the
         // span rule is the only thing left that can answer.
         for (const Fraction shown : inkEndsOf(saved, map))
@@ -1102,12 +1102,12 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
         }
         // The lone fretted member extends on its own account — four quarters from its onset to the
         // span's close — while the tap beside it inherits nothing.
-        CHECK(holds[0] == Fraction{1});
-        CHECK(holds[1] == Fraction{});
+        CHECK(note_lengths[0] == Fraction{1});
+        CHECK(note_lengths[1] == Fraction{});
         // The pair at beat two extends the same way, three quarters to the same close: one rule, no
         // strum count for the tap to pollute.
-        CHECK(holds[2] == Fraction{3, 4});
-        CHECK(holds[3] == Fraction{3, 4});
+        CHECK(note_lengths[2] == Fraction{3, 4});
+        CHECK(note_lengths[3] == Fraction{3, 4});
     }
 
     SECTION("a tap inside a real strum pins its partners and never its own head")
@@ -1118,14 +1118,14 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
             tap(at(1, 1), 4),
         };
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
         // Two fretted strings sound together, so the strum is real and the span holds both of them
         // for all four quarters of it.
-        CHECK(holds[0] == Fraction{1});
-        CHECK(holds[1] == Fraction{1});
+        CHECK(note_lengths[0] == Fraction{1});
+        CHECK(note_lengths[1] == Fraction{1});
         // The tap rides the same stroke and still holds only what it draws.
-        CHECK(holds[2] == Fraction{});
+        CHECK(note_lengths[2] == Fraction{});
     }
 }
 
@@ -1150,11 +1150,11 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
         };
         saved[2].dead = true;
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
-        CHECK(holds[0] == Fraction{1});
-        CHECK(holds[1] == Fraction{1});
-        CHECK(holds[2] == Fraction{});
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
+        CHECK(note_lengths[0] == Fraction{1});
+        CHECK(note_lengths[1] == Fraction{1});
+        CHECK(note_lengths[2] == Fraction{});
     }
 
     SECTION("a dead-and-live dyad pins the live string and chokes the dead one")
@@ -1165,13 +1165,13 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
         };
         saved[1].dead = true;
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
         // Two strings under one stroke, one of them killed: the live string is held for the
         // shape on its own account (no strum count exists to argue about), and the choke is
         // never pinned.
-        CHECK(holds[0] == Fraction{1});
-        CHECK(holds[1] == Fraction{});
+        CHECK(note_lengths[0] == Fraction{1});
+        CHECK(note_lengths[1] == Fraction{});
     }
 
     SECTION("a dead member whose partner keeps its ribbon is choked by tail rule 3 alone")
@@ -1187,15 +1187,15 @@ TEST_CASE("A dead member of a live strum is choked while its partners pin", "[co
         saved[1].dead = true;
 
         const std::vector<Fraction> shown = inkEndsOf(saved, map);
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
         REQUIRE(shown.size() == 2);
-        REQUIRE(holds.size() == 2);
+        REQUIRE(note_lengths.size() == 2);
         CHECK(shown[0] == Fraction{9, 8});
         CHECK(shown[1] == Fraction{});
         // The live member draws its own ribbon and holds exactly that; the dead one holds nothing,
         // where the span's four quarters would otherwise have been handed to it.
-        CHECK(holds[0] == Fraction{9, 8});
-        CHECK(holds[1] == Fraction{});
+        CHECK(note_lengths[0] == Fraction{9, 8});
+        CHECK(note_lengths[1] == Fraction{});
     }
 }
 
@@ -1223,17 +1223,17 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
             note(at(3, 1), 2, Fraction{1, 8}, 7),
         };
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == 2);
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == 2);
         // A sixteenth of span A is left, and that remainder is the hold. A cursor that
         // remembered only span B would find no cover at all and hold nothing.
-        CHECK(holds[0] == Fraction{1, 16});
-        CHECK(holds[1] == Fraction{1, 16});
+        CHECK(note_lengths[0] == Fraction{1, 16});
+        CHECK(note_lengths[1] == Fraction{1, 16});
 
         // Listing order must not matter either: the same two spans the other way round give the
         // same answer, which a last-writer-wins cursor could not promise.
         const std::vector<ChartShape> reversed = {shapes[1], shapes[0]};
-        const std::vector<Fraction> held_reversed = holdsUnderSpans(saved, reversed, map);
+        const std::vector<Fraction> held_reversed = noteLengthsUnderSpans(saved, reversed, map);
         REQUIRE(held_reversed.size() == 2);
         CHECK(held_reversed[0] == Fraction{1, 16});
     }
@@ -1252,17 +1252,17 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
             note(at(5, 1), 2, Fraction{1, 8}, 7),
         };
 
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == saved.size());
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == saved.size());
         // The second span reaches two quarters past the strum, and the span is the whole answer, so
         // each member is held for all of it. (A derived span never outruns its members' rings
         // this way without a restatement to carry it — these shapes are authored straight into
         // the call, which is what lets the section isolate the cursor.)
-        CHECK(holds[0] == Fraction{1, 2});
-        CHECK(holds[1] == Fraction{1, 2});
+        CHECK(note_lengths[0] == Fraction{1, 2});
+        CHECK(note_lengths[1] == Fraction{1, 2});
         // No span covers measure 5, so its strum holds exactly what it presents: nothing.
-        CHECK(holds[2] == Fraction{});
-        CHECK(holds[3] == Fraction{});
+        CHECK(note_lengths[2] == Fraction{});
+        CHECK(note_lengths[3] == Fraction{});
     }
 }
 
@@ -1272,8 +1272,8 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
 // verdicts off the published offsets rather than off emptied tails.
 //
 // NO CASE HERE STATES A SPAN, and that absence is the law: coverage is no part of it, so a chart
-// with no furniture at all rests exactly the tails a bracketed one does. `holdsUnderSpans` is where
-// a span means something, and the hold cases below are the ones that name one.
+// with no furniture at all rests exactly the tails a bracketed one does. `noteLengthsUnderSpans` is
+// where a span means something, and the hold cases below are the ones that name one.
 
 // THE UNIVERSAL CURTAIN: every tail that does not show technique information rests. The headline
 // case: the verdicts here are the ones a bracketed figure gets, and no span is involved in reaching
@@ -1306,12 +1306,12 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
         const std::vector<bool> hidden = hiddenOf(saved, map);
         const std::vector<std::optional<Fraction>> rests = restedOffsetsOf(saved, map);
         const std::vector<Fraction> shown = inkEndsOf(saved, map);
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
 
         REQUIRE(hidden.size() == 3);
         REQUIRE(rests.size() == 3);
         REQUIRE(shown.size() == 3);
-        REQUIRE(holds.size() == 3);
+        REQUIRE(note_lengths.size() == 3);
         // No span stands over this ring anywhere along it, and it rests from its head all the
         // same: coverage is no part of the verdict.
         CHECK(hidden[0]);
@@ -1322,12 +1322,12 @@ TEST_CASE("Every plain tail rests, and the hold alone still asks about spans", "
         // THE HOLD DECISION, and the two candidate answers sit strictly apart: the ink end 39/40
         // is what a lone resting note holds, NOT the stored four quarters a resting-keyed floor
         // would hand it — which would pin the head a margin into the filler's own margin.
-        CHECK(holds[0] == Fraction{39, 40});
-        CHECK(holds[0] != Fraction{1});
+        CHECK(note_lengths[0] == Fraction{39, 40});
+        CHECK(note_lengths[0] != Fraction{1});
         // And the covered member beside them still reaches its span: the tenure floor is keyed on
         // coverage, not gone. Its own ring is a quarter and the span reaches four.
         CHECK(hidden[2]);
-        CHECK(holds[2] == Fraction{1});
+        CHECK(note_lengths[2] == Fraction{1});
     }
 
     SECTION("a handover rests with an EMPTY remainder, so nothing of it is curtained")
@@ -1707,7 +1707,7 @@ TEST_CASE("A ring still stating at its end never rests; a finished statement doe
 // VERDICT-ONLY, AND LAST. The law judges the tails that tail rules 1 through 3 left standing — it
 // empties none of them — and skips every tail those rules already emptied, so a zero from tail
 // rule 2 or tail rule 3 never enters the hidden set, which is what keeps a staccato eighth and a
-// dead chug out of the hold channel's span extension.
+// dead chug out of the note-length channel's span extension.
 TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1758,8 +1758,8 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
     }
 }
 
-// THE HOLD CHANNEL reads the verdict, not the tail: a COVERED hidden member holds its OWN STORED
-// RING at the least, never the ribbon the presentation rules sized for it.
+// THE NOTE-LENGTH CHANNEL reads the verdict, not the tail: a COVERED hidden member holds its OWN
+// STORED RING at the least, never the ribbon the presentation rules sized for it.
 //
 // THE HOLD IS THE TENURE: while the grip is held the board pins what is held, so a hidden member
 // under a span is held to that span's reach — the restrike interior included, whose own ring the
@@ -1783,11 +1783,11 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
         note(at(2, 1), 2, Fraction{1, 4}, 7),
     };
 
-    const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+    const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
     const std::vector<bool> hidden = hiddenOf(saved, map);
     const std::vector<Fraction> shown = inkEndsOf(saved, map);
 
-    REQUIRE(holds.size() == 2);
+    REQUIRE(note_lengths.size() == 2);
     REQUIRE(hidden.size() == 2);
     REQUIRE(shown.size() == 2);
     CHECK(hidden[0]);
@@ -1796,13 +1796,13 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     CHECK(shown[0] == Fraction{39, 40});
     // The span's reach from its onset: four quarters. NOT the 39/40 the margin crop leaves standing
     // on the ribbon, which is the whole of what the extension must not pick up.
-    CHECK(holds[0] == Fraction{1});
-    CHECK(holds[0] != Fraction{39, 40});
+    CHECK(note_lengths[0] == Fraction{1});
+    CHECK(note_lengths[0] != Fraction{39, 40});
     // The closing statement stands exactly at the seam its span reaches, so it is covered there
     // too; its plain ring rests like everything else, and the reach behind it adds nothing, so its
     // hold is its own stored ring.
     CHECK(hidden[1]);
-    CHECK(holds[1] == Fraction{1, 4});
+    CHECK(note_lengths[1] == Fraction{1, 4});
 }
 
 // THE HANDOVER UNPINS THE SOURCE (pinned heads reflect the current SOUNDING state): a note the next
@@ -1834,24 +1834,26 @@ TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
 
     SECTION("a pull-off source holds only to the pull, the grip holds the span")
     {
-        const std::vector<Fraction> holds = holdsUnderSpans(
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(
             figure(note(at(1, 1), 4, Fraction{1, 4}, 7), connected(at(1, 2), 4, Fraction{1, 4}, 5)),
             shapes,
             map);
-        REQUIRE(holds.size() == 3);
-        CHECK(holds[0] == Fraction{1});    // base grip: full span tenure
-        CHECK(holds[1] == Fraction{1, 4}); // the 7: its ring, ending on the pull — not the span's 4
+        REQUIRE(note_lengths.size() == 3);
+        CHECK(note_lengths[0] == Fraction{1}); // base grip: full span tenure
+        CHECK(
+            note_lengths[1] ==
+            Fraction{1, 4}); // the 7: its ring, ending on the pull — not the span's 4
     }
 
     SECTION("a hammer-on source unpins at the hammer just the same")
     {
-        const std::vector<Fraction> holds = holdsUnderSpans(
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(
             figure(note(at(1, 1), 4, Fraction{1, 4}, 5), connected(at(1, 2), 4, Fraction{1, 4}, 7)),
             shapes,
             map);
-        REQUIRE(holds.size() == 3);
-        CHECK(holds[0] == Fraction{1});
-        CHECK(holds[1] == Fraction{1, 4}); // the 5: its ring, ending on the hammer
+        REQUIRE(note_lengths.size() == 3);
+        CHECK(note_lengths[0] == Fraction{1});
+        CHECK(note_lengths[1] == Fraction{1, 4}); // the 5: its ring, ending on the hammer
     }
 }
 
@@ -1904,10 +1906,10 @@ TEST_CASE("A co-struck handover rests from its own end, and its partner rests", 
 
     SECTION("the partner's hold follows its verdict: pinned to the span's reach")
     {
-        const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
-        REQUIRE(holds.size() == 5);
-        CHECK(holds[0] == Fraction{5, 8});
-        CHECK(holds[1] == Fraction{1, 8}); // the source: its ring, ending on the pull
+        const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+        REQUIRE(note_lengths.size() == 5);
+        CHECK(note_lengths[0] == Fraction{5, 8});
+        CHECK(note_lengths[1] == Fraction{1, 8}); // the source: its ring, ending on the pull
     }
 
     SECTION("a partner still STATING at its end draws alone — its plain stackmate rests")
@@ -2131,18 +2133,18 @@ TEST_CASE("A dry arpeggio goes ribbonless under its span", "[core][chart]")
 
     const std::vector<Fraction> shown = inkEndsOf(saved, map);
     const std::vector<bool> hidden = hiddenOf(saved, map);
-    const std::vector<Fraction> holds = holdsUnderSpans(saved, shapes, map);
+    const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
 
     REQUIRE(shown.size() == 4);
     REQUIRE(hidden.size() == 4);
-    REQUIRE(holds.size() == 4);
+    REQUIRE(note_lengths.size() == 4);
     for (std::size_t index = 0; index < 4; ++index)
     {
         CHECK(hidden[index]);
         // The span's reach from each step's own onset — every finger stays down to the one close,
         // which is the discrimination against the quarter-note stored rings and, on the three steps
         // tail rule 1 crops, against the drawn ribbons.
-        CHECK(holds[index] == Fraction{static_cast<int>(4 - index), 4});
+        CHECK(note_lengths[index] == Fraction{static_cast<int>(4 - index), 4});
     }
     // The verdict empties no tail, so each step but the last binds on the next head a quarter away
     // and trims to the margin, and the last rings its whole quarter.

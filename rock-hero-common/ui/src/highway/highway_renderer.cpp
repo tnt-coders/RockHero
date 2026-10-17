@@ -50,7 +50,6 @@ namespace
 // The shared resource table this renderer is built against. Pulled in unqualified because the draw
 // and creation code names a program or texture asset by enumerator many times over.
 using common::core::g_highway_shader_programs;
-using common::core::g_highway_textures;
 using common::core::highwayShaderProgramName;
 using common::core::indexOf;
 using Program = common::core::HighwayShaderProgram;
@@ -3652,7 +3651,7 @@ void HighwayRenderer::Impl::draw(
                     FloorNumber{
                         .seconds = beat.seconds,
                         .z = z,
-                        .stop = common::core::frettedStop(fret),
+                        .stop = common::core::fretStop(fret),
                         .base = mixArgb(number_dim, theme.fret_number_lit, coverage),
                         .fade = true,
                         .alpha = 1.0,
@@ -3673,7 +3672,7 @@ void HighwayRenderer::Impl::draw(
                 FloorNumber{
                     .seconds = seconds,
                     .z = time_to_z(seconds),
-                    .stop = common::core::frettedStop(fret),
+                    .stop = common::core::fretStop(fret),
                     .base = theme.fret_number_target,
                     .fade = true,
                     .alpha = 1.0,
@@ -3783,7 +3782,7 @@ void HighwayRenderer::Impl::draw(
                     FloorNumber{
                         .seconds = now_seconds,
                         .z = 0.0,
-                        .stop = common::core::frettedStop(fret),
+                        .stop = common::core::fretStop(fret),
                         .base = theme.fret_number_target,
                         .fade = false,
                         .alpha = coverage,

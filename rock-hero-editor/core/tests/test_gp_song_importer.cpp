@@ -1130,7 +1130,7 @@ TEST_CASE(
     CHECK(
         heldStops(derived.postures[derived.shapes[0].posture]) ==
         std::vector<std::optional<common::core::ChartStop>>{
-            common::core::frettedStop(3), common::core::frettedStop(6), common::core::frettedStop(8)
+            common::core::fretStop(3), common::core::fretStop(6), common::core::fretStop(8)
         });
     CHECK(shapeArrivalsOf(chart, song->tempo_map)[0]);
     // The landed shape tiles onto that landing exactly, with no gap and no overlap — founded by
@@ -1146,10 +1146,9 @@ TEST_CASE(
     // through the chord is therefore a tail here, absent from the grip.
     const common::core::ChartPosture& landed = derived.postures[derived.shapes[1].posture];
     CHECK(
-        heldStops(landed) ==
-        std::vector<std::optional<common::core::ChartStop>>{
-            std::nullopt, common::core::frettedStop(2), common::core::frettedStop(4)
-        });
+        heldStops(landed) == std::vector<std::optional<common::core::ChartStop>>{
+                                 std::nullopt, common::core::fretStop(2), common::core::fretStop(4)
+                             });
     // Struck whole in one strum, so it is a BOX where the departing shape was an arpeggio.
     CHECK_FALSE(shapeArrivalsOf(chart, song->tempo_map)[1]);
 
@@ -1214,8 +1213,8 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     REQUIRE(derived.postures.size() == 1);
     const common::core::ChartPosture& posture = derived.postures.front();
     REQUIRE(posture.stops.size() >= 2);
-    CHECK(posture.stops[0] == std::optional{common::core::frettedStop(5)});
-    CHECK(posture.stops[1] == std::optional{common::core::frettedStop(7)});
+    CHECK(posture.stops[0] == std::optional{common::core::fretStop(5)});
+    CHECK(posture.stops[1] == std::optional{common::core::fretStop(7)});
 
     // Both strums merge into one span from 1:1 to the closing fret-7 onset at 1:2+1/2, which is
     // also where the eighth strum's own ring ends — the musical close, with shape rule 6's margin
@@ -3543,9 +3542,7 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         CHECK(
             heldStops(resolutions.postures[span.posture]) ==
             std::vector<std::optional<common::core::ChartStop>>{
-                common::core::frettedStop(5),
-                common::core::frettedStop(7),
-                common::core::frettedStop(7)
+                common::core::fretStop(5), common::core::fretStop(7), common::core::fretStop(7)
             });
 
         // (4) FRONTING: the span fronts where the figure does. THE DATING RULE puts its front at
@@ -3814,9 +3811,7 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         CHECK(
             heldStops(resolutions.postures[resolutions.shapes.front().posture]) ==
             std::vector<std::optional<common::core::ChartStop>>{
-                common::core::frettedStop(5),
-                common::core::frettedStop(7),
-                common::core::frettedStop(7)
+                common::core::fretStop(5), common::core::fretStop(7), common::core::fretStop(7)
             });
         CHECK(resolutions.shapes.front().place == common::core::Fraction{3, 8});
     }
@@ -7570,9 +7565,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         CHECK(
             heldStops(derived.postures[derived.shapes[0].posture]) ==
             std::vector<std::optional<common::core::ChartStop>>{
-                common::core::frettedStop(5),
-                common::core::frettedStop(7),
-                common::core::frettedStop(9)
+                common::core::fretStop(5), common::core::fretStop(7), common::core::fretStop(9)
             });
     }
 }

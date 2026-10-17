@@ -364,7 +364,8 @@ ChartResolutions chartResolutions(
     // The holds read the drawn lengths AND the law's verdict, which is what makes the two
     // complementary by construction: presentation only RESTS a member's ribbon, and the hold
     // hands a resting member its own stored ring.
-    resolutions.holds = chartHolds(presentation, resolutions.connections, resolutions.shapes);
+    resolutions.note_lengths =
+        chartNoteLengths(presentation, resolutions.connections, resolutions.shapes);
     resolutions.ink_end = std::move(presentation.ink_end);
     resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;

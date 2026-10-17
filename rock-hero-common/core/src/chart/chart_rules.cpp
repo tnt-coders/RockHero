@@ -98,7 +98,7 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
 }
 
 // The one walk that answers "when is this string struck again", which the truncation, the
-// span-implied hold's cap and the editor's growth verbs all read. Same-position notes are on
+// span-implied note length's cap and the editor's growth verbs all read. Same-position notes are on
 // different strings by construction (a duplicate onset is an invalid chart), so the search starts
 // past the note's whole onset group and stops at the first later note on the string: every note is
 // a strike, so that one is the bound.

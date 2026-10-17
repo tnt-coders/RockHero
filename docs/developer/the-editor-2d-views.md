@@ -863,7 +863,7 @@ is deliberately single-sourced:
   fading in across the approach (the tunable `g_tail_reveal_lead_whole_note`) — a deliberate
   per-surface split, structure at reading distance there, full duration ink here. The ink end is
   the whole answer for what is drawn and judged, and the reveal shows the stored ring the span is
-  carrying. The span-implied hold (`ChartViewState::display_hold_ends`) rides the same
+  carrying. The span-implied note length (`ChartViewState::note_length_ends`) rides the same
   projection, but it is the **3D board's** — how long a pinned head lasts — and this lane must not
   spend it (shape rule 3, what the tenure holds; tail rule 4, where the verdict binds). A chugged
   member of a strum a hand-shape span holds therefore draws a bare head here and no ribbon: the

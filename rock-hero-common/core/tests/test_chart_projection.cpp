@@ -209,7 +209,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(state.notes.size() == 7);
     // Sized like the notes because both painters index it by note index; its values are the
     // span-hold rule's, pinned below.
-    CHECK(state.display_hold_ends.size() == state.notes.size());
+    CHECK(state.note_length_ends.size() == state.notes.size());
     // The 2D lane's visible-range indexes: one entry per event, each the running maximum of the
     // ends so far — the ring end for a note, the musical close for a span.
     REQUIRE(state.ring_end_prefix_max.size() == state.notes.size());
@@ -339,20 +339,20 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     REQUIRE(state.shapes[0].strings.size() == 2);
     CHECK(
         state.shapes[0].strings[0] ==
-        ShapeStringViewState{.string = 1, .stop = frettedStop(1), .digit = std::nullopt});
+        ShapeStringViewState{.string = 1, .stop = fretStop(1), .digit = std::nullopt});
     CHECK(
         state.shapes[0].strings[1] ==
-        ShapeStringViewState{.string = 2, .stop = frettedStop(3), .digit = std::nullopt});
+        ShapeStringViewState{.string = 2, .stop = fretStop(3), .digit = std::nullopt});
     REQUIRE(state.shapes[1].strings.size() == 3);
     CHECK(
         state.shapes[1].strings[0] ==
-        ShapeStringViewState{.string = 2, .stop = frettedStop(5), .digit = std::nullopt});
+        ShapeStringViewState{.string = 2, .stop = fretStop(5), .digit = std::nullopt});
     CHECK(
         state.shapes[1].strings[1] ==
-        ShapeStringViewState{.string = 4, .stop = frettedStop(7), .digit = StopMarkSlot::Bracket});
+        ShapeStringViewState{.string = 4, .stop = fretStop(7), .digit = StopMarkSlot::Bracket});
     CHECK(
         state.shapes[1].strings[2] ==
-        ShapeStringViewState{.string = 5, .stop = frettedStop(8), .digit = StopMarkSlot::Bracket});
+        ShapeStringViewState{.string = 5, .stop = fretStop(8), .digit = StopMarkSlot::Bracket});
 
     // The authored position at 2:1 stands through its own chord and no further: the fret 5 at the
     // next bar line lies outside its window, so the derivation resumes there. The shift slide from
@@ -1187,14 +1187,14 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     CHECK(state.stringCount() == 0);
     CHECK(state.notes.empty());
-    CHECK(state.display_hold_ends.empty());
+    CHECK(state.note_length_ends.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
 }
 
 // The two lengths a note has on screen, and where each comes from: `ink_end_seconds` is the DRAWN
-// tail (what is drawn and scored) and `display_hold_ends` is the hold (how long the hand stays
-// down, which a hand-shape span can outlive the tail by). Both are resolved from the one
+// tail (what is drawn and scored) and `note_length_ends` is the note length (how long the hand
+// stays down, which a hand-shape span can outlive the tail by). Both are resolved from the one
 // resolutions pass, so this pins the projection's wiring as much as the values.
 TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][chart]")
 {
@@ -1227,7 +1227,7 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
     // own ring) and the later string-1 onsets sit at 0.5s and 1.0s.
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.notes.size() == 4);
-    REQUIRE(state.display_hold_ends.size() == 4);
+    REQUIRE(state.note_length_ends.size() == 4);
     // Every chug at or under the bound draws no tail at all: its ink stops on its onset.
     CHECK(state.notes[0].ink_end_seconds == Catch::Approx(0.0));
     CHECK(state.notes[1].ink_end_seconds == Catch::Approx(0.0));
@@ -1238,11 +1238,11 @@ TEST_CASE("Chart projection draws ink ends and holds the shape's chug", "[core][
 
     // The strum's members are held while the shape is — capped at each one's own ring, which is
     // shorter than both the span's remainder and the restrike a quarter later.
-    CHECK(state.display_hold_ends[0] == Catch::Approx(0.25));
-    CHECK(state.display_hold_ends[1] == Catch::Approx(0.25));
+    CHECK(state.note_length_ends[0] == Catch::Approx(0.25));
+    CHECK(state.note_length_ends[1] == Catch::Approx(0.25));
     // A single note is not a strum, so nothing extends it: it holds exactly to its ink end.
-    CHECK(state.display_hold_ends[2] == Catch::Approx(0.5));
-    CHECK(state.display_hold_ends[3] == Catch::Approx(2.0));
+    CHECK(state.note_length_ends[2] == Catch::Approx(0.5));
+    CHECK(state.note_length_ends[3] == Catch::Approx(2.0));
 }
 
 // SHAPE RULE 6 LIVES HERE. The derivation stores THE MUSICAL CLOSE — the instant a span's statement
@@ -1969,7 +1969,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         REQUIRE(stated != state.shapes.front().strings.end());
         if (stated != state.shapes.front().strings.end())
         {
-            CHECK(stated->stop == frettedStop(9));
+            CHECK(stated->stop == fretStop(9));
             CHECK(stated->digit == std::optional{StopMarkSlot::Bracket});
         }
     }
@@ -2100,7 +2100,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         // beside a tap. The strings arriving later keep their centred digits.
         const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
         REQUIRE(planted != span.strings.end());
-        CHECK(planted->stop == frettedStop(5));
+        CHECK(planted->stop == fretStop(5));
         CHECK(planted->digit == std::optional{StopMarkSlot::Satellite});
         const auto later = std::ranges::find(span.strings, 2, &ShapeStringViewState::string);
         REQUIRE(later != span.strings.end());
@@ -2125,7 +2125,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         const ShapeViewState& span = state.shapes.front();
         const auto planted = std::ranges::find(span.strings, 3, &ShapeStringViewState::string);
         REQUIRE(planted != span.strings.end());
-        CHECK(planted->stop == frettedStop(5));
+        CHECK(planted->stop == fretStop(5));
         CHECK(planted->digit == std::optional{StopMarkSlot::Bracket});
 
         const NoteViewState* const source = source_view(state);
@@ -2155,7 +2155,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         const auto fronted =
             std::ranges::find(state.shapes[1].strings, 3, &ShapeStringViewState::string);
         REQUIRE(fronted != state.shapes[1].strings.end());
-        CHECK(fronted->stop == frettedStop(9));
+        CHECK(fronted->stop == fretStop(9));
         CHECK(fronted->digit == std::optional{StopMarkSlot::Satellite});
         const NoteViewState* const tapped = tap_view(state);
         REQUIRE(tapped != nullptr);
@@ -2179,7 +2179,7 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         const auto planted =
             std::ranges::find(state.shapes.front().strings, 3, &ShapeStringViewState::string);
         REQUIRE(planted != state.shapes.front().strings.end());
-        CHECK(planted->stop == frettedStop(0));
+        CHECK(planted->stop == fretStop(0));
         CHECK_FALSE(planted->digit.has_value());
         const NoteViewState* const source = source_view(state);
         REQUIRE(source != nullptr);

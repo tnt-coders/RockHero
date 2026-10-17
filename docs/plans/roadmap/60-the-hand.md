@@ -155,7 +155,7 @@ and the list of what is still open are in `60b-holds.md`.
   by a throwaway key-rename script.
 - **Code names** (naming review, 2026-10-04): `FretHandPosition` and `FretHandPositionSelection`
   stay; `MarkerRow::Hand` becomes `MarkerRow::FretHandPosition`; the hold's record is `HandHold`,
-  never a bare `Hold`, which the display's hold channel (`chartHolds`) and the game's sustain
+  never a bare `Hold`, which the display's hold channel (`chartNoteLengths`) and the game's sustain
   scoring already mean.
 
 ### What this reverses

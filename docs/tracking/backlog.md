@@ -1586,9 +1586,6 @@ against the tree on the date above.
 - **`unjustifiedLegatoClaims` restates the connections walk.** It resolves the `Legato` claims
   over `chartPredecessors` itself; in the editor, whose settle sweep runs at every caret move, seek
   and selection change, it could read the memo's connections instead.
-- **Rename `ChartResolutions::holds` to `held_lengths`.** The field is each note's held LENGTH in
-  whole notes, and the layer also carries `hand_demands.holds`, the stops the fretting hand holds,
-  which are a different thing with nearly the same name.
 - **A clamped gesture press derives for nothing.** A held key at the end of travel replays to a plan
   equal to the burst's, which `commitChartGestureStep` discards (the `plan->plan.removed ==
   burst->plan.removed` test in `chart_handlers.cpp`) only after `finalizePlan` has derived the

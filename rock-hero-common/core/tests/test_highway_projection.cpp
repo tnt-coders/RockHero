@@ -453,12 +453,12 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     // Posture entries carry the derived stops, one per string the posture holds.
     REQUIRE(state.chart.shapes[0].strings.size() == 2);
     CHECK(state.chart.shapes[0].strings[0].string == 1);
-    CHECK(state.chart.shapes[0].strings[0].stop == frettedStop(1));
+    CHECK(state.chart.shapes[0].strings[0].stop == fretStop(1));
     CHECK(state.chart.shapes[0].strings[1].string == 2);
-    CHECK(state.chart.shapes[0].strings[1].stop == frettedStop(3));
+    CHECK(state.chart.shapes[0].strings[1].stop == fretStop(3));
     REQUIRE(state.chart.shapes[1].strings.size() == 3);
     CHECK(state.chart.shapes[1].strings[2].string == 5);
-    CHECK(state.chart.shapes[1].strings[2].stop == frettedStop(8));
+    CHECK(state.chart.shapes[1].strings[2].stop == fretStop(8));
 
     // The authored position first, then the windows the later figures derive once they leave it.
     REQUIRE(state.chart.fret_hand_positions.size() == 3);
@@ -507,7 +507,7 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     // Non-vacuity: the equality above would pass just as happily over an empty scene, so every
     // technique the fixture carries has to be present in what was projected.
     REQUIRE(scene.notes.size() == chart.notes.size());
-    REQUIRE(scene.display_hold_ends.size() == scene.notes.size());
+    REQUIRE(scene.note_length_ends.size() == scene.notes.size());
     CHECK(scene.capo == 2);
     const auto any_note = [&scene](const auto& carries) {
         return std::ranges::any_of(scene.notes, carries);
@@ -786,11 +786,11 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
         highwayStopX(nodeStop(2.669), metrics, true) ==
         Catch::Approx(highwayFretLineX(2.669, metrics, true)));
     CHECK(
-        highwayStopX(frettedStop(5), metrics, false) ==
+        highwayStopX(fretStop(5), metrics, false) ==
         Catch::Approx(highwayNoteCenterX(5, metrics, false)));
     // A node past the drawn board is held at its edge on the way in, exactly as a head is.
     CHECK(highwayDrawnStop(nodeStop(40.0)) == nodeStop(static_cast<double>(g_highway_fret_count)));
-    CHECK(highwayDrawnStop(frettedStop(5)) == frettedStop(5));
+    CHECK(highwayDrawnStop(fretStop(5)) == fretStop(5));
 
     // Lanes are centered on half-string offsets above the string grid's base (0.075, which the
     // renderer also reads as the chord-box frame thickness): the bottom lane sits the base plus
@@ -886,9 +886,9 @@ TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
 }
 
 // The projection RESOLVES the hold rule into seconds rather than restating it: the rule's own case
-// matrix is pinned in note values beside chartHolds, and what matters here is that the resolution
-// lands on the right second and that the result feeds the visible range. One derivation, so a
-// defect cannot hide in a second copy.
+// matrix is pinned in note values beside chartNoteLengths, and what matters here is that the
+// resolution lands on the right second and that the result feeds the visible range. One derivation,
+// so a defect cannot hide in a second copy.
 TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -938,17 +938,17 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     arrangement.chart = std::move(chart);
     const HighwayViewState state = boardOf(arrangement, map);
 
-    REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
+    REQUIRE(state.chart.note_length_ends.size() == state.chart.notes.size());
     REQUIRE(state.chart.notes.size() == 5);
     // Struck at 2.0 seconds and presenting no tail, so the heads stay pinned for what the strings
     // actually ring: an eighth, which the span outlasts.
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(2.0));
-    CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.25));
-    CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.25));
+    CHECK(state.chart.note_length_ends[0] == Catch::Approx(2.25));
+    CHECK(state.chart.note_length_ends[1] == Catch::Approx(2.25));
     // The late pair is held to the span's musical close at 4.125 seconds, which is where the
     // closing onset stands — the shape is held right up to the statement that replaces it.
-    CHECK(state.chart.display_hold_ends[2] == Catch::Approx(4.125));
-    CHECK(state.chart.display_hold_ends[3] == Catch::Approx(4.125));
+    CHECK(state.chart.note_length_ends[2] == Catch::Approx(4.125));
+    CHECK(state.chart.note_length_ends[3] == Catch::Approx(4.125));
 
     // One authority, resolved identically for either surface: the 2D projection answers the same
     // seconds. What differs is how each SPENDS it — the board pins the heads here, while the lane
@@ -957,14 +957,14 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     // tenure hold beside tail rule 4's "where the verdict binds"; the lane's side is pinned in the
     // tab paint core's own suite.
     const ChartViewState lane = makeChartViewState(arrangement, map);
-    REQUIRE(lane.display_hold_ends.size() == lane.notes.size());
+    REQUIRE(lane.note_length_ends.size() == lane.notes.size());
     REQUIRE(lane.notes.size() == state.chart.notes.size());
     for (std::size_t index = 0; index < lane.notes.size(); ++index)
     {
         CAPTURE(index);
         CHECK_THAT(
-            lane.display_hold_ends[index],
-            Catch::Matchers::WithinULP(state.chart.display_hold_ends[index], 0));
+            lane.note_length_ends[index],
+            Catch::Matchers::WithinULP(state.chart.note_length_ends[index], 0));
     }
     // And the hold genuinely outlasts the tail on every STRUM member, which is the whole reason
     // the two surfaces can read the same field and draw different lengths. The closing single
@@ -972,13 +972,13 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     for (std::size_t index = 0; index < 4; ++index)
     {
         CAPTURE(index);
-        CHECK(lane.display_hold_ends[index] > lane.notes[index].ink_end_seconds);
+        CHECK(lane.note_length_ends[index] > lane.notes[index].ink_end_seconds);
     }
 
     // And the board's visible-range index is built from the holds, so a pinned strum stays in range
     // for as long as it is held: a window opening AFTER the late pair's onset still has to include
     // it, because the span holds its heads to 4.125.
-    const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.display_hold_ends);
+    const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.note_length_ends);
     REQUIRE(prefix_max.size() == 5);
     CHECK(prefix_max[3] == Catch::Approx(4.125));
     const auto visible = visibleEventRange(state.chart.notes, prefix_max, 3.9, 4.0);
@@ -1161,13 +1161,13 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // 0.5 s and its eighth-note ring closes the span at 0.75 s, and every member of the chain
     // resolves to that same one end. The value that would drop the shape mid-chain is 0.25 s —
     // the first strum's own ring, which stops exactly where the second box begins.
-    REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
+    REQUIRE(state.chart.note_length_ends.size() == state.chart.notes.size());
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(0.0));
     CHECK(state.chart.notes[2].start_seconds == Catch::Approx(0.25));
     for (std::size_t index = 0; index < 6; ++index)
     {
         CAPTURE(index);
-        CHECK(state.chart.display_hold_ends[index] == Catch::Approx(0.75));
+        CHECK(state.chart.note_length_ends[index] == Catch::Approx(0.75));
     }
 
     // Each strum's take-over is the next strum, repeat boxes included, since a repeat's heads draw
@@ -1214,8 +1214,8 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     // and the ribbon happen to agree here — a RESTED member holds its own stored ring — so the
     // board pins these heads for the whole two quarters, while the chain's are held by the span
     // rule instead.
-    CHECK(state.chart.display_hold_ends[6] == Catch::Approx(3.0));
-    CHECK(state.chart.display_hold_ends[7] == Catch::Approx(3.0));
+    CHECK(state.chart.note_length_ends[6] == Catch::Approx(3.0));
+    CHECK(state.chart.note_length_ends[7] == Catch::Approx(3.0));
     CHECK_FALSE(state.chart.notes[0].rested);
 }
 
@@ -2364,7 +2364,7 @@ namespace
     shape.arpeggio = false;
     for (const auto& [string, fret] : posture)
     {
-        shape.strings.push_back(ShapeStringViewState{.string = string, .stop = frettedStop(fret)});
+        shape.strings.push_back(ShapeStringViewState{.string = string, .stop = fretStop(fret)});
     }
     return shape;
 }

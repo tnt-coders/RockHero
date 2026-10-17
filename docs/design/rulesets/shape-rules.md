@@ -20,7 +20,7 @@ are also called **the grip-tenure law**. The rules are implemented in
 - `chartShapeArrivals` classifies each span as an arpeggio or a box (rule 5). The box each onset
   group wears is `HighwayChordBoxTreatment` in `highway_view_state.h`.
 - `makeChartViewState` (`chart_projection.h`) draws each span short of its close through
-  `drawnHoldExtent` (rule 6) and decides the column of each posture digit (rule 7).
+  `drawnSpanExtent` (rule 6) and decides the column of each posture digit (rule 7).
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
 
 Whether a tail rests is tail rule 4 (\ref design_rulesets_tails), which reads no span.
@@ -214,8 +214,8 @@ takes the next one.
    - **What the tenure holds.** A span shortens and hides no ring. The 3D board pins each covered
      fretting-hand member whose tail rests for the rest of its span, floored at its own stored ring;
      a handed-over member holds exactly its stored ring, a dead member is choked rather than held,
-     and an uncovered resting note holds to its ink end (`chartHolds`). An onset at a seam stands in
-     the grip that arrived (`SpanCover::reaching`).
+     and an uncovered resting note holds to its ink end (`chartNoteLengths`). An onset at a seam
+     stands in the grip that arrived (`SpanCover::reaching`).
 4. **A member's fret travel breaks the span at the landing, and the grip it lands in re-opens
    there.**
    - **The channel has one reader** (`statedStopFrom`). Every question about where a finger is — at

@@ -1566,7 +1566,7 @@ already says). A consumer that must tell the two apart asks \ref node, exactly a
 already spells in \ref ChartNote, \ref NoteViewState and the renderer's own floor numbers, so this
 generalizes the shape the domain already had rather than adding a fourth.
 
-BUILT ONLY BY \ref frettedStop AND \ref nodeStop, which are the one place the "fret is 0 under a
+BUILT ONLY BY \ref fretStop AND \ref nodeStop, which are the one place the "fret is 0 under a
 node" invariant is written. The struct stays an aggregate so it keeps a defaulted comparison and a
 constexpr value; the two factories are the discipline, the same one \ref ChartNote lives under. If
 a third producer ever appears, a private-field class becomes the right answer and this line moves.
@@ -1615,11 +1615,11 @@ struct ChartStop
 };
 
 /*!
-\brief A pressed fret; 0 is the open string.
-\param fret Fret pressed.
+\brief A stop at a fret: the fret pressed, or 0 for the open string, where nothing is pressed.
+\param fret Fret pressed; 0 is the open string.
 \return The stop.
 */
-[[nodiscard]] constexpr ChartStop frettedStop(const int fret) noexcept
+[[nodiscard]] constexpr ChartStop fretStop(const int fret) noexcept
 {
     return ChartStop{.fret = fret, .node = std::nullopt};
 }
@@ -1912,7 +1912,7 @@ node counts here and not there, because the tap's node belongs to the picking ha
     {
         return nodeStop(*harmonic_node + static_cast<double>(fret_at_point - note_fret));
     }
-    return frettedStop(fret_at_point);
+    return fretStop(fret_at_point);
 }
 
 /*!
@@ -2017,7 +2017,7 @@ written for the hand that makes the shape and not guarded here.
     {
         return nodeStop(*harmonic_node);
     }
-    return frettedStop(fret_at_point);
+    return fretStop(fret_at_point);
 }
 
 /*! \copydoc frettingStopAt(int,const std::optional<double>&,NoteAttack,int) */
@@ -2044,7 +2044,7 @@ hand on.
 \param offset Whole notes from the note's onset.
 
 \return The stop the note states at that instant; nothing only where the picking hand stops the
-        string and no held stop is known. An open string answers `frettedStop(0)` — a statement
+        string and no held stop is known. An open string answers `fretStop(0)` — a statement
         that no finger is down, which \ref pressedFret reads as nothing.
 */
 [[nodiscard]] inline std::optional<ChartStop> fretHandStopAt(
@@ -2052,7 +2052,7 @@ hand on.
 {
     if (pickingHandStopsString(note.attack, note.harmonic_node))
     {
-        return held.has_value() ? std::optional{frettedStop(*held)} : std::nullopt;
+        return held.has_value() ? std::optional{fretStop(*held)} : std::nullopt;
     }
     return frettingStopAt(note, ringStateAt(note, offset).fret);
 }

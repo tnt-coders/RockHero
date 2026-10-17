@@ -26,8 +26,8 @@ recorded at the grouping walk in `highway_projection.cpp`). A sounding place at 
 skipped, and one past the last fret is held at the board's edge by \ref highwayDrawnStop, so a
 malformed chart cannot place a strike off the board at either end.
 
-\param notes Seconds-resolved notes sorted by start time. A strike's hold keeps the margin rise of
-       the head that closes it (\ref NoteViewState::marginRiseSeconds, \ref drawnHoldExtent).
+\param notes Seconds-resolved notes sorted by start time. A strike's span keeps the margin rise of
+       the head that closes it (\ref NoteViewState::marginRiseSeconds, \ref drawnSpanExtent).
 \return Tap onsets in ascending time order.
 */
 [[nodiscard]] std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(

@@ -409,11 +409,11 @@ from the shared `chartResolutions` pass), the identical value the 2D triangle po
 authority, two idioms, and a claim the chart cannot justify draws like the plain pick it sounds like
 on both surfaces.
 
-The **span-implied hold** is the board's alone, which is worth knowing before touching either
-surface. `ChartViewState::display_hold_ends` is resolved from the `chartHolds` authority and rides
-the projection both surfaces read, but only the highway spends it: for a strum a hand-shape span
-holds it draws no tail and instead **pins the head at the hit line** until the hold ends, fading
-by the head rule above so it is gone as the hold releases. The 2D
+The **span-implied note length** is the board's alone, which is worth knowing before touching
+either surface. `ChartViewState::note_length_ends` is resolved from the `chartNoteLengths`
+authority and rides the projection both surfaces read, but only the highway spends it: for a strum
+a hand-shape span holds it draws no tail and instead **pins the head at the hit line** until the
+note length ends, fading by the head rule above so it is gone as the hand releases. The 2D
 lane draws every tail to the note's own ink end and nothing further, so those chugs wear bare
 heads there — the span's own rails already state how long the posture is fretted, and a ribbon
 repeating that reads as sustain (shape rule 3, what the tenure holds; tail rule 4, where the

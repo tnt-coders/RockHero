@@ -197,7 +197,7 @@ sound separately or the other hand plays over it. Nothing about a hand is author
 fretting hand holds under a right-hand onset is read off the notation — a pull-off's plant, or the
 covering span's grip — and stored nowhere (`chartHeldStops`, shape rules 7 and 8). What reads the
 spans: the brackets, boxes and posture digits both surfaces draw, the 3D board's hold pins
-(`chartHolds`), the held stops, and after all of them the fret-hand derivation above.
+(`chartNoteLengths`), the held stops, and after all of them the fret-hand derivation above.
 
 One consequence is worth naming: the derivation sees the SETTLED stream, where an import-time
 derivation would run before `normalizeChart`. A strum whose notes carry something the rules refuse

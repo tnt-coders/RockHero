@@ -133,7 +133,7 @@ const CODE_FINDERS = [
     },
     {
         key: 'hw-renderer-notes',
-        prompt: `Deep-review the note-drawing path of rock-hero-common/ui/src/highway/highway_renderer.cpp (the draw() note loop and its helpers). Focus: visible-note selection vs display_hold_ends; chord grouping via onset epsilon; repeat-box logic; span-hold take-over pass; head anchor math; passed fade + attack fade; slide state, bend lift + inversion, vibrato depth scaling; tail ribbon construction incl. open-string band stations, tip fade, adaptive sampling of modulated tails; brackets/fingering/mute markers/harmonics composited per head. Hunt: stale assumptions left by iteration layers, index/group mismatches, off-by-one in batching, fade/anchor interactions, degenerate chart data.`,
+        prompt: `Deep-review the note-drawing path of rock-hero-common/ui/src/highway/highway_renderer.cpp (the draw() note loop and its helpers). Focus: visible-note selection vs note_length_ends; chord grouping via onset epsilon; repeat-box logic; span-hold take-over pass; head anchor math; passed fade + attack fade; slide state, bend lift + inversion, vibrato depth scaling; tail ribbon construction incl. open-string band stations, tip fade, adaptive sampling of modulated tails; brackets/fingering/mute markers/harmonics composited per head. Hunt: stale assumptions left by iteration layers, index/group mismatches, off-by-one in batching, fade/anchor interactions, degenerate chart data.`,
     },
     {
         key: 'hw-renderer-board',

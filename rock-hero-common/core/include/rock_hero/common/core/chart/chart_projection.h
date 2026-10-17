@@ -17,26 +17,26 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Shape rule 6 (\ref design_rulesets_shapes): how far a hold's furniture is DRAWN, measured
-       from the hold's start.
+\brief Shape rule 6 (\ref design_rulesets_shapes): how far a span's furniture is DRAWN, measured
+       from the span's start.
 
-A hold that a head closes keeps the minimum sustain distance before that head, so consecutive
-holds show the gap every other drawn element shows instead of butting exactly: the close is pulled
+A span that a head closes keeps the minimum sustain distance before that head, so consecutive
+spans show the gap every other drawn element shows instead of butting exactly: the close is pulled
 back to \p limit, the head's position less one margin, or for a posture span the start of the
-hand's next move where that comes first. The trim never retreats behind the last thing the hold
-STATES (\p stated), and where even that leaves nothing, the hold falls back to its musical close —
+hand's next move where that comes first. The trim never retreats behind the last thing the span
+STATES (\p stated), and where even that leaves nothing, the span falls back to its musical close —
 exact adjacency, the sustain rules' own precedent. With no limit there is nothing to keep clear
-of, and the close stands. The same rule for a posture span's rails and a tapped chord's, in
-whatever unit the caller measures the hold in.
+of, and the close stands. The same rule for a posture span's rails and a tapped chord's, which
+borrows it, in whatever unit the caller measures the span in.
 
-\param close The musical close, from the hold's start.
-\param limit The instant the drawn hold may not pass, from the hold's start; empty where nothing
+\param close The musical close, from the span's start.
+\param limit The instant the drawn span may not pass, from the span's start; empty where nothing
        bounds it short of its close.
-\param stated The extent of the hold's last statement; the trim's floor.
+\param stated The extent of the span's last statement; the trim's floor.
 \return The drawn extent: positive where the close is, and never past it.
 */
 template <typename Extent>
-[[nodiscard]] constexpr Extent drawnHoldExtent(
+[[nodiscard]] constexpr Extent drawnSpanExtent(
     const Extent close, const std::optional<Extent>& limit, const Extent stated)
 {
     if (!limit.has_value())

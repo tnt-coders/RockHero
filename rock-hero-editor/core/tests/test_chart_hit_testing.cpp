@@ -259,7 +259,7 @@ TEST_CASE("Chart hit testing offers the head whatever the ring does", "[core][ch
         },
     };
     // The board's hold for that chug, to 8s (x = 160). Nothing below may spend it.
-    tab.display_hold_ends = {8.0};
+    tab.note_length_ends = {8.0};
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
     // The bare head is the whole affordance: every point out along the string hits nothing, right

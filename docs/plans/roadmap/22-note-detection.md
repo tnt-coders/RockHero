@@ -210,8 +210,8 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
    minimum note distance, and the standard short-note duration rules stand (notes shorter than a
    quarter scored on one duration metric).
    **What the tail law already settled**, so the question is narrower than it was: a HIDDEN member's
-   HOLD (`chartHolds`) is its OWN STORED RING — never the figure's reach and never the presented
-   zero — and that answer is deliberately NEUTRAL between "score what is displayed" and "score the
+   HOLD (`chartNoteLengths`) is its OWN STORED RING — never the figure's reach and never the
+   presented zero — and that answer is deliberately NEUTRAL between "score what is displayed" and "score the
    figure's truth". (Two later rulings move that sentence without moving this question: THE HOLD IS
    THE TENURE, 2026-09-03 — a covered member is held to the SPAN'S REACH, with its stored ring as
    the floor — and THE CURTAIN IS UNIVERSAL, 2026-09-07, which keys that floor on span COVERAGE, so

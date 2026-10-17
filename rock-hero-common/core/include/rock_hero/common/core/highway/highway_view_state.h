@@ -259,10 +259,10 @@ struct HighwayTapOnsetViewState
     int count{0};
 
     /*!
-    \brief The struck notes' DRAWN hold end: the latest member's ring end — the true ring rather
+    \brief The struck notes' DRAWN span end: the latest member's ring end — the true ring rather
     than the drawn tail, so a tapped chord's rails run as long as the fretting hand's boxes hold —
-    kept one margin clear of a head standing there (\ref drawnHoldExtent, the rule a posture span's
-    rails are drawn by), so abutting holds show a gap. Whether the next strike repeats an
+    kept one margin clear of a head standing there (\ref drawnSpanExtent, the rule a posture span's
+    rails are drawn by), so abutting spans show a gap. Whether the next strike repeats an
     established position is measured from here too (\ref g_hand_rest_seconds): a position stays
     established while its notes ring. The picking hand's LIGHT releases at the drawn end instead
     (\ref makePickHandLight), because the per-strike pulse is its look.
@@ -639,9 +639,9 @@ struct HighwayViewState
 
     The ONE composition the head pass, the visibility test and the visible-range index all read,
     resolved once per revision, so the last instant a head draws and the instant the board stops
-    keeping its note cannot part. A head pins for its hold (\ref ChartViewState::display_hold_ends),
-    released early where a later strum takes over the hit line
-    (\ref HighwayChordGroupViewState::hold_cap_seconds) and never before its ink end, then
+    keeping its note cannot part. A head pins for its note length
+    (\ref ChartViewState::note_length_ends), released early where a later strum takes over the hit
+    line (\ref HighwayChordGroupViewState::hold_cap_seconds) and never before its ink end, then
     dissolves by the shared head rule (\ref headFade).
 
     THE REPEAT CHAIN overrides that end. A head whose stored ring ends EXACTLY on the next head of

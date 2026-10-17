@@ -450,7 +450,7 @@ struct NoteViewState
     before the binding head for a bound one (\ref chartPresentation, tail rule 1), the onset for a
     tail emptied by tail rules 2 and 3. This is the whole of what the 2D lane draws and the length
     scoring judges to; the 3D board additionally pins a span-held strum's heads past it
-    (\ref ChartViewState::display_hold_ends). The tail law can only MARK this length (\ref rested),
+    (\ref ChartViewState::note_length_ends). The tail law can only MARK this length (\ref rested),
     never move or empty it.
     */
     double ink_end_seconds{0.0};
@@ -1297,19 +1297,18 @@ struct ChartViewState
     std::vector<NoteViewState> notes;
 
     /*!
-    \brief Per-note hold end in seconds — the 3D board's, one entry per \ref notes entry.
+    \brief Per-note length end in seconds — the 3D board's, one entry per \ref notes entry.
 
-    How long a pinned head lasts: the note's ink end, except that a member of a two-or-more
-    onset group under a covering hand-shape span whose drawn tail is empty is held to THE
-    SPAN'S MUSICAL CLOSE — the strum's heads stay pinned at the hit line for as long as the posture
-    is held, instead of vanishing the instant it is struck, and they go on standing there while
-    repeat boxes restate the same shape over them. A fully dead group is choked rather than held and
-    keeps its own end. The note's own ring does not cap this; \ref chartHolds says why.
+    How long a pinned head lasts: the note's onset plus its length, as \ref chartNoteLengths
+    resolves it — the one statement of which notes a covering hand-shape span extends to its
+    musical close and which stand outside it. Under such a span the strum's heads stay pinned at
+    the hit line for as long as the posture is held, instead of vanishing the instant it is struck,
+    and they go on standing there while repeat boxes restate the same shape over them.
 
-    The CLOSE and not the drawn rails, shape rule 6's margin belonging to the projection: a hold is
-    how long the hand is down, and the margin is ink spacing. So a held head stands right up to the
-    onset that ended the shape, which is the honest answer and the one the rails are not the
-    authority for.
+    The CLOSE and not the drawn rails, shape rule 6's margin belonging to the projection: a note's
+    length is how long the hand is down, and the margin is ink spacing. So a held head stands right
+    up to the onset that ended the shape, which is the honest answer and the one the rails are not
+    the authority for.
 
     **The 2D lane does not read this.** It draws and hit-tests each note to the extent
     \ref drawnEndSeconds names and never further, so the ribbons under chugs inside the
@@ -1317,19 +1316,19 @@ struct ChartViewState
     long the posture is fretted, and a ribbon repeating that would use the one mark that means
     "this string is still ringing" to say something else. The board has no chord box, so pinning the
     heads is how it states the same fact (shape rule 3, what the tenure holds; tail rule 4, where
-    the verdict binds). One chart, one hold, two idioms.
+    the verdict binds). One chart, one note length, two idioms.
 
-    Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
-    seconds: computing it twice — once in note values for the chart rules and once in seconds for
-    the board — is one rule spelled twice, and each copy is free to carry the same defect on its
-    own, such as a long span shadowed by a short one that started inside it silently losing its
-    hold.
+    Resolved here from \ref chartNoteLengths, the ONE authority for that rule, rather than
+    recomputed in seconds: computing it twice — once in note values for the chart rules and once in
+    seconds for the board — is one rule spelled twice, and each copy is free to carry the same
+    defect on its own, such as a long span shadowed by a short one that started inside it silently
+    cutting its notes short.
 
     The board composes each head's end from this (\ref HighwayViewState::head_ends): it pins the
     head for this long and then dissolves it (\ref headFade), and its visible range is indexed by
     where those fades end, so a pinned strum stays in range for as long as it is held.
     */
-    std::vector<double> display_hold_ends;
+    std::vector<double> note_length_ends;
 
     /*!
     \brief Running maximum of the notes' RING ends, one entry per \ref notes entry.

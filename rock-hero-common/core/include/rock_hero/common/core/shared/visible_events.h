@@ -28,8 +28,8 @@ error at song scale and six orders below the finest grid the editor offers (a 1/
 No wider tolerance is needed to bridge tempo-map paths: the forward cursor computes the same
 expression against the same anchor span as the plain resolver, so equal grid positions resolve to
 bit-identical seconds. A wider one would let the display's simultaneity rule group notes at
-DISTINCT musical positions that the chart-side rule (the onset grouping inside `chartHolds`) keeps
-apart; at this size the two rules agree.
+DISTINCT musical positions that the chart-side rule (the onset grouping inside `chartNoteLengths`)
+keeps apart; at this size the two rules agree.
 */
 inline constexpr double g_onset_match_epsilon = 1.0e-9;
 

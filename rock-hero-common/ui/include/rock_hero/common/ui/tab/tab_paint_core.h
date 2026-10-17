@@ -720,8 +720,8 @@ each pass in turn.
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
 \param tab Seconds-resolved tab projection; it must name at least one string. Every tail is drawn
-       to the extent \ref drawnExtentSeconds names; the span-implied hold
-       (ChartViewState::display_hold_ends) is the 3D board's and is not read here. The visible
+       to the extent \ref drawnExtentSeconds names; the span-implied note
+       length (ChartViewState::note_length_ends) is the 3D board's and is not read here. The visible
        range is bounded by the projection's own prefix tables (ChartViewState::ring_end_prefix_max,
        ChartViewState::shape_close_prefix_max).
 \param presence Per-note presentation (\ref TabNotePresence). Its reveal at 1 draws the note to its

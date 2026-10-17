@@ -409,7 +409,7 @@ void clampStrikePops(
         // before its ink end, dissolved by the shared head rule.
         const double pin_end_seconds = std::max(
             note.ink_end_seconds,
-            std::min(scene.display_hold_ends[index], groups[note_group[index]].hold_cap_seconds));
+            std::min(scene.note_length_ends[index], groups[note_group[index]].hold_cap_seconds));
         ends[index] = HighwayHeadEnd{
             .pin_end_seconds = pin_end_seconds,
             .fade = headFade(note, pin_end_seconds),
@@ -465,7 +465,7 @@ std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(const std::vector<Not
             }
             strike.release_seconds =
                 strike.start_seconds +
-                drawnHoldExtent(strike.release_seconds - strike.start_seconds, limit, 0.0);
+                drawnSpanExtent(strike.release_seconds - strike.start_seconds, limit, 0.0);
             onsets.push_back(strike);
         });
     return onsets;

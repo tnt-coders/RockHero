@@ -67,8 +67,8 @@ the drawn tail.
 
 The one reading of the verdict its two distance-scoped consumers share — the projection's
 \ref NoteViewState::rested and the census's resting-ring row — so "rests, but nothing of it is
-curtained" (a handed-over member, whose landmark is its own end) is decided once. The hold channel
-keys on the verdict itself (\ref chartHolds), never on this.
+curtained" (a handed-over member, whose landmark is its own end) is decided once. The note-length
+channel keys on the verdict itself (\ref chartNoteLengths), never on this.
 
 \param rested_from The note's entry in \ref ChartPresentation::rested_from.
 \param ink_end The note's entry in \ref ChartPresentation::ink_end.
@@ -102,14 +102,15 @@ tail on a dead note that makes no noise, and mark where each tail that shows no 
     const ChartConnections& connections, const HeadMargins& margins, const TempoMap& tempo_map);
 
 /*!
-\brief Resolves each note's HELD length: how long the player keeps the string down.
+\brief Resolves each note's LENGTH: how long the player keeps the string down.
 
 The 3D board pins a head for this length, and it is not the same question as what a tail draws. A
 chugged riff under a hand-shape span draws no tails at all — no ring runs longer than the
-kept-sustain bound — yet the shape is what tells the player to keep holding it, so the hold
-outlives the picture. The 2D lane spends none of this.
+kept-sustain bound — yet the shape is what tells the player to keep holding it, so the note
+length outlives the picture. The 2D lane spends none of this.
 
-`holds[i]` is ONE RULE: a LIVE fretting-hand member whose tail does not stand AT REST, covered by a
+`note_lengths[i]` is ONE RULE, and for a note inside a span it follows from the span, which
+holds the shape: a LIVE fretting-hand member whose tail does not stand AT REST, covered by a
 shape span, holds for the REST OF THE SPAN — while the grip is held, the board pins what is held.
 "At rest" is the VERDICT's question (\ref ChartPresentation::rested_from), not tail emptiness.
 Three populations stand outside. A DEAD member is choked rather than held. A RIGHT-HAND onset is no
@@ -131,9 +132,9 @@ the shape (\ref deriveChartShapes bounds a span by its members' ring chains).
                    marks the members whose pin ends at that ring.
 \param shapes Hand-posture spans sorted by place.
 
-\return Per-note held length in whole notes, sized like the inputs.
+\return Per-note length in whole notes, sized like the inputs.
 */
-[[nodiscard]] std::vector<Fraction> chartHolds(
+[[nodiscard]] std::vector<Fraction> chartNoteLengths(
     const ChartPresentation& presentation, const ChartConnections& connections,
     const std::vector<ChartShape>& shapes);
 

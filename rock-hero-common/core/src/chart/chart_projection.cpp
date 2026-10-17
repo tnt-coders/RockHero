@@ -82,7 +82,7 @@ namespace
         const Fraction before_move = *move - shape.place;
         limit = limit.has_value() ? std::min(*limit, before_move) : before_move;
     }
-    return drawnHoldExtent(shape.sustain, limit, shape.stated_extent);
+    return drawnSpanExtent(shape.sustain, limit, shape.stated_extent);
 }
 
 // The approach a fret-hand arrival rides when it lands exactly on a PITCHED glide's arrival, keyed
@@ -267,7 +267,7 @@ ChartViewState makeChartViewState(
     // free tail's ink end on its ring end) is then one exact place and so one double, which is what
     // lets a surface compare them exactly.
     state.notes.reserve(notes.size());
-    state.display_hold_ends.reserve(notes.size());
+    state.note_length_ends.reserve(notes.size());
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
         const ChartNote& note = notes[note_index];
@@ -280,8 +280,8 @@ ChartViewState makeChartViewState(
         const Fraction& ink_end = resolutions.ink_end[note_index];
         view.ink_end_seconds = ink_end.numerator > 0 ? tempo_map.secondsAtWholeNote(place + ink_end)
                                                      : view.start_seconds;
-        state.display_hold_ends.push_back(
-            tempo_map.secondsAtWholeNote(place + resolutions.holds[note_index]));
+        state.note_length_ends.push_back(
+            tempo_map.secondsAtWholeNote(place + resolutions.note_lengths[note_index]));
         // THE TAIL LAW's verdict, carried per note so the board knows which ribbons the curtain
         // owns PART of and from where (\ref NoteViewState::rested): the one reading both
         // distance-scoped consumers share (\ref hasRestingRemainder), so a member resting at its

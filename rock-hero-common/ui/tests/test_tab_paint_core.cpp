@@ -723,10 +723,10 @@ TEST_CASE("Tab paint core draws a left-hand tap as the light tap plate", "[ui][t
 }
 
 // Every tail the lane draws is drawn to the note's own INK end, teeth and sine included, and the
-// hit-test rectangle stops exactly where that ink does. The span-implied hold running past it
-// is the 3D board's — it pins a chugged strum's heads there — and this surface must not spend
+// hit-test rectangle stops exactly where that ink does. The span-implied note length running past
+// it is the 3D board's — it pins a chugged strum's heads there — and this surface must not spend
 // it: the chug below inks no tail, so it draws none and lays out with none, while its hold
-// says 12.0s. The hold reaches the paint core only as `display_hold_ends`, so no shape span is
+// says 12.0s. The hold reaches the paint core only as `note_length_ends`, so no shape span is
 // needed to state the case (a covering span is what the projection derives that field from).
 TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
 {
@@ -769,7 +769,7 @@ TEST_CASE("Tab paint core draws tails to the ink end", "[ui][tab-paint]")
     };
     // Every hold runs to 12.0s (x = 240), well past all four: the board holds the three tails
     // longer than they ink and pins the chug's head for the whole span.
-    state.display_hold_ends = {12.0, 12.0, 12.0, 12.0};
+    state.note_length_ends = {12.0, 12.0, 12.0, 12.0};
     indexVisibleRanges(state);
 
     const TabLaneMetrics metrics = referenceMetrics(state.stringCount());
@@ -1027,10 +1027,10 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .strings =
                 {
                     common::core::ShapeStringViewState{
-                        .string = 3, .stop = common::core::frettedStop(7)
+                        .string = 3, .stop = common::core::fretStop(7)
                     },
                     common::core::ShapeStringViewState{
-                        .string = 5, .stop = common::core::frettedStop(8)
+                        .string = 5, .stop = common::core::fretStop(8)
                     },
                 },
             // WHERE the bracket draws is the projection's answer too, and an ordinary span's is
@@ -1201,12 +1201,12 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
                 {
                     common::core::ShapeStringViewState{
                         .string = 3,
-                        .stop = common::core::frettedStop(7),
+                        .stop = common::core::fretStop(7),
                         .digit = common::core::StopMarkSlot::Satellite
                     },
                     common::core::ShapeStringViewState{
                         .string = 5,
-                        .stop = common::core::frettedStop(8),
+                        .stop = common::core::fretStop(8),
                         .digit = common::core::StopMarkSlot::Bracket
                     },
                 },
@@ -4005,12 +4005,12 @@ TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][ta
                 .strings =
                     {common::core::ShapeStringViewState{
                          .string = 3,
-                         .stop = common::core::frettedStop(7),
+                         .stop = common::core::fretStop(7),
                          .digit = common::core::StopMarkSlot::Bracket
                      },
                      common::core::ShapeStringViewState{
                          .string = 5,
-                         .stop = common::core::frettedStop(8),
+                         .stop = common::core::fretStop(8),
                          .digit = common::core::StopMarkSlot::Bracket
                      }},
                 .bracket_seconds = bracket_seconds,

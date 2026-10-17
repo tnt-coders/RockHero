@@ -61,7 +61,7 @@ void forEachChannelStretch(
         return ChannelStretch{
             .from = from,
             .to = note.sustain,
-            .stop = picked ? frettedStop(fret) : frettingStopAt(note, fret),
+            .stop = picked ? fretStop(fret) : frettingStopAt(note, fret),
         };
     };
     ChannelStretch pending = stretch_from(Fraction{});
@@ -350,15 +350,14 @@ std::optional<Fraction> noteReleasesStopAt(
             {
                 return;
             }
-            const bool grips =
-                gripping.has_value()
-                    ? *gripping
-                    : gripping.emplace(fretting && stretch.stop == frettedStop(stop));
+            const bool grips = gripping.has_value()
+                                   ? *gripping
+                                   : gripping.emplace(fretting && stretch.stop == fretStop(stop));
             // The gripping finger lets go where it slides away. Any other note sounding at a node,
             // or under a pressed stop open or at or below it, proves the finger lifted; above it is
             // another finger, and over an open stop the open string restates it.
             const bool releases =
-                grips ? stretch.stop != frettedStop(stop)
+                grips ? stretch.stop != fretStop(stop)
                       : stretch.stop.node.has_value() || (pressed && stretch.stop.fret <= stop);
             if (releases)
             {

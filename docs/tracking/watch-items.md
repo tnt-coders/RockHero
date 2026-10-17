@@ -241,7 +241,7 @@ onto each note's PRESENTED tail (`NoteViewState::end_seconds`) for drawing, layo
 culling, so it draws no hold ribbon at all: the chord box over the strum already states how long the
 posture is fretted, and a ribbon under every chug restated it in the one mark that means "this
 string is still ringing". With no 2D hold to compare, the board's clamp cannot end earlier than one.
-`display_hold_ends` is now the board's field alone — documented as such on `ChartViewState`, which
+`note_length_ends` is now the board's field alone — documented as such on `ChartViewState`, which
 is where the division is stated once — and `hold_cap_seconds` is board-only presentation by
 construction rather than by acceptance, so the remedy's question ("fact about the chart, or
 board-only presentation?") is answered by the ruling rather than left open.
@@ -251,12 +251,12 @@ The record below is kept for the audit trail; every defect it names was real and
 (W9-B's fold shipped 2026-08-21 and did not touch this: the hold END is one shared datum, but how
 each painter draws up to it is still its own pass.)
 
-The span-implied hold itself is unified: both view states carry `display_hold_ends` resolved from
-`chartHolds`, which is what closed the W9-A divergence on 2026-08-11.
+The span-implied hold itself is unified: both view states carry `note_length_ends` resolved from
+`chartNoteLengths`, which is what closed the W9-A divergence on 2026-08-11.
 
 **This entry originally understated its own subject and was rewritten on 2026-08-11 after an
 independent review.** As first shipped the lane's hold was not merely *longer* than the board's, it
-was **unbounded**: the lane drew a ribbon straight to `display_hold_ends[i]` with no cap at all, so a
+was **unbounded**: the lane drew a ribbon straight to `note_length_ends[i]` with no cap at all, so a
 sustainless chord under a whole-note span with the same string restruck at beats 2 and 3 drew string
 1's tail through both later heads and out the far side, tremolo teeth and vibrato sine riding the
 whole length — a picture the same-string clamp guarantees no *stored* sustain can produce. The
@@ -269,12 +269,12 @@ the layout manifest takes the same hold end the paint pass draws to. (Both caps 
 of 2026-08-29: with the lane off the hold since D1 the ribbon that needed bounding no longer
 exists, and the ring cap was cutting a repeat chain's pinned heads at its second box — inside a
 merged chain every ring ends exactly at the next strum's onset, so the cap ended the pin one box
-in; see `chartHolds`. `predecessorHoldReaches` reads the stored ring rather than the hold in any
-case.)
+in; see `chartNoteLengths`. `predecessorHoldReaches` reads the stored ring rather than the hold in
+any case.)
 
 **What remained, until D1, was the original entry's subject, correctly scoped**: the *clamp* on top
 of the shared hold is board-only. The renderer draws a sustainless span member as a head pinned at
-the hit line and ends that pin at `std::min(display_hold_ends[i], group.hold_cap_seconds)`
+the hit line and ends that pin at `std::min(note_length_ends[i], group.hold_cap_seconds)`
 (composed into `HighwayViewState::head_ends` by the board projection) — the cap being the next
 note-showing strum's onset,
 because a re-shown chord takes over the pinned display. That strum can land before the string is
@@ -367,7 +367,7 @@ on the type. `chart.h` documents the dependency beside the operator and the reas
 which is why two independent reviews (2026-09-07) flagged it without calling it a defect.
 
 **Trigger:** any relaxation of the node range or NaN refusal in `chart_rules.cpp`, or a new producer
-of `ChartStop` that bypasses `frettedStop` / `nodeStop`. **Remedy:** hand-write `operator<=>` over
+of `ChartStop` that bypasses `fretStop` / `nodeStop`. **Remedy:** hand-write `operator<=>` over
 `std::strong_order` on the node — the same semantics, total by type, and the cross-file dependency
 is deleted.
 
@@ -1688,11 +1688,12 @@ distinct (CIE76 ΔE), but a guardrail is not a sighting. Levers, cheapest first:
 ### A span-held head can outlast its span's rails — trigger: seen in play
 
 Since `ba505cb7` a chord span's rails end where the fret hand's next move begins. A head the span
-holds is pinned to the later of its own stored ring and the span's musical close (`chartHolds`,
-`chart_presentation.cpp`), so in a test case it stays pinned to 0.72 s while the rails stop at
-0.70 s, riding the hand window's morph for that sliver. The user has not seen it in play, and ruled
-that a note that legitimately rings past its span keeps its head until the note itself fades;
-what to look at if it shows up is only the span-close part of the pin, never the note's own ring.
+holds is pinned to the later of its own stored ring and the span's musical close
+(`chartNoteLengths`, `chart_presentation.cpp`), so in a test case it stays pinned to 0.72 s while
+the rails stop at 0.70 s, riding the hand window's morph for that sliver. The user has not seen it
+in play, and ruled that a note that legitimately rings past its span keeps its head until the note
+itself fades; what to look at if it shows up is only the span-close part of the pin, never the
+note's own ring.
 
 These two entries had been appended after the Retired header, whose lead-in says "trigger fired
 and handled" — neither trigger has fired; both are live accepted items. Restored to a live

@@ -549,12 +549,12 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
     SECTION("node, fret and open are three different places")
     {
         // A finger on the fifth wire is not a finger in the fifth slot.
-        CHECK(frettedStop(5) != nodeStop(5.0));
+        CHECK(fretStop(5) != nodeStop(5.0));
         // And not the open string it shares a fret number with: the finger IS on the string.
-        CHECK(nodeStop(12.0) != frettedStop(0));
+        CHECK(nodeStop(12.0) != fretStop(0));
         CHECK(nodeStop(12.0) == nodeStop(12.0));
-        CHECK(frettedStop(0) == ChartStop{});
-        CHECK(frettedStop(7) == frettedStop(7));
+        CHECK(fretStop(0) == ChartStop{});
+        CHECK(fretStop(7) == fretStop(7));
         CHECK(nodeStop(7.01955) != nodeStop(7.0));
     }
 
@@ -565,13 +565,13 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         CHECK(handFretOf(nodeStop(3.156)) == 3);
         CHECK(handFretOf(nodeStop(7.01955)) == 7);
         CHECK(handFretOf(nodeStop(4.98)) == 5);
-        CHECK(handFretOf(frettedStop(0)) == 0);
-        CHECK(handFretOf(frettedStop(9)) == 9);
+        CHECK(handFretOf(fretStop(0)) == 0);
+        CHECK(handFretOf(fretStop(9)) == 9);
 
         CHECK(chartStopText(nodeStop(7.01955)) == "7");
         CHECK(chartStopText(nodeStop(2.669)) == "2.7");
-        CHECK(chartStopText(frettedStop(12)) == "12");
-        CHECK(chartStopText(frettedStop(0)) == "0");
+        CHECK(chartStopText(fretStop(12)) == "12");
+        CHECK(chartStopText(fretStop(0)) == "0");
     }
 
     SECTION("the fretting hand's stop, per harmonic family")
@@ -595,20 +595,20 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         ChartNote tapped = natural(17.0);
         tapped.fret = 5;
         tapped.attack = NoteAttack::Tap;
-        CHECK(frettingStopAt(tapped, 5) == frettedStop(5));
+        CHECK(frettingStopAt(tapped, 5) == fretStop(5));
         CHECK(
             soundingStopAt(tapped.harmonic_node, tapped.attack, tapped.fret, 5) == nodeStop(17.0));
         // A pinch's node is off the neck: the hand stays on the stop, and so does the sound.
         ChartNote pinch = natural(29.0);
         pinch.fret = 5;
         pinch.attack = NoteAttack::Pinch;
-        CHECK(frettingStopAt(pinch, 5) == frettedStop(5));
-        CHECK(soundingStopAt(pinch.harmonic_node, pinch.attack, pinch.fret, 5) == frettedStop(5));
+        CHECK(frettingStopAt(pinch, 5) == fretStop(5));
+        CHECK(soundingStopAt(pinch.harmonic_node, pinch.attack, pinch.fret, 5) == fretStop(5));
         // An artificial harmonic presses a real stop while the picking hand damps the node —
         // asserted BESIDE the sounding answer, so the two producers are never collapsed into one.
         ChartNote artificial = natural(17.0);
         artificial.fret = 5;
-        CHECK(frettingStopAt(artificial, 5) == frettedStop(5));
+        CHECK(frettingStopAt(artificial, 5) == fretStop(5));
         CHECK(
             soundingStopAt(artificial.harmonic_node, artificial.attack, artificial.fret, 5) ==
             nodeStop(17.0));
@@ -616,7 +616,7 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         ChartNote plain = natural(0.0);
         plain.harmonic_node.reset();
         plain.fret = 7;
-        CHECK(frettingStopAt(plain, 9) == frettedStop(9));
+        CHECK(frettingStopAt(plain, 9) == fretStop(9));
     }
 
     SECTION("postures compare and key by stop, so a node grip and a fret grip are two rows")
@@ -625,7 +625,7 @@ TEST_CASE("A grip stop is a place on the fret axis, not a fret number", "[core][
         // ordering a posture vector keys the derivation's dedup map by, all instantiated here.
         const ChartPosture node_grip{.stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}};
         const ChartPosture same_grip{.stops = {nodeStop(12.0), std::nullopt, nodeStop(12.0)}};
-        const ChartPosture fret_grip{.stops = {frettedStop(12), std::nullopt, frettedStop(12)}};
+        const ChartPosture fret_grip{.stops = {fretStop(12), std::nullopt, fretStop(12)}};
         CHECK(node_grip == same_grip);
         CHECK(node_grip != fret_grip);
 
@@ -3939,7 +3939,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
     SECTION("a hand-shape span implies a hold for the display, never for a claim")
     {
-        // The span convention answers how long the HAND stays down (chartHolds), which is a
+        // The span convention answers how long the HAND stays down (chartNoteLengths), which is a
         // display length. What a claim reads is the stored ring, so a span cannot lend one.
         //
         // The covering span is not supplied — a two-string strum DERIVES one, which is what the
@@ -3960,9 +3960,9 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         const ChartResolutions resolutions = chartResolutions({low, high, claim}, 0, tempo_map);
         REQUIRE(resolutions.shapes.size() == 1);
         CHECK(resolutions.shapes.front().place == Fraction{});
-        REQUIRE(resolutions.holds.size() == 3);
-        CHECK(resolutions.holds[0] == g_fixture_ring);
-        CHECK(resolutions.holds[1] == g_fixture_ring);
+        REQUIRE(resolutions.note_lengths.size() == 3);
+        CHECK(resolutions.note_lengths[0] == g_fixture_ring);
+        CHECK(resolutions.note_lengths[1] == g_fixture_ring);
     }
 
     SECTION("resolutions judge the SAVED form, so a scrape's latent mute changes nothing")
@@ -3997,20 +3997,20 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         };
         const ChartResolutions memory_resolutions = chartResolutions(in_memory, 0, tempo_map);
         const ChartResolutions saved_resolutions = chartResolutions(as_saved, 0, tempo_map);
-        REQUIRE(memory_resolutions.holds.size() == 4);
-        REQUIRE(saved_resolutions.holds.size() == 4);
+        REQUIRE(memory_resolutions.note_lengths.size() == 4);
+        REQUIRE(saved_resolutions.note_lengths.size() == 4);
         // Each dead member holds nothing: a percussive choke is not a grip, however far the shape
         // above it runs.
-        CHECK(memory_resolutions.holds[0] == Fraction{});
-        CHECK(memory_resolutions.holds[2] == Fraction{});
+        CHECK(memory_resolutions.note_lengths[0] == Fraction{});
+        CHECK(memory_resolutions.note_lengths[2] == Fraction{});
         // The scrape holds exactly what it draws: its quarter-note gesture, spaced a margin before
         // the head a quarter later like every other drawn tail (tail rule 1), its terminal keeping
         // its stored instant past the crop. A number of its own is what says the two zeros above
         // are the mute rather than a span that failed to cover the onset.
-        CHECK(memory_resolutions.holds[1] == Fraction{9, 40});
-        CHECK(memory_resolutions.holds[0] == saved_resolutions.holds[0]);
-        CHECK(memory_resolutions.holds[1] == saved_resolutions.holds[1]);
-        CHECK(memory_resolutions.holds[2] == saved_resolutions.holds[2]);
+        CHECK(memory_resolutions.note_lengths[1] == Fraction{9, 40});
+        CHECK(memory_resolutions.note_lengths[0] == saved_resolutions.note_lengths[0]);
+        CHECK(memory_resolutions.note_lengths[1] == saved_resolutions.note_lengths[1]);
+        CHECK(memory_resolutions.note_lengths[2] == saved_resolutions.note_lengths[2]);
 
         // The fret-hand harmonic predicate keeps the same discipline for a scrape's latent node:
         // the exclusion is about the ATTACK owning the node, not about having a slide-out.
@@ -4667,7 +4667,7 @@ TEST_CASE("A slid pull-off source plants its stop", "[core][chart]")
     REQUIRE(connections.legato[1] == LegatoMotion::Pull);
     CHECK(chartPlantedStops(connections).front() == std::optional{7});
     // The source's path swept 7, so it cannot ride a grip holding 7.
-    CHECK_FALSE(gripStatement(chart.notes.front(), std::optional{7}, frettedStop(7)).has_value());
+    CHECK_FALSE(gripStatement(chart.notes.front(), std::optional{7}, fretStop(7)).has_value());
 
     Arrangement arrangement;
     arrangement.chart = chart;
@@ -4772,7 +4772,7 @@ TEST_CASE("A pull-off plants its stop under a fretting-hand source too", "[core]
     SECTION("a natural harmonic never plants: the resolver refuses it as a source")
     {
         // A planted grip is always a PRESSED one, which is what lets the span machine lift every
-        // plant through frettedStop: the resolver refuses a fret-hand harmonic as a legato source,
+        // plant through fretStop: the resolver refuses a fret-hand harmonic as a legato source,
         // so a node is never on either end of the pull-off relation.
         Chart chart = figure(NoteAttack::Pick, 5);
         chart.notes.front().fret = 0;
