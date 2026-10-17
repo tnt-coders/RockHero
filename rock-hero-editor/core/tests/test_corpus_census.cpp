@@ -2659,10 +2659,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // a chord box, because something is picked apart inside them. A span classes by
                 // its own strokes alone: a ring struck before it — an open drone included — is a
                 // tail under it and classes nothing, so what is counted here is the spans whose
-                // own members sound apart.
+                // own members sound apart, and only derived spans of three members or more
+                // (shape rule 5).
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1043.0,
+                .expected = 963.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the

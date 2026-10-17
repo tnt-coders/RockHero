@@ -136,7 +136,7 @@ struct SpanFigure
     const HeadMargins margins{connections.places, tempo_map};
     const ChartShapes derived = deriveChartShapes(connections, margins);
     SpanFigure figure;
-    figure.arrivals = chartShapeArrivals(connections, derived.shapes);
+    figure.arrivals = chartShapeArrivals(connections, derived.shapes, derived.postures);
     ChartPresentation presentation = chartPresentation(connections, margins, tempo_map);
     figure.ink_end = std::move(presentation.ink_end);
     figure.hidden.clear();

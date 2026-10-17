@@ -42,6 +42,11 @@ constexpr std::size_t g_span_member_threshold = 2;
 // minimum, and a landing opens at the statement threshold above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
 
+// The fewest members a derived arpeggio has (shape rule 5): a derived span of one or two members is
+// a box-class span however its members sound, since a bracket over two strings states nothing a box
+// does not.
+constexpr std::size_t g_arpeggio_member_minimum = 3;
+
 } // namespace
 
 // One walk of the channel's statements: each travel goes on while its frets lie further in its
@@ -1551,7 +1556,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 }
 
 std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes)
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartPosture>& postures)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
@@ -1563,6 +1569,14 @@ std::vector<bool> chartShapeArrivals(
         while (next_note < notes.size() && places[next_note] < shape.place)
         {
             ++next_note;
+        }
+        const std::vector<std::optional<ChartStop>>& stops = postures[shape.posture].stops;
+        const auto members = static_cast<std::size_t>(
+            std::ranges::count_if(stops, [](const auto& stop) { return stop.has_value(); }));
+        if (members < g_arpeggio_member_minimum)
+        {
+            arpeggio.push_back(false);
+            continue;
         }
         if (shape.sounds_in_parts)
         {

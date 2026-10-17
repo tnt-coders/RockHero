@@ -291,6 +291,9 @@ takes the next one.
    the bracket's anchor (`ShapeViewState::bracket_seconds`) for an arpeggio span alone. A landing
    successor that never sounds inside draws no furniture at all: no bracket, and no box, since
    nothing strikes it.
+   - **A derived span of fewer than three members is never an arpeggio.** It is a box-class span
+     whatever its soundings: a bracket over two strings states nothing the boxes do not. The
+     triggers below apply to a derived span from three members up (`chartShapeArrivals`).
    - **A sounding that is only part of the shape** makes the span an arpeggio: its own start where
      a member is carried in rather than struck, a partial restrike, a lone re-pick, growth by a
      string the span never stated, a partial slide, or a whole stroke absorbed by its parts

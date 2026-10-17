@@ -196,7 +196,9 @@ struct ChartShape
 
     Shape rule 5's class rule in ONE comparison: a slot striking fewer strings than the shape
     SOUNDS is the shape's members arriving SEPARATELY, so the span is an arpeggio for its whole
-    length — the span is one statement, and its class is HOW that statement's members arrive.
+    length — the span is one statement, and its class is HOW that statement's members arrive. A
+    derived span of fewer than three members is a box-class span all the same
+    (\ref chartShapeArrivals).
 
     Asked of every slot inside the span that sounds anything, ITS OWN START INCLUDED. The start is
     not a second case: a span whose opening slot strikes fewer strings than its shape sounds is a
@@ -468,7 +470,9 @@ fact about WHICH SLOTS the statement covers has to come from the walk that group
 right-hand trigger is derived here, because whether a right-hand onset lands inside the span is a
 question about the extent this rule is handed. What it reads off the note stream is positions and
 attacks alone, which presentation never touches, so the rule takes the stored stream and \ref
-chartResolutions can answer the class before the bracket re-read that consumes it runs.
+chartResolutions can answer the class before the bracket re-read that consumes it runs. A DERIVED
+span of fewer than three members is a box-class span whatever its soundings, so the posture is read
+too.
 
 One forward cursor over the sorted notes serves every shape. No backward look is needed — nothing
 here reads a posture string's most recent earlier note, which would mean walking back to the first
@@ -476,10 +480,12 @@ note in the song whenever a posture string had none.
 
 \param connections The resolved connections: the stored stream, sorted by (position, string), whose
        positions and attacks are all that is read, and its places.
-\param shapes Hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
+\param shapes Derived hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
+\param postures The posture table `shapes` index (\ref ChartResolutions::postures).
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes);
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartPosture>& postures);
 
 } // namespace rock_hero::common::core

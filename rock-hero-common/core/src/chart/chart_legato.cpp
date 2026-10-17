@@ -354,10 +354,11 @@ ChartResolutions chartResolutions(
     // passing them separately is a mismatch waiting to happen.
     resolutions.held_stops = chartHeldStops(resolutions.connections, derived);
     // The CLASS every span arrives as, answered once for the revision because both surfaces draw
-    // it. Asked of the stored stream, which presentation cannot move: the rule reads positions and
-    // attacks and nothing else, and both come through presentation untouched. NO TAIL RULE READS
+    // it. Asked of the spans and the stored stream, which presentation cannot move: the rule reads
+    // the postures' sizes, positions and attacks, all untouched by presentation. NO TAIL RULE READS
     // IT: the tail law is class-blind, so nothing downstream has to re-read the class.
-    resolutions.arrivals = chartShapeArrivals(resolutions.connections, derived.shapes);
+    resolutions.arrivals =
+        chartShapeArrivals(resolutions.connections, derived.shapes, derived.postures);
     // Where each ring's ink stops, derived here so a chart revision pays for it once and no
     // consumer can derive a different picture of the same chart. ONE PASS OWNS EVERY TAIL DECISION:
     // the presentation rules and the tail law come out together, so there is no ordering contract

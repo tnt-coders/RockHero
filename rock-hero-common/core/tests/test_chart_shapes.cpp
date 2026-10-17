@@ -141,7 +141,7 @@ using rock_hero::common::core::testing::metersAt;
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartShapes derived = deriveWith(notes, tempo_map);
-    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes);
+    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes, derived.postures);
 }
 
 // THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
@@ -1043,6 +1043,39 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 // a partial restrike with NO ring behind it is interior to nothing, because it split into a span of
 // its own. And an interior slot that restates the shape WHOLE is the box chain the repeat marks are
 // for, which is what keeps this from collapsing into "any span with an interior onset".
+// Shape rule 5: a derived span of fewer than three members is never an arpeggio. A dyad with one
+// string re-picked under the other's ring sounds in parts, and is still a box-class span; the same
+// figure over three strings is an arpeggio.
+TEST_CASE("A derived span of fewer than three members is never an arpeggio", "[core][chart]")
+{
+    SECTION("a two-note strike, then a lone re-pick under the other ring, is a box")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1, 4}),
+            noteAt(1, Fraction{1, 2}, 1, 5, Fraction{1, 8}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(arpeggiosFrom(notes) == std::vector<bool>{false});
+    }
+
+    SECTION("the same re-pick under a three-note grip is an arpeggio")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1, 4}),
+            noteAt(1, Fraction{}, 3, 7, Fraction{1, 4}),
+            noteAt(1, Fraction{1, 2}, 1, 5, Fraction{1, 8}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(arpeggiosFrom(notes) == std::vector<bool>{true});
+    }
+}
+
 TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[core][chart]")
 {
     // A three-string shape struck whole, then two of its three struck again a quarter later. What
@@ -1088,13 +1121,14 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
 
     SECTION("a lone re-pick is the same fact at one string's width")
     {
-        // THE ABSORPTION RULE: the lone re-pick sounds ONE of the shape's two members while the
-        // other rings, so the strum does not stand alone and is absorbed. The class is decided AT
+        // THE ABSORPTION RULE: the lone re-pick sounds ONE of the shape's three members while the
+        // others ring, so the strum does not stand alone and is absorbed. The class is decided AT
         // the strum, off the strum's own rings and the one slot that follows them — never
         // retroactively — and the span has no seam.
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
+            noteAt(1, Fraction{}, 3, 7, Fraction{1, 2}),
             noteAt(2, Fraction{}, 1, 5, Fraction{1, 4}),
         };
         REQUIRE(deriveFrom(notes).shapes.size() == 1);
@@ -1122,9 +1156,11 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         CHECK(derived.shapes.front().sustain == Fraction{5, 16});
         CHECK(derived.shapes.front().stated_extent == Fraction{1, 4});
         CHECK(derived.shapes[1].place == Fraction{5, 16});
+        // The first span sounds in parts, but it has two members, so it is a box-class span.
+        CHECK(derived.shapes.front().sounds_in_parts);
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
-        CHECK(arpeggio.front());
+        CHECK_FALSE(arpeggio.front());
     }
 
     SECTION("a chug chain restating the shape whole stays a box")

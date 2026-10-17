@@ -5983,8 +5983,9 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
-    // Two-string chord against a second voice: a quarter rest, then two tapped eighths that
-    // sound inside the chord's notated ring.
+    // Three-string chord against a second voice: a quarter rest, then two tapped eighths that
+    // sound inside the chord's notated ring. Three strings, since a derived span of fewer than
+    // three members is never an arpeggio.
     const auto make_score = [&syncs](const Fraction chord_duration) {
         GpScore score = makeLinearScore(1, syncs);
         GpBeat chord;
@@ -5992,6 +5993,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         chord.notes = {
             GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
             GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
+            GpNote{.string = 2, .fret = 5, .harmonic_type = ""},
         };
         GpBeat rest;
         rest.duration_whole = Fraction{1, 4};
@@ -6008,11 +6010,11 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         const auto built = buildGpSong(make_score(Fraction{1, 2}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 4);
+        REQUIRE(chart.notes.size() == 5);
         // The half-note chord rings strictly past the taps' notated beats — a deliberate
         // cross-voice hold (tail rule 1) — so its tails survive under the tapping.
         CHECK(chart.notes[0].sustain == Fraction{1, 2});
-        CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
+        CHECK(chart.notes[3].attack == common::core::NoteAttack::Tap);
         // One span from the strum through its notated ring: the taps neither close nor trim it,
         // and the covered span arrives as a held arpeggio.
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
