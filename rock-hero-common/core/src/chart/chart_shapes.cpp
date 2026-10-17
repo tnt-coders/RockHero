@@ -528,12 +528,16 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // landing belonged to the predecessor (the seam ownership) — and the survivors are the
     // members whose channels state a stop at the boundary and whose sound runs STRICTLY past it,
     // at the statement threshold: they were already established members of the span that just
-    // closed, so nothing here is an accumulation.
+    // closed, so nothing here is an accumulation. Each boundary is judged once, at the first
+    // instant the walk reaches it, against the hand as it stood there: one a slot's verdicts then
+    // let stand is never judged again with that slot's strikes counted among its survivors.
+    std::optional<Fraction> settled_through;
     const auto settle_landings = [&](const Fraction now) {
+        const std::optional<Fraction> judged_through = std::exchange(settled_through, now);
         while (open.has_value())
         {
             const Fraction boundary = span_reach(*open);
-            if (now < boundary)
+            if (now < boundary || (judged_through.has_value() && boundary <= *judged_through))
             {
                 return;
             }

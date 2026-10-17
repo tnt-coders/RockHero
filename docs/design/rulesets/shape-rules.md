@@ -255,7 +255,8 @@ takes the next one.
      members were already established members of the span that just closed, and nothing arrives at a
      landing. A ring abutting the landing, ending exactly there, was held through the slide and
      belonged to the predecessor; only a ring sounding strictly past the landing carries into the
-     successor. The survivors carry the stops their channels state at the landing, open strings
+     successor. A landing is judged once, before the slot at its instant, so a restrike struck
+     there is never a survivor, even where that slot's verdicts let the span stand. The survivors carry the stops their channels state at the landing, open strings
      included as part of the chord landed on; a member that stayed put keeps its stop. The successor
      runs by rule 3 over those rings, which bound it. It opens exactly where its predecessor closes,
      so the two tile with no gap and no zero-length span, and the chain terminates: each successor

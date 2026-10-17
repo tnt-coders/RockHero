@@ -5865,4 +5865,23 @@ TEST_CASE("A span's grip holds to a slide-out's keyframe", "[core][chart]")
     CHECK(derivedStops(derived, 0)[1] == std::optional{fretStop(7)});
 }
 
+// Shape rule 4 judges a landing once, before the slot at its instant: the 7 sliding onto 5 lands
+// as the open string beside it is restruck, and that open ring ends exactly at the landing, so one
+// survivor opens nothing. The restrike rides the span at its slot and never makes the same landing
+// a hand-off at a later slot.
+TEST_CASE("A landing is judged once, before a restrike at its instant", "[core][chart]")
+{
+    const ChartShapes derived = deriveFrom(streamOf({
+        noteAt(3, {}, 2, 0, Fraction{1, 8}),
+        travellingAt(noteAt(3, {}, 3, 7, Fraction{1, 4}), {{Fraction{1, 8}, 5}}),
+        noteAt(3, Fraction{1, 2}, 2, 0, Fraction{1, 8}),
+        noteAt(4, {}, 2, 0, Fraction{1, 8}),
+    }));
+
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{1, 2});
+    CHECK(derived.shapes[0].sustain == Fraction{1, 8});
+    CHECK_FALSE(derived.shapes[0].landing_opened);
+}
+
 } // namespace rock_hero::common::core

@@ -2652,7 +2652,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22340.0,
+                .expected = 22334.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
@@ -2685,7 +2685,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2779.0,
+                .expected = 2773.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
@@ -2698,7 +2698,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 1231.0,
+                .expected = 1225.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
@@ -2711,7 +2711,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 1145.0,
+                .expected = 1139.0,
             },
             CrossCheck{
                 // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a
