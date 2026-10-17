@@ -111,11 +111,19 @@ struct SpanHolds
     };
 }
 
-// Where `note`, alone on its string, releases the `held_fret` there, judged from `from`.
+// Where `note`, alone on its string, releases the `held_fret` there, judged from `from`; nothing
+// where it never does before the end of the timeline.
 [[nodiscard]] std::optional<Fraction> releaseOf(
     const ChartNote& note, const Fraction from, const int held_fret)
 {
-    return noteReleasesStopAt(chartConnections({note}, makeTempoMap()), 0, from, held_fret);
+    const Fraction never{8};
+    const Fraction released = stringReleasesStopAt(
+        chartConnections({note}, makeTempoMap()),
+        static_cast<std::size_t>(note.string - 1),
+        held_fret,
+        from,
+        never);
+    return released < never ? std::optional{released} : std::nullopt;
 }
 
 // Whether `holds` carries a hold of exactly `expected`'s fret over exactly its stretch.

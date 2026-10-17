@@ -284,61 +284,10 @@ struct HeldSlideOut
     return slide_outs;
 }
 
-// Where a string releases the `held_fret` a span grips on it from `front`: the earliest release
-// of any note on it (\ref noteReleasesStopAt), else `close`. `string_notes` are every note on the
-// string, of both hands, ascending by onset. No ring crosses the next onset on its own string, so
-// the scan starts at the one note that can still ring at the front and stops at the first onset at
-// or past a release already found.
-[[nodiscard]] Fraction stringReleasesStopAt(
-    const ChartConnections& connections, const std::vector<std::size_t>& string_notes,
-    const int held_fret, const Fraction front, const Fraction close)
-{
-    const auto place_of = [&connections](const std::size_t index) {
-        return connections.places[index];
-    };
-    auto note = std::ranges::lower_bound(string_notes, front, std::ranges::less{}, place_of);
-    if (note != string_notes.begin())
-    {
-        --note;
-    }
-    Fraction released = close;
-    for (; note != string_notes.end() && place_of(*note) < released; ++note)
-    {
-        const std::optional<Fraction> note_release =
-            noteReleasesStopAt(connections, *note, front, held_fret);
-        if (note_release.has_value())
-        {
-            released = std::min(released, *note_release);
-        }
-    }
-    return released;
-}
-
-} // namespace
-
-// Reads the finger's fret, lifted onto the playable board; a bent open string reads as the open
-// string, so the lift alone puts it at the first playable fret (hand-position rule 13).
-std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset, const int capo)
-{
-    if (rightHandOnset(note.attack))
-    {
-        return std::nullopt;
-    }
-    // The fret slot the finger occupies, pressing a fret or touching a natural harmonic's node;
-    // nothing for the open string.
-    const std::optional<int> occupied =
-        fretHandStopAt(note, std::nullopt, offset).transform(handFretOf).and_then(pressedFret);
-    if (!occupied.has_value() && !noteIsBent(note))
-    {
-        return std::nullopt;
-    }
-    // A pressed fret already lies above the capo; what the lift moves is a bent open string and a
-    // node nearest a fret at or below the capo.
-    return std::max(occupied.value_or(0), firstPlayableFret(capo));
-}
-
-// Judges each statement in force after `from`; the first of them decides whether the note grips.
-std::optional<Fraction> noteReleasesStopAt(
+// Where one note releases the `held_fret` on its string, judged from `from`
+// (\ref stringReleasesStopAt): each statement in force after `from` is judged, the first of them
+// deciding whether the note grips.
+[[nodiscard]] std::optional<Fraction> noteReleasesStopAt(
     const ChartConnections& connections, const std::size_t index, const Fraction from,
     const int held_fret)
 {
@@ -371,22 +320,65 @@ std::optional<Fraction> noteReleasesStopAt(
     return released;
 }
 
+} // namespace
+
+// Reads the finger's fret, lifted onto the playable board; a bent open string reads as the open
+// string, so the lift alone puts it at the first playable fret (hand-position rule 13).
+std::optional<int> fretHandDemandAt(const ChartNote& note, const Fraction offset, const int capo)
+{
+    if (rightHandOnset(note.attack))
+    {
+        return std::nullopt;
+    }
+    // The fret slot the finger occupies, pressing a fret or touching a natural harmonic's node;
+    // nothing for the open string.
+    const std::optional<int> occupied =
+        fretHandStopAt(note, std::nullopt, offset).transform(handFretOf).and_then(pressedFret);
+    if (!occupied.has_value() && !noteIsBent(note))
+    {
+        return std::nullopt;
+    }
+    // A pressed fret already lies above the capo; what the lift moves is a bent open string and a
+    // node nearest a fret at or below the capo.
+    return std::max(occupied.value_or(0), firstPlayableFret(capo));
+}
+
+// The earliest release by any note on the string, scanning only the notes that can come first.
+Fraction stringReleasesStopAt(
+    const ChartConnections& connections, const std::size_t string_index, const int held_fret,
+    const Fraction front, const Fraction close)
+{
+    const std::vector<std::size_t>& string_notes = connections.string_notes[string_index];
+    const auto place_of = [&connections](const std::size_t index) {
+        return connections.places[index];
+    };
+    auto note = std::ranges::lower_bound(string_notes, front, std::ranges::less{}, place_of);
+    if (note != string_notes.begin())
+    {
+        --note;
+    }
+    Fraction released = close;
+    for (; note != string_notes.end() && place_of(*note) < released; ++note)
+    {
+        const std::optional<Fraction> note_release =
+            noteReleasesStopAt(connections, *note, front, held_fret);
+        if (note_release.has_value())
+        {
+            released = std::min(released, *note_release);
+        }
+    }
+    return released;
+}
+
 std::vector<FretHandHold> fretHandHolds(
     const ChartConnections& connections, const ChartShapes& shapes, const int capo)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
     std::vector<FretHandHold> holds;
-    // Every note per string, of both hands, ascending by onset: what can release a grip's stop.
-    std::vector<std::vector<std::size_t>> strings(static_cast<std::size_t>(g_max_chart_strings));
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const Fraction place = places[index];
-        if (const std::optional<std::size_t> string_index = chartStringIndex(notes[index]);
-            string_index.has_value())
-        {
-            strings[*string_index].push_back(index);
-        }
         const ChartNote& note = notes[index];
         forEachChannelStretch(
             note,
@@ -419,8 +411,8 @@ std::vector<FretHandHold> fretHandHolds(
             {
                 continue;
             }
-            const Fraction released = stringReleasesStopAt(
-                connections, strings[string_index], stop->fret, shape.place, close);
+            const Fraction released =
+                stringReleasesStopAt(connections, string_index, stop->fret, shape.place, close);
             if (shape.place < released)
             {
                 holds.push_back(

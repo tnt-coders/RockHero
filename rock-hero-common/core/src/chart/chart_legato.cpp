@@ -186,9 +186,16 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     connections.hands_over.assign(notes.size(), false);
     connections.arrives_into.assign(notes.size(), false);
     connections.end_heads.assign(notes.size(), std::nullopt);
+    connections.string_notes.resize(static_cast<std::size_t>(g_max_chart_strings));
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = connections.saved_notes[index];
+        // Bound once so the presence test and the read are provably the same object.
+        if (const std::optional<std::size_t> string_index = chartStringIndex(note);
+            string_index.has_value())
+        {
+            connections.string_notes[*string_index].push_back(index);
+        }
         const std::size_t predecessor_index = connections.predecessors[index];
         const std::optional<LegatoPredecessor> predecessor = connections.predecessorOf(index);
         // THE SHIFT SLIDE, marked from the SUCCESSOR onto its predecessor because the relation is

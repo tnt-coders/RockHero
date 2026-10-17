@@ -198,32 +198,38 @@ bend, which demands the first playable fret, and a node nearest a fret at or bel
 [[nodiscard]] std::optional<int> fretHandDemandAt(const ChartNote& note, Fraction offset, int capo);
 
 /*!
-\brief Hand-position rule 6's release, stated once: the first instant at or after \p from at which
-a note lets go of the pressed \p held_fret a finger holds on its string.
+\brief Hand-position rule 6's release, stated once: the first instant at or after \p front at which
+a note on one string lets go of the pressed \p held_fret a finger holds there, else \p close.
 
-The note GRIPPING the fret is a fretting-hand note whose channel states it where the judgement
-begins — at \p from, or at its onset where it starts later — and it releases the fret at its first
+A note GRIPPING the fret is a fretting-hand note whose channel states it where the judgement begins
+— at \p front, or at its onset where it starts later — and it releases the fret at its first
 statement of any other stop: the finger slid away. Any other note, of either hand, releases it where
 it sounds the string below the held fret, a node and the open string included, or AT it, since two
 fingers cannot share one fret on one string. A fret above is another finger and leaves the fret
 held, so a tap releases it only where it reaches it: the picking hand sounds a string above the
 finger holding it, so a tap at or below proves that finger lifted.
 
-Read from the note's fret statements: the onset, then every fret-stating keyframe but a slide-out,
+Read from each note's fret statements: the onset, then every fret-stating keyframe but a slide-out,
 each in force until the next or the ring's end, and each as the hand that makes it states it — the
 fretting hand's node-aware stop (\ref frettingStopAt), or the picking hand's own fret where that
-hand stops the string (\ref pickingHandStopsString).
+hand stops the string (\ref pickingHandStopsString). A release is a struck note's onset or a
+glide's landing.
+
+Searches only the notes that can release before \p close (\ref ChartConnections::string_notes): no
+ring crosses the next onset on its own string, so the scan begins at the one note that can still
+ring at \p front and ends at the first onset at or past a release already found.
 
 \param connections The resolved connections (\ref chartConnections).
-\param index The note judged, an index into \p connections.
-\param from Where the judgement begins on the whole-note axis.
-\param held_fret The fret held on the note's string. MUST be pressed (\ref pressedFret): a hold
-       states only pressed stops, since an open string and a natural harmonic hold nothing.
-\return The release instant on the whole-note axis, or nothing where the note never releases the
-        fret after \p from.
+\param string_index The zero-based string the fret is held on (\ref chartStringIndex).
+\param held_fret The fret held. MUST be pressed (\ref pressedFret): a hold states only pressed
+       stops, since an open string and a natural harmonic hold nothing.
+\param front Where the judgement begins on the whole-note axis.
+\param close Where it ends: the answer where nothing releases the fret sooner.
+\return The earliest release on the whole-note axis, or \p close where none comes before it.
 */
-[[nodiscard]] std::optional<Fraction> noteReleasesStopAt(
-    const ChartConnections& connections, std::size_t index, Fraction from, int held_fret);
+[[nodiscard]] Fraction stringReleasesStopAt(
+    const ChartConnections& connections, std::size_t string_index, int held_fret, Fraction front,
+    Fraction close);
 
 /*!
 \brief Hand-position rule 6, stated once: every stop the fretting hand provably holds, and for how
@@ -237,7 +243,7 @@ holds nothing past the ring, a slide-out holds the stop it slides from until the
 finger stays pressed while it slides), and bends and vibrato, which state no fret, keep holding. A
 dead note holds like any other: its stored ring is the proof, and only its tail's display differs.
 A GRIP: every pressed stop of a span's posture is held from the span's front until a note on its
-string releases it (\ref noteReleasesStopAt), else to the close. The members' own statements are
+string releases it (\ref stringReleasesStopAt), else to the close. The members' own statements are
 the ring holds beside it. An open string holds nothing, and neither does a natural harmonic's ring
 or node: its node is demanded at the onset only.
 

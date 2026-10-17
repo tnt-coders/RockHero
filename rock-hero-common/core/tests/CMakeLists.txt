@@ -21,6 +21,7 @@ add_executable(
     test_fret_hand_score.cpp
     test_chart_presentation.cpp
     test_chart_projection.cpp
+    test_chart_shape_holds.cpp
     test_chart_shapes.cpp
     test_session.cpp
     test_song.cpp

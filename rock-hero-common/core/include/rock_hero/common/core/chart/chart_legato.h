@@ -204,7 +204,7 @@ flag would be a full pass over the chart thrown away on every keystroke. The set
 runs at every caret move, selection change, seek and playback start, asks narrower still
 (\ref unjustifiedLegatoClaims).
 
-Every vector is index-parallel to the note stream it was built from.
+Every vector but \ref string_notes is index-parallel to the note stream it was built from.
 */
 struct ChartConnections
 {
@@ -255,6 +255,17 @@ struct ChartConnections
     \return The predecessor, referring into \ref saved_notes, or nothing.
     */
     [[nodiscard]] std::optional<LegatoPredecessor> predecessorOf(std::size_t index) const;
+
+    /*!
+    \brief Every note on each string, of both hands, ascending by onset: `string_notes[s]` lists
+    the indices of the notes on the zero-based string `s` (\ref chartStringIndex).
+
+    The one per-string index of the revision, sized \ref g_max_chart_strings and not index-parallel
+    to the notes. What releases a held stop is a later note on its string (\ref
+    stringReleasesStopAt), so every reader of that question searches here rather than building
+    its own.
+    */
+    std::vector<std::vector<std::size_t>> string_notes;
 
     /*!
     \brief True where this note's ring HANDS ITS STRING OVER: the next strike on it claims a
@@ -319,7 +330,7 @@ motions cost one pass over the stream rather than a backward search per note.
 \param notes Note stream sorted by (position, string).
 \param tempo_map Song tempo map supplying the meter every place is measured in.
 
-\return The connections; every vector is index-parallel to `notes`.
+\return The connections; every vector but the per-string index is index-parallel to `notes`.
 */
 [[nodiscard]] ChartConnections chartConnections(
     const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
