@@ -550,8 +550,13 @@ struct DerivationCounters
     // (`coverage_at` in chart_shapes.cpp), so the extent can never run PAST the earliest landing
     // and a "covering" share could only ever read 100% or less. What remains to measure is the
     // shortfall — an extent stopping at the departure instead of reaching the grip its members
-    // move to — and the rule promises there is none.
+    // move to — and the rule promises there is none with the grip held through the glide.
+    // `travel_held_spans` is that population: every member's stored ring, struck or carried,
+    // reaches the earliest landing and no event closed the span. A member released earlier quits
+    // the span by shape rule 3, and an event mid-glide truncates it by shape rule 4; neither is a
+    // shortfall.
     long long zero_length_spans{0};
+    long long travel_held_spans{0};
     long long travel_short_of_landing_spans{0};
     long long travel_landings_absorbed{0};
 
@@ -1373,10 +1378,45 @@ void countDerivation(
             // that it never does: the transit rides the predecessor, so the extent reaches the
             // grip its members are moving to rather than stopping at the departure. Asked of the
             // EARLIEST landing, which is the one the extent is bounded by when the landings are
-            // staggered.
+            // staggered, and only with the grip held through the glide (shape rule 4): a stored
+            // ring ending exactly at the landing was held through it, and an event closing the
+            // span first is the contradiction mid-glide.
             const std::optional<Fraction>& first_landing = earliest_landing;
-            out.travel_short_of_landing_spans +=
-                first_landing.has_value() && end < *first_landing ? 1 : 0;
+            if (first_landing.has_value() && !shape.closing_onset_place.has_value())
+            {
+                const Fraction landing = *first_landing;
+                const auto held_to_landing = [&](const std::size_t member) {
+                    return index.onset[member] + saved[member].sustain >= landing;
+                };
+                // Every member bounds the reach (shape rule 3): the struck ones, and each posture
+                // string the front does not sound whose stored ring crosses into the span.
+                bool grip_held = std::ranges::all_of(struck_at_start, held_to_landing);
+                for (std::size_t string_index = 0; grip_held && string_index < posture.size();
+                     ++string_index)
+                {
+                    const int string = static_cast<int>(string_index) + 1;
+                    if (!posture[string_index].has_value() || sounded_strings.contains(string))
+                    {
+                        continue;
+                    }
+                    const std::optional<std::size_t> carried = lastNoteBefore(index, string, start);
+                    if (!carried.has_value())
+                    {
+                        continue;
+                    }
+                    const std::size_t ringing = *carried;
+                    if (soundsWithFrettingHand(saved[ringing]) &&
+                        index.onset[ringing] + saved[ringing].sustain > start)
+                    {
+                        grip_held = held_to_landing(ringing);
+                    }
+                }
+                if (grip_held)
+                {
+                    ++out.travel_held_spans;
+                    out.travel_short_of_landing_spans += end < landing ? 1 : 0;
+                }
+            }
             if (staggered)
             {
                 ++out.travel_landings_staggered;
@@ -2406,7 +2446,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                  "   span under rule 11, so its start member's travel is counted once here\n"
                  "   however many times the run restrikes.)\n";
     row("spans a start member travels in", census.derivation.travel_any_spans);
-    row("  ... whose extent falls SHORT (ZERO)", census.derivation.travel_short_of_landing_spans);
+    row("  ... with the grip held through the glide", census.derivation.travel_held_spans);
+    row("    ... whose extent falls SHORT (ZERO)", census.derivation.travel_short_of_landing_spans);
     row("  landings that re-open", census.derivation.travel_landings_open);
     row("  suppressed: staggered (edge c)", census.derivation.travel_landings_staggered);
     row("  suppressed: no room to state (edge b)", census.derivation.travel_landings_crowded);
@@ -2801,11 +2842,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
-                // THE AMENDMENT'S PROMISE as an invariant: a travelling span's extent reaches the
-                // grip its members move to. The coverage cap makes the extent unable to run PAST
-                // the earliest landing, so the shortfall is the whole of what is left to measure
-                // and an extent stopping at the departure is the defect. Exact-match: a span that
-                // quits mid-transit states a grip the hand has already left.
+                // THE AMENDMENT'S PROMISE as an invariant: with the grip held through the glide
+                // (shape rule 4), a travelling span's extent reaches the grip its members move to.
+                // The coverage cap makes the extent unable to run PAST the earliest landing, so the
+                // shortfall is the whole of what is left to measure and an extent stopping at the
+                // departure is the defect. Exact-match: a span stopping short of a held glide
+                // leaves the rest of that glide in no span.
                 .label = "travel spans short of the landing (ZERO)",
                 .rig = static_cast<double>(census.derivation.travel_short_of_landing_spans),
                 .expected = 0.0,
