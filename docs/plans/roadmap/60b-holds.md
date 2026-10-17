@@ -53,8 +53,10 @@ normalizer, run once in the timeline funnel and logged once per rewrite:
 
 - **crops** a hold whose first conflict lies after its start so it ends at the conflict's instant
   (a valid end: the conflicting string's stop stops ringing there);
-- **drops** a hold whose first conflict lies at its start, or whose end is no longer valid
-  under §2.2.
+- **extends** a hold whose end fails §2.2 (every stated stop still rings across it) to the first
+  instant a stated stop stops ringing, the first finger the notes free. That one candidate is
+  judged by §2 and must not reach the next hold; there is no second try;
+- **drops** a hold whose first conflict lies at its start, or whose extension fails.
 
 A hold verb never relies on it: a verb whose result would need cropping or dropping is refused
 with the refusal flash.
@@ -76,7 +78,14 @@ with the refusal flash.
 **Overlap.** A new hold from a time or note selection carves its range out of every authored hold
 it overlaps: one it straddles is cropped to the new hold's start or end; one it lies inside is
 split into the parts before and after it. Each surviving part must be valid, or the verb is
-refused. An edge key never carves: moving an edge into a neighbouring hold is refused.
+refused.
+
+**Pushing.** An edge key that moves an edge into a neighbouring hold pushes that hold's facing
+edge along with it. Both holds must stay valid and the pushed one non-empty, or the press is
+refused. A held run of edge keys is one gesture that replays from its base on every press, so
+stepping back restores the pushed hold; once the gesture settles, the result is written and only
+undo restores it. The branch's edge gesture (`f3aed178`, `ChartHoldEdgeGesture`) is the part to
+reuse.
 
 There is no `Alt+Delete` for holds: an end is required and is removed only with its hold. `Enter`
 and the grip picker belong to `60c`.
