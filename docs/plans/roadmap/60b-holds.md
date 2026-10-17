@@ -132,7 +132,8 @@ and the grip picker belong to `60c`.
 
 ## 7. Open before step 0
 
-- **A.** Hand-position rule 6 (`067811a8`) and the re-articulation clause (`6c5bb7fb`) were ruled
-  during the first design's sessions: do they stand?
+- **A. RULED 2026-10-16 (user): both stand.** Hand-position rule 6's grip release (`067811a8`,
+  `5b4085d5`; a sound at or below a stop proves its finger lifted, one above proves nothing) and
+  shape rule 1's dating-floor clamp with re-articulation (`6c5bb7fb`).
 - **B.** Plan 60's Phase 6 was retired on the strength of `067811a8`: does the retirement carry
   over?
