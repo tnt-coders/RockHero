@@ -1,5 +1,6 @@
 #include "timeline/timeline_readdress.h"
 
+#include <algorithm>
 #include <cassert>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/song.h>
@@ -128,6 +129,11 @@ common::core::SongTimeline readdressTimeline(
                 note.sustain = mappedPlace(content, old_onset + note.sustain) - onset;
                 note.position = addressOf(address_map, onset);
             }
+            // The rounding is monotone, so no note passes another on its string, but notes on two
+            // strings less than a new tick apart can round onto one onset in either string order:
+            // the stream goes back to slot order, stably, so each note keeps its rank on its
+            // string.
+            std::ranges::stable_sort(chart.notes, common::core::chartNoteOrderLess);
             for (common::core::FretHandPosition& placement : chart.fret_hand_positions)
             {
                 placement.position = mapped(placement.position);

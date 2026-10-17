@@ -13,6 +13,7 @@ rules a result must pass, and one walk pairing every position of two timelines.
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <optional>
 #include <random>
 #include <rock_hero/common/core/chart/chart.h>
@@ -569,9 +570,28 @@ struct SlicePair
     GridPosition new_onset;
 };
 
+// A chart's note indices, each string's notes together in stream order. A re-address keeps every
+// note's rank on its string, while notes on two strings can round onto one onset and trade places
+// in the stream, so the rank and not the stream index pairs a note with itself.
+[[nodiscard]] inline std::vector<std::size_t> noteIndicesByString(
+    const std::vector<ChartNote>& notes)
+{
+    // A plain loop, as `arrangementChoicesFor` explains: no iota spelling passes all CI toolchains.
+    std::vector<std::size_t> indices;
+    indices.reserve(notes.size());
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        indices.push_back(index);
+    }
+    std::ranges::stable_sort(indices, std::ranges::less{}, [&notes](const std::size_t index) {
+        return notes[index].string;
+    });
+    return indices;
+}
+
 // Calls check once per position: the sections, then per arrangement each note's onset, ring end
 // and keyframes, its hand positions, its tone region starts and its automation points. Every list
-// must hold as many entries in both timelines.
+// must hold as many entries in both timelines; notes pair by their rank on their string.
 template <typename Check>
 void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, const Check& check)
 {
@@ -607,10 +627,12 @@ void forEachSlicePair(const SongTimeline& before, const SongTimeline& after, con
             const Chart& old_chart = *old_share.chart;
             const Chart& new_chart = *new_share.chart;
             REQUIRE(new_chart.notes.size() == old_chart.notes.size());
-            for (std::size_t index = 0; index < old_chart.notes.size(); ++index)
+            const std::vector<std::size_t> old_ranks = noteIndicesByString(old_chart.notes);
+            const std::vector<std::size_t> new_ranks = noteIndicesByString(new_chart.notes);
+            for (std::size_t rank = 0; rank < old_ranks.size(); ++rank)
             {
-                const ChartNote& old_note = old_chart.notes[index];
-                const ChartNote& new_note = new_chart.notes[index];
+                const ChartNote& old_note = old_chart.notes[old_ranks[rank]];
+                const ChartNote& new_note = new_chart.notes[new_ranks[rank]];
                 plain(SliceKind::NoteOnset, old_note.position, new_note.position);
                 check(
                     SlicePair{
@@ -732,6 +754,9 @@ inline void checkTimesHeld(
                     keyframe.offset = {};
                 }
             }
+            // The stream order is an address too, so the notes stand in their ranks by string
+            // (noteIndicesByString).
+            std::ranges::stable_sort(chart.notes, std::ranges::less{}, &ChartNote::string);
             for (FretHandPosition& placement : chart.fret_hand_positions)
             {
                 placement.position = {};

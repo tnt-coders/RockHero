@@ -25,6 +25,7 @@ namespace
 
 using common::core::Chart;
 using common::core::Fraction;
+using common::core::GridPosition;
 using common::core::SongTimeline;
 using common::core::TempoMap;
 using common::core::testing::anchor;
@@ -216,6 +217,41 @@ TEST_CASE("Scale Tempo by 4/3 lands on a single-meter song", "[core][scale-tempo
     CHECK(chart.notes[0].sustain == Fraction{1, 3});
     CHECK_THAT(after.tempo_map.secondsAt(chart.notes[0].position), WithinAbs(2.0, 1e-9));
     checkTimesHeld(before, after, 0.0);
+}
+
+// Two notes a tick apart, the later on the lower string, are one chord after /2: the second onset
+// lands half a tick of the halved lattice past the first, a gap no place can state, and the tie
+// rounds it onto the first. The stream comes back in slot order, so the chord passes every rule
+// and each note keeps its own ring.
+TEST_CASE("Scale Tempo keeps slot order where its rounding makes a chord", "[core][scale-tempo]")
+{
+    SongTimeline before = oneNoteTimeline(
+        common::core::testing::commonTimeMap({anchor("1:1", 0), anchor("9:1", 16000)}),
+        makeNote(at("2:1"), 2, 7, Fraction{1, 8}, {}));
+    std::optional<Chart>& lead = before.arrangements.front().chart;
+    REQUIRE(lead.has_value());
+    if (lead.has_value())
+    {
+        lead->notes.push_back(makeNote(
+            GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 960}},
+            1,
+            5,
+            Fraction{1, 4},
+            {}));
+    }
+    requireValid(before);
+    const SongTimeline after = scaled(before, Fraction{1, 2});
+    requireValid(after);
+    checkTimesHeld(before, after, 0.0);
+
+    const Chart& chart = chartOf(after, 0);
+    REQUIRE(chart.notes.size() == 2);
+    CHECK(chart.notes[0].string == 1);
+    CHECK(chart.notes[0].position == at("1:3"));
+    CHECK(chart.notes[0].sustain == Fraction{1, 8});
+    CHECK(chart.notes[1].string == 2);
+    CHECK(chart.notes[1].position == at("1:3"));
+    CHECK(chart.notes[1].sustain == Fraction{1, 16});
 }
 
 // With no later meter nothing refuses and nothing is re-timed: three measures of 4/4 halve to one

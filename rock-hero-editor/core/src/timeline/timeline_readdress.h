@@ -82,6 +82,12 @@ and a terminal left mid-measure stands, the song ending on a short final bar.
   distance between where its two instants are sent: a meter edit leaves them untouched, Scale Tempo
   scales them, and the Note Lock re-rounds them with the places they join.
 
+Every place goes through one monotone rounding, so places that stood together stay together and
+none passes another, but places less than a tick of the new lattice apart can round onto one: the
+lattice cannot state the gap between them. The note stream is kept in slot order, since notes on two
+strings can so become one chord; any other meeting is the rules' to answer, so two onsets on one
+string, two keyframes of one note or two hand positions on one place are refused.
+
 Every arrangement is re-addressed, not only the loaded one. The result is not validated: the caller
 judges it against the rules as it would any edit, and a reign holding no whole measure is the
 tempo-map rules' refusal.
