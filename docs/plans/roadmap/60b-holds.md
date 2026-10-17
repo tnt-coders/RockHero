@@ -130,10 +130,12 @@ and the grip picker belong to `60c`.
 4. **Verbs** of §4 with the refusal flash and undo.
 5. **Marks**, then the user's sighting.
 
-## 7. Open before step 0
+## 7. Rulings before step 0
 
 - **A. RULED 2026-10-16 (user): both stand.** Hand-position rule 6's grip release (`067811a8`,
   `5b4085d5`; a sound at or below a stop proves its finger lifted, one above proves nothing) and
   shape rule 1's dating-floor clamp with re-articulation (`6c5bb7fb`).
-- **B.** Plan 60's Phase 6 was retired on the strength of `067811a8`: does the retirement carry
-  over?
+- **B. RULED 2026-10-16 (user): the retirement carries over, provisionally.** Step 0 brings back
+  only the Phase 6 retirement hunks of `55eac2c5` and `afb84d59` in `60-the-hand.md`. If the
+  re-run census row "spans holding a stop outside the window" is not zero on `master`, the
+  retirement reopens.
