@@ -1419,13 +1419,20 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
   first own-voice EVENT (onset OR rest) after the last mark; one clause, position-independent,
   filler rests between marks still sail. Not adopted because GP charting under let-ring is
   dominated by filler rests (short written values padded by the tiling beat grid), so a rest is
-  weak evidence of a lift; the corpus share of interior-rest figures is UNMEASURED — measure it
-  before any adoption.
+  weak evidence of a lift.
 
-  **Trigger:** a sighting where a ring past a rest reads wrong (trailing or mid-figure), or the
-  let-ring law is next reopened (the plan 60 law session; plan 61 merged into it 2026-09-15). **Where to start:** the
-  interior-rest measurement, then the sighted trailing figure rendered both ways — the toggle
-  is one line on the shared `audibilityHorizonFrom` helper.
+  **Measured.** Stopping a ring at every rest in its own voice honours 41 rests (92 rings in 8
+  songs; 23 spans out, 21 in). 8 are interior (26 rings), 33 trailing (66 rings). 19 of the 41
+  coincide with notes in another voice of the track, so they are voice-split fillers. Among them
+  are the 6 interior rests of sighted figure L, where the arpeggio voice rests while the other
+  voice strikes the new chord's bass: the real evidence there is a chord change across voices.
+  The other 22 (52 rings) are true silences. The event-anchor form changes 66 rings (17 spans out,
+  15 in) and leaves figure L unchanged. The proposed refinement is "a rest stops let-ring only
+  where the whole track is silent", with the per-arm questions in
+  `docs/plans/todo/gp-let-ring-figure-law-improvements.md` (arm a).
+
+  **Trigger:** a ruling on that plan's arm (a), or the let-ring law being reopened. **Where to
+  start:** the plan, and the per-rest voice listing it points to.
 
 ## Retired
 
