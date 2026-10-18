@@ -6566,13 +6566,12 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
 
 // A re-address can round a hold onto no length; the walk cannot place it, so it is dropped and
 // reported, and the holds beside it are judged without it.
-// A crop removes the wall the hold's old end was. Here the span struck at the conflict then runs on
-// past that end to a two-finger glide landing exactly where the next hold starts, so the next hold
-// states the landed grip and closes where a lower fret releases it. Judged on the derivation before
-// the crop it fitted, which is why the rule is applied until a pass rewrites nothing; each hold is
-// reported once.
+// A hold's wall is its published end. Here the first hold's span closes at a conflict, and the span
+// struck there runs on past the hold's stated end to a two-finger glide landing exactly where the
+// next hold starts, so the next hold states the landed grip and closes where a lower fret releases
+// it: one derivation already holds both closes, and one normalization settles both holds.
 TEST_CASE(
-    "A crop that removes a wall moves the next hold in the same normalization", "[core][chart]")
+    "A crop's stated end walls nothing, so one derivation settles the next hold", "[core][chart]")
 {
     ChartNote low = noteAt(gridAt(1, 1, Fraction{1, 2}), 1, 3, Fraction{1, 2});
     low.keyframes = {Keyframe{.offset = Fraction{3, 8}, .fret = 5}};
@@ -6589,8 +6588,8 @@ TEST_CASE(
         holdOver(gridAt(1, 1), gridAt(1, 2, Fraction{1, 2})),
         holdOver(gridAt(1, 3), gridAt(2, 1)),
     };
-    // Before the crop the later hold fits: the span struck at the conflict stops at the wall.
-    REQUIRE(deriveUnder(notes, holds).fits[1]);
+    // Under the stated holds the later hold already closes short of its end.
+    REQUIRE_FALSE(deriveUnder(notes, holds).fits[1]);
 
     const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
     CHECK(

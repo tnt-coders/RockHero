@@ -2,9 +2,11 @@
 
 #include "span_cover.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <iterator>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
@@ -343,88 +345,57 @@ struct NormalSpans
     std::vector<ChartConversion> conversions;
 };
 
-// What reaching `normal` from `stated` took, one conversion per hold however many passes rewrote
-// it: a hold's start never moves, so it names the hold across the rewrite.
-[[nodiscard]] std::vector<ChartConversion> holdConversions(
-    const std::vector<ShapeHold>& stated, const std::vector<ShapeHold>& normal)
-{
-    std::vector<ChartConversion> conversions;
-    for (const ShapeHold& hold : stated)
-    {
-        const auto kept = std::ranges::lower_bound(
-            normal,
-            hold.start,
-            [](const GridPosition& lhs, const GridPosition& rhs) { return lhs < rhs; },
-            &ShapeHold::start);
-        if (!(hold.start < hold.end) || kept == normal.end() || kept->start != hold.start)
-        {
-            conversions.push_back(
-                ChartConversion{
-                    .repair = ChartRepair::EmptyShapeHold,
-                    .where = formatShapeHoldToken(hold),
-                });
-        }
-        else if (kept->end != hold.end)
-        {
-            conversions.push_back(
-                ChartConversion{
-                    .repair = ChartRepair::UnfitShapeHold,
-                    .where = formatShapeHoldToken(*kept),
-                });
-        }
-    }
-    return conversions;
-}
-
-// Each pass writes every hold's published extent back from one derivation and drops a hold left
-// nothing, until a pass rewrites nothing. One pass is not enough: a rewrite moves a wall, and a
-// crop can let a span run on past the old end to a landing the next hold then states, which moves
-// that hold's close. The passes end: a hold's span reads only the holds before it and the next
-// one's start, so each pass leaves the earliest hold it rewrote fitting for good unless a drop
-// moves that start, and the drops are finite.
+// One derivation and one pass. The walk walls each hold at its published end and publishes no
+// empty hold span, so the spans it derives under the stated holds are the spans under the holds
+// it publishes: reading each hold's published end back is the whole of the normal form.
 [[nodiscard]] NormalSpans normalSpans(
     const ChartConnections& connections, const HeadMargins& margins,
     const std::vector<ShapeHold>& stated, const TempoMap& tempo_map)
 {
-    std::vector<ShapeHold> shape_holds = stated;
     // A re-address can round a hold onto no length, which the walk cannot place.
-    std::erase_if(shape_holds, [](const ShapeHold& hold) { return !(hold.start < hold.end); });
-    ChartShapes derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
-    for (;;)
-    {
-        std::vector<ShapeHold> written;
-        written.reserve(shape_holds.size());
-        for (const ShapeHold& hold : shape_holds)
-        {
-            const Fraction end = shapeHoldPublishedEnd(derived.shapes, tempo_map, hold);
-            if (!(tempo_map.wholeNotePositionAt(hold.start) < end))
-            {
-                continue;
-            }
-            // Every close is an onset, a ring's end, a landing or the song's end, all on the grid.
-            assert(isOnTickLattice(end) && "a shape hold's close lands on the grid");
-            written.push_back(
-                ShapeHold{
-                    .start = hold.start,
-                    .end = end == tempo_map.wholeNotePositionAt(hold.end)
-                               ? hold.end
-                               : tempo_map.gridPositionAtWholeNote(end),
-                    .grip = hold.grip,
-                });
-        }
-        if (written == shape_holds)
-        {
-            break;
-        }
-        shape_holds = std::move(written);
-        derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
-    }
-    std::vector<ChartConversion> conversions = holdConversions(stated, shape_holds);
-    return NormalSpans{
-        .shape_holds = std::move(shape_holds),
-        .derived = std::move(derived),
-        .conversions = std::move(conversions),
+    std::vector<ShapeHold> placed;
+    std::ranges::copy_if(stated, std::back_inserter(placed), [](const ShapeHold& hold) {
+        return hold.start < hold.end;
+    });
+    NormalSpans normal{
+        .shape_holds = {},
+        .derived = deriveChartShapes(connections, margins, placed, tempo_map),
+        .conversions = {},
     };
+    for (const ShapeHold& hold : stated)
+    {
+        const Fraction end = hold.start < hold.end
+                                 ? shapeHoldPublishedEnd(normal.derived.shapes, tempo_map, hold)
+                                 : tempo_map.wholeNotePositionAt(hold.start);
+        if (!(tempo_map.wholeNotePositionAt(hold.start) < end))
+        {
+            normal.conversions.push_back(
+                ChartConversion{
+                    .repair = ChartRepair::EmptyShapeHold,
+                    .where = formatShapeHoldToken(hold),
+                });
+            continue;
+        }
+        if (end == tempo_map.wholeNotePositionAt(hold.end))
+        {
+            normal.shape_holds.push_back(hold);
+            continue;
+        }
+        // Every close is an onset, a ring's end, a landing or the song's end, all on the grid.
+        assert(isOnTickLattice(end) && "a shape hold's close lands on the grid");
+        normal.shape_holds.push_back(
+            ShapeHold{
+                .start = hold.start,
+                .end = tempo_map.gridPositionAtWholeNote(end),
+                .grip = hold.grip,
+            });
+        normal.conversions.push_back(
+            ChartConversion{
+                .repair = ChartRepair::UnfitShapeHold,
+                .where = formatShapeHoldToken(normal.shape_holds.back()),
+            });
+    }
+    return normal;
 }
 
 // The notes layer past the spans, completed on the stages a caller derived: hand demands, held

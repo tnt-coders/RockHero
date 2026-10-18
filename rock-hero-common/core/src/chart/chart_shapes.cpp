@@ -411,6 +411,9 @@ ChartShapes deriveChartShapes(
     };
     // The unnamed hold the walk is inside whose notes have not yet founded its span.
     std::optional<std::size_t> unfounded_hold;
+    // The stated end of the unnamed hold whose span closed short of it. A hold's wall is its
+    // published end, so the stated end walls nothing once the walk has closed the span before it.
+    std::optional<Fraction> closed_hold_end;
 
     std::optional<OpenSpan> open;
     // Keyed by the posture itself, so the table deduplicates by exactly the identity the type
@@ -645,6 +648,18 @@ ChartShapes deriveChartShapes(
                 open.reset();
                 return;
             }
+        }
+        // Bound once so the presence test and the reads are provably the same object.
+        if (const std::optional<HoldTenure>& tenure = open->hold;
+            tenure.has_value() && end < tenure->end)
+        {
+            closed_hold_end = tenure->end;
+        }
+        // A hold whose span closes at its front holds nothing, and publishes no span.
+        if (open->hold.has_value() && !(open->front_place < end))
+        {
+            open.reset();
+            return;
         }
         ChartShape shape{
             .place = open->front_place,
@@ -932,10 +947,10 @@ ChartShapes deriveChartShapes(
 
         // ---- 2b. THE HOLDS' EDGES (shape rule 9) ----------------------------------------------
         // An unnamed hold's end hands its span to the walk's own breaks, and publishes the span of
-        // a hold whose notes never founded one. Every other edge is a WALL: a span standing across
-        // it breaks here, judged at a slot against its own grip like any broken span. A span a
-        // landing opened exactly here stands, and an unnamed hold starting here states it (shape
-        // rule 4's hand-off).
+        // a hold whose notes never founded one. An end whose span already closed short of it is no
+        // edge at all. Every other edge is a WALL: a span standing across it breaks here, judged at
+        // a slot against its own grip like any broken span. A span a landing opened exactly here
+        // stands, and an unnamed hold starting here states it (shape rule 4's hand-off).
         bool walled = false;
         std::optional<std::size_t> opened_hold;
         for (; edge < edge_count && edge_place(edge) == slot.place; ++edge)
@@ -945,6 +960,11 @@ ChartShapes deriveChartShapes(
             const bool states_shape = statesShape(holds[hold_index]);
             if (ends && states_shape && open.has_value() && holdEndsAt(*open, slot.place))
             {
+                continue;
+            }
+            if (ends && states_shape && closed_hold_end == slot.place)
+            {
+                closed_hold_end.reset();
                 continue;
             }
             if (ends && states_shape && unfounded_hold == hold_index)

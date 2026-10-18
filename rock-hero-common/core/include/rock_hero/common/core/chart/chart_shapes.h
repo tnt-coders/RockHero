@@ -326,9 +326,11 @@ A hold changes only the edges (shape rule 9). Inside an unnamed hold the span th
 the hold's, fronted at its start, and only a hand conflict breaks it; it closes at the first hand
 conflict inside, or at the first instant at or after the hold's end where the walk would close a
 span standing there, and never short of that end. A hold whose notes found nothing
-publishes an empty span over its extent. Every other edge is a wall: a span standing across it
-closes there, and no span dates its front behind it. A none hold publishes no arpeggio span inside
-it. Handed no holds, the walk derives from the notes alone.
+publishes an empty span over its extent; one whose span closes at its own start holds nothing and
+publishes none. Every other edge is a wall: a span standing across it closes there, and no span
+dates its front behind it; a hold's end is a wall only while its span reaches it, since the hold's
+wall is its published end. A none hold publishes no arpeggio span inside it. Handed no holds, the
+walk derives from the notes alone.
 
 A SHIFT SLIDE never reaches the landed span's emission test: its arrival stands at the ring's own
 end (\ref arrivesIntoNextHead) and a landing opens a successor only where the ring runs strictly

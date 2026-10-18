@@ -550,12 +550,13 @@ is written back where the walk published it (\ref shapeHoldPublishedEnd), one ru
 crop, back to a hand conflict an edit put inside, and the extension, on past an end where nothing
 closed; and a hold the walk leaves nothing — one a re-address rounded onto no length, or whose span
 closes at its start — is dropped. Neither can make two holds overlap, since every span closes at the
-next hold's start. A rewrite moves a wall, and a crop can let a span run on to a landing the next
-hold then states, so the rule is applied until a pass rewrites nothing: the result is a fixpoint,
-and normalizing it again changes nothing. A none hold always fits, so only its length can drop it.
+next hold's start. The walk walls each hold at its published end and publishes no empty hold span,
+so the spans derived under the stated holds are the spans under the normalized ones: one derivation
+and one pass reading it are the normal form, and normalizing the result again changes nothing. A
+none hold always fits, so only its length can drop it.
 
-The layer is completed from the derivation the last pass judged with, so the caller that judges the
-result whole (coverage, validation, the editor's memo) derives nothing twice.
+The layer is completed from that one derivation, so the caller that judges the result whole
+(coverage, validation, the editor's memo) derives nothing twice.
 
 \param notes Note stream to resolve, sorted by (position, string) and valid.
 \param shape_holds The holds: ascending and never overlapping, possibly with a hold of no length.

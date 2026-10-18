@@ -423,6 +423,7 @@ takes the next one.
      hold always fits. Whether the hold stream is well formed is a structural check of its own.
    - **Every other edge is a wall.** Any span but an unnamed hold's own at that hold's end closes
      where it stands across a hold's edge, and no span dates its front behind one (rule 1's dating
-     floor). Outside holds the derivation is unchanged, and at a hold's close the walk resumes as
+     floor). A hold's wall is its published end: once its span has closed short of its stated
+     end, that stated end walls nothing. Outside holds the derivation is unchanged, and at a hold's close the walk resumes as
      after any span closing with rings still sounding, a landing's hand-off included (rule 4).
      (`deriveChartShapes`, `shapeHoldFitsNotes`)
