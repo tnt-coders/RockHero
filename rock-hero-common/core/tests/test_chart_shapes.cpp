@@ -6565,6 +6565,63 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
 
 // A re-address can round a hold onto no length; the walk cannot place it, so it is dropped and
 // reported, and the holds beside it are judged without it.
+// A crop removes the wall the hold's old end was. Here the span struck at the conflict then runs on
+// past that end to a two-finger glide landing exactly where the next hold starts, so the next hold
+// states the landed grip and closes where a lower fret releases it. Judged on the derivation before
+// the crop it fitted, which is why the rule is applied until a pass rewrites nothing; each hold is
+// reported once.
+TEST_CASE(
+    "A crop that removes a wall moves the next hold in the same normalization", "[core][chart]")
+{
+    ChartNote low = noteAt(gridAt(1, 1, Fraction{1, 2}), 1, 3, Fraction{1, 2});
+    low.keyframes = {Keyframe{.offset = Fraction{3, 8}, .fret = 5}};
+    ChartNote high = noteAt(gridAt(1, 1, Fraction{1, 2}), 3, 5, Fraction{5, 8});
+    high.keyframes = {Keyframe{.offset = Fraction{3, 8}, .fret = 7}};
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(1, 1), 1, 5, Fraction{1, 8}),
+        noteAt(gridAt(1, 1), 2, 7, Fraction{1, 8}),
+        low,
+        high,
+        noteAt(gridAt(1, 3, Fraction{1, 2}), 1, 2, Fraction{1, 8}),
+    });
+    const std::vector<ShapeHold> holds{
+        holdOver(gridAt(1, 1), gridAt(1, 2, Fraction{1, 2})),
+        holdOver(gridAt(1, 3), gridAt(2, 1)),
+    };
+    // Before the crop the later hold fits: the span struck at the conflict stops at the wall.
+    REQUIRE(deriveUnder(notes, holds).fits[1]);
+
+    const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
+    CHECK(
+        normal.shape_holds == std::vector{
+                                  holdOver(gridAt(1, 1), gridAt(1, 1, Fraction{1, 2})),
+                                  holdOver(gridAt(1, 3), gridAt(1, 3, Fraction{1, 2})),
+                              });
+    REQUIRE(normal.conversions.size() == 2);
+    CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:1+1/2");
+    CHECK(normal.conversions[1].where == "shape hold 1:3 to 1:3+1/2");
+    const Held held = deriveUnder(notes, normal.shape_holds);
+    REQUIRE(held.resolutions.shapes.size() == 3);
+    CHECK(held.resolutions.shapes[2].landing_opened);
+    CHECK(held.resolutions.shapes[2].hold_stated);
+}
+
+// Nothing sounds past the song's end, so a hold a re-address left starting there closes at its own
+// start and is dropped; the hold before it fits at the song's end.
+TEST_CASE("The hold normalizer drops a hold that closes at its own start", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(8, 1), 1, 5, Fraction{2}),
+        noteAt(gridAt(8, 1), 2, 7, Fraction{2}),
+    });
+    const ShapeHoldNormalization normal = normalizedOnce(
+        notes, {holdOver(gridAt(8, 1), gridAt(9, 1)), holdOver(gridAt(9, 1), gridAt(9, 2))});
+    CHECK(normal.shape_holds == std::vector{holdOver(gridAt(8, 1), gridAt(9, 1))});
+    REQUIRE(normal.conversions.size() == 1);
+    CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldDropped);
+    CHECK(normal.conversions[0].where == "shape hold 9:1 to 9:2");
+}
+
 TEST_CASE("The hold normalizer drops a hold left no length", "[core][chart]")
 {
     const std::vector<ChartNote> notes = streamOf({

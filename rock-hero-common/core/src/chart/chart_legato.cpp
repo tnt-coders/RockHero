@@ -343,61 +343,83 @@ struct NormalSpans
     std::vector<ChartConversion> conversions;
 };
 
-// The drops first, each pass derived afresh, then the ends written back once; the spans are derived
-// again only where an end moved, since a moved end is a moved wall.
-[[nodiscard]] NormalSpans normalSpans(
-    const ChartConnections& connections, const HeadMargins& margins,
-    std::vector<ShapeHold> shape_holds, const TempoMap& tempo_map)
+// What reaching `normal` from `stated` took, one conversion per hold however many passes rewrote
+// it: a hold's start never moves, so it names the hold across the rewrite.
+[[nodiscard]] std::vector<ChartConversion> holdConversions(
+    const std::vector<ShapeHold>& stated, const std::vector<ShapeHold>& normal)
 {
     std::vector<ChartConversion> conversions;
-    // Erases every hold `empty` names, recording each; reports whether any went.
-    const auto drop_where = [&shape_holds, &conversions](const auto& empty) {
-        return std::erase_if(shape_holds, [&conversions, &empty](const ShapeHold& hold) {
-                   if (!empty(hold))
-                   {
-                       return false;
-                   }
-                   conversions.push_back(
-                       ChartConversion{
-                           .repair = ChartRepair::ShapeHoldDropped,
-                           .where = formatShapeHoldToken(hold),
-                       });
-                   return true;
-               }) > 0;
-    };
-    // A re-address can round a hold onto no length, which the walk cannot place.
-    static_cast<void>(drop_where([](const ShapeHold& hold) { return !(hold.start < hold.end); }));
-    ChartShapes derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
-    while (drop_where([&](const ShapeHold& hold) {
-        return !(
-            tempo_map.wholeNotePositionAt(hold.start) <
-            shapeHoldPublishedEnd(derived.shapes, tempo_map, hold));
-    }))
+    for (const ShapeHold& hold : stated)
     {
-        derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
-    }
-    bool moved = false;
-    for (ShapeHold& hold : shape_holds)
-    {
-        const Fraction end = shapeHoldPublishedEnd(derived.shapes, tempo_map, hold);
-        if (end == tempo_map.wholeNotePositionAt(hold.end))
+        const auto kept = std::ranges::lower_bound(
+            normal,
+            hold.start,
+            [](const GridPosition& lhs, const GridPosition& rhs) { return lhs < rhs; },
+            &ShapeHold::start);
+        if (!(hold.start < hold.end) || kept == normal.end() || kept->start != hold.start)
         {
-            continue;
+            conversions.push_back(
+                ChartConversion{
+                    .repair = ChartRepair::ShapeHoldDropped,
+                    .where = formatShapeHoldToken(hold),
+                });
         }
-        // Every close is an onset, a ring's end, a landing or the song's end, all on the grid.
-        assert(isOnTickLattice(end) && "a shape hold's close lands on the grid");
-        hold.end = tempo_map.gridPositionAtWholeNote(end);
-        conversions.push_back(
-            ChartConversion{
-                .repair = ChartRepair::ShapeHoldEndMoved,
-                .where = formatShapeHoldToken(hold),
-            });
-        moved = true;
+        else if (kept->end != hold.end)
+        {
+            conversions.push_back(
+                ChartConversion{
+                    .repair = ChartRepair::ShapeHoldEndMoved,
+                    .where = formatShapeHoldToken(*kept),
+                });
+        }
     }
-    if (moved)
+    return conversions;
+}
+
+// Each pass writes every hold's published extent back from one derivation and drops a hold left
+// nothing, until a pass rewrites nothing. One pass is not enough: a rewrite moves a wall, and a
+// crop can let a span run on past the old end to a landing the next hold then states, which moves
+// that hold's close. The passes end: a hold's span reads only the holds before it and the next
+// one's start, so each pass leaves the earliest hold it rewrote fitting for good unless a drop
+// moves that start, and the drops are finite.
+[[nodiscard]] NormalSpans normalSpans(
+    const ChartConnections& connections, const HeadMargins& margins,
+    const std::vector<ShapeHold>& stated, const TempoMap& tempo_map)
+{
+    std::vector<ShapeHold> shape_holds = stated;
+    // A re-address can round a hold onto no length, which the walk cannot place.
+    std::erase_if(shape_holds, [](const ShapeHold& hold) { return !(hold.start < hold.end); });
+    ChartShapes derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
+    for (;;)
     {
+        std::vector<ShapeHold> written;
+        written.reserve(shape_holds.size());
+        for (const ShapeHold& hold : shape_holds)
+        {
+            const Fraction end = shapeHoldPublishedEnd(derived.shapes, tempo_map, hold);
+            if (!(tempo_map.wholeNotePositionAt(hold.start) < end))
+            {
+                continue;
+            }
+            // Every close is an onset, a ring's end, a landing or the song's end, all on the grid.
+            assert(isOnTickLattice(end) && "a shape hold's close lands on the grid");
+            written.push_back(
+                ShapeHold{
+                    .start = hold.start,
+                    .end = end == tempo_map.wholeNotePositionAt(hold.end)
+                               ? hold.end
+                               : tempo_map.gridPositionAtWholeNote(end),
+                    .grip = hold.grip,
+                });
+        }
+        if (written == shape_holds)
+        {
+            break;
+        }
+        shape_holds = std::move(written);
         derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
     }
+    std::vector<ChartConversion> conversions = holdConversions(stated, shape_holds);
     return NormalSpans{
         .shape_holds = std::move(shape_holds),
         .derived = std::move(derived),
@@ -476,7 +498,7 @@ ChartResolutions chartResolutions(
 }
 
 ShapeHoldNormalization normalizeShapeHolds(
-    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds,
+    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds,
     const TempoMap& tempo_map)
 {
     // No holds are their own normal form, and cost no derivation.
@@ -486,7 +508,7 @@ ShapeHoldNormalization normalizeShapeHolds(
     }
     const ChartConnections connections = chartConnections(notes, tempo_map);
     const HeadMargins margins{connections.places, tempo_map};
-    NormalSpans normal = normalSpans(connections, margins, std::move(shape_holds), tempo_map);
+    NormalSpans normal = normalSpans(connections, margins, shape_holds, tempo_map);
     return ShapeHoldNormalization{
         .shape_holds = std::move(normal.shape_holds),
         .conversions = std::move(normal.conversions),
@@ -494,12 +516,12 @@ ShapeHoldNormalization normalizeShapeHolds(
 }
 
 NormalizedChartResolutions normalizedChartResolutions(
-    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds, const int capo,
+    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds, const int capo,
     const TempoMap& tempo_map)
 {
     ChartConnections connections = chartConnections(notes, tempo_map);
     HeadMargins margins{connections.places, tempo_map};
-    NormalSpans normal = normalSpans(connections, margins, std::move(shape_holds), tempo_map);
+    NormalSpans normal = normalSpans(connections, margins, shape_holds, tempo_map);
     return NormalizedChartResolutions{
         .resolved = completedResolutions(
             std::move(connections),

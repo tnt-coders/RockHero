@@ -849,8 +849,8 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // last, against the spans those holds give and the fitted windows: derived after the sweep,
     // which can retype a claim. One pass is complete: a position's demands come from the notes and
     // the holds alone, so dropping one never changes another's verdict.
-    NormalizedChartResolutions normal = normalizedChartResolutions(
-        chart.notes, std::move(chart.shape_holds), chart.tuning.capo, tempo_map);
+    NormalizedChartResolutions normal =
+        normalizedChartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     chart.shape_holds = normal.resolved.shape_holds;
     conversions.insert(
         conversions.end(),

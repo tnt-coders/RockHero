@@ -533,7 +533,7 @@ struct ShapeHoldNormalization
     /*! \brief The holds in their normal form, ascending and never overlapping. */
     std::vector<ShapeHold> shape_holds;
 
-    /*! \brief One conversion per rewrite, each naming its hold as it now stands or stood. */
+    /*! \brief One conversion per hold the normal form changed, naming it as it stands or stood. */
     std::vector<ChartConversion> conversions;
 };
 
@@ -542,24 +542,24 @@ struct ShapeHoldNormalization
 run after every edit that is not a hold verb — a note edit (the editor's plan gate), a tempo or
 meter edit (the timeline funnel) and a load (\ref normalizeChart).
 
-The walk is the one authority on a hold, so the normal form is what it publishes. A hold the walk
-leaves nothing — one a re-address rounded onto no length, or whose span closes at its start — is
-dropped, each judged on a derivation of the holds that remain, since a dropped hold's start was a
-wall its neighbour's close may have stopped at. Then every end is written back where the walk
-published it (\ref shapeHoldPublishedEnd): one rule that is both the crop, back to a hand conflict
-an edit put inside, and the extension, on past an end where nothing closed. Neither can make two
-holds overlap, since every span closes at the next hold's start. Each moved end is one the walk
-closed a span at, so normalizing the result again changes nothing. A none hold always fits, so only
-its length can drop it.
+The walk is the one authority on a hold, so the normal form is what it publishes: every hold's end
+is written back where the walk published it (\ref shapeHoldPublishedEnd), one rule that is both the
+crop, back to a hand conflict an edit put inside, and the extension, on past an end where nothing
+closed; and a hold the walk leaves nothing — one a re-address rounded onto no length, or whose span
+closes at its start — is dropped. Neither can make two holds overlap, since every span closes at the
+next hold's start. A rewrite moves a wall, and a crop can let a span run on to a landing the next
+hold then states, so the rule is applied until a pass rewrites nothing: the result is a fixpoint,
+and normalizing it again changes nothing. A none hold always fits, so only its length can drop it.
 
 \param notes Note stream the holds are judged against, sorted by (position, string) and valid.
 \param shape_holds The holds: ascending and never overlapping, possibly with a hold of no length.
 \param tempo_map Song tempo map placing the notes and the holds.
-\return The holds in their normal form and one conversion per rewrite; no conversions where the
-        holds were already normal.
+\return The holds in their normal form and one conversion per hold the normal form changed, naming
+        it as it now stands or, dropped, as it stood; no conversions where the holds were already
+        normal.
 */
 [[nodiscard]] ShapeHoldNormalization normalizeShapeHolds(
-    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds,
+    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds,
     const TempoMap& tempo_map);
 
 /*! \brief A notes layer derived under normalized shape holds (\ref normalizedChartResolutions). */
@@ -585,7 +585,7 @@ judged with is the one the layer is completed from, so nothing is derived twice.
         rewrites.
 */
 [[nodiscard]] NormalizedChartResolutions normalizedChartResolutions(
-    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds, int capo,
+    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds, int capo,
     const TempoMap& tempo_map);
 
 /*!

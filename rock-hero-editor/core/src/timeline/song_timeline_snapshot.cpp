@@ -30,8 +30,8 @@ std::vector<common::core::ChartConversion> SongTimelineSnapshot::normalize()
             continue;
         }
         common::core::Chart& chart = *arrangement.chart;
-        common::core::ShapeHoldNormalization normal = common::core::normalizeShapeHolds(
-            chart.notes, std::move(chart.shape_holds), timeline.tempo_map);
+        common::core::ShapeHoldNormalization normal =
+            common::core::normalizeShapeHolds(chart.notes, chart.shape_holds, timeline.tempo_map);
         chart.shape_holds = std::move(normal.shape_holds);
         for (common::core::ChartConversion& rewrite : normal.conversions)
         {
