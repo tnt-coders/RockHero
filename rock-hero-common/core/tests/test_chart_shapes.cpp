@@ -453,14 +453,15 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         }));
     }
 
-    SECTION("an open ring crossing in over COVERED ground joins nothing and bounds nothing")
+    SECTION("a fretted ring crossing in over COVERED ground joins the grip and bounds it")
     {
-        // A RING BELONGS TO THE SPAN IT WAS STRUCK IN: the carry's onset sits inside a span
-        // already emitted, and an open string holds no finger, so it is no member of the chord's —
-        // it states no stop into the posture and writes none of its reach. The chord's own two
-        // strings are the whole shape, fronted at their slot and in force for their own rings.
+        // A RING BELONGS TO THE SPAN IT WAS STRUCK IN, so the carry, struck inside a span already
+        // emitted, founds nothing; but a fretted ring still sounding where the chord founds is a
+        // finger down, so it joins the chord's grip (shape rule 1) and bounds it like every member:
+        // the chord's span ends where the carry stops ringing, a sixteenth after the chord, though
+        // the chord's own strings ring a half.
         const std::vector<ChartNote> notes = streamOf({
-            noteAt(1, Fraction{}, 3, 0, Fraction{9, 16}),
+            noteAt(1, Fraction{}, 3, 7, Fraction{9, 16}),
             noteAt(1, Fraction{}, 4, 9, Fraction{1, 32}),
             noteAt(3, Fraction{}, 1, 3, Fraction{1, 2}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1, 2}),
@@ -468,23 +469,39 @@ TEST_CASE("Chart shape derivation ends a span at the first stored gap", "[core][
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[1].place == Fraction{1, 2});
-        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 16});
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
-        CHECK_FALSE(derived.postures[derived.shapes[1].posture].stops[2].has_value());
+        CHECK(derived.postures[derived.shapes[1].posture].stops[2] == std::optional{fretStop(7)});
 
-        // The control one ring apart: the same figure with the carry outliving the chord's slot by
-        // a whole quarter rather than a quarter. The chord's span is the same either way, which is
-        // what "no member" means — a ring outside the shape can neither shorten nor lengthen the
-        // statement it was never part of.
+        // The control one ring apart: the carry outliving the chord's slot by a whole quarter.
+        // It still joins and bounds, so the chord's span now ends where it does, a quarter in.
         const ChartShapes discriminating = deriveFrom(streamOf({
-            noteAt(1, Fraction{}, 3, 0, Fraction{3, 4}),
+            noteAt(1, Fraction{}, 3, 9, Fraction{3, 4}),
             noteAt(1, Fraction{}, 4, 11, Fraction{1, 32}),
             noteAt(3, Fraction{}, 1, 3, Fraction{1, 2}),
             noteAt(3, Fraction{}, 2, 5, Fraction{1, 2}),
         }));
         REQUIRE(discriminating.shapes.size() == 2);
         CHECK(discriminating.shapes[1].place == Fraction{1, 2});
-        CHECK(discriminating.shapes[1].sustain == Fraction{1, 2});
+        CHECK(discriminating.shapes[1].sustain == Fraction{1, 4});
+    }
+
+    SECTION("an open ring crossing in over COVERED ground joins nothing and bounds nothing")
+    {
+        // The same figure with the carry an open string, which holds no finger: no member of the
+        // chord's, it states no stop into the posture and writes none of its reach, so the chord's
+        // span runs for the chord's own rings.
+        const ChartShapes derived = deriveFrom(streamOf({
+            noteAt(1, Fraction{}, 3, 0, Fraction{9, 16}),
+            noteAt(1, Fraction{}, 4, 9, Fraction{1, 32}),
+            noteAt(3, Fraction{}, 1, 3, Fraction{1, 2}),
+            noteAt(3, Fraction{}, 2, 5, Fraction{1, 2}),
+        }));
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes[1].place == Fraction{1, 2});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        REQUIRE(derived.shapes[1].posture < derived.postures.size());
+        CHECK_FALSE(derived.postures[derived.shapes[1].posture].stops[2].has_value());
     }
 }
 
@@ -2453,14 +2470,14 @@ TEST_CASE("A carried ring folds into a posture at the stop its channel states", 
 // and a member's travel is seen by the span it is in.
 TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][chart]")
 {
-    SECTION("an open ring struck inside an emitted span states nothing into the next")
+    SECTION("a fretted ring struck inside an emitted span states its stop and reach into the next")
     {
-        // The per-string record is written for MEMBERS, and A RING BELONGS TO THE SPAN IT WAS
-        // STRUCK IN: this open carry's onset lies inside a span already emitted, so the chord's
-        // span neither takes its stop nor takes its reach. One refusal answers both columns at
-        // once, which is what having one record per string is for.
+        // The per-string record is written for MEMBERS, and the fretted carry, struck inside a
+        // span already emitted, becomes one where the chord founds (shape rule 1): the chord's
+        // span takes its stop AND its reach. One record answers both columns at once, which is
+        // what having one record per string is for.
         const std::vector<ChartNote> notes = streamOf({
-            noteAt(1, Fraction{}, 3, 0, Fraction{9, 16}),
+            noteAt(1, Fraction{}, 3, 9, Fraction{9, 16}),
             noteAt(1, Fraction{}, 4, 11, Fraction{1, 32}),
             noteAt(3, Fraction{}, 1, 5, Fraction{3, 4}),
             noteAt(3, Fraction{}, 2, 7, Fraction{3, 4}),
@@ -2469,14 +2486,14 @@ TEST_CASE("Chart shape derivation holds one record per sounded string", "[core][
 
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[1].place == Fraction{1, 2});
-        // The carry states no stop in the posture...
+        // The carry states its stop in the posture...
         REQUIRE(derived.shapes[1].posture < derived.postures.size());
         const std::vector<std::optional<ChartStop>>& frets =
             derived.postures[derived.shapes[1].posture].stops;
-        CHECK_FALSE(frets[2].has_value());
-        // ...and writes none of the reach: the statement holds for the struck members' three
-        // quarters, not for the sixteenth the carry had left.
-        CHECK(derived.shapes[1].sustain == Fraction{3, 4});
+        CHECK(frets[2] == std::optional{fretStop(9)});
+        // ...and its reach: the statement holds for the sixteenth the carry had left, not for the
+        // struck members' three quarters.
+        CHECK(derived.shapes[1].sustain == Fraction{1, 16});
     }
 
     SECTION("a tap carries the SOUND past the coverage, and the close still reads the coverage")
