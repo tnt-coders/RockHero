@@ -6362,22 +6362,6 @@ TEST_CASE("A shape hold spans a rest", "[core][chart]")
     }
 }
 
-// A hold whose notes never found a span still publishes its span, with the empty posture, and
-// fits: the notes say nothing against it.
-TEST_CASE("A shape hold whose notes found nothing publishes an empty span", "[core][chart]")
-{
-    const std::vector<ChartNote> notes{noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4})};
-    const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(2, 1))});
-    REQUIRE(held.resolutions.shapes.size() == 1);
-    CHECK(held.resolutions.shapes[0].hold_stated);
-    CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
-    CHECK(
-        std::ranges::none_of(
-            held.resolutions.postures[held.resolutions.shapes[0].posture].stops,
-            [](const std::optional<ChartStop>& stop) { return stop.has_value(); }));
-    CHECK(held.fits[0]);
-}
-
 // A none hold publishes no arpeggio span inside it, while a chord struck inside keeps its box; the
 // notes after the hold derive as they do with no hold.
 TEST_CASE("A none hold drops an arpeggio span and keeps a chord box", "[core][chart]")
@@ -6561,6 +6545,68 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
         const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
         CHECK(normal.resolved.shape_holds == holds);
         CHECK(normal.conversions.empty());
+    }
+}
+
+// A hold over silence states nothing, so its span stands nowhere past its end: it closes there, and
+// fits.
+TEST_CASE("A shape hold over silence fits and publishes its span", "[core][chart]")
+{
+    // Nothing sounds inside the hold; a chord struck where it ends derives its own span.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(3, 1), 1, 5, Fraction{1, 4}),
+        noteAt(gridAt(3, 1), 2, 7, Fraction{1, 4}),
+    });
+    const Held held = deriveUnder(notes, {holdOver(gridAt(2, 1), gridAt(3, 1))});
+    REQUIRE(held.resolutions.shapes.size() == 2);
+    CHECK(held.resolutions.shapes[0].hold_stated);
+    CHECK(held.resolutions.shapes[0].place == Fraction{1});
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
+    CHECK(
+        std::ranges::none_of(
+            held.resolutions.postures[held.resolutions.shapes[0].posture].stops,
+            [](const std::optional<ChartStop>& stop) { return stop.has_value(); }));
+    CHECK_FALSE(held.resolutions.shapes[1].hold_stated);
+    CHECK(held.resolutions.shapes[1].place == Fraction{2});
+    CHECK(held.fits[0]);
+}
+
+// A hold whose notes never found a span stands its span at its end over the stops they left
+// pressed, and the walk closes it by its one rule: over a single note's whole ring the hold fits,
+// and ending in the middle of that ring, with nothing else happening, it does not.
+TEST_CASE("A shape hold over a single note closes where the note's ring ends", "[core][chart]")
+{
+    const std::vector<ChartNote> notes{noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4})};
+
+    SECTION("from the onset to the ring's end the hold fits")
+    {
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].hold_stated);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
+        CHECK(stopOf(held.resolutions, 0, 1) == std::optional{fretStop(5)});
+        CHECK(held.fits[0]);
+    }
+
+    SECTION("ending in the middle of the ring it does not, and normalizes to the ring's end")
+    {
+        const std::vector<ShapeHold> holds{holdOver(gridAt(1, 1), gridAt(1, 1, Fraction{1, 2}))};
+        const Held held = deriveUnder(notes, holds);
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
+        CHECK_FALSE(held.fits[0]);
+        const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
+        CHECK(normal.resolved.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
+        REQUIRE(normal.conversions.size() == 1);
+        CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
+    }
+
+    SECTION("past the ring's end, where the hand holds nothing, the hold fits")
+    {
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(2, 1))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
+        CHECK(held.fits[0]);
     }
 }
 

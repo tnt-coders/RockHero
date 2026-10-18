@@ -515,6 +515,38 @@ ChartShapes deriveChartShapes(
         return leaves.has_value() ? std::min(ring, onset + leaves->arrival) : ring;
     };
 
+    // The stop a string's ring carries into `now`, where a span standing there would take it as
+    // a member. MEMBERSHIP READS THE REACH COLUMN, never the sound (\ref StringHand): a ring the
+    // FRETTING hand is no longer making crosses no instant, whatever the other hand is sounding
+    // over it. A tap ringing on past the fretted note beneath it keeps `sounds` alive while
+    // `covers` is spent, and a member folded in on that evidence would close the span at or before
+    // its own front. Read through \ref coverage_at, since a landing the walk passed caps the
+    // reach. Mid-travel states no grip and joins no posture, and a natural's ring carries no grip
+    // either: the finger lifted at the strike, so the chime ringing on is no member of anything
+    // founded under it (\ref nodeGrip, the same clause the struck path reads).
+    const auto carried_stop = [&coverage_at, &covers_at](
+                                  const std::size_t string_index,
+                                  const Fraction now) -> std::optional<ChartStop> {
+        if (!(now < coverage_at(string_index, now)))
+        {
+            return std::nullopt;
+        }
+        const std::optional<ChartStop> carried = covers_at(string_index, now);
+        if (!carried.has_value() || nodeGrip(*carried))
+        {
+            return std::nullopt;
+        }
+        return carried;
+    };
+
+    // What a carried ring states as a member, like every grip statement: over a stop its string
+    // still held, the ring sounds the ornament and the grip beneath it is that stop; anywhere else
+    // it is the stop it is still ringing from.
+    const auto carried_statement =
+        [&hand](const std::size_t string_index, const ChartStop& carried) {
+            return hand[string_index].stated_beneath.value_or(carried);
+        };
+
     // HAND-POSITION RULE 6's RELEASE (\ref stringReleasesStopAt) of a stop a span states, by the
     // note sounding its string from `from`: the instant that note proves the finger on the stop
     // lifted, or nothing while it sounds. A release inside a glide lies at the glide's landing
@@ -555,6 +587,13 @@ ChartShapes deriveChartShapes(
         if (insideHold(span, now))
         {
             return true;
+        }
+        // A statement of nothing stands nowhere: the empty span of a hold whose notes stated no
+        // pressed stop closes where its hold ends.
+        if (std::ranges::none_of(
+                span.stops, [](const std::optional<ChartStop>& stop) { return stop.has_value(); }))
+        {
+            return false;
         }
         for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
         {
@@ -946,11 +985,12 @@ ChartShapes deriveChartShapes(
         settle_landings(slot.place);
 
         // ---- 2b. THE HOLDS' EDGES (shape rule 9) ----------------------------------------------
-        // An unnamed hold's end hands its span to the walk's own breaks, and publishes the span of
-        // a hold whose notes never founded one. An end whose span already closed short of it is no
-        // edge at all. Every other edge is a WALL: a span standing across it breaks here, judged at
-        // a slot against its own grip like any broken span. A span a landing opened exactly here
-        // stands, and an unnamed hold starting here states it (shape rule 4's hand-off).
+        // An unnamed hold's end hands its span to the walk's own breaks; a hold whose notes never
+        // founded one stands its span here, over the stops its notes left pressed, for those
+        // breaks to close. An end whose span already closed short of it is no edge at all. Every
+        // other edge is a WALL: a span standing across it breaks here, judged at a slot against its
+        // own grip like any broken span. A span a landing opened exactly here stands, and an
+        // unnamed hold starting here states it (shape rule 4's hand-off).
         bool walled = false;
         std::optional<std::size_t> opened_hold;
         for (; edge < edge_count && edge_place(edge) == slot.place; ++edge)
@@ -969,9 +1009,37 @@ ChartShapes deriveChartShapes(
             }
             if (ends && states_shape && unfounded_hold == hold_index)
             {
+                // The span's grip is what rings into the end, read as a founding there reads its
+                // carried rings, and the stop of each string the hold's own notes struck that no
+                // longer rings: that string's statement is no longer in force, so the span closes
+                // here.
+                std::vector<std::optional<ChartStop>> grip(string_count);
+                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+                {
+                    if (const std::optional<ChartStop> carried =
+                            carried_stop(string_index, slot.place);
+                        carried.has_value())
+                    {
+                        grip[string_index] = carried_statement(string_index, *carried);
+                        // Its reach as of now, as a founding brings each carried member's.
+                        hand[string_index].covers = coverage_at(string_index, slot.place);
+                        continue;
+                    }
+                    const std::optional<std::size_t>& finger = hand[string_index].finger;
+                    if (!finger.has_value() || onset_place[*finger] < holds[hold_index].start)
+                    {
+                        continue;
+                    }
+                    if (const std::optional<ChartStop> struck =
+                            channel_at(*finger, slot.place).stop;
+                        struck.has_value() && !nodeGrip(*struck))
+                    {
+                        grip[string_index] = struck;
+                    }
+                }
                 open = OpenSpan{
                     .front_place = holds[hold_index].start,
-                    .stops = std::vector<std::optional<ChartStop>>(string_count),
+                    .stops = std::move(grip),
                     .bracket_place = std::nullopt,
                     .last_stated_place = std::nullopt,
                     .struck_in_parts = false,
@@ -979,7 +1047,6 @@ ChartShapes deriveChartShapes(
                     .hold = HoldTenure{.end = slot.place, .conflict = std::nullopt},
                 };
                 unfounded_hold.reset();
-                emit(slot.place, closing_head);
                 continue;
             }
             walled = true;
@@ -1706,30 +1773,9 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                // MEMBERSHIP READS THE REACH COLUMN, never the sound (\ref StringHand): a ring the
-                // FRETTING hand is no longer making crosses no slot, whatever the other hand is
-                // sounding over it. A tap ringing on past the fretted note beneath it keeps
-                // `sounds` alive while `covers` is spent, and a member folded in on that evidence
-                // closes the span at or before its own front — zero or negative extent. Read
-                // through \ref coverage_at for the reason the write below uses it (a landing the
-                // walk passed caps the reach), and bound once so the gate and the write are
-                // provably one instant.
-                const Fraction covers = coverage_at(string_index, slot.place);
-                if (!(slot.place < covers))
-                {
-                    continue;
-                }
-                const std::optional<ChartStop> carried = covers_at(string_index, slot.place);
+                const std::optional<ChartStop> carried = carried_stop(string_index, slot.place);
                 if (!carried.has_value())
                 {
-                    // Mid-travel states no grip and joins no posture.
-                    continue;
-                }
-                if (nodeGrip(*carried))
-                {
-                    // A natural's ring carries no grip either: the finger lifted at the strike,
-                    // so the chime ringing on is no member of anything founded under it
-                    // (\ref nodeGrip, the same clause the struck path reads).
                     continue;
                 }
                 // A carry never folds in on a string this slot STRIKES OTHERWISE: a node struck
@@ -1741,11 +1787,9 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 // A ring still sounding here is part of the sounding shape, fretted or open
-                // alike, and joins the grip of a span founded here (shape rule 1). A carried
-                // source states what its strike stated, like every grip statement: over a stop its
-                // string still held, the ring sounds the ornament and the grip beneath it is that
-                // stop; anywhere else it is the stop it is still ringing from.
-                stops[string_index] = hand[string_index].stated_beneath.value_or(*carried);
+                // alike, and joins the grip of a span founded here (shape rule 1), stating what
+                // its strike stated.
+                stops[string_index] = carried_statement(string_index, *carried);
                 // A RING BELONGS TO THE SPAN IT WAS STRUCK IN: a ring struck before the coverage
                 // frontier has its onset behind every span still to come — no front dates earlier
                 // than the frontier — so it founds no accumulation, until it is RESTRUCK, which is
@@ -1767,7 +1811,7 @@ ChartShapes deriveChartShapes(
                 // span states is never re-read: its cap is live, and that cap is what closes the
                 // span at its member's landing (shape rule 4). A ring from before the frontier
                 // brings its coverage only where a span founds (below).
-                hand[string_index].covers = covers;
+                hand[string_index].covers = coverage_at(string_index, slot.place);
                 ++total;
             }
             if (foundsSpan(own, total))
