@@ -433,6 +433,12 @@ public:
         fret_hand_positions_prune_count += 1;
     }
 
+    /*! \copydoc IEditorController::onHoldShapeRequested */
+    void onHoldShapeRequested() override
+    {
+        hold_shape_count += 1;
+    }
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override
@@ -1030,6 +1036,9 @@ public:
 
     /*! \brief Number of onFretHandPositionsPruneRequested() intents received. */
     int fret_hand_positions_prune_count{0};
+
+    /*! \brief Number of onHoldShapeRequested() intents received. */
+    int hold_shape_count{0};
 
     /*! \brief Last position reported through onSongSectionInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_song_section_position{};

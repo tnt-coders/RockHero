@@ -75,6 +75,9 @@ enum class MarkerVerb : std::uint8_t
 
     /*! \brief Removes every stored fret-hand position the derivation does not need. */
     PruneHandPositions,
+
+    /*! \brief States that the hand holds one shape over the selection's extent. */
+    HoldShape,
 };
 
 /*!

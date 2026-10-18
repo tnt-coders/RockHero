@@ -12,6 +12,8 @@
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
@@ -329,6 +331,110 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
         .plan = std::move(plan),
         .resolved = std::move(normal.resolved),
         .conversions = std::move(normal.conversions),
+    };
+}
+
+std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    std::vector<common::core::ShapeHold> candidate, const std::string_view label)
+{
+    if (candidate == base.shape_holds)
+    {
+        return std::unexpected{ChartPlanNoChange{}};
+    }
+    if (std::expected<void, common::core::ChartError> valid =
+            common::core::validateShapeHolds(candidate, tempo_map);
+        !valid.has_value())
+    {
+        return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
+    }
+    // The normalizer's one derivation under the stated holds is what the walk publishes for each;
+    // the verb asks it whether every hold fits and keeps it as the layer the plan lands.
+    common::core::ShapeHoldNormalization normal =
+        common::core::normalizeShapeHolds(base.notes, candidate, base.tuning.capo, tempo_map);
+    for (const common::core::ShapeHold& hold : candidate)
+    {
+        if (common::core::shapeHoldFitsNotes(normal.resolved.shapes, tempo_map, hold))
+        {
+            continue;
+        }
+        const common::core::Fraction close =
+            common::core::shapeHoldPublishedEnd(normal.resolved.shapes, tempo_map, hold);
+        if (!(tempo_map.wholeNotePositionAt(hold.start) < close))
+        {
+            return std::unexpected{
+                ChartPlanInvalid{common::core::formatShapeHoldToken(hold) + " would hold nothing"}
+            };
+        }
+        return std::unexpected{ChartPlanInvalid{
+            common::core::formatShapeHoldToken(hold) +
+            " does not fit its notes: its shape closes at " +
+            common::core::formatGridPositionToken(tempo_map.gridPositionAtWholeNote(close))
+        }};
+    }
+    if (std::expected<void, common::core::ChartError> covered =
+            common::core::validateFretHandCoverage(
+                normal.resolved, base.fret_hand_positions, tempo_map);
+        !covered.has_value())
+    {
+        return std::unexpected{ChartPlanInvalid{std::move(covered.error().message)}};
+    }
+    return JudgedChartPlan{
+        .plan =
+            ChartEditPlan{
+                .removed = {},
+                .inserted = {},
+                .shape_holds = shapeHoldsChange(base.shape_holds, candidate),
+                .label = std::string{label},
+            },
+        .resolved = std::move(normal.resolved),
+        .conversions = {},
+    };
+}
+
+// Each hold keeps what lies outside the new one: its part before the new start and its part after
+// the new end, either of which is the whole hold where the new one does not reach it.
+std::vector<common::core::ShapeHold> carvedShapeHolds(
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& carved_in)
+{
+    std::vector<common::core::ShapeHold> carved;
+    carved.reserve(holds.size() + 2);
+    for (const common::core::ShapeHold& hold : holds)
+    {
+        if (hold.start < carved_in.start)
+        {
+            carved.push_back(
+                common::core::ShapeHold{
+                    .start = hold.start,
+                    .end = std::min(hold.end, carved_in.start),
+                    .grip = hold.grip,
+                });
+        }
+        if (carved_in.end < hold.end)
+        {
+            carved.push_back(
+                common::core::ShapeHold{
+                    .start = std::max(hold.start, carved_in.end),
+                    .end = hold.end,
+                    .grip = hold.grip,
+                });
+        }
+    }
+    carved.insert(
+        std::ranges::upper_bound(
+            carved, carved_in.start, std::ranges::less{}, &common::core::ShapeHold::start),
+        carved_in);
+    return carved;
+}
+
+common::core::ShapeHold shapeHoldOverSpan(
+    const common::core::ChartShape& span, const common::core::TempoMap& tempo_map,
+    common::core::HoldGrip grip)
+{
+    return common::core::ShapeHold{
+        .start = tempo_map.gridPositionAtWholeNote(span.place),
+        .end = tempo_map.gridPositionAtWholeNote(span.place + span.sustain),
+        .grip = std::move(grip),
     };
 }
 
@@ -2570,13 +2676,7 @@ std::string ChartEdit::label() const
 
 EditFocus ChartEdit::focus(const EditorUndoDirection direction) const
 {
-    const std::optional<ChartEditFocus>& side =
-        direction == EditorUndoDirection::Undo ? before : after;
-    if (!side.has_value())
-    {
-        return {};
-    }
-    return *side;
+    return direction == EditorUndoDirection::Undo ? before : after;
 }
 
 } // namespace rock_hero::editor::core

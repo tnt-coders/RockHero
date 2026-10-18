@@ -477,6 +477,12 @@ constexpr int g_add_lane_key = 'a';
         "Insert Point on Ring",
         "Authoring",
         {chord(juce::KeyPress::insertKey, alt)});
+    // Ctrl+H reads the SELECTION, so it is an authoring verb rather than a marker chord: the
+    // marker plane's Ctrl+letter authors at the cursor and never reads the selection.
+    add(EditorCommandId::HoldShape,
+        core::markerVerbLabel(core::MarkerVerb::HoldShape),
+        "Authoring",
+        {chord('h', command)});
     // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
     // that letter's second slot. `Shift` is not a semantic operator in this map — it is a
     // disambiguator: the letter carries all the meaning, and `Shift` says only which claimant of

@@ -702,6 +702,18 @@ public:
     virtual void onFretHandPositionsPruneRequested() = 0;
 
     /*!
+    \brief Handles the hold chord (`Ctrl+H`): state that the hand holds one shape over what the
+    selection covers.
+
+    The hold runs over a selected hold or derived span's own extent, a time selection's, or a note
+    selection's from its first onset to its last ring's end, and is carved into the chart's holds:
+    a hold it straddles is cropped and one it lies inside is split. Refused, with the refusal flash
+    and a log line, when nothing is selected or any hold would not fit its notes. One undo entry,
+    leaving the new hold selected. Inert while playing and with no chart.
+    */
+    virtual void onHoldShapeRequested() = 0;
+
+    /*!
     \brief Handles a request to insert a song-structure section at the marker.
 
     The surface captures \p position at the press — the published marker position, which is the

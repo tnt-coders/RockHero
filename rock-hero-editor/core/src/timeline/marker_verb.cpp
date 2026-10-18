@@ -84,6 +84,10 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Prune Hand Positions";
         }
+        case MarkerVerb::HoldShape:
+        {
+            return "Hold Shape";
+        }
     }
     return {};
 }

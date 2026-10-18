@@ -902,6 +902,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertRingPoint,
          .value = 0x171C,
          .chords = {chord(juce::KeyPress::insertKey, alt)}},
+        {.id = EditorCommandId::HoldShape, .value = 0x140B, .chords = {chord('h', command)}},
         {.id = EditorCommandId::ChartPickSlideToggle,
          .value = 0x1709,
          .chords = {chord('x', shift)}},
@@ -1305,6 +1306,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK(acts(EditorCommandId::TypeDigit1));
     CHECK(acts(EditorCommandId::ChartLegatoToggle));
     CHECK(acts(EditorCommandId::RenameSelection));
+    CHECK(acts(EditorCommandId::HoldShape));
 
     CHECK_FALSE(acts(EditorCommandId::CaretStepLeft));
     CHECK_FALSE(acts(EditorCommandId::CaretJumpSectionRow));

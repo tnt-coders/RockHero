@@ -964,6 +964,16 @@ struct EditorAction
     };
 
     /*!
+    \brief `Ctrl+H`: state that the hand holds one shape over what the selection covers, as an
+    unnamed shape hold carved into the chart's holds.
+
+    Carries nothing: the subject is the selection, read at the press.
+    */
+    struct HoldShape
+    {
+    };
+
+    /*!
     \brief Insert a song-structure section at a position.
 
     Carries the position the surface captured AT THE PRESS, exactly as the tone-change insert
@@ -1098,7 +1108,7 @@ struct EditorAction
         RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
         ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature, SetTimeSignature,
         SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd,
-        PruneFretHandPositions, StepToRowObject, JumpToFocusRow>;
+        PruneFretHandPositions, HoldShape, StepToRowObject, JumpToFocusRow>;
 };
 
 /*!

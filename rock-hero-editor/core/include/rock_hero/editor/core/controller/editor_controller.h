@@ -544,6 +544,9 @@ public:
     /*! \copydoc IEditorController::onFretHandPositionsPruneRequested */
     void onFretHandPositionsPruneRequested() override;
 
+    /*! \copydoc IEditorController::onHoldShapeRequested */
+    void onHoldShapeRequested() override;
+
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(
         common::core::GridPosition position, std::string name) override;

@@ -213,6 +213,17 @@ enum class EditorCommandId : std::uint16_t
     */
     PruneHandPositions = 0x140A,
 
+    /*!
+    \brief State that the hand holds one shape over what the selection covers (`Ctrl+H`, Hold
+    Shape).
+
+    Reads the selection, never the cursor: a selected hold or derived span, a time selection, or
+    selected notes from their first onset to their last ring's end. The core carves the new hold
+    into the chart's holds and refuses, with the refusal flash, where nothing is selected or a hold
+    would not fit its notes.
+    */
+    HoldShape = 0x140B,
+
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
 

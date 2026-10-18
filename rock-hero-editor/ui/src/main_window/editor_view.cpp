@@ -306,6 +306,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::AuthorFretHandPositionAtCursor:
             case core::EditorActionId::ClearFretHandEnd:
             case core::EditorActionId::PruneFretHandPositions:
+            case core::EditorActionId::HoldShape:
             {
                 return "Save your tone before continuing?";
             }
@@ -407,6 +408,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::AuthorFretHandPositionAtCursor:
         case core::EditorActionId::ClearFretHandEnd:
         case core::EditorActionId::PruneFretHandPositions:
+        case core::EditorActionId::HoldShape:
         {
             return "Save changes before continuing?";
         }
@@ -2008,6 +2010,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::InsertTempoAnchor:
         case EditorCommandId::InsertTimeSignature:
         case EditorCommandId::InsertFretHandPosition:
+        case EditorCommandId::HoldShape:
         case EditorCommandId::RestateSelection:
         case EditorCommandId::RenameSelection:
         case EditorCommandId::OpenFileMenu:
@@ -2354,6 +2357,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::InsertFretHandPosition:
         {
             m_controller.onFretHandPositionChordRequested();
+            return true;
+        }
+        case EditorCommandId::HoldShape:
+        {
+            m_controller.onHoldShapeRequested();
             return true;
         }
         case EditorCommandId::RestateSelection:

@@ -22,6 +22,7 @@ opposite directions: undo round-trips are exact by construction.
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
@@ -244,6 +245,50 @@ verb refuses a step that would carry a point onto the ring's end (\ref planMoveS
 [[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, std::string_view label);
+
+/*!
+\brief THE gate every hold verb ends at: refuses a hold stream the document reader would refuse,
+or one holding a hold that does not fit its notes (shape rule 9), and plans the rest.
+
+A hold verb never relies on the normalizer (\ref common::core::normalizeShapeHolds): a result the
+normalizer would crop, extend or drop is refused rather than rewritten, so every hold the charter
+states lands exactly as stated. Every hold is judged, not only the ones the verb touched, because a
+hold's edges are walls the spans beside it close at. The notes never change, so the authored
+positions' coverage of the spans the holds give is the one other rule the result can break.
+
+\param base The chart the plan is diffed against, a fixpoint of every gate.
+\param tempo_map Tempo map placing the notes and the holds.
+\param candidate The holds the verb leaves, ascending.
+\param label User-visible undo label.
+\return The plan with the notes layer of the chart it lands; NoChange when the holds are the base's,
+        Invalid naming the first rule the holds break.
+*/
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    std::vector<common::core::ShapeHold> candidate, std::string_view label);
+
+/*!
+\brief The holds with a new hold carved in: it takes its range out of every hold it overlaps, so
+one it straddles is cropped at its edge, one it lies inside is split into the parts before and
+after it, and one it covers is gone. Every verb that authors a hold adds it through here.
+\param holds The holds, ascending and never overlapping.
+\param carved_in The new hold.
+\return The holds, ascending and never overlapping, `carved_in` among them.
+*/
+[[nodiscard]] std::vector<common::core::ShapeHold> carvedShapeHolds(
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& carved_in);
+
+/*!
+\brief A hold stating `grip` over exactly a derived span's extent: what converting the span to a
+hold starts from.
+\param span The span, as the walk published it.
+\param tempo_map Tempo map the span was derived against.
+\param grip The grip the hold states.
+\return The hold from the span's front to its musical close.
+*/
+[[nodiscard]] common::core::ShapeHold shapeHoldOverSpan(
+    const common::core::ChartShape& span, const common::core::TempoMap& tempo_map,
+    common::core::HoldGrip grip);
 
 /*!
 \brief Plans placing one note on its (position, string) slot; a slot a note already holds is the
@@ -1510,9 +1555,7 @@ struct [[nodiscard]] ChartEdit final : IEdit
     \param before_value Where the charter stood as the edit began, or nothing to show.
     \param after_value Where the edit left the charter, or nothing to show.
     */
-    ChartEdit(
-        ChartEditPlan plan_value, std::optional<ChartEditFocus> before_value,
-        std::optional<ChartEditFocus> after_value)
+    ChartEdit(ChartEditPlan plan_value, EditFocus before_value, EditFocus after_value)
         : plan(std::move(plan_value))
         , before(std::move(before_value))
         , after(std::move(after_value))
@@ -1543,7 +1586,7 @@ struct [[nodiscard]] ChartEdit final : IEdit
     /*!
     \brief Returns where the charter stood on the side the transition lands on.
     \param direction Undo lands before the edit, redo after it.
-    \return The recorded chart focus, or nothing where that side had none.
+    \return The recorded focus, or nothing where that side had none.
     */
     [[nodiscard]] EditFocus focus(EditorUndoDirection direction) const override;
 
@@ -1551,10 +1594,10 @@ struct [[nodiscard]] ChartEdit final : IEdit
     ChartEditPlan plan;
 
     /*! \brief Where the charter stood as the edit began. */
-    std::optional<ChartEditFocus> before;
+    EditFocus before;
 
     /*! \brief Where the edit left the charter. */
-    std::optional<ChartEditFocus> after;
+    EditFocus after;
 };
 
 } // namespace rock_hero::editor::core

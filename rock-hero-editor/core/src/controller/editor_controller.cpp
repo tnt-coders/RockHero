@@ -359,6 +359,10 @@ namespace
         {
             return "PruneFretHandPositions";
         }
+        case EditorAction::Id::HoldShape:
+        {
+            return "HoldShape";
+        }
         case EditorAction::Id::InsertSongSection:
         {
             return "InsertSongSection";
@@ -1040,6 +1044,11 @@ void EditorController::onFretHandPositionEndClearRequested()
 void EditorController::onFretHandPositionsPruneRequested()
 {
     m_impl->runAction(EditorAction::PruneFretHandPositions{});
+}
+
+void EditorController::onHoldShapeRequested()
+{
+    m_impl->runAction(EditorAction::HoldShape{});
 }
 
 void EditorController::onSongSectionInsertRequested(

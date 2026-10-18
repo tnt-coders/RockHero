@@ -1,8 +1,13 @@
+#include "log_capture.h"
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -12,6 +17,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -23,6 +29,7 @@ namespace
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::ShapeHold;
+using testing::LogCapture;
 
 // A place at a measure, beat and beat fraction.
 [[nodiscard]] GridPosition at(const int measure, const int beat, const Fraction offset = {})
@@ -50,7 +57,7 @@ using common::core::ShapeHold;
 }
 
 // An arpeggio over measure `measure`: strings 1, 2 and 3 struck on its first three beats, every
-// ring running to the next downbeat, so the walk derives one arpeggio span over the measure.
+// ring running to its fourth, so the walk derives one arpeggio span over those three beats.
 [[nodiscard]] std::vector<common::core::ChartNote> arpeggioIn(const int measure)
 {
     return {
@@ -98,6 +105,10 @@ struct HoldEditor
         const bool loaded =
             loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
         REQUIRE(loaded);
+        // A grid step is a beat, so a time selection is stated in beats.
+        controller.onGridNoteValueChangeRequested(Fraction{1, 4});
+        // Every case starts from holds that fit, as a loaded chart's do.
+        REQUIRE(holdsFit());
     }
 
     [[nodiscard]] const EditorViewState& state() const
@@ -171,6 +182,74 @@ struct HoldEditor
     [[nodiscard]] std::optional<std::size_t> selectedSpan() const
     {
         return state().chart_edit.selected_hand_span;
+    }
+
+    // The chart's holds as they now stand.
+    [[nodiscard]] std::vector<ShapeHold> holds() const
+    {
+        return chart().shape_holds;
+    }
+
+    // Whether every hold fits its notes as the chart now stands: the normal form rewrites nothing.
+    [[nodiscard]] bool holdsFit() const
+    {
+        const common::core::Chart& loaded = chart();
+        return common::core::normalizeShapeHolds(
+                   loaded.notes,
+                   loaded.shape_holds,
+                   loaded.tuning.capo,
+                   controller.session().song().tempo_map)
+            .conversions.empty();
+    }
+
+    // The chart's holds as text, each its token and a none hold's grip, for a failure to name them.
+    [[nodiscard]] std::string holdsText() const
+    {
+        std::string text;
+        for (const ShapeHold& hold : holds())
+        {
+            const bool none = std::holds_alternative<common::core::NoneGrip>(hold.grip);
+            text += common::core::formatShapeHoldToken(hold) + (none ? " (none); " : "; ");
+        }
+        return text;
+    }
+
+    // How many entries the history holds, so a refusal reads as no new entry.
+    [[nodiscard]] std::size_t entries() const
+    {
+        return state().undo_history.labels.size();
+    }
+
+    // The label of the history's latest entry.
+    [[nodiscard]] std::string lastLabel() const
+    {
+        const std::vector<std::string>& labels = state().undo_history.labels;
+        REQUIRE_FALSE(labels.empty());
+        return labels.empty() ? std::string{} : labels.back();
+    }
+
+    // Parks the cursor and extends a time selection `beats` grid steps to the right.
+    void selectTime(const double from_seconds, const int beats)
+    {
+        park(from_seconds);
+        for (int beat = 0; beat < beats; ++beat)
+        {
+            controller.onTimeSelectionExtendRequested(
+                TimeSelectionExtent::Grid, ChartStepDirection::Right);
+        }
+    }
+
+    // Parks the cursor and arms the caret there on string 1, selecting the note standing there.
+    void armAt(const double seconds)
+    {
+        park(seconds);
+        step(ChartStepDirection::Right);
+    }
+
+    // Ctrl+H.
+    void holdShape()
+    {
+        controller.onHoldShapeRequested();
     }
 };
 
@@ -257,6 +336,158 @@ TEST_CASE("Tab steps the span row from span to span", "[core][holds]")
     editor.controller.onRowObjectStepRequested(false, false);
     CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
     CHECK(editor.transport.position().seconds == Catch::Approx(0.0));
+}
+
+// Ctrl+H over a derived span states an unnamed hold exactly over it, which leaves the spans as
+// they were and the new hold selected, as one undo entry that undo takes back to the span.
+TEST_CASE("Ctrl+H over a derived span holds exactly its extent", "[core][holds]")
+{
+    HoldEditor editor{chartOf({arpeggioIn(1), chordAt(at(3, 1), 3, 5)})};
+    REQUIRE(editor.spanCount() == 2);
+    editor.walkDownAt(0.75, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+
+    editor.holdShape();
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 4))});
+    CHECK(editor.spanCount() == 2);
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+    CHECK(editor.entries() == entries + 1);
+    CHECK(editor.lastLabel() == "Hold Shape");
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.holds().empty());
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+
+    editor.controller.onRedoRequested();
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 4))});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+}
+
+// Ctrl+H over a time selection states a hold over exactly the selection: over silence it fits,
+// and one ending where a ring still sounds and nothing closes is refused with the flash.
+TEST_CASE("Ctrl+H over a time selection holds exactly the selection", "[core][holds]")
+{
+    HoldEditor editor{chartOf({{makeTestNote(at(3, 1), 1, 5, Fraction{1})}})};
+
+    SECTION("over silence")
+    {
+        editor.selectTime(8.0, 4);
+        editor.holdShape();
+        CHECK(editor.holds() == std::vector{unnamedHold(at(5, 1), at(6, 1))});
+        CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+    }
+
+    SECTION("over a whole ring")
+    {
+        editor.selectTime(4.0, 4);
+        editor.holdShape();
+        CHECK(editor.holds() == std::vector{unnamedHold(at(3, 1), at(4, 1))});
+    }
+
+    SECTION("ending in the middle of a ring")
+    {
+        const std::size_t entries = editor.entries();
+        const std::size_t flashes = editor.view.refusal_flashes.size();
+        editor.selectTime(4.0, 2);
+        editor.holdShape();
+        CHECK(editor.holds().empty());
+        CHECK(editor.entries() == entries);
+        CHECK(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.state().time_selection.has_value());
+    }
+}
+
+// Ctrl+H over selected notes runs from the first onset to the last ring's end.
+TEST_CASE("Ctrl+H over a note selection holds from its onset to its ring's end", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(3, 1), 3, 5)})};
+    editor.armAt(4.0);
+    REQUIRE_FALSE(editor.state().chart_edit.selected_notes.empty());
+
+    editor.holdShape();
+    CHECK(editor.holds() == std::vector{unnamedHold(at(3, 1), at(3, 2))});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+    CHECK(caretOrNull(editor.state().chart_edit) == nullptr);
+}
+
+// A bare caret covers nothing, so Ctrl+H is refused and writes nothing.
+TEST_CASE("Ctrl+H on a bare caret is refused", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(3, 1), 3, 5)})};
+    editor.armAt(8.0);
+    REQUIRE(editor.state().chart_edit.selected_notes.empty());
+    const std::size_t entries = editor.entries();
+
+    editor.holdShape();
+    CHECK(editor.holds().empty());
+    CHECK(editor.entries() == entries);
+}
+
+// A new hold carves its range out of every hold it overlaps: one it straddles is cropped, one it
+// lies inside is split around it, one it covers is gone. A surviving part that would not fit its
+// notes refuses the whole verb.
+TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
+{
+    SECTION("a hold it lies inside is split")
+    {
+        HoldEditor editor{chartOf({}, {unnamedHold(at(5, 1), at(9, 1))})};
+        editor.selectTime(10.0, 4);
+        editor.holdShape();
+        CHECK(
+            editor.holds() == std::vector{
+                                  unnamedHold(at(5, 1), at(6, 1)),
+                                  unnamedHold(at(6, 1), at(7, 1)),
+                                  unnamedHold(at(7, 1), at(9, 1)),
+                              });
+        CHECK(editor.selectedHold() == std::optional<std::size_t>{1});
+
+        editor.controller.onUndoRequested();
+        CHECK(editor.holds() == std::vector{unnamedHold(at(5, 1), at(9, 1))});
+    }
+
+    SECTION("a hold it straddles is cropped")
+    {
+        HoldEditor editor{chartOf({}, {noneHold(at(5, 1), at(7, 1))})};
+        editor.selectTime(10.0, 8);
+        editor.holdShape();
+        CHECK(
+            editor.holds() == std::vector{
+                                  noneHold(at(5, 1), at(6, 1)),
+                                  unnamedHold(at(6, 1), at(8, 1)),
+                              });
+    }
+
+    SECTION("a hold it covers is gone")
+    {
+        HoldEditor editor{chartOf({}, {unnamedHold(at(6, 1), at(7, 1))})};
+        editor.selectTime(8.0, 12);
+        editor.holdShape();
+        CHECK(editor.holds() == std::vector{unnamedHold(at(5, 1), at(8, 1))});
+    }
+
+    // String 1 states fret 5 over the old hold, so frets 7 and 6 above it prove nothing. Cut at
+    // 1:3, the part left after the new hold states fret 7 there, and fret 6 below it at 2:1 is that
+    // finger lifting: a hand conflict that would crop the part.
+    SECTION("a part that would not fit refuses the verb")
+    {
+        const LogCapture capture;
+        HoldEditor editor{chartOf(
+            {chordAt(at(1, 1), 5, 7, Fraction{1, 2}),
+             chordAt(at(1, 3), 7, 7, Fraction{1, 2}),
+             chordAt(at(2, 1), 6, 7, Fraction{1, 2})},
+            {unnamedHold(at(1, 1), at(2, 3))})};
+        const std::size_t entries = editor.entries();
+        editor.selectTime(0.0, 2);
+        editor.holdShape();
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(2, 3))});
+        CHECK(editor.entries() == entries);
+        const std::string contents = capture.text();
+        INFO(contents);
+        CHECK(contents.find("shape hold 1:3 to 2:3 does not fit its notes") != std::string::npos);
+    }
 }
 
 } // namespace rock_hero::editor::core

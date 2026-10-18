@@ -19,6 +19,7 @@ target_sources(
             src/chart/fret_hand_positions_snapshot.h
             src/chart/pick_slide_defaults.cpp
             src/chart/pick_slide_defaults.h
+            src/chart/shape_hold_handlers.cpp
             src/chart/chart_selection.cpp
             src/chart/chart_selection.h
             src/audio_device/audio_device_settings_controller.cpp

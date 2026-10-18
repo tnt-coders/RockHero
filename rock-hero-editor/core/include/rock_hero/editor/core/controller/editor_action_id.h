@@ -253,6 +253,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Remove every stored fret-hand position whose removal leaves the hand unchanged. */
     PruneFretHandPositions,
 
+    /*! \brief State one held shape over what the selection covers: an unnamed shape hold. */
+    HoldShape,
+
     /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
     StepToRowObject,
 

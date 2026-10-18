@@ -83,8 +83,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ChooseChartBend:
         case EditorAction::Id::SetChartBend:
         case EditorAction::Id::ToggleChartJunction:
-        // The section, tempo and fret-hand position verbs edit the project the calibration prompt
-        // is parked over.
+        // The section, tempo, fret-hand position and hold verbs edit the project the calibration
+        // prompt is parked over.
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
         case EditorAction::Id::InsertTempoAnchor:
@@ -94,6 +94,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ReleaseTempoAnchorDrag:
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::HoldShape:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
         {
@@ -225,6 +226,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SelectTimeSignature:
             case EditorAction::Id::SelectFretHandPosition:
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
+            case EditorAction::Id::HoldShape:
             case EditorAction::Id::ClearFretHandEnd:
             case EditorAction::Id::PruneFretHandPositions:
             {
@@ -391,10 +393,11 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::JumpToFocusRow:
         case EditorAction::Id::JumpChartCaret:
         case EditorAction::Id::ExtendTimeSelection:
-        // The fret-hand positions are the chart's own, so their marker verbs need a chart; paused-
-        // only like every other marker verb.
+        // The fret-hand positions and the shape holds are the chart's own, so their marker verbs
+        // need a chart; paused-only like every other marker verb.
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::HoldShape:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
         {
@@ -553,6 +556,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectTimeSignature:
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::HoldShape:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
         {

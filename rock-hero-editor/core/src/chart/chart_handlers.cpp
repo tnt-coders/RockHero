@@ -1025,10 +1025,9 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
 // apply, so the flash is addressed in the projection the apply published.
 bool EditorController::Impl::applyChartEditPlan(
     ChartSelectionPlan planned, const ChartSelection& subject,
-    std::optional<std::vector<ChartSelectionKey>> select_exactly)
+    std::optional<ChartEditLanding> landing)
 {
-    const bool applied =
-        applyChartEditPlan(std::move(planned.plan), subject, std::move(select_exactly));
+    const bool applied = applyChartEditPlan(std::move(planned.plan), subject, std::move(landing));
     reportChartRefusedNotes(planned.refused);
     return applied;
 }
@@ -1038,14 +1037,14 @@ bool EditorController::Impl::applyChartEditPlan(
 // its own behavior still branches before handing the plan over.
 bool EditorController::Impl::applyChartEditPlan(
     std::expected<JudgedChartPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
-    std::optional<std::vector<ChartSelectionKey>> select_exactly)
+    std::optional<ChartEditLanding> landing)
 {
     if (!plan.has_value())
     {
         reportChartPlanRefusal(plan.error(), subject);
         return false;
     }
-    return applyChartEditPlan(std::move(*plan), std::move(select_exactly));
+    return applyChartEditPlan(std::move(*plan), std::move(landing));
 }
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
@@ -1054,7 +1053,7 @@ bool EditorController::Impl::applyChartEditPlan(
 // planned edit lands whatever planned it, naming the notes the plan would rewrite or remove as
 // the refusal's subject — an insert at an empty slot names none and logs alone.
 bool EditorController::Impl::applyChartEditPlan(
-    JudgedChartPlan plan, std::optional<std::vector<ChartSelectionKey>> select_exactly)
+    JudgedChartPlan plan, std::optional<ChartEditLanding> landing)
 {
     if (const std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
     {
@@ -1071,7 +1070,7 @@ bool EditorController::Impl::applyChartEditPlan(
     }
 
     // Where the charter stands before anything moves, which is exactly where undo returns them.
-    std::optional<ChartEditFocus> before = chartEditFocusOf(chartSelection().keys());
+    EditFocus before = chartEditFocus();
     const std::optional<std::expected<void, EditorUndoFailureCode>> applied = m_session.writeChart(
         [&plan](common::core::Chart& chart) { return applyChartChange(chart, plan.plan); });
     if (!applied.has_value())
@@ -1100,10 +1099,18 @@ bool EditorController::Impl::applyChartEditPlan(
     // them, since its run reports them once it ends (commitChartGestureStep).
     reportChartConversions(plan.conversions);
 
-    // The selection follows the edit: a verb that knows where its objects landed says so, and
-    // otherwise retyped/moved/inserted records stay selected under their new keys.
+    // The selection follows the edit: a hold verb's subject is the hold it wrote, a verb that
+    // knows where its objects landed says so, and otherwise retyped/moved/inserted records stay
+    // selected under their new keys.
+    const ShapeHoldSelection* landed_hold = nullptr;
+    const std::vector<ChartSelectionKey>* select_exactly = nullptr;
+    if (landing.has_value())
+    {
+        landed_hold = std::get_if<ShapeHoldSelection>(&*landing);
+        select_exactly = std::get_if<std::vector<ChartSelectionKey>>(&*landing);
+    }
     std::vector<ChartSelectionKey> next_selection;
-    if (select_exactly.has_value())
+    if (select_exactly != nullptr)
     {
         next_selection = *select_exactly;
     }
@@ -1156,7 +1163,14 @@ bool EditorController::Impl::applyChartEditPlan(
             }
         }
     }
-    landChartSelection(std::move(next_selection));
+    if (landed_hold != nullptr)
+    {
+        landShapeHoldSelection(*landed_hold);
+    }
+    else
+    {
+        landChartSelection(std::move(next_selection));
+    }
 
     // The history takes the WRITTEN form of the transition and the burst record the whole of it
     // (writtenChartPlan): a transition that only planted or moved a silent point writes as nothing,
@@ -1174,7 +1188,7 @@ bool EditorController::Impl::applyChartEditPlan(
     // early steps write nothing and whose later step writes does not coalesce across that boundary,
     // which is correct — the early steps are authoring state no entry may hold.
     ChartEditPlan written = writtenChartPlan(plan.plan);
-    std::optional<ChartEditFocus> after = chartEditFocusOf(chartSelection().keys());
+    EditFocus after = chartEditFocus();
     if (!written.empty() &&
         pushUndoEntry(std::make_unique<ChartEdit>(std::move(written), before, after)))
     {
@@ -1214,12 +1228,30 @@ void EditorController::Impl::landChartSelection(std::vector<ChartSelectionKey> k
     chartSelectionMutable().applyBox(keys, false);
 }
 
-std::optional<ChartEditFocus> EditorController::Impl::chartEditFocusOf(
-    std::vector<ChartSelectionKey> selected) const
+// Inside an edit the caret is a stale answer to what the charter acts on, so it demotes as every
+// selecting gesture demotes it; the selection is replaced in place, as chartSelectionMutable does,
+// and the audible tone re-derived for the same reason.
+void EditorController::Impl::landShapeHoldSelection(const ShapeHoldSelection& hold)
 {
+    dissolveChartCaretInPlace();
+    m_selection = hold;
+    syncAudibleTone();
+}
+
+EditFocus EditorController::Impl::chartEditFocus() const
+{
+    if (const auto* const hold = std::get_if<ShapeHoldSelection>(&m_selection))
+    {
+        return MarkerEditFocus{.marker = *hold, .start = hold->start};
+    }
+    if (const auto* const span = std::get_if<HandSpanSelection>(&m_selection))
+    {
+        return MarkerEditFocus{.marker = *span, .start = span->start};
+    }
     // The slot comes from the first selected object rather than from the caret whenever there is
     // one: a verb that re-keys its objects moves the caret onto them only after its edit applies,
     // and the object's own slot is where the caret will stand.
+    std::vector<ChartSelectionKey> selected = chartSelection().keys();
     const ChartCaret* const caret = armedChartStringCaret();
     const ChartCursor* const cursor = std::get_if<ChartCursor>(&m_chart_marker);
     std::optional<ChartSlotKey> slot;
@@ -1237,7 +1269,7 @@ std::optional<ChartEditFocus> EditorController::Impl::chartEditFocusOf(
     }
     if (!slot.has_value())
     {
-        return std::nullopt;
+        return {};
     }
     // The caret's stop is recorded only where the caret stands on that very slot.
     const bool caret_on_slot =
@@ -3450,7 +3482,7 @@ bool EditorController::Impl::commitChartGestureStep(
         // objects states the landing here or leaves the next press holding keys naming nothing.
         landChartSelection(select_exactly.value_or(chartSelection().keys()));
         // The run began where the burst record says; it now leaves the charter on its landing.
-        std::optional<ChartEditFocus> after = chartEditFocusOf(chartSelection().keys());
+        EditFocus after = chartEditFocus();
         if (replaceUndoTop(std::make_unique<ChartEdit>(std::move(written), burst->before, after)))
         {
             // The burst record follows the entry it names, or the next step would reverse a plan
@@ -3620,7 +3652,7 @@ bool EditorController::Impl::reverseChartVerbWindow(
         // The written form, like every entry; a record exists only for a plan that wrote as
         // something, and the reversal of such a plan writes as its reverse. The reversal keeps
         // the selection, so the charter stands in one place on both sides of it.
-        const std::optional<ChartEditFocus> here = chartEditFocusOf(chartSelection().keys());
+        const EditFocus here = chartEditFocus();
         pushUndoEntry(std::make_unique<ChartEdit>(writtenChartPlan(reversal), here, here));
     }
     else
@@ -4299,7 +4331,7 @@ bool EditorController::Impl::settleChartClaims()
     {
         // At the top of the stack a push truncates nothing, so the flatten simply becomes its own
         // undo step, standing wherever the charter stands now on both sides.
-        const std::optional<ChartEditFocus> here = chartEditFocusOf(chartSelection().keys());
+        const EditFocus here = chartEditFocus();
         pushUndoEntry(std::make_unique<ChartEdit>(std::move(written), here, here));
     }
     // A sweep that commits anything closes the chart verbs' window: a fold changes the top entry's

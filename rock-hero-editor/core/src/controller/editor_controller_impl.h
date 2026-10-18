@@ -544,31 +544,36 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
+    // Where a chart edit leaves the selection when its verb says: exactly these chart keys, or the
+    // shape hold a hold verb wrote. A verb that says nothing has its selection follow the edit.
+    using ChartEditLanding = std::variant<std::vector<ChartSelectionKey>, ShapeHoldSelection>;
     // A plan the caller already holds as valid, which therefore names no subject. Once the write
     // has landed it seeds the notes-layer memo with the plan's own derivation.
     bool applyChartEditPlan(
-        JudgedChartPlan plan,
-        std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+        JudgedChartPlan plan, std::optional<ChartEditLanding> landing = std::nullopt);
     // A planner's answer, which may be a refusal: `subject` is what the verb planned over — the
     // selection, or the operand a modifying key took from the caret — and is what a refusal names
     // in the log and flashes.
     bool applyChartEditPlan(
         std::expected<JudgedChartPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
-        std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+        std::optional<ChartEditLanding> landing = std::nullopt);
     // The same apply for a per-note verb's outcome, whose notes refused one by one are reported
     // whether or not the rest applied.
     bool applyChartEditPlan(
         ChartSelectionPlan planned, const ChartSelection& subject,
-        std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
+        std::optional<ChartEditLanding> landing = std::nullopt);
     // Makes `keys` the chart selection, keeping only what the chart holds (chartHoldsKey): where
     // every chart edit lands its selection once the chart is written.
     void landChartSelection(std::vector<ChartSelectionKey> keys);
-    // Where the charter stands in the chart with `selected` as the chart selection: the one
-    // capture both sides of a chart undo entry record (ChartEditFocus). Nothing where no slot
-    // says it — a caret riding an automation lane, or a passive cursor with nothing selected and
-    // no column of its own.
-    [[nodiscard]] std::optional<ChartEditFocus> chartEditFocusOf(
-        std::vector<ChartSelectionKey> selected) const;
+    // Makes the hold the selection inside an edit, as landChartSelection makes chart keys: the
+    // caret demoted in place, and no commit point, so a gesture's window survives its own landing.
+    void landShapeHoldSelection(const ShapeHoldSelection& hold);
+    // Where the charter stands right now: the one capture both sides of a chart undo entry record.
+    // A selected hold or derived span is shown as every marker entry shows its own
+    // (MarkerEditFocus); anything else is the place in the chart (ChartEditFocus). Nothing where
+    // no slot says it — a caret riding an automation lane, or a passive cursor with nothing
+    // selected and no column of its own.
+    [[nodiscard]] EditFocus chartEditFocus() const;
     // The one seconds-space containment rule; toneRegionIdAt names its answer (see the
     // definitions).
     [[nodiscard]] const common::core::ToneRegion* toneRegionAtPosition(
@@ -742,6 +747,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The red glow on the hand chip fronting at `position`, where one does: a refused hand verb's
     // half of the refusal beside its log record.
     void flashFretHandChip(const common::core::GridPosition& position);
+    // Shape holds (src/chart/shape_hold_handlers.cpp), the span rows' verbs.
+    // The authored hold the selection names, or null where it names none or the hold is gone.
+    [[nodiscard]] const common::core::ShapeHold* selectedShapeHold() const;
+    // The index into the notes layer's spans of the derived span the selection names, or nothing
+    // where it names none or the span is gone.
+    [[nodiscard]] std::optional<std::size_t> selectedHandSpanShape() const;
+    // The unnamed hold the hold chord states, read off the selection: over a selected hold's or
+    // derived span's own extent, a time selection's, or the selected notes' from their first onset
+    // to their last ring's end. Nothing where the selection covers nothing.
+    [[nodiscard]] std::optional<common::core::ShapeHold> holdShapeTarget() const;
+    // A refused hold verb: its log record under the verb's label, and the refusal flash on the
+    // notes struck inside the target's extent.
+    void refuseShapeHoldVerb(
+        MarkerVerb verb, std::string_view reason, const common::core::ShapeHold& target);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();
@@ -847,6 +866,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::AuthorFretHandPositionAtCursor action);
     void performActionImpl(EditorAction::ClearFretHandEnd action);
     void performActionImpl(EditorAction::PruneFretHandPositions action);
+    void performActionImpl(EditorAction::HoldShape action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::InsertTempoAnchor& action);
@@ -1468,8 +1488,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     {
         ChartEditPlan plan{};
         std::size_t history_position{};
-        std::optional<ChartEditFocus> before{};
-        std::optional<ChartEditFocus> after{};
+        EditFocus before{};
+        EditFocus after{};
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
 
