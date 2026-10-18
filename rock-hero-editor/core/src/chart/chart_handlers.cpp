@@ -224,11 +224,11 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
                 edit.selected_shape_hold = marker->index;
                 break;
             }
-            case MarkerRow::HandSpan:
+            case MarkerRow::DerivedSpan:
             {
                 if (const std::optional<std::size_t> index = marker->index; index.has_value())
                 {
-                    edit.selected_hand_span = derivedSpanShapes().at(*index);
+                    edit.selected_derived_span = derivedSpanShapes().at(*index);
                 }
                 break;
             }
@@ -1260,7 +1260,7 @@ EditFocus EditorController::Impl::chartEditFocus() const
     {
         return MarkerEditFocus{.marker = *hold, .start = hold->start};
     }
-    if (const auto* const span = std::get_if<HandSpanSelection>(&m_selection))
+    if (const auto* const span = std::get_if<DerivedSpanSelection>(&m_selection))
     {
         return MarkerEditFocus{.marker = *span, .start = span->start};
     }
@@ -1624,7 +1624,7 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     // The span rows stand over the strings, the holds above the derived spans: a none hold may
     // enclose a derived chord box, which the walk reaches first on its way up from the strings.
     push_marker_row(MarkerRow::ShapeHold);
-    push_marker_row(MarkerRow::HandSpan);
+    push_marker_row(MarkerRow::DerivedSpan);
     // The position row sits over the strings, where the lane draws the fret-hand chips on top.
     push_marker_row(MarkerRow::FretHandPosition);
     // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
@@ -2263,7 +2263,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         return;
     }
     if (std::holds_alternative<ShapeHoldSelection>(m_selection) ||
-        std::holds_alternative<HandSpanSelection>(m_selection))
+        std::holds_alternative<DerivedSpanSelection>(m_selection))
     {
         // A hold's or derived span's start, stepped by the notes rather than the grid.
         stepShapeHoldEdge(ShapeHoldEdge::Start, direction == ChartStepDirection::Right);
@@ -2559,9 +2559,9 @@ void EditorController::Impl::deleteSelectedMarker()
     const common::core::GridPosition start = before[*marker->index];
     // A derived span is not removed but denied, by the none hold left selected in its place, so the
     // walk back along the row is not this delete's.
-    if (row == MarkerRow::HandSpan)
+    if (row == MarkerRow::DerivedSpan)
     {
-        deleteSelectedHandSpan();
+        deleteSelectedDerivedSpan();
         return;
     }
 
@@ -3323,7 +3323,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     const int direction = action.direction;
     // On a selected hold or derived span the same keys step its end, by the notes.
     if (std::holds_alternative<ShapeHoldSelection>(m_selection) ||
-        std::holds_alternative<HandSpanSelection>(m_selection))
+        std::holds_alternative<DerivedSpanSelection>(m_selection))
     {
         if (direction != 0)
         {

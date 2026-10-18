@@ -90,15 +90,16 @@ struct ShapeHoldSelection
     friend bool operator==(const ShapeHoldSelection& lhs, const ShapeHoldSelection& rhs) = default;
 };
 
-// A selected derived hand span: one the walk derived where no unnamed hold states it, identified by
+// A selected derived span: one the walk derived where no unnamed hold states it, identified by
 // its start, which is unique because spans never overlap. Never by a hold or a position standing at
 // the same place, which are other markers. Its verbs convert it to a hold.
-struct HandSpanSelection
+struct DerivedSpanSelection
 {
     // Musical position the selected span starts at.
     common::core::GridPosition start{};
 
-    friend bool operator==(const HandSpanSelection& lhs, const HandSpanSelection& rhs) = default;
+    friend bool operator==(const DerivedSpanSelection& lhs, const DerivedSpanSelection& rhs) =
+        default;
 };
 
 // A grid-locked time span across every surface (the Shift+arrow / Shift+click time selection).
@@ -163,12 +164,12 @@ struct AddAutomationLaneRowSelection
 // kinds, shared by the selection walk, the move funnel and an undo's marker focus.
 using MarkerSelection = std::variant<
     SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ShapeHoldSelection,
-    HandSpanSelection, FretHandPositionSelection, ToneRegionSelection>;
+    DerivedSpanSelection, FretHandPositionSelection, ToneRegionSelection>;
 
 // Exactly one selection exists editor-wide (the interaction model): chart notes, a tone region, a
-// song section, a tempo or time-signature chip, a shape hold, a hand span, a fret-hand position, an
-// automation point, the "+" row, and a time span are alternatives of one sum type, so selecting on
-// any surface structurally replaces the selection on every other — two live selections are
+// song section, a tempo or time-signature chip, a shape hold, a derived span, a fret-hand position,
+// an automation point, the "+" row, and a time span are alternatives of one sum type, so selecting
+// on any surface structurally replaces the selection on every other — two live selections are
 // unrepresentable and Delete never has to choose between surfaces. std::monostate is "nothing
 // selected"; a held-but-empty ChartSelection means the same thing. Selection kinds differ in
 // lifecycle: chart selection and the time span survive seeks and clear on play, while every other
@@ -177,7 +178,7 @@ using MarkerSelection = std::variant<
 // passive, and any object gesture evicts the range in turn.
 using EditorSelection = std::variant<
     std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection, TempoAnchorSelection,
-    TimeSignatureSelection, ShapeHoldSelection, HandSpanSelection, FretHandPositionSelection,
+    TimeSignatureSelection, ShapeHoldSelection, DerivedSpanSelection, FretHandPositionSelection,
     AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
 
 } // namespace rock_hero::editor::core

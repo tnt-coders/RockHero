@@ -21,10 +21,11 @@
 namespace rock_hero::editor::core
 {
 
-// The marker rows: the ruler's section, tempo and time-signature rows, the shape-hold and hand-span
-// rows, the position row and the tone row, which the keyboard reaches by selecting a marker. Every
-// row answers the same questions — where its markers start, which one holds a position, which one
-// the selection names — so the walk, a chip click and Tab share one model of all seven.
+// The marker rows: the ruler's section, tempo and time-signature rows, the shape-hold and
+// derived-span rows, the position row and the tone row, which the keyboard reaches by selecting a
+// marker. Every row answers the same questions — where its markers start, which one holds a
+// position, which one the selection names — so the walk, a chip click and Tab share one model of
+// all seven.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -73,7 +74,7 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             }
             break;
         }
-        case MarkerRow::HandSpan:
+        case MarkerRow::DerivedSpan:
         {
             // Read off the memoized notes layer at the exact musical place, never off the
             // projection's seconds.
@@ -128,7 +129,7 @@ std::optional<common::core::GridPosition> EditorController::Impl::markerClose(
             // precondition.
             return session().currentArrangement()->chart.value().shape_holds.at(index).end;
         }
-        case MarkerRow::HandSpan:
+        case MarkerRow::DerivedSpan:
         {
             const common::core::ChartShape& span =
                 chartResolutions().shapes.at(derivedSpanShapes().at(index));
@@ -215,9 +216,9 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     {
         return marker(MarkerRow::ShapeHold, hold->start);
     }
-    if (const auto* const span = std::get_if<HandSpanSelection>(&m_selection))
+    if (const auto* const span = std::get_if<DerivedSpanSelection>(&m_selection))
     {
-        return marker(MarkerRow::HandSpan, span->start);
+        return marker(MarkerRow::DerivedSpan, span->start);
     }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
@@ -263,9 +264,9 @@ MarkerSelection EditorController::Impl::markerSelectionAt(
         {
             return ShapeHoldSelection{.start = start};
         }
-        case MarkerRow::HandSpan:
+        case MarkerRow::DerivedSpan:
         {
-            return HandSpanSelection{.start = start};
+            return DerivedSpanSelection{.start = start};
         }
         case MarkerRow::FretHandPosition:
         {

@@ -615,7 +615,7 @@ does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
 — the ruler's section, tempo and time-signature rows, the two span rows (the chart's shape holds,
 `MarkerRow::ShapeHold`, then the spans the walk derives where no unnamed hold states one,
-`MarkerRow::HandSpan`), the position row (every hand event, derived and authored alike: the chips
+`MarkerRow::DerivedSpan`), the position row (every hand event, derived and authored alike: the chips
 the lane draws), the strings, the tone-region row, the visible lanes, the "+" row — and every
 landing goes through `landOnRow`, which arms a string or lane row and selects the marker holding the
 column on a marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a
@@ -650,15 +650,15 @@ the press does nothing and leaves an armed caret armed. The jump never calls `pr
 which is the rule for landings that KEEP the row. The span rows have no jump of their own.
 
 **The span rows' verbs** (`rock-hero-editor/core/src/chart/shape_hold_handlers.cpp`) act on a
-selected hold (`ShapeHoldSelection`) or derived span (`HandSpanSelection`). `Ctrl+H` (`HoldShape`,
-`0x140B`, "Hold Shape") reads the selection rather than the cursor, so it is an authoring command,
-not the marker plane's `Ctrl`+letter: an unnamed hold over a selected hold's or span's extent, a
-time selection's, or the selected notes' from the first onset to the last ring's end, refused on a
-bare caret. The selection-kind dispatches carry the rest: `Alt+Left/Right` (`MoveSelection`) step
-the start to the adjacent note onset and `Alt+Shift+Left/Right` (`AdjustChartSustain`, whose
-availability opens on `has_span_row_selection`) the end to the adjacent note boundary
-(`steppedShapeHoldEdge`), as one held run through `commitChartGestureStep` (`ChartHoldEdgeGesture`),
-a derived span becoming a hold on the first press and an edge moved into a neighbouring hold pushing
+selected hold (`ShapeHoldSelection`) or derived span (`DerivedSpanSelection`). `Ctrl+H`
+(`HoldShape`, `0x140B`, "Hold Shape") reads the selection rather than the cursor, so it is an
+authoring command, not the marker plane's `Ctrl`+letter: an unnamed hold over a selected hold's or
+span's extent, a time selection's, or the selected notes' from the first onset to the last ring's
+end, refused on a bare caret. The selection-kind dispatches carry the rest: `Alt+Left/Right`
+(`MoveSelection`) step the start to the adjacent note onset and `Alt+Shift+Left/Right`
+(`AdjustChartSustain`, whose availability opens on `has_span_row_selection`) the end to the
+adjacent note boundary (`steppedShapeHoldEdge`), as one held run through `commitChartGestureStep`
+(`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on the first press and an edge moved into a neighbouring hold pushing
 its facing edge; `Delete` removes a hold, states a none hold over a derived arpeggio and refuses a
 derived chord box. Every one carves its new hold into the chart's holds (`carvedShapeHolds`) and ends
 at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would rewrite; a

@@ -957,10 +957,10 @@ struct ChartEditViewState
     std::optional<std::size_t> selected_shape_hold{};
 
     /*!
-    \brief Index of the selected derived hand span in the tab projection's span order; empty while
+    \brief Index of the selected derived span in the tab projection's span order; empty while
     no derived span is selected or the selected one is gone.
     */
-    std::optional<std::size_t> selected_hand_span{};
+    std::optional<std::size_t> selected_derived_span{};
 
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};

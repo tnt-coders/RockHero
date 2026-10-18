@@ -181,7 +181,7 @@ struct HoldEditor
     // The selected derived span's index in the projection's spans, or nothing.
     [[nodiscard]] std::optional<std::size_t> selectedSpan() const
     {
-        return state().chart_edit.selected_hand_span;
+        return state().chart_edit.selected_derived_span;
     }
 
     // The chart's holds as they now stand.

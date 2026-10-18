@@ -64,15 +64,15 @@ const common::core::ShapeHold* EditorController::Impl::selectedShapeHold() const
     return found == holds.end() ? nullptr : &*found;
 }
 
-// Found by the selection's start among the hand-span row's markers, whose index names the span.
-std::optional<std::size_t> EditorController::Impl::selectedHandSpanShape() const
+// Found by the selection's start among the derived-span row's markers, whose index names the span.
+std::optional<std::size_t> EditorController::Impl::selectedDerivedSpanShape() const
 {
-    const auto* const selected = std::get_if<HandSpanSelection>(&m_selection);
+    const auto* const selected = std::get_if<DerivedSpanSelection>(&m_selection);
     if (selected == nullptr)
     {
         return std::nullopt;
     }
-    const std::optional<std::size_t> index = markerIndex(MarkerRow::HandSpan, selected->start);
+    const std::optional<std::size_t> index = markerIndex(MarkerRow::DerivedSpan, selected->start);
     if (!index.has_value())
     {
         return std::nullopt;
@@ -86,7 +86,7 @@ std::optional<common::core::ShapeHold> EditorController::Impl::selectedSpanRowHo
     {
         return *hold;
     }
-    if (const std::optional<std::size_t> shape = selectedHandSpanShape(); shape.has_value())
+    if (const std::optional<std::size_t> shape = selectedDerivedSpanShape(); shape.has_value())
     {
         return shapeHoldOverSpan(
             chartResolutions().shapes.at(*shape),
@@ -201,9 +201,9 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
     // Copied out of the window, which the commit below reassigns.
     const ChartVerbWindowVerb* const live_verb = liveChartGestureVerb();
     const auto* const live =
-        live_verb != nullptr ? std::get_if<ChartHoldEdgeGesture>(live_verb) : nullptr;
+        live_verb != nullptr ? std::get_if<ChartShapeHoldEdgeGesture>(live_verb) : nullptr;
     const bool continues = live != nullptr && live->edge == edge;
-    std::optional<ChartHoldEdgeGesture> run;
+    std::optional<ChartShapeHoldEdgeGesture> run;
     if (continues)
     {
         run = *live;
@@ -212,7 +212,7 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         const std::optional<common::core::ShapeHold> held = selectedSpanRowHold(); held.has_value()
     )
     {
-        run = ChartHoldEdgeGesture{
+        run = ChartShapeHoldEdgeGesture{
             .edge = edge,
             .base = *held,
             .value = edge == ShapeHoldEdge::Start ? held->start : held->end,
@@ -222,7 +222,7 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
     {
         return;
     }
-    ChartHoldEdgeGesture gesture = *run;
+    ChartShapeHoldEdgeGesture gesture = *run;
     const std::optional<common::core::GridPosition> stepped =
         steppedShapeHoldEdge(chart.notes, tempo_map, edge, gesture.value, later);
     if (!stepped.has_value())
@@ -283,10 +283,10 @@ void EditorController::Impl::deleteSelectedShapeHold(const common::core::ShapeHo
 
 // A none hold over a chord box would change nothing, since a none hold keeps the boxes struck
 // inside it, so a box is refused rather than given a hold that states nothing anyone can see.
-void EditorController::Impl::deleteSelectedHandSpan()
+void EditorController::Impl::deleteSelectedDerivedSpan()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::optional<std::size_t> shape = selectedHandSpanShape();
+    const std::optional<std::size_t> shape = selectedDerivedSpanShape();
     if (arrangement == nullptr || !arrangement->chart.has_value() || !shape.has_value())
     {
         return;

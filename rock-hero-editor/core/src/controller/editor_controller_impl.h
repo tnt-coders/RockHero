@@ -245,21 +245,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // a step reads the notes, which no hold verb moves, so one value replays exactly. A selected
     // hold has no chart keys for the window's proof to compare, so setSelection's disarm is what
     // ends the run on any other selection.
-    struct ChartHoldEdgeGesture
+    struct ChartShapeHoldEdgeGesture
     {
         ShapeHoldEdge edge{};
         common::core::ShapeHold base;
         common::core::GridPosition value;
 
-        friend bool operator==(const ChartHoldEdgeGesture& lhs, const ChartHoldEdgeGesture& rhs) =
-            default;
+        friend bool operator==(
+            const ChartShapeHoldEdgeGesture& lhs, const ChartShapeHoldEdgeGesture& rhs) = default;
     };
 
     // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
     // equality rather than a per-verb unwrap each caller could spell differently.
     using ChartVerbWindowVerb = std::variant<
         ChartTechniqueToggle, ChartHarmonicGesture, ChartSustainGesture, ChartMoveGesture,
-        ChartHoldEdgeGesture>;
+        ChartShapeHoldEdgeGesture>;
 
     // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
     // state that run started from.
@@ -773,7 +773,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] const common::core::ShapeHold* selectedShapeHold() const;
     // The index into the notes layer's spans of the derived span the selection names, or nothing
     // where it names none or the span is gone.
-    [[nodiscard]] std::optional<std::size_t> selectedHandSpanShape() const;
+    [[nodiscard]] std::optional<std::size_t> selectedDerivedSpanShape() const;
     // The span rows' selected marker as a hold: the authored hold as it stands, or a derived span's
     // extent as the unnamed hold that converts it. Nothing where neither is selected.
     [[nodiscard]] std::optional<common::core::ShapeHold> selectedSpanRowHold() const;
@@ -785,7 +785,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteSelectedShapeHold(const common::core::ShapeHold& hold);
     // Delete on a selected derived span: a none hold over an arpeggio, left selected; refused on a
     // chord box, which a none hold keeps.
-    void deleteSelectedHandSpan();
+    void deleteSelectedDerivedSpan();
     // The unnamed hold the hold chord states, read off the selection: over a selected hold's or
     // derived span's own extent, a time selection's, or the selected notes' from their first onset
     // to their last ring's end. Nothing where the selection covers nothing.
@@ -1657,7 +1657,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // section, tempo and time-signature rows, the two span rows and the position row above the
     // strings, and the tone row below them. On a gapless row a marker holds from its start to the
     // next marker's start, and the first marker also owns whatever precedes it. The span rows, the
-    // chart's shape holds and its derived hand spans, have gaps: each marker holds only its own
+    // chart's shape holds and its derived spans, have gaps: each marker holds only its own
     // half-open [start, close).
     enum class MarkerRow : std::uint8_t
     {
@@ -1665,14 +1665,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         Tempo,
         TimeSignature,
         ShapeHold,
-        HandSpan,
+        DerivedSpan,
         FretHandPosition,
         Tone,
     };
 
     // The starts of a marker row's markers, ascending: the song's sections, the tempo map's
     // non-terminal anchors (the terminal anchor draws no chip), its time-signature downbeats, the
-    // chart's shape holds, its derived hand spans, its fret-hand positions, and the tone track's
+    // chart's shape holds, its derived spans, its fret-hand positions, and the tone track's
     // region starts.
     [[nodiscard]] std::vector<common::core::GridPosition> markerStarts(MarkerRow row) const;
 
@@ -1682,7 +1682,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         MarkerRow row, std::size_t index) const;
 
     // The indices into the notes layer's spans (ChartResolutions::shapes) of the derived spans, the
-    // ones no unnamed hold states, in place order: the hand-span row's markers.
+    // ones no unnamed hold states, in place order: the derived-span row's markers.
     [[nodiscard]] std::vector<std::size_t> derivedSpanShapes() const;
 
     // The index of the marker holding a position on a gapless row: the last one starting at or

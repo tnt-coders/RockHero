@@ -1014,7 +1014,7 @@ reach the paint core as a bare per-index answer (`common::ui::TabNotePresence` p
 `paintTabLane`, `common::ui::TabSpanRevealed` per span for `paintTabLaneFurniture`), since each
 projected event already carries both of its ends. A derived span and a shape hold are selectable
 from the keyboard, on the walk's two span rows (\ref guide_keyboard), and their indices are
-published (`ChartEditViewState::selected_hand_span`, `selected_shape_hold`); the lane does not yet
+published (`ChartEditViewState::selected_derived_span`, `selected_shape_hold`); the lane does not yet
 draw them selected, reveal a selected span or select one with the pointer, which plan 60b's marks
 add.
 
