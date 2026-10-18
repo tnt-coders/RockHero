@@ -422,6 +422,12 @@ struct ChartResolutions
     ChartConnections connections;
 
     /*!
+    \brief The shape holds the spans obeyed (\ref deriveChartShapes), recorded beside the saved
+    stream the connections record, so a derivation can be checked against the chart it claims.
+    */
+    std::vector<ShapeHold> shape_holds;
+
+    /*!
     \brief Where the minimum sustain distance begins before each head of the saved stream.
 
     Derived first, because the spans, the ink ends and the drawn extents all keep that distance,
@@ -505,7 +511,8 @@ come from the same stream rather than from a caller, so there is no second postu
 could forget to hand over.
 
 The editor keeps one per revision in its controller memo, keyed by the notes it was derived from,
-and a commit that seeds that memo asserts it was derived from the very notes it landed: that memo
+and a commit that seeds that memo asserts it was derived from the very notes and holds it landed
+(\ref ChartResolutions::shape_holds): that memo
 and that assertion are the coherence rule between a derivation and its chart.
 
 \param notes Note stream to resolve, sorted by (position, string) and valid.

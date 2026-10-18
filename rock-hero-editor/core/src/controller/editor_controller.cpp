@@ -2052,8 +2052,9 @@ void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
 // the other.
 //
 // The scene is built from two memoized layers. The notes layer is the expensive one and reads
-// only the notes, the capo and the tempo map, so it is keyed by the session's NOTES revision and
-// survives a position or section edit; a commit may have seeded it already. The hand layer reads
+// only the notes, the shape holds, the capo and the tempo map, so it is keyed by the session's
+// NOTES revision, which every chart write advances, and survives a position or section edit; a
+// commit may have seeded it already. The hand layer reads
 // the authored positions, so it is rebuilt exactly when the scene is.
 void EditorController::Impl::refreshChartProjections() const
 {
@@ -2123,7 +2124,8 @@ void EditorController::Impl::seedChartResolutions(common::core::ChartResolutions
         chart.has_value() &&
         std::ranges::equal(
             chart->notes, resolved.connections.saved_notes, {}, common::core::savedChartNote) &&
-        "projection seeded with a derivation of other notes");
+        chart->shape_holds == resolved.shape_holds &&
+        "projection seeded with a derivation of other notes or holds");
     m_chart_resolutions = std::move(resolved);
     m_tab_arrangement_id = arrangement->id;
     m_chart_resolutions_revision = session().chartNotesRevision();

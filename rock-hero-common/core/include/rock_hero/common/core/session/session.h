@@ -213,10 +213,11 @@ public:
     derived from them (\ref chartResolutions).
 
     Advances on every writeChart() write, every tempo-map and whole-timeline replacement, and every
-    accepted loadSong(): everything that can change the notes, the capo or the tempo map they are
-    placed by. The marker writes — a section replacement and writeFretHandPositions(), neither of
-    which the notes layer reads — advance chartRevision() alone, so a cache keyed on this survives
-    them. Paired with the arrangement id, like chartRevision().
+    accepted loadSong(): everything that can change the notes, the shape holds, the capo or the
+    tempo map they are placed by. The marker writes — a section replacement and
+    writeFretHandPositions(), neither of which the notes layer reads — advance chartRevision()
+    alone, so a cache keyed on this survives them. Paired with the arrangement id, like
+    chartRevision().
 
     \return Monotonic count of the writes and replacements above.
     */

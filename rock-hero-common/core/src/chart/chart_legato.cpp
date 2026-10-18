@@ -337,13 +337,14 @@ ChartResolutions chartResolutions(
 {
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
+    resolutions.shape_holds.assign(shape_holds.begin(), shape_holds.end());
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
     resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
     // The SPANS are independent of presentation entirely: they read the stored stream and the
     // charter's holds alone, since every stop they compare comes off a stored fret channel.
-    ChartShapes derived =
-        deriveChartShapes(resolutions.connections, resolutions.margins, shape_holds, tempo_map);
+    ChartShapes derived = deriveChartShapes(
+        resolutions.connections, resolutions.margins, resolutions.shape_holds, tempo_map);
     // WHAT THE NOTES DEMAND OF THE HAND, and its place in the pipeline is part of the rule: notes,
     // then grips, then positions, so a span's grip is a hold the hand never leaves
     // (\ref fretHandHolds). The spans never read the hand, and the positions come after this layer
