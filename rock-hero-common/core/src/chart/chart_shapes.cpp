@@ -326,9 +326,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 
     // THE FRONTIER: how far every emitted span reaches, and the one seam in the walk. Read twice,
     // as one law: a span's front never dates behind it (the floor at the open), and a ring struck
-    // behind it founds nothing (A RING BELONGS TO THE SPAN IT WAS STRUCK IN); only a fretted one
-    // still sounding joins the posture of a span founded anyway. The reach never reads it — ground
-    // a statement held is ground it held.
+    // behind it founds nothing (A RING BELONGS TO THE SPAN IT WAS STRUCK IN), though one still
+    // sounding joins the posture of a span founded anyway. The reach never reads it — ground a
+    // statement held is ground it held.
     Fraction covered{};
 
     std::optional<OpenSpan> open;
@@ -1384,10 +1384,16 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 }
             }
             std::size_t total = own;
-            // The fretted rings struck behind the frontier that still sound here, with their
-            // coverage: they complete the grip of a span founded here, and found none themselves.
-            std::vector<std::optional<std::pair<ChartStop, Fraction>>> held_from_before(
-                string_count);
+            // Whether a member of the grip founding here STATES SINCE THE FRONTIER: struck at this
+            // slot, or a ring struck at or after the coverage frontier. Only these count toward a
+            // founding and date its front; a ring from before the frontier joins the grip and does
+            // neither (A RING BELONGS TO THE SPAN IT WAS STRUCK IN, shape rule 1).
+            const auto states_since_frontier =
+                [&slot, &hand, &onset_place, &covered](const std::size_t string_index) {
+                    const std::optional<std::size_t>& finger = hand[string_index].finger;
+                    return slot.strike_notes[string_index].has_value() || !finger.has_value() ||
+                           !(onset_place[*finger] < covered);
+                };
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 if (stops[string_index].has_value())
@@ -1433,39 +1439,33 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 {
                     continue;
                 }
+                // A ring still sounding here is part of the sounding shape, fretted or open
+                // alike, and joins the grip of a span founded here (shape rule 1). A carried
+                // source states what its strike stated, like every grip statement: over a stop its
+                // string still held, the ring sounds the ornament and the grip beneath it is that
+                // stop; anywhere else it is the stop it is still ringing from.
+                stops[string_index] = hand[string_index].stated_beneath.value_or(*carried);
                 // A RING BELONGS TO THE SPAN IT WAS STRUCK IN: a ring struck before the coverage
                 // frontier has its onset behind every span still to come — no front dates earlier
                 // than the frontier — so it founds no accumulation, until it is RESTRUCK, which is
                 // a statement and joins through `own` above. Without that, two rings under a
                 // moving melody would found a fresh bracket at every melody note, each restating
-                // the same two rings. A FRETTED one still sounding is a finger down, so it joins
-                // the posture of a span founded here anyway (below); an open or chimed one holds no
-                // finger and is a tail.
-                //
-                // A ring struck AT the frontier belongs to the figure arriving there (the seam
-                // ownership), hence strict. This is what lets the open-position arpeggio — E0,
-                // then A2, then D2 — still found at the D2 on its own carried rings, dated at the
-                // E0: nothing had closed since the E0 was struck.
-                if (onset_place[*finger] < covered)
+                // the same two rings. A ring struck AT the frontier belongs to the figure arriving
+                // there (the seam ownership), hence strict: this is what lets the open-position
+                // arpeggio — E0, then A2, then D2 — still found at the D2 on its own carried rings,
+                // dated at the E0, nothing having closed since the E0 was struck.
+                if (!states_since_frontier(string_index))
                 {
-                    const ChartStop held = hand[string_index].stated_beneath.value_or(*carried);
-                    if (pressedFret(held.fret).has_value())
-                    {
-                        held_from_before[string_index] = std::pair{held, covers};
-                    }
                     continue;
                 }
-                // A carried source states what its strike stated, like every grip statement: over
-                // a stop its string still held, the ring sounds the ornament and the grip beneath
-                // it is that stop; anywhere else it is the stop it is still ringing from.
-                stops[string_index] = hand[string_index].stated_beneath.value_or(*carried);
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without
                 // the re-read a lone glide would hand the span it joins a reach frozen at that
                 // landing, emitting a span over the glide's own travel. A string a STANDING
                 // span states is never re-read: its cap is live, and that cap is what closes the
-                // span at its member's landing (shape rule 4).
+                // span at its member's landing (shape rule 4). A ring from before the frontier
+                // brings its coverage only where a span founds (below).
                 hand[string_index].covers = covers;
                 ++total;
             }
@@ -1508,29 +1508,27 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     Fraction floor = covered;
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        if (stops[string_index].has_value())
+                        if (stops[string_index].has_value() && states_since_frontier(string_index))
                         {
                             floor = std::max(floor, foreign_until_at(string_index, slot.place));
                         }
                     }
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        if (stops[string_index].has_value())
+                        if (stops[string_index].has_value() && states_since_frontier(string_index))
                         {
                             front_place = std::min(
                                 front_place, std::max(stated_since_here[string_index], floor));
                         }
                     }
                 }
-                // The fretted rings from before complete the grip founded here (shape rule 1),
-                // after its front and its class are decided, which they take no part in: they
-                // bound its reach like every member.
+                // The rings from before the frontier bound the reach of the span founded here
+                // like every member: their coverage AS OF NOW, read only now that a span founds.
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
-                    if (const auto& ring = held_from_before[string_index]; ring.has_value())
+                    if (stops[string_index].has_value() && !states_since_frontier(string_index))
                     {
-                        stops[string_index] = ring->first;
-                        hand[string_index].covers = ring->second;
+                        hand[string_index].covers = coverage_at(string_index, slot.place);
                     }
                 }
                 // The opening mark draws at the front: the chord frame states the grip where its
@@ -1545,7 +1543,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     .landing_opened = false,
                 };
                 // Born in parts exactly when a stroke founded it and that stroke was not whole
-                // (above).
+                // (above): a member it did not strike, a ring from before the frontier included,
+                // is a member arriving separately (shape rule 5).
                 open->struck_in_parts = slot.struck > 0 && !whole_stroke;
             }
         }

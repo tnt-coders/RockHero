@@ -1150,8 +1150,9 @@ TEST_CASE(
         std::vector<std::optional<common::core::ChartStop>>{
             common::core::fretStop(3), common::core::fretStop(2), common::core::fretStop(4)
         });
-    // Struck whole in one strum, so it is a BOX where the departing shape was an arpeggio.
-    CHECK_FALSE(shapeArrivalsOf(chart, song->tempo_map)[1]);
+    // The tied ring is a member the strum did not strike, so the span is born in parts and is an
+    // arpeggio (shape rule 5), as the departing shape was.
+    CHECK(shapeArrivalsOf(chart, song->tempo_map)[1]);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }

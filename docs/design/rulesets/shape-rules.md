@@ -75,12 +75,12 @@ takes the next one.
      though its strike still sounds and can contradict (rule 3). A right-hand onset is no member
      (rule 7), and a ring caught mid-travel states no stop and joins nothing (rule 4).
    - **A ring belongs to the span it was struck in.** A ring struck before the coverage frontier
-     founds nothing and never counts toward a founding, until it is restruck. An open or chimed one
-     holds no finger: it joins no posture and prints in no later bracket. A **fretted** one still
-     sounding where a span is founded is a finger down, since a fretted note rings only while its
-     finger is down, so it joins that span's posture and bounds its reach like any member. It never
-     founds or prevents a span, dates no front and decides no class; it only completes the grip of
-     a span founded anyway. A ring struck at or after the frontier is fresh evidence and folds in
+     founds nothing and never counts toward a founding, until it is restruck. One still sounding
+     where a span is founded is part of the sounding shape, fretted or open alike (an open string is
+     a member exactly as a fretted one is), so it joins that span's posture and bounds its reach like
+     any member. It never founds or prevents a span and dates no front; it completes the grip of a
+     span founded anyway, and as a member its founding stroke did not strike it makes the span born
+     in parts (rule 5). A natural harmonic's ring states no grip and joins nothing. A ring struck at or after the frontier is fresh evidence and folds in
      like any other member, which is what lets an open-position arpeggio found a span from its
      first open string. A ring also folds into no new span on a string the slot strikes at another
      stop. The landing is the one other seam a member crosses (rule 4). A refused ring is a plain
@@ -156,7 +156,7 @@ takes the next one.
      evidence too: a fret or a node struck over it displaces it. A slide-out ring witnesses nothing,
      its finger being off the board by its end. A span opening over a ring that sounds another stop
      contradicts nothing until it states that string, and a foreign ring joins a posture only as
-     rule 1's fretted ring at a founding: otherwise it contradicts or it is a tail. A strike on a string the grip does not state, whose last foreign
+     rule 1's ring sounding into a founding: otherwise it contradicts or it is a tail. A strike on a string the grip does not state, whose last foreign
      sound ended after the span's front, breaks the span rather than growing it (rule 1's dating
      floor). A pull-off source riding above a stop the grip holds, and its release back onto that
      stop, contradict nothing (rule 7). The one contradiction a right-hand onset makes is **the
@@ -299,7 +299,8 @@ takes the next one.
    successor that never sounds inside draws no furniture at all: no bracket, and no box, since
    nothing strikes it.
    - **A sounding that is only part of the shape** makes the span an arpeggio: its own start where
-     a member is carried in rather than struck, a partial restrike, a lone re-pick, growth by a
+     a member is carried in rather than struck — a ring struck since the frontier, or one from
+     before it that joins at the founding (rule 1) — a partial restrike, a lone re-pick, growth by a
      string the span never stated, a partial slide, or a whole stroke absorbed by its parts
      (rule 3). These are one comparison — a slot striking fewer strings than the shape sounds —
      and the walk records the answer (`ChartShape::sounds_in_parts`), because only the walk knows

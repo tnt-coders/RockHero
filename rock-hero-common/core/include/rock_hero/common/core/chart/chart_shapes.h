@@ -35,10 +35,10 @@ empty.
 
 Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
 pressed, the open string, or a harmonic node touched), plus the stops a right-hand onset says the
-fretting hand is holding under it (\ref deriveChartShapes), and every fretted ring still sounding
-where the span is founded, struck before it or not, since a fretted note rings only while its finger
-is down. An open or chimed ring struck before the span holds no finger, never joins its grip and
-prints in no later bracket. A stop carries no provenance here on purpose:
+fretting hand is holding under it (\ref deriveChartShapes), and every ring still sounding where the
+span is founded, struck before it or not, fretted or open: it is part of the sounding shape. A
+natural harmonic's ring states no grip and never joins. A stop carries no provenance here on
+purpose:
 the posture is what the hand holds, so two spans holding an identical grip stay one deduplicated
 posture however each was learned — while a node grip and a fret grip printing the same number are
 two postures, because they are two grips. Chord names and fingerings carry no field here because
@@ -231,9 +231,8 @@ struct ChartShape
     CLOSED the span rather than continuing it. A re-derived window has no way to tell the two apart;
     the walk never has to ask, because riding the slot is what it did.
 
-    Open and chimed rings struck before the span never enter this count, however they sound under
-    it: they are no members, print in no bracket, and so class nothing. A fretted ring sounding into
-    the founding is a member like any other.
+    A ring sounding into the founding, fretted or open, is a member like any other; a chimed ring
+    struck before the span is none, prints in no bracket, and so classes nothing.
     */
     bool sounds_in_parts{false};
 

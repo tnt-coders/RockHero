@@ -2663,7 +2663,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // sounds in parts: a partial sounding breaks it instead (shape rules 3 and 5).
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 931.0,
+                .expected = 1056.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2672,11 +2672,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // span some interior sounding already flipped needs no carry to do it. The carry
                 // is read off the POSTURE, so it counts every ring the span's grip holds that its
                 // founding stroke did not strike — a fretted ring struck in a span that has since
-                // closed included, since it joins the grip it sounds into (shape rule 1), while an
-                // open or chimed one is a tail and is not counted. A posture row, not the class.
+                // closed included, fretted or open, since it joins the grip it sounds into (shape
+                // rule 1); a chimed one is a tail and is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 80.0,
+                .expected = 193.0,
             },
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking

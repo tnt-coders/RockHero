@@ -4568,11 +4568,11 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     tapped_before.notes[0].attack = NoteAttack::Tap;
     CHECK_FALSE(arrivesAsArpeggio(tapped_before.notes, strum_at, tempo_map));
 
-    // A ring from an earlier SPAN is no member: giving string 2 a co-struck partner at 2:1 makes
-    // the pair a span of their own, so by A RING BELONGS TO THE SPAN IT WAS STRUCK IN the
-    // ring crossing the strum belongs there and nothing is carried into it. The strum states its
-    // own two strings whole and is a box — the same answer the un-carried case above gives, now
-    // reached because the ring was spoken for rather than because it had stopped.
+    // A ring from an earlier SPAN founds nothing: giving string 2 a co-struck partner at 2:1
+    // makes the pair a span of their own, so by A RING BELONGS TO THE SPAN IT WAS STRUCK IN the
+    // ring crossing the strum counts toward no founding. Still sounding where the strum founds,
+    // it joins the grip (shape rule 1) as a member the stroke did not strike, so the span is born
+    // in parts and is an arpeggio (shape rule 5), as the un-spoken-for carry above is.
     Chart chord_sourced_ring = chart;
     chord_sourced_ring.notes.insert(
         chord_sourced_ring.notes.begin() + 1,
@@ -4584,7 +4584,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = 0.0,
             .keyframes = {},
         });
-    CHECK_FALSE(arrivesAsArpeggio(chord_sourced_ring.notes, strum_at, tempo_map));
+    CHECK(arrivesAsArpeggio(chord_sourced_ring.notes, strum_at, tempo_map));
 
     // A DEAD string's carry classifies. The class is a fact about the HANDS — the finger is
     // still down and the strum still picks around it — so it reads the STORED ring, the same one
