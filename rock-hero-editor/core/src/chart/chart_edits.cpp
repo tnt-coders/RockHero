@@ -336,7 +336,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
 
 std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    std::vector<common::core::ShapeHold> candidate, const std::string_view label)
+    const std::vector<common::core::ShapeHold>& candidate, const std::string_view label)
 {
     if (candidate == base.shape_holds)
     {

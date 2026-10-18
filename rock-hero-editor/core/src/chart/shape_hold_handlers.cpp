@@ -268,10 +268,7 @@ void EditorController::Impl::deleteSelectedShapeHold(const common::core::ShapeHo
     std::erase_if(
         remaining, [&hold](const common::core::ShapeHold& standing) { return standing == hold; });
     std::expected<JudgedChartPlan, ChartPlanRefusal> plan = finalizeShapeHoldPlan(
-        chart,
-        session().song().tempo_map,
-        std::move(remaining),
-        markerVerbLabel(MarkerVerb::DeleteHold));
+        chart, session().song().tempo_map, remaining, markerVerbLabel(MarkerVerb::DeleteHold));
     if (!plan.has_value())
     {
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))

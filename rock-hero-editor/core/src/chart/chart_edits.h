@@ -265,7 +265,7 @@ positions' coverage of the spans the holds give is the one other rule the result
 */
 [[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    std::vector<common::core::ShapeHold> candidate, std::string_view label);
+    const std::vector<common::core::ShapeHold>& candidate, std::string_view label);
 
 /*!
 \brief The holds with a new hold carved in: it takes its range out of every hold it overlaps, so
