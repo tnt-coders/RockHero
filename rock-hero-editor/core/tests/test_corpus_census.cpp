@@ -41,11 +41,14 @@
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <set>
 #include <span>
 #include <sstream>
@@ -1644,6 +1647,18 @@ struct Census
     long long held_spans_rederived{0};
     std::vector<std::string> held_invalid_cases;
     std::vector<std::string> held_rederived_cases;
+
+    // THE HOLD NORMALIZER (shape rule 9): an unnamed hold over every derived span of an
+    // arrangement at once is already normal, so normalizing it rewrites nothing; and holds stated
+    // only to each span's midpoint normalize once to a result a second pass leaves as it is. Most
+    // extend to their span's close; the rest the walk closes elsewhere, a few kept with their file.
+    long long normalized_holds{0};
+    long long normalized_rewrites{0};
+    long long midpoint_rewrites{0};
+    long long midpoint_rewrites_again{0};
+    long long midpoint_off_span_holds{0};
+    std::vector<std::string> normalized_rewrite_cases;
+    std::vector<std::string> midpoint_off_span_cases;
 };
 
 [[nodiscard]] std::optional<std::string> readScoreXml(const std::filesystem::path& gp_file)
@@ -2133,6 +2148,70 @@ void countHeldSpans(
     }
 }
 
+// THE HOLD NORMALIZER over one arrangement: every derived span held at once, then every hold
+// stated only to its span's midpoint, each normalized and normalized again.
+void countNormalizedHolds(
+    const std::vector<ChartNote>& notes, const common::core::ChartResolutions& resolutions,
+    const TempoMap& tempo_map, const std::string& file, Census& census)
+{
+    constexpr std::size_t kept_cases = 2;
+    std::vector<common::core::ShapeHold> over_spans;
+    std::vector<common::core::ShapeHold> to_midpoints;
+    for (const ChartShape& shape : resolutions.shapes)
+    {
+        const GridPosition start = tempo_map.gridPositionAtWholeNote(shape.place);
+        const Fraction close = shape.place + shape.sustain;
+        const Fraction midpoint =
+            common::core::nearestTickPlace(shape.place + shape.sustain * Fraction{1, 2});
+        over_spans.push_back(
+            common::core::ShapeHold{
+                .start = start,
+                .end = tempo_map.gridPositionAtWholeNote(close),
+                .grip = common::core::UnnamedGrip{},
+            });
+        to_midpoints.push_back(
+            common::core::ShapeHold{
+                .start = start,
+                .end = tempo_map.gridPositionAtWholeNote(shape.place < midpoint ? midpoint : close),
+                .grip = common::core::UnnamedGrip{},
+            });
+    }
+    census.normalized_holds += static_cast<long long>(over_spans.size());
+    const std::vector<common::core::ChartConversion> rewrites =
+        common::core::normalizeShapeHolds(notes, over_spans, tempo_map).conversions;
+    census.normalized_rewrites += static_cast<long long>(rewrites.size());
+    if (!rewrites.empty() && census.normalized_rewrite_cases.size() < kept_cases)
+    {
+        census.normalized_rewrite_cases.push_back(
+            file + ": " + common::core::chartConversionText(rewrites.front()));
+    }
+
+    const common::core::ShapeHoldNormalization midpoints =
+        common::core::normalizeShapeHolds(notes, to_midpoints, tempo_map);
+    census.midpoint_rewrites += static_cast<long long>(midpoints.conversions.size());
+    census.midpoint_rewrites_again += static_cast<long long>(
+        common::core::normalizeShapeHolds(notes, midpoints.shape_holds, tempo_map)
+            .conversions.size());
+    // A midpoint hold drops only where it is empty, which no derived span is, so the two lists
+    // stay index-parallel.
+    REQUIRE(midpoints.shape_holds.size() == over_spans.size());
+    for (std::size_t index = 0; index < over_spans.size(); ++index)
+    {
+        const common::core::ShapeHold& settled = midpoints.shape_holds[index];
+        if (settled == over_spans[index])
+        {
+            continue;
+        }
+        ++census.midpoint_off_span_holds;
+        if (census.midpoint_off_span_cases.size() < kept_cases)
+        {
+            census.midpoint_off_span_cases.push_back(
+                file + ": " + common::core::formatShapeHoldToken(settled) + " for the span " +
+                common::core::formatShapeHoldToken(over_spans[index]));
+        }
+    }
+}
+
 struct CrossCheck
 {
     std::string label;
@@ -2342,6 +2421,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 built->tempo_map,
                 census.derivation);
             countHeldSpans(resolutions, built->tempo_map, entry.path().filename().string(), census);
+            countNormalizedHolds(
+                chart.notes,
+                resolutions,
+                built->tempo_map,
+                entry.path().filename().string(),
+                census);
         }
     }
 
@@ -2621,6 +2706,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     {
         std::cout << "    rederived: " << held_case << "\n";
     }
+    std::cout << "\n[SHAPE RULE 9] the hold normalizer over every derived span held at once\n";
+    std::cout << "  holds normalized                        : " << census.normalized_holds << "\n";
+    std::cout << "  holds to each span's midpoint, rewrites : " << census.midpoint_rewrites << "\n";
+    for (const std::string& rewrite_case : census.normalized_rewrite_cases)
+    {
+        std::cout << "    rewrote: " << rewrite_case << "\n";
+    }
+    for (const std::string& off_case : census.midpoint_off_span_cases)
+    {
+        std::cout << "    settled off its span: " << off_case << "\n";
+    }
 
     reportCrossCheck(
         std::vector<CrossCheck>{
@@ -2843,6 +2939,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
+                // THE HOLD NORMALIZER's no-op: every derived span held at once is already normal.
+                .label = "normalizer rewrites, every span held (ZERO)",
+                .rig = static_cast<double>(census.normalized_rewrites),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // ...and one pass is stable: holds stated to their span's midpoint normalize once.
+                .label = "normalizer rewrites on a second pass (ZERO)",
+                .rig = static_cast<double>(census.midpoint_rewrites_again),
+                .expected = 0.0,
+            },
+            CrossCheck{
                 .label = "  those out-of-reach stops",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_stops),
                 .expected = 0.0,
@@ -3057,6 +3165,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             CrossCheck{
                 .label = "  holds pinning",
                 .rig = static_cast<double>(census.hand.hold_pins),
+                .expected = std::nullopt,
+            },
+            CrossCheck{
+                // THE HOLD NORMALIZER's midpoint holds the walk closes somewhere other than their
+                // span's close, reported until the user rules what such an end should do.
+                .label = "midpoint holds settling off their span",
+                .rig = static_cast<double>(census.midpoint_off_span_holds),
                 .expected = std::nullopt,
             },
             CrossCheck{
