@@ -348,28 +348,26 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
     {
         return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
     }
-    // The normalizer's one derivation under the stated holds is what the walk publishes for each;
-    // the verb asks it whether every hold fits and keeps it as the layer the plan lands.
+    // The holds are accepted exactly when they are their own normal form, the normalizer being the
+    // one judge of a hold, whose derivation the plan then lands. The first hold it rewrote names
+    // the refusal: one it dropped leaves its place to the next hold, whose start differs, because
+    // the holds are ascending and never empty.
     common::core::ShapeHoldNormalization normal =
         common::core::normalizeShapeHolds(base.notes, candidate, base.tuning.capo, tempo_map);
-    for (const common::core::ShapeHold& hold : candidate)
+    const std::vector<common::core::ShapeHold>& published = normal.resolved.shape_holds;
+    if (const auto [stated, normalized] = std::ranges::mismatch(candidate, published);
+        stated != candidate.end())
     {
-        if (common::core::shapeHoldFitsNotes(normal.resolved.shapes, tempo_map, hold))
+        if (normalized == published.end() || normalized->start != stated->start)
         {
-            continue;
-        }
-        const common::core::Fraction close =
-            common::core::shapeHoldPublishedEnd(normal.resolved.shapes, tempo_map, hold);
-        if (!(tempo_map.wholeNotePositionAt(hold.start) < close))
-        {
-            return std::unexpected{
-                ChartPlanInvalid{common::core::formatShapeHoldToken(hold) + " would hold nothing"}
-            };
+            return std::unexpected{ChartPlanInvalid{
+                common::core::formatShapeHoldToken(*stated) + " would hold nothing"
+            }};
         }
         return std::unexpected{ChartPlanInvalid{
-            common::core::formatShapeHoldToken(hold) +
+            common::core::formatShapeHoldToken(*stated) +
             " does not fit its notes: its shape closes at " +
-            common::core::formatGridPositionToken(tempo_map.gridPositionAtWholeNote(close))
+            common::core::formatGridPositionToken(normalized->end)
         }};
     }
     if (std::expected<void, common::core::ChartError> covered =
