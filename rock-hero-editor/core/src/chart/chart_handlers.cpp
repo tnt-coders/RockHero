@@ -1241,6 +1241,25 @@ void EditorController::Impl::landGestureSelection(const std::optional<ChartEditL
         *landing);
 }
 
+std::optional<EditorController::Impl::ChartEditLanding> EditorController::Impl::selectionLandingOf(
+    const EditFocus& focus)
+{
+    if (const auto* const chart_focus = std::get_if<ChartEditFocus>(&focus))
+    {
+        return chart_focus->selected;
+    }
+    if (const auto* const marker_focus = std::get_if<MarkerEditFocus>(&focus))
+    {
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<MarkerSelection>& marker = marker_focus->marker;
+        if (marker.has_value())
+        {
+            return *marker;
+        }
+    }
+    return std::nullopt;
+}
+
 // Inside an edit the caret is a stale answer to what the charter acts on, so it demotes as every
 // selecting gesture demotes it; the selection is replaced in place, as chartSelectionMutable does,
 // and the audible tone re-derived for the same reason.
@@ -3421,12 +3440,14 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
     const common::core::Chart* pre_gesture = &live_chart;
     if (burst != nullptr)
     {
-        reconstructed = live_chart;
-        if (!applyChartChange(reconstructed, burst->plan.reversed()).has_value())
+        std::expected<common::core::Chart, EditorUndoFailureCode> reversed =
+            chartWithPlanApplied(live_chart, burst->plan.reversed());
+        if (!reversed.has_value())
         {
             reportError("Could not apply chart edit: " + burst->plan.label);
             return false;
         }
+        reconstructed = std::move(*reversed);
         pre_gesture = &reconstructed;
     }
 
@@ -3454,19 +3475,8 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
             // The selection goes back with the chart, landed once it is written: to the selection
             // the run's entry recorded before its first step, whatever the steps re-keyed or
             // converted since. Read out first, since the retire takes the record.
-            std::optional<ChartEditLanding> start_selection;
-            if (const auto* const chart_focus = std::get_if<ChartEditFocus>(&burst->before))
-            {
-                start_selection = chart_focus->selected;
-            }
-            else if (const auto* const marker_focus = std::get_if<MarkerEditFocus>(&burst->before))
-            {
-                const std::optional<MarkerSelection>& marker = marker_focus->marker;
-                if (marker.has_value())
-                {
-                    start_selection = *marker;
-                }
-            }
+            const std::optional<ChartEditLanding> start_selection =
+                selectionLandingOf(burst->before);
             retireChartGesture(burst->plan);
             landGestureSelection(start_selection);
             updateView();
@@ -3525,15 +3535,19 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
     else
     {
         // The model moves first and the history follows, the order every chart edit takes
-        // (applyChartEditPlan), so the entry records where the step LEFT the charter. Walk the
-        // live chart back to the pre-gesture stream and then to the re-planned one, so the state
-        // the top entry describes is exactly the state the chart holds.
-        const std::optional<bool> walked =
-            m_session.writeChart([&burst, &plan](common::core::Chart& chart) {
-                return applyChartChange(chart, burst->plan.reversed()).has_value() &&
-                       applyChartChange(chart, plan->plan).has_value();
-            });
-        if (!walked.value_or(false))
+        // (applyChartEditPlan), so the entry records where the step LEFT the charter. The
+        // re-planned run applies forward to the reconstructed pre-gesture chart, which nothing
+        // reads past the replan, and that replaces the live chart, so the state the top entry
+        // describes is exactly the state the chart holds.
+        std::expected<common::core::Chart, EditorUndoFailureCode> replayed =
+            chartWithPlanApplied(std::move(reconstructed), plan->plan);
+        if (!replayed.has_value())
+        {
+            reportError("Could not apply chart edit: " + plan->plan.label);
+            return false;
+        }
+        if (!m_session.writeChart(
+                [&replayed](common::core::Chart& chart) { chart = std::move(*replayed); }))
         {
             reportError("Could not apply chart edit: " + plan->plan.label);
             return false;
@@ -4356,10 +4370,13 @@ bool EditorController::Impl::settleChartClaims()
     std::string label{"Settle Legato"};
     if (burst != nullptr)
     {
-        if (!applyChartChange(base, burst->plan.reversed()).has_value())
+        std::expected<common::core::Chart, EditorUndoFailureCode> reversed =
+            chartWithPlanApplied(std::move(base), burst->plan.reversed());
+        if (!reversed.has_value())
         {
             return false;
         }
+        base = std::move(*reversed);
         label = burst->plan.label;
     }
     const ChartEditPlan settled_plan =
@@ -4376,14 +4393,18 @@ bool EditorController::Impl::settleChartClaims()
     }
 
     // The model moves first and the history follows, the order every chart edit takes
-    // (applyChartEditPlan). Walk the live chart back to pre-burst and then to the settled state,
-    // so the state the history top describes is exactly the state the chart holds.
-    const std::optional<bool> walked = m_session.writeChart([&burst, &settled_plan](
-                                                                common::core::Chart& chart) {
-        return (burst == nullptr || applyChartChange(chart, burst->plan.reversed()).has_value()) &&
-               applyChartChange(chart, settled_plan).has_value();
-    });
-    if (!walked.value_or(false))
+    // (applyChartEditPlan). The settled plan applies forward to the pre-burst chart, which nothing
+    // reads past the plan, and that replaces the live chart, so the state the history top
+    // describes is exactly the state the chart holds.
+    std::expected<common::core::Chart, EditorUndoFailureCode> settled =
+        chartWithPlanApplied(std::move(base), settled_plan);
+    if (!settled.has_value())
+    {
+        reportError("Could not apply chart edit: " + settled_plan.label);
+        return false;
+    }
+    if (!m_session.writeChart(
+            [&settled](common::core::Chart& chart) { chart = std::move(*settled); }))
     {
         reportError("Could not apply chart edit: " + settled_plan.label);
         return false;

@@ -2627,15 +2627,21 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
     std::unreachable();
 }
 
-namespace
+std::optional<ShapeHoldsChange> shapeHoldsChange(
+    const std::vector<common::core::ShapeHold>& before,
+    const std::vector<common::core::ShapeHold>& after)
 {
+    if (before == after)
+    {
+        return std::nullopt;
+    }
+    return ShapeHoldsChange{.before = before, .after = after};
+}
 
-// Applies the plan to a copy of the note stream, or refuses: every removal must still match by
-// full value and every insertion must land on a free slot.
-[[nodiscard]] std::expected<std::vector<common::core::ChartNote>, EditorUndoFailureCode>
-withPlanApplied(const std::vector<common::core::ChartNote>& current, const ChartEditPlan& plan)
+std::expected<common::core::Chart, EditorUndoFailureCode> chartWithPlanApplied(
+    common::core::Chart chart, const ChartEditPlan& plan)
 {
-    std::vector<common::core::ChartNote> notes = current;
+    std::vector<common::core::ChartNote>& notes = chart.notes;
     for (const common::core::ChartNote& note : plan.removed)
     {
         const auto found = std::ranges::lower_bound(
@@ -2657,43 +2663,30 @@ withPlanApplied(const std::vector<common::core::ChartNote>& current, const Chart
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};
         }
     }
-    return notes;
-}
-
-} // namespace
-
-std::optional<ShapeHoldsChange> shapeHoldsChange(
-    const std::vector<common::core::ShapeHold>& before,
-    const std::vector<common::core::ShapeHold>& after)
-{
-    if (before == after)
+    // Bound once so the presence test and the reads are provably the same object.
+    const std::optional<ShapeHoldsChange>& holds = plan.shape_holds;
+    if (holds.has_value())
     {
-        return std::nullopt;
+        if (chart.shape_holds != holds->before)
+        {
+            return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+        }
+        chart.shape_holds = holds->after;
     }
-    return ShapeHoldsChange{.before = before, .after = after};
+    return chart;
 }
 
+// Applied to a copy, which replaces the chart only once the whole plan has applied.
 std::expected<void, EditorUndoFailureCode> applyChartChange(
     common::core::Chart& chart, const ChartEditPlan& plan)
 {
-    // Rebuilt on a copy, and the holds checked, before anything is swapped in, so a failed
-    // precondition cannot leave half the plan applied.
-    auto notes = withPlanApplied(chart.notes, plan);
-    if (!notes.has_value())
+    std::expected<common::core::Chart, EditorUndoFailureCode> applied =
+        chartWithPlanApplied(chart, plan);
+    if (!applied.has_value())
     {
-        return std::unexpected{notes.error()};
+        return std::unexpected{applied.error()};
     }
-    // Bound once so the presence test and the reads are provably the same object.
-    const std::optional<ShapeHoldsChange>& holds = plan.shape_holds;
-    if (holds.has_value() && chart.shape_holds != holds->before)
-    {
-        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
-    }
-    chart.notes = std::move(*notes);
-    if (holds.has_value())
-    {
-        chart.shape_holds = holds->after;
-    }
+    chart = std::move(*applied);
     return {};
 }
 

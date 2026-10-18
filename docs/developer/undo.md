@@ -34,9 +34,9 @@ deliberately bypasses that funnel because flattening a claim to a plain pick can
 see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` is one change to the note
 stream, which is the only per-string authored array there is, carrying the shape holds whole where
 the finalize step's hold normalizer rewrote them (`ShapeHoldsChange`), so one undo restores the
-notes and the holds together; `applyChartChange` rebuilds the stream on a copy and checks the holds
-before swapping either in, so a failed precondition part way through leaves the chart entirely
-untouched),
+notes and the holds together; `chartWithPlanApplied` applies a plan to a chart it owns, so a failed
+precondition part way through discards that value, and `applyChartChange` runs it on a copy it
+swaps in only on success, leaving the chart entirely untouched otherwise),
 `marker_model_edit.h` (ONE `MarkerModelEdit<Snapshot>` behind every timeline-marker verb of every
 kind, carrying that kind's whole model before and after; every marker verb commits through one
 funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,

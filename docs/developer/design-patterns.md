@@ -187,9 +187,9 @@ sweep found nothing to flatten) is the CALLER's question, asked before it plans:
 `unjustifiedLegatoClaims` returns the claims to flatten, its emptiness means nothing to settle, and
 the planner is handed that list and called only with work. Its base is a whole **chart state**
 rather than a note stream, and for a reason every fold-shaped planner inherits: the entry it
-replaces may have moved any authored array, and the caller walks the live chart back through that
-entry's own reversal — which takes every array with it — so a plan restating only the notes would
-silently drop the other halves.
+replaces may have moved any authored array, and the caller reconstructs the pre-burst chart through
+that entry's own reversal — which takes every array with it — then applies the plan to that chart
+and writes the result in, so a plan restating only the notes would silently drop the other halves.
 
 Every other planner, `planAdjustSustain` included, keeps the
 `expected` shape: a gesture whose replayed steps put every ring back where it started needs no

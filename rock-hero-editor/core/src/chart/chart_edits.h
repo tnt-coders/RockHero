@@ -1577,16 +1577,28 @@ a technique at all: its set states a value, so it has its own verb over \ref pla
 [[nodiscard]] ChartTechniqueLaw chartTechniqueLaw(ChartTechnique technique);
 
 /*!
-\brief Applies a whole planned change atomically to a chart, across every authored array.
+\brief THE apply of a planned change, across every authored array: the chart it owns with the plan
+applied.
 
-Verifies every removed record still matches by full value, every inserted slot is free and the
-shape holds are the ones the plan's hold change applies to, then swaps in the new arrays; a failed
-precondition anywhere leaves the chart entirely untouched, which is what makes a plan crossing the
-arrays one atomic gesture rather than several that could half apply.
+Every removed record must still match by full value, every inserted slot must be free and the shape
+holds must be the ones the plan's hold change applies to. The chart is edited as it goes, and a
+failed precondition anywhere discards it, so the caller's chart is never half applied: it is the
+caller's own copy or a value it gave up. That is what makes a plan crossing the arrays one atomic
+gesture, with no precheck that would restate the preconditions.
 
 Applying the plan's own \ref ChartEditPlan::reversed walks the chart back, so undo, redo and the
 verb-toggle reversal are this one primitive run in opposite directions.
 
+\param chart Chart to apply the plan to.
+\param plan Planned change to apply forwards.
+\return The chart with the plan applied, or PreflightRejected when it does not match the plan.
+*/
+[[nodiscard]] std::expected<common::core::Chart, EditorUndoFailureCode> chartWithPlanApplied(
+    common::core::Chart chart, const ChartEditPlan& plan);
+
+/*!
+\brief Applies a planned change to a chart in place (\ref chartWithPlanApplied), leaving it
+untouched when the plan does not apply.
 \param chart Chart to mutate.
 \param plan Planned change to apply forwards.
 \return Empty success, or PreflightRejected when the chart no longer matches the plan.

@@ -1468,11 +1468,11 @@ against the tree on the date above.
   `const Chart* Session::currentChart() const noexcept` (the const twin of the private
   `loadedChart`) and one mechanical sweep collapse each to one line. Deferred as its own change: the
   sweep touches every chart handler.
-- **The two folds restate the walk-back.** The gesture fold and the settle sweep each reconstruct
-  the pre-burst chart and each walk the live chart back and forward through `writeChart` with the
-  same lambda (differing only in `burst == nullptr ||`). One `preBurstChart(burst)` and one
-  `rewriteBurst(burst, plan)` serve both. Pre-existing; deferred because both functions are dense
-  and each carries its own proofs.
+- **The two folds restate the pre-burst reconstruction.** The gesture fold and the settle sweep
+  each reverse the top entry onto a copy of the live chart (`chartWithPlanApplied`) and then apply
+  their plan to that copy and move it in. The live-chart walk-back they once also shared is gone;
+  one `preBurstChart(burst)` would still serve both. Pre-existing; deferred because both functions
+  are dense and each carries its own proofs.
 
 ## Found while authoring the fret-hand end fret (2026-09-29)
 
@@ -1617,12 +1617,16 @@ against the tree on the date above.
   O(N + P·local) instead of O(P·N) — but the proof that nothing outside the neighbours can change
   (hand-position rule 10's front never reaches back across an authored position; a slide arrival is a forced
   boundary either way) is owed first. Prune is a command, never a held key.
-- **Whole-stream copies on a gesture's walk-back (accepted cost).** `applyChartChange`
-  (`chart_edits.cpp`) rebuilds the notes on a copy before swapping so a failed precondition leaves
-  nothing half-applied, and `commitChartGestureStep` (`chart_handlers.cpp`) copies the pre-gesture
-  chart it replans from: about 0.43 ms together on Shiver Rhythm. The copy IS the atomicity; a shape
-  without it (an apply verified before it mutates, a replan base kept across the run) waits for plan
-  64's gesture measurement to justify.
+- **One whole-chart copy per continued gesture press (accepted cost).** `commitChartGestureStep`
+  (`chart_handlers.cpp`) copies the live chart once to reconstruct the pre-gesture chart it replans
+  from, then applies the replay to that copy and moves it in (`chartWithPlanApplied`), down from
+  four note copies before 2026-10-18. The copy IS the atomicity; dropping it (a replan base kept
+  across the run) waits for plan 64's gesture measurement to justify.
+- **The hold edge keys scan every note (accepted cost).** `steppedShapeHoldEdge`
+  (`chart_edits.cpp`) is O(N) with a tempo conversion per note. A binary search could serve the
+  Start edge only; the End edge's ring ends are unsorted and still need the scan, and an accepted
+  press walks every note anyway. Trigger: a profile shows `steppedShapeHoldEdge` in a held edge-key
+  run.
 - **"Placement" and "position" name one thing.** The record is `FretHandPosition` and the format
   key is `positions`, but the editor says placement: `findPlacement`, `defaultedPlacement` and
   `statedPlacement` (`fret_hand_handlers.cpp`), `FretHandPositionsSnapshot::placements`,

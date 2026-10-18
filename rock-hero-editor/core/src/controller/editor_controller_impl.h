@@ -590,6 +590,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void landMarkerSelection(const MarkerSelection& marker);
     // Lands a gesture step's selection where its verb says, and the chart keys standing otherwise.
     void landGestureSelection(const std::optional<ChartEditLanding>& landing);
+    // The selection a recorded focus names, as a landing: a chart focus's keys or a marker focus's
+    // marker. Nothing where the focus names none.
+    [[nodiscard]] static std::optional<ChartEditLanding> selectionLandingOf(const EditFocus& focus);
     // Where the charter stands right now: the one capture both sides of a chart undo entry record.
     // A selected hold or derived span is shown as every marker entry shows its own
     // (MarkerEditFocus); anything else is the place in the chart (ChartEditFocus). Nothing where
