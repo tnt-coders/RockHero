@@ -182,7 +182,7 @@ surface **draws**.
   exemption for a travelling member. The charter's SHAPE HOLDS (shape rule 9) move only the edges:
   inside an unnamed hold the walk keeps one span, fronted at the hold's start, which only a hand
   conflict breaks, and from the hold's end on the span closes wherever the walk would close one
-  standing there. `shapeHoldIsValid` compares the span the walk published with the hold's stated
+  standing there. `shapeHoldFitsNotes` compares the span the walk published with the hold's stated
   extent, and a `none` hold publishes no arpeggio span inside it.
 - `chartNoteLengths(presentation, connections, shapes)` — how long the 3D board shows a note as
   still in play, which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS

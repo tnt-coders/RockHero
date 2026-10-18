@@ -288,10 +288,11 @@ struct ChartShape
     std::optional<Fraction> bracket_place{};
 
     /*!
-    \brief True where a charter's unnamed shape hold states this span (shape rule 9): it fronts at
-    the hold's start, and every other field is read from its notes like a derived span's.
+    \brief True where a charter's unnamed shape hold states this span (shape rule 9): only its edges
+    come from the hold — it fronts at the hold's start — and every other field is read from its
+    notes like a derived span's.
     */
-    bool authored{false};
+    bool hold_stated{false};
 
     /*!
     \brief Compares two spans by their stored fields.
@@ -517,18 +518,19 @@ chartResolutions can answer the class before the bracket re-read that consumes i
     const std::vector<ChartPosture>& postures);
 
 /*!
-\brief Whether a shape hold is valid: the span the walk publishes for it covers exactly its stated
-extent (shape rule 9). The walk is the one authority on a hold, so this only compares.
+\brief Whether a shape hold fits its notes: the span the walk publishes for it covers exactly its
+stated extent (shape rule 9). The walk is the one authority on a hold, so this only compares; the
+hold stream's structure is \ref validateShapeHolds's.
 
-A none hold is always valid.
+A none hold always fits.
 
 \param shapes The spans derived with the hold among the chart's holds (\ref deriveChartShapes),
        sorted by place.
 \param tempo_map Tempo map the spans were derived against, placing the hold's edges.
 \param hold The hold judged.
-\return True when an authored span runs exactly from the hold's start to its end.
+\return True when a span the hold states runs exactly from the hold's start to its end.
 */
-[[nodiscard]] bool shapeHoldIsValid(
+[[nodiscard]] bool shapeHoldFitsNotes(
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold);
 
 } // namespace rock_hero::common::core

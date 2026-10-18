@@ -24,8 +24,8 @@ are also called **the grip-tenure law**. The rules are implemented in
 - `makeChartViewState` (`chart_projection.h`) draws each span short of its close through
   `drawnSpanExtent` (rule 6) and decides the column of each posture digit (rule 7).
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
-- `deriveChartShapes` obeys the shape holds and `shapeHoldIsValid` compares each hold with the span
-  the walk published for it (rule 9); `validateShapeHolds` (`chart_rules.h`) checks the hold
+- `deriveChartShapes` obeys the shape holds and `shapeHoldFitsNotes` compares each hold with the
+  span the walk published for it (rule 9); `validateShapeHolds` (`chart_rules.h`) checks the hold
   stream's structure.
 
 Whether a tail rests is tail rule 4 (\ref design_rulesets_tails), which reads no span.
@@ -194,10 +194,8 @@ takes the next one.
        sounding turns its class in place. A member mid-travel blocks both splits and the class
        turn, because a glide is not the figure coming apart. A span already in parts rides its
        partials unchanged.
-     - **A derived span of fewer than three members never turns to parts.** It is never born in
-       parts and never turns in place: a bracket over two strings states nothing its boxes do not.
-       Where it would turn, it breaks instead, as any box breaks at a partial sounding, and what
-       follows is judged by the opening law.
+     - **A span too small for parts breaks where it would turn** (rule 5), as any box breaks at a
+       partial sounding, and what follows is judged by the opening law.
    - **The close is the earlier of the reach and the event that ended the span**: the closing
      event's own onset, or the span's reach where its statement simply ran out. It is stored as the
      musical close (`ChartShape::sustain`), with no display margin in it (rule 6). The reach is the
@@ -307,12 +305,14 @@ takes the next one.
      and the walk records the answer (`ChartShape::sounds_in_parts`), because only the walk knows
      which slots the statement covers. Every accumulation is an arpeggio by construction. A
      landing is no sounding, so it is no partial one. The posture only grows within a span, so the
-     comparison's denominator is well defined. A derived span of fewer than three members never
-     sounds in parts: such a sounding breaks it instead (rule 3).
+     comparison's denominator is well defined.
    - **A right-hand onset sounding within the span**, from its front up to its musical close, makes
      it an arpeggio: the fretting hand holds the shape while the other hand sounds above it. This is
      the one trigger `chartShapeArrivals` derives itself, because it asks about the span's extent.
-     It applies to a derived span of three members or more: one of fewer is never an arpeggio.
+   - **A span of fewer than three members is never an arpeggio.** It is never born in parts, never
+     turns to parts and is no arpeggio under the other hand: a bracket over two strings states
+     nothing its boxes do not. Where a sounding would turn it, it breaks instead (rule 3), unless a
+     shape hold keeps it whole (rule 9), where it stays a box.
    - **The class reads the stored stream.** A dead string's carry classifies like any other ring,
      because where the fingers are is a fact about the hands; technique rule 25 is a display rule.
    - **A box marks simultaneity.** Every onset striking two or more strings with the fretting hand
@@ -408,23 +408,21 @@ takes the next one.
      stop the span states, at its landing (rule 4). Every other break is a notation split — a
      contradiction no release makes, the join break, the character splits (rule 3), the drop of a
      crowded landing (rule 4) — and the hold suppresses it, as it suppresses a member's quit: rests
-     inside a hold are legal. A grip the hold keeps whole across a unison restatement was stated
-     before only in part, so it sounds in parts (rule 5); a grip of fewer than three members never
-     does.
+     inside a hold are legal. The span's class is rule 5's, as for any span: growth by a string it
+     never stated is a sounding in parts, and a grip too small for parts stays a box.
    - **The close.** An unnamed hold's span closes at its first hand conflict inside it, or at the
      first instant at or after its stated end where the walk would close a span standing there:
      any break the walk recognises, hand conflict or notation split; its statement no longer in
      force, a rest included; the next hold's start; or the song's end. From the end on the span
      reaches as its members do, never short of the end, so a ring a tap renews ends where the
      fretting hand's ring ends (rule 3).
-   - **A hold is valid where its published extent equals its stated extent.** An end where the
-     walk closes nothing — in the middle of a sustain, nothing happening — is invalid. A hold
-     exactly over a derived span is valid and leaves every span as derived. A hold whose notes never
-     found a span publishes a span with an empty posture over its extent and is valid; a none hold
-     is always valid.
+   - **A hold fits its notes where its published extent equals its stated extent.** One ending
+     where the walk closes nothing — in the middle of a sustain, nothing happening — does not fit.
+     A hold exactly over a derived span fits and leaves every span as derived. A hold whose notes
+     never found a span publishes a span with an empty posture over its extent and fits; a none
+     hold always fits. Whether the hold stream is well formed is a structural check of its own.
    - **Every other edge is a wall.** Any span but an unnamed hold's own at that hold's end closes
      where it stands across a hold's edge, and no span dates its front behind one (rule 1's dating
-     floor).
-     Outside holds the derivation is unchanged, and at a hold's close the walk resumes as after any
-     span closing with rings still sounding, a landing's hand-off included (rule 4).
-     (`deriveChartShapes`, `shapeHoldIsValid`)
+     floor). Outside holds the derivation is unchanged, and at a hold's close the walk resumes as
+     after any span closing with rings still sounding, a landing's hand-off included (rule 4).
+     (`deriveChartShapes`, `shapeHoldFitsNotes`)

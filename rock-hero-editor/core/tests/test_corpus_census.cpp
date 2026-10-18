@@ -1637,8 +1637,8 @@ struct Census
 
     // THE SHAPE-HOLD GATE (shape rule 9): an unnamed hold authored exactly over each derived span,
     // one at a time, as `Ctrl+H` over that span authors it. The walk is the one authority on a
-    // hold, so every such hold is valid and leaves the derivation as it was, its span marked
-    // authored. A few departures are kept with their file and bar.
+    // hold, so every such hold fits its notes and leaves the derivation as it was, its span
+    // marked hold-stated. A few departures are kept with their file and bar.
     long long held_spans{0};
     long long held_spans_invalid{0};
     long long held_spans_rederived{0};
@@ -2108,13 +2108,13 @@ void countHeldSpans(
         const common::core::ChartShapes held = common::core::deriveChartShapes(
             connections, resolutions.margins, std::span{&hold, 1}, tempo_map);
         std::vector<ChartShape> expected = resolutions.shapes;
-        expected[span].authored = true;
+        expected[span].hold_stated = true;
         const bool rederived = held.shapes != expected || held.postures != resolutions.postures ||
                                common::core::chartShapeArrivals(
                                    connections, held.shapes, held.postures) != resolutions.arrivals;
         const std::string where = file + " bar " + std::to_string(hold.start.measure);
         ++census.held_spans;
-        if (!common::core::shapeHoldIsValid(held.shapes, tempo_map, hold))
+        if (!common::core::shapeHoldFitsNotes(held.shapes, tempo_map, hold))
         {
             ++census.held_spans_invalid;
             if (census.held_invalid_cases.size() < kept_cases)
@@ -2837,7 +2837,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
-                // ...and derives everything else as before, the held span marked authored.
+                // ...and derives everything else as before, the held span marked hold-stated.
                 .label = "held spans deriving otherwise (ZERO)",
                 .rig = static_cast<double>(census.held_spans_rederived),
                 .expected = 0.0,
