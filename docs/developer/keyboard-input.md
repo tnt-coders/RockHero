@@ -658,7 +658,8 @@ end, refused on a bare caret. The selection-kind dispatches carry the rest: `Alt
 (`MoveSelection`) step the start to the adjacent note onset and `Alt+Shift+Left/Right`
 (`AdjustChartSustain`, whose availability opens on `has_span_row_selection`) the end to the
 adjacent note boundary (`steppedShapeHoldEdge`), as one held run through `commitChartGestureStep`
-(`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on the first press and an edge moved into a neighbouring hold pushing
+(`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on the first press (and staying a
+derived span, selected, when the run steps back to where it began) and an edge moved into a neighbouring hold pushing
 its facing edge; `Delete` removes a hold, states a none hold over a derived arpeggio and refuses a
 derived chord box. Every one carves its new hold into the chart's holds (`carvedShapeHolds`) and ends
 at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would rewrite; a

@@ -553,6 +553,17 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
         CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
     }
 
+    SECTION("a run stepped back to where it began leaves the span derived")
+    {
+        editor.startKey(true);
+        REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+        editor.startKey(false);
+        INFO(editor.holdsText());
+        CHECK(editor.holds().empty());
+        CHECK(editor.entries() == entries);
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    }
+
     SECTION("the end key, refused where the end would fall inside the rings")
     {
         const std::size_t flashes = editor.view.refusal_flashes.size();

@@ -241,14 +241,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The hold edge keys' run (shape_hold_handlers.cpp): the hold being moved as it stood when the
     // run began — an authored hold, or a derived span's extent as the unnamed hold converting it —
-    // and where the run has moved its edge. The latest edge is the whole gesture, not a step list:
-    // a step reads the notes, which no hold verb moves, so one value replays exactly. A selected
-    // hold has no chart keys for the window's proof to compare, so setSelection's disarm is what
-    // ends the run on any other selection.
+    // the selection that named it, and where the run has moved its edge. The latest edge is the
+    // whole gesture, not a step list: a step reads the notes, which no hold verb moves, so one
+    // value replays exactly. A selected hold has no chart keys for the window's proof to compare,
+    // so setSelection's disarm is what ends the run on any other selection.
     struct ChartShapeHoldEdgeGesture
     {
         ShapeHoldEdge edge{};
         common::core::ShapeHold base;
+        // Where a run that comes back to its start lands: a derived span it never converted.
+        MarkerSelection origin;
         common::core::GridPosition value;
 
         friend bool operator==(
@@ -267,8 +269,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const common::core::Chart& pre_gesture)>;
 
     // Where a chart edit leaves the selection when its verb says: exactly these chart keys, or the
-    // shape hold a hold verb wrote. A verb that says nothing has its selection follow the edit.
-    using ChartEditLanding = std::variant<std::vector<ChartSelectionKey>, ShapeHoldSelection>;
+    // span-row marker a hold verb leaves. A verb that says nothing has its selection follow the
+    // edit.
+    using ChartEditLanding = std::variant<std::vector<ChartSelectionKey>, MarkerSelection>;
 
     // Where a run's objects have LANDED, for a verb whose steps re-key them. Asked of the same
     // pre-gesture chart the replay is planned against, because a landing a bound HELD is a fact
@@ -584,9 +587,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Makes `keys` the chart selection, keeping only what the chart holds (chartHoldsKey): where
     // every chart edit lands its selection once the chart is written.
     void landChartSelection(std::vector<ChartSelectionKey> keys);
-    // Makes the hold the selection inside an edit, as landChartSelection makes chart keys: the
+    // Makes the marker the selection inside an edit, as landChartSelection makes chart keys: the
     // caret demoted in place, and no commit point, so a gesture's window survives its own landing.
-    void landShapeHoldSelection(const ShapeHoldSelection& hold);
+    void landMarkerSelection(const MarkerSelection& marker);
     // Lands a gesture step's selection where its verb says, and the chart keys standing otherwise.
     void landGestureSelection(const std::optional<ChartEditLanding>& landing);
     // Where the charter stands right now: the one capture both sides of a chart undo entry record.

@@ -212,9 +212,15 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         const std::optional<common::core::ShapeHold> held = selectedSpanRowHold(); held.has_value()
     )
     {
+        // A hold and a span are both named by their start, which is the held hold's.
+        const MarkerSelection origin =
+            std::holds_alternative<ShapeHoldSelection>(m_selection)
+                ? MarkerSelection{ShapeHoldSelection{.start = held->start}}
+                : MarkerSelection{DerivedSpanSelection{.start = held->start}};
         run = ChartShapeHoldEdgeGesture{
             .edge = edge,
             .base = *held,
+            .origin = origin,
             .value = edge == ShapeHoldEdge::Start ? held->start : held->end,
         };
     }
@@ -235,8 +241,15 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         return;
     }
     gesture.value = *stepped;
-    const common::core::GridPosition landed =
-        edge == ShapeHoldEdge::Start ? gesture.value : gesture.base.start;
+    // A run standing where it began is no edit (planMoveShapeHoldEdge) and lands on what it began
+    // from; any other lands on the hold it moved, under that hold's start.
+    const bool home =
+        gesture.value == (edge == ShapeHoldEdge::Start ? gesture.base.start : gesture.base.end);
+    const MarkerSelection landed =
+        home ? gesture.origin
+             : MarkerSelection{ShapeHoldSelection{
+                   .start = edge == ShapeHoldEdge::Start ? gesture.value : gesture.base.start
+               }};
     const std::string label = markerVerbLabel(verb);
     const std::expected<bool, ChartPlanInvalid> moved = commitChartGestureStep(
         continues,
@@ -246,7 +259,7 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         },
         gesture,
         [&landed](const common::core::Chart& /*pre_gesture*/) -> ChartEditLanding {
-            return ShapeHoldSelection{.start = landed};
+            return landed;
         });
     if (!moved.has_value())
     {

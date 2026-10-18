@@ -318,7 +318,8 @@ neighbour it pushed: every press replays from the run's start chart.
 \param edge The edge moved.
 \param value Where the run has moved that edge.
 \param label User-visible undo label.
-\return The plan; NoChange where the holds come back to `base`'s, Invalid naming the rule broken.
+\return The plan; NoChange where the edge stands where the run began, which leaves a derived span
+        unconverted, Invalid naming the rule broken.
 */
 [[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,

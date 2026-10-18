@@ -1099,14 +1099,14 @@ bool EditorController::Impl::applyChartEditPlan(
     // them, since its run reports them once it ends (commitChartGestureStep).
     reportChartConversions(plan.conversions);
 
-    // The selection follows the edit: a hold verb's subject is the hold it wrote, a verb that
-    // knows where its objects landed says so, and otherwise retyped/moved/inserted records stay
-    // selected under their new keys.
-    const ShapeHoldSelection* landed_hold = nullptr;
+    // The selection follows the edit: a hold verb's subject is the span-row marker it leaves, a
+    // verb that knows where its objects landed says so, and otherwise retyped/moved/inserted
+    // records stay selected under their new keys.
+    const MarkerSelection* landed_marker = nullptr;
     const std::vector<ChartSelectionKey>* select_exactly = nullptr;
     if (landing.has_value())
     {
-        landed_hold = std::get_if<ShapeHoldSelection>(&*landing);
+        landed_marker = std::get_if<MarkerSelection>(&*landing);
         select_exactly = std::get_if<std::vector<ChartSelectionKey>>(&*landing);
     }
     std::vector<ChartSelectionKey> next_selection;
@@ -1163,9 +1163,9 @@ bool EditorController::Impl::applyChartEditPlan(
             }
         }
     }
-    if (landed_hold != nullptr)
+    if (landed_marker != nullptr)
     {
-        landShapeHoldSelection(*landed_hold);
+        landMarkerSelection(*landed_marker);
     }
     else
     {
@@ -1239,7 +1239,7 @@ void EditorController::Impl::landGestureSelection(const std::optional<ChartEditL
     std::visit(
         common::core::Overloaded{
             [this](const std::vector<ChartSelectionKey>& keys) { landChartSelection(keys); },
-            [this](const ShapeHoldSelection& hold) { landShapeHoldSelection(hold); },
+            [this](const MarkerSelection& marker) { landMarkerSelection(marker); },
         },
         *landing);
 }
@@ -1247,10 +1247,10 @@ void EditorController::Impl::landGestureSelection(const std::optional<ChartEditL
 // Inside an edit the caret is a stale answer to what the charter acts on, so it demotes as every
 // selecting gesture demotes it; the selection is replaced in place, as chartSelectionMutable does,
 // and the audible tone re-derived for the same reason.
-void EditorController::Impl::landShapeHoldSelection(const ShapeHoldSelection& hold)
+void EditorController::Impl::landMarkerSelection(const MarkerSelection& marker)
 {
     dissolveChartCaretInPlace();
-    m_selection = hold;
+    m_selection = std::visit([](const auto& kind) -> EditorSelection { return kind; }, marker);
     syncAudibleTone();
 }
 

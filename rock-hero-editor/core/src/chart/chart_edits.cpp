@@ -461,6 +461,12 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
 {
     common::core::ShapeHold edged = moved;
     (edge == ShapeHoldEdge::Start ? edged.start : edged.end) = value;
+    // Asked before the carve, which would otherwise state a derived span's extent as a hold: only
+    // an edge that actually moved converts a span.
+    if (edged == moved)
+    {
+        return std::unexpected{ChartPlanNoChange{}};
+    }
     if (!(edged.start < edged.end))
     {
         return std::unexpected{
