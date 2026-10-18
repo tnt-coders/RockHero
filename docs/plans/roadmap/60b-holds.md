@@ -50,12 +50,15 @@ hold only a hand conflict breaks. "In force" is judged per stop: a string still 
 different stop no longer keeps the span's stop in force.
 
 **The one close rule.** An unnamed hold's span closes at the first hand conflict inside it, or at
-the first instant at or after its stated end where the walk would close it: a break of either
-kind, its statement no longer in force (a rest, or a stated stop no longer sounding), the next
-hold's start, or the song's end;
-the walk publishes it there. **A hold is valid when its published extent equals its stated
-extent.** So an end in the middle of a sustain, where nothing breaks, is invalid; every derived
-span is a valid hold by construction, and authoring one exactly changes nothing.
+the first instant at or after its stated end where the hand can change: some sounding string
+changes its stop there (a finger lifts, a string is re-fretted or opened, or a finger lands on a
+string ringing open), nothing sounds (a rest), the next hold starts, or the song ends. A notation
+break alone is not such an instant: where every sounding string keeps its stop, the hand provably
+holds its grip. The walk publishes the span there. **A hold is valid when its published extent
+equals its stated extent.** So an end in the middle of a sustain, where every sounding string keeps
+its stop, is invalid. Authoring a hold exactly over a derived span changes nothing wherever that
+span closes at such an instant; the census gate (§6 step 2) measures every derived span against
+it.
 
 A hold whose notes never found a span still publishes its span over `[start, end)` with whatever
 posture its notes give (possibly empty), and is valid. A `none` hold is always valid. A hold with

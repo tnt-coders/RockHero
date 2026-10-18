@@ -13,6 +13,9 @@ against the code before execution.
   beside unnamed and `none`).
 - What a named template adds to 60b's validity predicate (a note on a string the template states
   versus one it leaves out).
+- An authored grip may state an open string with a fretted note above it on the same string (a
+  hold of the open stop under, say, a 4): legal for an authored hold, never inferred by the
+  derivation, which ends a span where a finger lands on a string ringing open.
 - The grip picker and the "New Grip Template..." fingering dialog: `Ctrl+H` and `Enter` on a
   derived span or hold open it; naming a grip is never required to author a hold.
 - The export gate: export refuses while a span has no named grip, with the toolbar count. Save
