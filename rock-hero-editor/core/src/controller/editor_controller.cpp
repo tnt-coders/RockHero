@@ -3185,6 +3185,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.chart_edit.selected_fret_hand_position.has_value() ||
+        state.chart_edit.selected_shape_hold.has_value() ||
+        state.chart_edit.selected_hand_span.has_value() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         state.selected_tempo_anchor.has_value() ||
         state.selected_time_signature_measure.has_value() ||

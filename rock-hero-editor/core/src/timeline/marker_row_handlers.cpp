@@ -6,6 +6,9 @@
 #include <iterator>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
@@ -18,10 +21,10 @@
 namespace rock_hero::editor::core
 {
 
-// The marker rows: the ruler's section, tempo and time-signature rows, the position row and the
-// tone row, which the keyboard reaches by selecting a marker. Every row answers the same
-// questions — where its markers start, which one holds a position, which one the selection names —
-// so the walk, a chip click and Tab share one model of all five.
+// The marker rows: the ruler's section, tempo and time-signature rows, the shape-hold and hand-span
+// rows, the position row and the tone row, which the keyboard reaches by selecting a marker. Every
+// row answers the same questions — where its markers start, which one holds a position, which one
+// the selection names — so the walk, a chip click and Tab share one model of all seven.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -58,6 +61,30 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             }
             break;
         }
+        case MarkerRow::ShapeHold:
+        {
+            if (const common::core::Arrangement* const arrangement = session().currentArrangement();
+                arrangement != nullptr && arrangement->chart.has_value())
+            {
+                for (const common::core::ShapeHold& hold : arrangement->chart->shape_holds)
+                {
+                    starts.push_back(hold.start);
+                }
+            }
+            break;
+        }
+        case MarkerRow::HandSpan:
+        {
+            // Read off the memoized notes layer at the exact musical place, never off the
+            // projection's seconds.
+            const common::core::TempoMap& tempo_map = session().song().tempo_map;
+            const std::vector<common::core::ChartShape>& shapes = chartResolutions().shapes;
+            for (const std::size_t shape : derivedSpanShapes())
+            {
+                starts.push_back(tempo_map.gridPositionAtWholeNote(shapes[shape].place));
+            }
+            break;
+        }
         case MarkerRow::FretHandPosition:
         {
             // Every hand event, derived and authored alike: the chips the lane draws, in the
@@ -87,6 +114,52 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     return starts;
 }
 
+// A hold's close is its stated end, which a hold verb never leaves unfit and the normalizer writes
+// back after every other edit; a derived span's is its musical close, read on its start's axis.
+std::optional<common::core::GridPosition> EditorController::Impl::markerClose(
+    const MarkerRow row, const std::size_t index) const
+{
+    switch (row)
+    {
+        case MarkerRow::ShapeHold:
+        {
+            // In range proves the chart markerStarts read the starts from: read through .value()
+            // and .at(), as markerSelectionAt reads the tone row, since a miss is a broken
+            // precondition.
+            return session().currentArrangement()->chart.value().shape_holds.at(index).end;
+        }
+        case MarkerRow::HandSpan:
+        {
+            const common::core::ChartShape& span =
+                chartResolutions().shapes.at(derivedSpanShapes().at(index));
+            return session().song().tempo_map.gridPositionAtWholeNote(span.place + span.sustain);
+        }
+        case MarkerRow::Section:
+        case MarkerRow::Tempo:
+        case MarkerRow::TimeSignature:
+        case MarkerRow::FretHandPosition:
+        case MarkerRow::Tone:
+        {
+            return std::nullopt;
+        }
+    }
+    std::unreachable();
+}
+
+std::vector<std::size_t> EditorController::Impl::derivedSpanShapes() const
+{
+    const std::vector<common::core::ChartShape>& shapes = chartResolutions().shapes;
+    std::vector<std::size_t> derived;
+    for (std::size_t index = 0; index < shapes.size(); ++index)
+    {
+        if (!shapes[index].hold_stated)
+        {
+            derived.push_back(index);
+        }
+    }
+    return derived;
+}
+
 std::size_t EditorController::Impl::markerHolderIndex(
     const std::vector<common::core::GridPosition>& starts,
     const common::core::GridPosition& position)
@@ -97,6 +170,25 @@ std::size_t EditorController::Impl::markerHolderIndex(
         return 0;
     }
     return static_cast<std::size_t>(std::distance(starts.begin(), after)) - 1;
+}
+
+// A span row's markers never overlap, so the only one that can hold the column is the last one
+// starting at or before it, and it holds the column exactly while its close lies past it.
+std::optional<std::size_t> EditorController::Impl::markerHolderAt(
+    const MarkerRow row, const common::core::GridPosition& column) const
+{
+    const std::vector<common::core::GridPosition> starts = markerStarts(row);
+    if (starts.empty())
+    {
+        return std::nullopt;
+    }
+    const std::size_t holder = markerHolderIndex(starts, column);
+    if (const std::optional<common::core::GridPosition> close = markerClose(row, holder);
+        close.has_value() && (column < starts[holder] || !(column < *close)))
+    {
+        return std::nullopt;
+    }
+    return holder;
 }
 
 std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::selectedMarker() const
@@ -118,6 +210,14 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     if (const auto* const signature = std::get_if<TimeSignatureSelection>(&m_selection))
     {
         return marker(MarkerRow::TimeSignature, common::core::measureDownbeat(signature->measure));
+    }
+    if (const auto* const hold = std::get_if<ShapeHoldSelection>(&m_selection))
+    {
+        return marker(MarkerRow::ShapeHold, hold->start);
+    }
+    if (const auto* const span = std::get_if<HandSpanSelection>(&m_selection))
+    {
+        return marker(MarkerRow::HandSpan, span->start);
     }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
@@ -159,6 +259,14 @@ MarkerSelection EditorController::Impl::markerSelectionAt(
         {
             return TimeSignatureSelection{.measure = start.measure};
         }
+        case MarkerRow::ShapeHold:
+        {
+            return ShapeHoldSelection{.start = start};
+        }
+        case MarkerRow::HandSpan:
+        {
+            return HandSpanSelection{.start = start};
+        }
         case MarkerRow::FretHandPosition:
         {
             return FretHandPositionSelection{.position = start};
@@ -199,11 +307,12 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
     {
         return;
     }
-    const std::vector<common::core::GridPosition> starts = markerStarts(selected->row);
-    if (markerHolderIndex(starts, pausedCursorPosition(common::core::g_tick_quantum_note_value)) !=
-        *index)
+    // Asked through the row's own holder rule, so a cursor in the gap after a selected span counts
+    // as outside it.
+    if (markerHolderAt(
+            selected->row, pausedCursorPosition(common::core::g_tick_quantum_note_value)) != index)
     {
-        moveCursorTo(starts[*index]);
+        moveCursorTo(markerStarts(selected->row).at(*index));
     }
 }
 

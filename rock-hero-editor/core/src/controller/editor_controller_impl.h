@@ -1601,28 +1601,49 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const AutomationLaneRow& row, const common::core::GridPosition& position);
 
     // The rows the keyboard reaches by SELECTING a marker rather than arming the caret: the ruler's
-    // section, tempo and time-signature rows and the position row above the strings, and the tone
-    // row below them. A marker's span runs from its start to the next marker's start, and the first
-    // marker also owns whatever precedes it.
+    // section, tempo and time-signature rows, the two span rows and the position row above the
+    // strings, and the tone row below them. On a gapless row a marker holds from its start to the
+    // next marker's start, and the first marker also owns whatever precedes it. The span rows, the
+    // chart's shape holds and its derived hand spans, have gaps: each marker holds only its own
+    // half-open [start, close).
     enum class MarkerRow : std::uint8_t
     {
         Section,
         Tempo,
         TimeSignature,
+        ShapeHold,
+        HandSpan,
         FretHandPosition,
         Tone,
     };
 
     // The starts of a marker row's markers, ascending: the song's sections, the tempo map's
     // non-terminal anchors (the terminal anchor draws no chip), its time-signature downbeats, the
-    // chart's fret-hand positions, and the tone track's region starts.
+    // chart's shape holds, its derived hand spans, its fret-hand positions, and the tone track's
+    // region starts.
     [[nodiscard]] std::vector<common::core::GridPosition> markerStarts(MarkerRow row) const;
 
-    // The index of the marker holding a position: the last one starting at or before it, or the
-    // first when the position precedes them all. The starts must not be empty.
+    // Where the row's marker at `index` stops holding a column: a span row's marker at its close,
+    // and nothing on a gapless row. The index must be in range of the row's markerStarts.
+    [[nodiscard]] std::optional<common::core::GridPosition> markerClose(
+        MarkerRow row, std::size_t index) const;
+
+    // The indices into the notes layer's spans (ChartResolutions::shapes) of the derived spans, the
+    // ones no unnamed hold states, in place order: the hand-span row's markers.
+    [[nodiscard]] std::vector<std::size_t> derivedSpanShapes() const;
+
+    // The index of the marker holding a position on a gapless row: the last one starting at or
+    // before it, or the first when the position precedes them all. The starts must not be empty.
     [[nodiscard]] static std::size_t markerHolderIndex(
         const std::vector<common::core::GridPosition>& starts,
         const common::core::GridPosition& position);
+
+    // The index of the row's marker holding a column, or nothing where none does: markerHolderIndex
+    // wherever a gapless row has markers, and on a span row the marker whose [start, close) holds
+    // the column. The one rule that decides whether a row is in the walk's stack at a column and
+    // which marker a landing there selects.
+    [[nodiscard]] std::optional<std::size_t> markerHolderAt(
+        MarkerRow row, const common::core::GridPosition& column) const;
 
     // The marker the selection names. The index is empty when the selection names a marker that no
     // longer exists; the whole answer is empty for a selection that is not a marker's.
@@ -1857,14 +1878,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // armed caret's slot, where typing acts. Nothing while passive with no caret.
     [[nodiscard]] std::optional<common::core::GridPosition> selectionStart() const;
 
-    // Every row the walk can reach, top to bottom: the ruler's marker rows that have markers, the
-    // chart's strings, the tone row while the track has regions, the visible lanes, and the "+" row
-    // while a tone is active (the lanes view draws it exactly then).
-    [[nodiscard]] std::vector<FocusRow> focusRowStack(int string_count) const;
+    // Every row the walk can reach at a column, top to bottom: the ruler's marker rows, the span
+    // rows and the position row, each where a marker holds the column (markerHolderAt), the chart's
+    // strings, the tone row while the track has regions, the visible lanes, and the "+" row while
+    // a tone is active (the lanes view draws it exactly then).
+    [[nodiscard]] std::vector<FocusRow> focusRowStack(
+        int string_count, const common::core::GridPosition& column) const;
+
+    // The column the walk and the jumps resolve a marker row's holder at: the armed caret's slot,
+    // else the paused cursor read at the tick, which is where a dissolving caret leaves it, so the
+    // stack and the landing read one column.
+    [[nodiscard]] common::core::GridPosition focusColumn() const;
 
     // The rows as the walk and the jumps see them: the column rule first (a pointer-selected
-    // marker need not hold the cursor), then the stack — one call, so neither lists before
-    // reconciling.
+    // marker need not hold the cursor), then the stack at the focus column — one call, so neither
+    // lists before reconciling.
     [[nodiscard]] std::vector<FocusRow> rowsFromFocus(int string_count);
 
     // The row a jump names.

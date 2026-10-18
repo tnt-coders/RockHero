@@ -207,12 +207,39 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
-    // The position row's selection is outlined on its chip: the row's markers are the lane's chips,
-    // so the selected marker's index is the chip's.
-    if (const std::optional<SelectedMarker> marker = selectedMarker();
-        marker.has_value() && marker->row == MarkerRow::FretHandPosition)
+    // The position row's markers are the lane's chips and the hold row's the chart's holds, so a
+    // selected marker's index is the chip's or the hold's; a derived span's is its marker's place
+    // among the projection's spans, which are the notes layer's in order.
+    if (const std::optional<SelectedMarker> marker = selectedMarker(); marker.has_value())
     {
-        edit.selected_fret_hand_position = marker->index;
+        switch (marker->row)
+        {
+            case MarkerRow::FretHandPosition:
+            {
+                edit.selected_fret_hand_position = marker->index;
+                break;
+            }
+            case MarkerRow::ShapeHold:
+            {
+                edit.selected_shape_hold = marker->index;
+                break;
+            }
+            case MarkerRow::HandSpan:
+            {
+                if (const std::optional<std::size_t> index = marker->index; index.has_value())
+                {
+                    edit.selected_hand_span = derivedSpanShapes().at(*index);
+                }
+                break;
+            }
+            case MarkerRow::Section:
+            case MarkerRow::Tempo:
+            case MarkerRow::TimeSignature:
+            case MarkerRow::Tone:
+            {
+                break;
+            }
+        }
     }
     // Armed ⟹ paused is structural (play and the transport listener demote), so no transport
     // check re-derives it here.
@@ -1533,11 +1560,11 @@ bool EditorController::Impl::sameReachGroup(const FocusRow& lhs, const FocusRow&
 }
 
 std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowStack(
-    const int string_count) const
+    const int string_count, const common::core::GridPosition& column) const
 {
     std::vector<FocusRow> stack;
-    const auto push_marker_row = [this, &stack](const MarkerRow row) {
-        if (!markerStarts(row).empty())
+    const auto push_marker_row = [this, &stack, &column](const MarkerRow row) {
+        if (markerHolderAt(row, column).has_value())
         {
             stack.emplace_back(MarkerFocusRow{.row = row});
         }
@@ -1546,6 +1573,10 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     push_marker_row(MarkerRow::Section);
     push_marker_row(MarkerRow::Tempo);
     push_marker_row(MarkerRow::TimeSignature);
+    // The span rows stand over the strings, the holds above the derived spans: a none hold may
+    // enclose a derived chord box, which the walk reaches first on its way up from the strings.
+    push_marker_row(MarkerRow::ShapeHold);
+    push_marker_row(MarkerRow::HandSpan);
     // The position row sits over the strings, where the lane draws the fret-hand chips on top.
     push_marker_row(MarkerRow::FretHandPosition);
     // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
@@ -1685,14 +1716,14 @@ void EditorController::Impl::landOnRow(
                     column.has_value() ? *column : pausedCursorPosition(placementQuantum()), lane);
             },
             [&](const MarkerFocusRow& marker) {
-                // The caret dissolves first, so the holder found is the one under its column. The
-                // stack lists only rows with markers, so a holder always exists.
+                // The holder is found at the column the stack was listed at, and the stack lists a
+                // marker row only where one holds it. The caret dissolves onto that same column.
+                const std::optional<std::size_t> holder = markerHolderAt(marker.row, focusColumn());
                 dissolveChartCaretInPlace();
-                selectMarker(markerSelectionAt(
-                    marker.row,
-                    markerHolderIndex(
-                        markerStarts(marker.row),
-                        pausedCursorPosition(common::core::g_tick_quantum_note_value))));
+                if (holder.has_value())
+                {
+                    selectMarker(markerSelectionAt(marker.row, *holder));
+                }
             },
             [&](const AddLaneFocusRow&) {
                 dissolveChartCaretInPlace();
@@ -1886,7 +1917,19 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::rowsFromFo
     const int string_count)
 {
     moveCursorIntoSelectedMarker();
-    return focusRowStack(string_count);
+    return focusRowStack(string_count, focusColumn());
+}
+
+// The armed caret's slot is the column itself; without one the paused cursor answers at the tick,
+// which is also where a dissolving caret leaves it (dissolveChartCaretInPlace), so a landing that
+// demotes the caret selects the holder the stack was listed for.
+common::core::GridPosition EditorController::Impl::focusColumn() const
+{
+    if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
+    {
+        return caret->position;
+    }
+    return pausedCursorPosition(common::core::g_tick_quantum_note_value);
 }
 
 EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const FocusRowJump jump)
@@ -1913,7 +1956,7 @@ EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const Focus
 // its letter names — and only if the stack lists that row. Stack membership is the one silence
 // rule: a song with no sections lists no section row (a loaded arrangement always has a region and
 // an active tone, so the tone and "+" rows are always listed), and then the press selects nothing
-// and leaves an armed caret armed, where indexing the row's markers would have thrown. It is not
+// and leaves an armed caret armed. It is not
 // entirely inert: the column rule has already brought the cursor inside a marker selected
 // elsewhere, as it does before every walk step, which is why the publish below is unconditional.
 // The keep-the-row landing (prepareLandingRow) is not for this: a jump changes rows.
