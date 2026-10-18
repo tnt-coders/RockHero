@@ -51,6 +51,14 @@ what a test fixture states a position in. The file stores no token; it stores th
 [[nodiscard]] std::string formatHandPositionToken(const GridPosition& position);
 
 /*!
+\brief Formats a shape hold, `"shape hold <start> to <end>"`, the one spelling every message naming
+       a hold uses.
+\param hold The hold.
+\return The hold's text, its edges in the canonical token spelling.
+*/
+[[nodiscard]] std::string formatShapeHoldToken(const ShapeHold& hold);
+
+/*!
 \brief Parses the file's one number grammar: a non-negative rational as a canonical mixed number.
 
 The whole part, then `+<n>/<d>` for a remaining fraction in (0, 1) in lowest terms, each part

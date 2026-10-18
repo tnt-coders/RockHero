@@ -436,6 +436,14 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a hand position did not cover a fretted note gripped at its instant and was "
                    "dropped";
         }
+        case ChartRepair::ShapeHoldEndMoved:
+        {
+            return "a shape hold's end moved to where its shape closes";
+        }
+        case ChartRepair::ShapeHoldDropped:
+        {
+            return "a shape hold left nothing to hold and was dropped";
+        }
     }
     return "chart repaired";
 }
@@ -837,11 +845,18 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.end(),
         std::make_move_iterator(settled.begin()),
         std::make_move_iterator(settled.end()));
-    // The hand-position coverage rule last, against the notes and the fitted windows as they will
-    // stand: derived after the sweep, which can retype a claim. One pass is complete: a position's
-    // demands come from the notes alone, so dropping one never changes another's verdict.
-    const ChartResolutions resolved =
-        chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
+    // The shape holds against the notes as they will stand, then the hand-position coverage rule
+    // last, against the spans those holds give and the fitted windows: derived after the sweep,
+    // which can retype a claim. One pass is complete: a position's demands come from the notes and
+    // the holds alone, so dropping one never changes another's verdict.
+    NormalizedChartResolutions normal = normalizedChartResolutions(
+        chart.notes, std::move(chart.shape_holds), chart.tuning.capo, tempo_map);
+    chart.shape_holds = normal.resolved.shape_holds;
+    conversions.insert(
+        conversions.end(),
+        std::make_move_iterator(normal.conversions.begin()),
+        std::make_move_iterator(normal.conversions.end()));
+    const ChartResolutions& resolved = normal.resolved;
     const std::vector<UncoveringFretHandPosition> uncovering =
         uncoveringFretHandPositions(resolved, chart.fret_hand_positions, tempo_map);
     for (const UncoveringFretHandPosition& uncovered : uncovering)

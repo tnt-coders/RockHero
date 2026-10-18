@@ -81,6 +81,12 @@ std::string formatHandPositionToken(const GridPosition& position)
     return "hand position " + formatGridPositionToken(position);
 }
 
+std::string formatShapeHoldToken(const ShapeHold& hold)
+{
+    return "shape hold " + formatGridPositionToken(hold.start) + " to " +
+           formatGridPositionToken(hold.end);
+}
+
 // Reads the three shapes leniently, then holds the text to the formatter's spelling of the value
 // it read: the formatter is the one statement of the grammar, and a spelling that is not its own
 // (an improper or unreduced fraction, a written zero part) is refused by that fixpoint rather than

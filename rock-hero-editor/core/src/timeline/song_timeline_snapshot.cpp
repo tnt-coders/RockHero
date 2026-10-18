@@ -1,7 +1,10 @@
 #include "timeline/song_timeline_snapshot.h"
 
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -16,8 +19,28 @@ bool SongTimelineSnapshot::applyTo(common::core::Session& session) const
     return session.setSongTimeline(timeline);
 }
 
-void SongTimelineSnapshot::normalize()
-{}
+// Each chart judged under the map it now stands on; a chart with no holds costs nothing.
+std::vector<common::core::ChartConversion> SongTimelineSnapshot::normalize()
+{
+    std::vector<common::core::ChartConversion> rewrites;
+    for (common::core::ArrangementTimeline& arrangement : timeline.arrangements)
+    {
+        if (!arrangement.chart.has_value())
+        {
+            continue;
+        }
+        common::core::Chart& chart = *arrangement.chart;
+        common::core::ShapeHoldNormalization normal = common::core::normalizeShapeHolds(
+            chart.notes, std::move(chart.shape_holds), timeline.tempo_map);
+        chart.shape_holds = std::move(normal.shape_holds);
+        for (common::core::ChartConversion& rewrite : normal.conversions)
+        {
+            rewrite.where = "arrangement " + arrangement.id + ", " + rewrite.where;
+            rewrites.push_back(std::move(rewrite));
+        }
+    }
+    return rewrites;
+}
 
 // Every rule lives in common core, where the package reader asks the same questions, so this only
 // carries the first diagnostic across for the funnel's refusal log.

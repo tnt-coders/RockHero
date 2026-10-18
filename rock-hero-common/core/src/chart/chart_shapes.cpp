@@ -1935,17 +1935,27 @@ std::vector<bool> chartShapeArrivals(
 }
 
 // The hold's span is the one it states fronted at its start, so one search finds it.
-bool shapeHoldFitsNotes(
+Fraction shapeHoldPublishedEnd(
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold)
 {
     if (std::holds_alternative<NoneGrip>(hold.grip))
     {
-        return true;
+        return tempo_map.wholeNotePositionAt(hold.end);
     }
     const Fraction start = tempo_map.wholeNotePositionAt(hold.start);
     const auto published = std::ranges::lower_bound(shapes, start, {}, &ChartShape::place);
-    return published != shapes.end() && published->hold_stated && published->place == start &&
-           published->place + published->sustain == tempo_map.wholeNotePositionAt(hold.end);
+    if (published == shapes.end() || !published->hold_stated || published->place != start)
+    {
+        return start;
+    }
+    return published->place + published->sustain;
+}
+
+bool shapeHoldFitsNotes(
+    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold)
+{
+    return shapeHoldPublishedEnd(shapes, tempo_map, hold) ==
+           tempo_map.wholeNotePositionAt(hold.end);
 }
 
 } // namespace rock_hero::common::core

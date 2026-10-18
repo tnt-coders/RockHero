@@ -165,10 +165,13 @@ follows refuses only what no repair can express. It runs in this order:
 - **The relational settle**: every legato claim the stream does not justify becomes the plain pick
   it plays as (`sweepUnjustifiedLegato`). It runs after the clamp, because a bounded ring can be
   the hold a claim depended on.
+- **The shape holds** (\ref design_rulesets_shapes, shape rule 9): each hold's end is written back
+  where the span walk publishes it, and a hold left nothing to hold is dropped
+  (`normalizeShapeHolds`). An import authors no hold, so only a load meets this stage.
 - **Last, the hand-position coverage rule** (\ref design_rulesets_hand_positions): every authored
   position that leaves a stop gripped at its place uncovered is dropped
-  (`uncoveringFretHandPositions`), judged against the bounded rings and the fitted windows. An
-  import authors no position, so only a load meets this stage.
+  (`uncoveringFretHandPositions`), judged against the bounded rings, the spans the holds give and
+  the fitted windows. An import authors no position, so only a load meets this stage.
 
 A dead note's ring is untouched (rule 25). Every repair is reported with its place
 (`ChartConversion`): the editor opens such a chart dirty and shows the repairs once, and the

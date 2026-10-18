@@ -2326,8 +2326,10 @@ using HoldGrip = std::variant<UnnamedGrip, NoneGrip>;
 \brief A shape hold: the charter's statement of what the fretting hand holds over `[start, end)` —
 shape rule 9 (\ref design_rulesets_shapes).
 
-Both edges are stated, so the extent is exact: no note edit moves it. Not the derived
-\ref FretHandHold, which is one stop the hand provably keeps pressed.
+Both edges are stated, so the extent is exact. An edit that is not a hold verb changes the notes
+under it, and the hold normalizer then writes back the extent they publish
+(\ref normalizeShapeHolds). Not the derived \ref FretHandHold, which is one stop the hand provably
+keeps pressed.
 */
 struct ShapeHold
 {

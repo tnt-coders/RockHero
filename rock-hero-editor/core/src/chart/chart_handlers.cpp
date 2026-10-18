@@ -114,6 +114,23 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
 
 } // namespace
 
+// Rationale lives on the declaration in editor_controller_impl.h.
+void EditorController::Impl::recordChartRewrites(
+    const std::span<const common::core::ChartConversion> rewrites)
+{
+    for (const common::core::ChartConversion& rewrite : rewrites)
+    {
+        RH_LOG_INFO(
+            "editor.chart",
+            "chart edit normalized: {}",
+            common::core::chartConversionText(rewrite));
+    }
+    if (!rewrites.empty() && m_grid_session.note_lock.has_value())
+    {
+        engageNoteLock();
+    }
+}
+
 // The memoized projection of the current chart, refreshed on read: pointer events resolve against
 // it, which is the projection the view last drew, and a read between an edit and the next view push
 // sees the chart it acts on rather than the one the edit replaced. Null while no arrangement is
@@ -1056,6 +1073,9 @@ bool EditorController::Impl::applyChartEditPlan(
     // so committing both here could preflight-collide.
     discardChartFretEntry();
     disarmChartVerbWindow();
+    // What the gate rewrote to land the plan. A gesture's press hands its plan over without them,
+    // since its run records them once it ends (commitChartGestureStep).
+    recordChartRewrites(plan.conversions);
 
     // The selection follows the edit: a verb that knows where its objects landed says so, and
     // otherwise retyped/moved/inserted records stay selected under their new keys.
@@ -3234,7 +3254,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
             return planAdjustSustain(
                 live_chart,
                 session().song().tempo_map,
-                pre_gesture.notes,
+                pre_gesture,
                 notesTouchedBy(chartSelection().notes(), chartSelection().keyframes()),
                 gesture.steps);
         },
@@ -3250,7 +3270,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
 // The start state needs no snapshot of its own. The entry the first step pushed already holds the
 // pre-gesture values, so reversing it IS the state the gesture began at — the settle fold's own
 // method, and the reason a second copy could only disagree with it. The whole CHART rather than its
-// notes alone, because a plan is reversed against a chart and a planner may want more of it.
+// notes alone: the reversal restores the shape holds the run began with, and every replay
+// normalizes those rather than the live ones, so a press stepping back restores a hold an earlier
+// press's rewrite took.
 //
 // continues: whether this press proved it continues a live run of its OWN verb (the shared window
 // proof, asked by the caller through liveChartGestureVerb). replan: the plan describing the whole
@@ -3338,7 +3360,8 @@ bool EditorController::Impl::commitChartGestureStep(
     // verb's slide-out parks on the next head on its string, so every further press that way is a
     // no-op that must cost nothing to come back from.
     if (burst != nullptr && plan->plan.removed == burst->plan.removed &&
-        plan->plan.inserted == burst->plan.inserted)
+        plan->plan.inserted == burst->plan.inserted &&
+        plan->plan.shape_holds == burst->plan.shape_holds)
     {
         return false;
     }
@@ -3354,6 +3377,9 @@ bool EditorController::Impl::commitChartGestureStep(
     {
         retireChartGesture(burst->plan);
     }
+    // The replay's rewrites are net against the run's start, so they ride the window armed below
+    // and are recorded once the run ends, never per press.
+    std::vector<common::core::ChartConversion> rewrites = std::exchange(plan->conversions, {});
     if (burst == nullptr || retired)
     {
         if (!applyChartEditPlan(std::move(*plan), select_exactly))
@@ -3400,12 +3426,13 @@ bool EditorController::Impl::commitChartGestureStep(
         updateView();
     }
 
-    // Both paths arm the same window: the live selection, and the gesture the next press continues.
-    // Read back from the selection rather than carried across the apply, so the keys are always the
-    // ones the next press will compare against.
+    // Both paths arm the same window: the live selection, the gesture the next press continues, and
+    // the run's rewrites so far. Read back from the selection rather than carried across the apply,
+    // so the keys are always the ones the next press will compare against.
     m_chart_verb_window = ChartVerbWindow{
         .keys = chartSelection().keys(),
         .verb = std::move(verb),
+        .rewrites = std::move(rewrites),
     };
     return true;
 }
@@ -3414,8 +3441,14 @@ bool EditorController::Impl::commitChartGestureStep(
 // change, a caret move, an edit, undo/redo, a settling sweep — so a press after any of them means
 // the verb's ordinary law: a technique toggle that sets or clears rather than reversing, and a
 // duration step that starts a new gesture from the current rings.
-void EditorController::Impl::disarmChartVerbWindow() noexcept
+void EditorController::Impl::disarmChartVerbWindow()
 {
+    // The window is the run, so disarming it ends a gesture: what the run rewrote, net against
+    // where it began, is recorded here and nowhere else.
+    if (const std::optional<ChartVerbWindow>& window = m_chart_verb_window; window.has_value())
+    {
+        recordChartRewrites(window->rewrites);
+    }
     m_chart_verb_window.reset();
 }
 
@@ -3482,7 +3515,8 @@ void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
     // opens a fresh gesture from rings that ARE the pre-gesture rings. (Between the drop and here
     // the record is already inert — every reader proves ownership by the history position first.)
     m_chart_notes_top.reset();
-    disarmChartVerbWindow();
+    // Withdrawn whole, the run wrote nothing, so its window goes unrecorded.
+    m_chart_verb_window.reset();
     updateView();
 }
 
@@ -3506,8 +3540,9 @@ bool EditorController::Impl::reverseChartVerbWindow(
     {
         return false;
     }
-    const ChartVerbWindow window = std::move(*m_chart_verb_window);
-    m_chart_verb_window.reset();
+    // Ended through the one end of a run, so a gesture this press interrupts is recorded.
+    const ChartVerbWindow window = *m_chart_verb_window;
+    disarmChartVerbWindow();
     if (window.verb != pressed)
     {
         return false;
@@ -3926,6 +3961,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
             .verb = ChartTechniqueToggle{.technique = technique},
+            .rewrites = {},
         };
     }
 }
@@ -3952,6 +3988,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
             .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
+            .rewrites = {},
         };
     };
     // A claim that resolved sets, and a gate refusal of one is a refused press: only a press with

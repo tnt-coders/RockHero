@@ -182,8 +182,13 @@ surface **draws**.
   exemption for a travelling member. The charter's SHAPE HOLDS (shape rule 9) move only the edges:
   inside an unnamed hold the walk keeps one span, fronted at the hold's start, which only a hand
   conflict breaks, and from the hold's end on the span closes wherever the walk would close one
-  standing there. `shapeHoldFitsNotes` compares the span the walk published with the hold's stated
-  extent, and a `none` hold publishes no arpeggio span inside it.
+  standing there. `shapeHoldPublishedEnd` reads where the walk closed the span a hold states,
+  `shapeHoldFitsNotes` compares it with the hold's stated end, and a `none` hold publishes no
+  arpeggio span inside it. After every edit that is not a hold verb, one normalizer writes each
+  hold's published end back (`normalizeShapeHolds`, in `chart_legato.h` beside `chartResolutions`,
+  whose notes layer `normalizedChartResolutions` completes from the normalizer's own derivation):
+  the editor's plan gate on every note edit, the timeline funnel on every tempo or meter edit
+  (`SongTimelineSnapshot::normalize`), and `normalizeChart` at load.
 - `chartNoteLengths(presentation, connections, shapes)` — how long the 3D board shows a note as
   still in play, which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS
   or was never earned, covered by a span, is held to the span's reach — while the grip is held, the
@@ -437,10 +442,12 @@ marker model but the two that state the grid (`g_states_grid`: the tempo map and
 timeline), the chart funnel `applyChartEditPlan` refuses every planned chart edit, naming the
 notes it would rewrite, the pending fret entry's plan refuses so the typed value's box is red, and
 the automation points verb refuses — and the plugin removal, which takes a plugin's automation out
-of the song, is unavailable (`ActionConditions::note_locked`). Two writes the lock admits move
+of the song, is unavailable (`ActionConditions::note_locked`). Three writes the lock admits move
 content, and each re-engages the lock on what it wrote (`engageNoteLock`): the locked Scale Tempo,
-whose free factor rounds the content it scales, and the settle sweep, whose flatten is the chart's
-normal form. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
+whose free factor rounds the content it scales, the settle sweep, whose flatten is the chart's
+normal form, and a landing whose hold normalizer rewrote a shape hold (`recordChartRewrites`) —
+otherwise every later locked edit would lay its map under an origin without the rewrite, and make
+and log it again. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
 true through it; `timeKeptTimeline` reads its meters from the verb's map for that reason.
 
 Whether the history still stands on the origin is the history's own fact. Engaging marks the

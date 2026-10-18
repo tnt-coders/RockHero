@@ -812,6 +812,10 @@ std::expected<Chart, ChartError> parseChartDocument(
             chart.shape_holds.push_back(*hold);
         }
     }
+    if (auto holds = validateShapeHolds(chart.shape_holds, tempo_map); !holds.has_value())
+    {
+        return std::unexpected{std::move(holds.error())};
+    }
 
     return chart;
 }

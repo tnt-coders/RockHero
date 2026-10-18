@@ -19,7 +19,9 @@ namespace rock_hero::common::core
 \brief Parses a chart document from its JSON text.
 
 Parsing is structural only; run validateChartRules against the song's tempo map afterwards for
-the rules that need grid context. The tempo map is a parameter because the document stores every
+the rules that need grid context. The shape-hold stream's structure is judged here
+(\ref validateShapeHolds), since the load normalizer derives under the holds before the validator
+runs. The tempo map is a parameter because the document stores every
 position as a whole-note place, which only the song's meters can address (\ref parsePlaceToken).
 
 \param text UTF-8 chart document text.

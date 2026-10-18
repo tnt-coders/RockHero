@@ -2730,6 +2730,52 @@ TEST_CASE("Chart rules refuse an empty, unordered or overlapping shape hold", "[
     }
 }
 
+// The load normalizer derives under the holds before the validator runs, so the reader refuses a
+// hold stream that is not well formed: the walk could not place it.
+TEST_CASE("Chart document refuses an overlapping or empty shape hold", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    for (const std::string_view refused :
+         {R"({ "at": "0", "end": "1" }, { "at": "1/2", "end": "2" })",
+          R"({ "at": "1", "end": "1" })"})
+    {
+        CAPTURE(refused);
+        const auto result = parseChartDocument(holdsDocument(std::string{refused}), tempo_map);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == ChartErrorCode::InvalidShapeHold);
+    }
+}
+
+// A hold its notes no longer bear out is a repair the load reports like any other: its end moves to
+// where the walk publishes the span, and the result is normal.
+TEST_CASE("Chart normalization writes back a shape hold's published extent", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2"};
+    for (const int string : {1, 2})
+    {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = string;
+        note.fret = 5;
+        note.sustain = Fraction{1, 2};
+        chart.notes.push_back(note);
+    }
+    chart.shape_holds = {unnamedHold(
+        GridPosition{.measure = 1, .beat = 1}, GridPosition{.measure = 1, .beat = 2})};
+
+    const std::vector<ChartConversion> conversions = normalizeChart(chart, tempo_map);
+    REQUIRE(conversions.size() == 1);
+    CHECK(conversions[0].repair == ChartRepair::ShapeHoldEndMoved);
+    CHECK(
+        chart.shape_holds ==
+        std::vector{unnamedHold(
+            GridPosition{.measure = 1, .beat = 1}, GridPosition{.measure = 1, .beat = 3})});
+    CHECK(normalizeChart(chart, tempo_map).empty());
+    CHECK(validateChartRules(chart, tempo_map).has_value());
+}
+
 // Verifies the structural rules no repair can express are refused, beside the forms the load
 // normalizes instead.
 TEST_CASE("Chart rules reject structural violations", "[core][chart]")

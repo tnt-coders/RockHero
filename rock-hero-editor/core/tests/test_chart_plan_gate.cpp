@@ -164,8 +164,10 @@ void requireSameAnswer(
 {
     const std::expected<std::vector<ChartNote>, ChartPlanRefusal> whole =
         wholeStreamGate(chart, tempo_map, base, candidate);
+    Chart based = chart;
+    based.notes = base;
     const std::expected<JudgedChartPlan, ChartPlanRefusal> touched =
-        finalizePlan(chart, tempo_map, base, candidate, "Gate");
+        finalizePlan(based, tempo_map, candidate, "Gate");
     REQUIRE(touched.has_value() == whole.has_value());
     if (!whole.has_value())
     {

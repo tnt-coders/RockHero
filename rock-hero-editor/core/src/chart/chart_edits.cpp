@@ -63,7 +63,12 @@ namespace
     const std::vector<common::core::ChartNote>& before,
     const std::vector<common::core::ChartNote>& after, const std::string_view label)
 {
-    ChartEditPlan plan{.removed = {}, .inserted = {}, .label = std::string{label}};
+    ChartEditPlan plan{
+        .removed = {},
+        .inserted = {},
+        .shape_holds = std::nullopt,
+        .label = std::string{label},
+    };
     std::size_t before_index = 0;
     std::size_t after_index = 0;
     while (before_index < before.size() || after_index < after.size())
@@ -181,17 +186,17 @@ enum class StrandedStrikeRepair : std::uint8_t
 };
 
 // The candidate indices the gate must judge (finalizePlan): every note the candidate touched — a
-// value the live chart does not hold, which is exactly what the diff inserts — and, for a touched
-// onset on a slot the live chart leaves empty, the one ring it can shorten (the locality rule at
+// value the base does not hold, which is exactly what the diff inserts — and, for a touched onset
+// on a slot the base leaves empty, the one ring it can shorten (the locality rule at
 // sustainBoundOf). Every note on a touched slot counts, not just the first: a duplicate lands
 // beside its twin (insertAtSlot), and the order rule between the two is its refusal. Ascending and
 // unique, the order the stream validator asks in.
 [[nodiscard]] std::vector<std::size_t> affectedIndices(
-    const std::vector<common::core::ChartNote>& live,
+    const std::vector<common::core::ChartNote>& base,
     const std::vector<common::core::ChartNote>& candidate)
 {
     std::vector<std::size_t> affected;
-    for (const common::core::ChartNote& note : diffNotes(live, candidate, {}).inserted)
+    for (const common::core::ChartNote& note : diffNotes(base, candidate, {}).inserted)
     {
         const auto slot =
             std::ranges::equal_range(candidate, note, common::core::chartNoteOrderLess);
@@ -199,7 +204,7 @@ enum class StrandedStrikeRepair : std::uint8_t
         {
             affected.push_back(static_cast<std::size_t>(held - candidate.begin()));
         }
-        if (std::ranges::binary_search(live, note, common::core::chartNoteOrderLess))
+        if (std::ranges::binary_search(base, note, common::core::chartNoteOrderLess))
         {
             continue;
         }
@@ -261,15 +266,14 @@ enum class StrandedStrikeRepair : std::uint8_t
 } // namespace
 
 std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base,
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, const std::string_view label)
 {
     // The gate reads slot order rather than restoring it: every planner keeps it while it builds.
     assert(
         std::ranges::is_sorted(candidate, common::core::chartNoteOrderLess) &&
         "a planner handed the gate a candidate out of slot order");
-    const std::vector<std::size_t> affected = affectedIndices(chart.notes, candidate);
+    const std::vector<std::size_t> affected = affectedIndices(base.notes, candidate);
     // The one rule a note cannot obey alone, normalized exactly as a loaded chart is: a re-strike
     // stops the ring, so a note landing inside a ring truncates it and the statement at that
     // ring's end rides back with the end — onto the new head itself, which is where the store says
@@ -295,32 +299,37 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
         static_cast<void>(common::core::flattenStrandedStrike(candidate[index]));
     }
     if (std::expected<void, common::core::ChartError> valid =
-            validateAffected(candidate, affected, chart.tuning, tempo_map);
+            validateAffected(candidate, affected, base.tuning, tempo_map);
         !valid.has_value())
     {
         return std::unexpected{ChartPlanInvalid{std::move(valid.error().message)}};
     }
-    // An empty diff lands `base`, which already passed the hand-position coverage rule (it is the
-    // live chart, or the stream a gesture started from), so it is NoChange before any derivation is
-    // paid for.
-    ChartEditPlan plan = diffNotes(base, candidate, label);
+    // An empty diff lands `base`, a fixpoint of this gate whose holds are already normal, so it is
+    // NoChange before any derivation is paid for.
+    ChartEditPlan plan = diffNotes(base.notes, candidate, label);
     if (plan.empty())
     {
         return std::unexpected{ChartPlanNoChange{}};
     }
-    // Whole-stream rather than over the affected notes: a hold is derived from its whole figure, so
-    // an edit can change what the hand grips far from the notes it touched. Derived only now,
-    // because the derivation assumes the valid, slot-ordered stream the checks above just proved,
-    // and kept: it is the notes layer of the stream this plan lands, which the commit seeds.
-    common::core::ChartResolutions resolved =
-        common::core::chartResolutions(candidate, chart.shape_holds, chart.tuning.capo, tempo_map);
+    // Whole-chart rather than over the affected notes: a span is derived from its whole figure, so
+    // an edit can move a hold's close or what the hand grips far from the notes it touched. Derived
+    // only now, because the derivation assumes the valid, slot-ordered stream the checks above just
+    // proved, and kept: it is the notes layer of the chart this plan lands, which the commit seeds.
+    common::core::NormalizedChartResolutions normal = common::core::normalizedChartResolutions(
+        candidate, base.shape_holds, base.tuning.capo, tempo_map);
+    plan.shape_holds = shapeHoldsChange(base.shape_holds, normal.resolved.shape_holds);
     if (std::expected<void, common::core::ChartError> covered =
-            common::core::validateFretHandCoverage(resolved, chart.fret_hand_positions, tempo_map);
+            common::core::validateFretHandCoverage(
+                normal.resolved, base.fret_hand_positions, tempo_map);
         !covered.has_value())
     {
         return std::unexpected{ChartPlanInvalid{std::move(covered.error().message)}};
     }
-    return JudgedChartPlan{.plan = std::move(plan), .resolved = std::move(resolved)};
+    return JudgedChartPlan{
+        .plan = std::move(plan),
+        .resolved = std::move(normal.resolved),
+        .conversions = std::move(normal.conversions),
+    };
 }
 
 namespace
@@ -384,7 +393,7 @@ template <typename Write>
         return {.plan = std::unexpected{ChartPlanNoChange{}}, .refused = std::move(refused)};
     }
     return {
-        .plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label),
+        .plan = finalizePlan(chart, tempo_map, std::move(candidate), label),
         .refused = std::move(refused),
     };
 }
@@ -657,7 +666,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertNote(
     // keys address a head that stands where they land, so a placement never meets one.
     std::vector<common::core::ChartNote> candidate = chart.notes;
     insertAtSlot(candidate, std::move(note));
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
+    return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Note");
 }
 
 std::optional<ChartPathTail> chartPathTailAt(
@@ -709,7 +718,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
     point.fret = fret;
     target->keyframes.insert(at, point);
 
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Keyframe");
+    return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Keyframe");
 }
 
 std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
@@ -750,7 +759,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
     std::vector<common::core::ChartNote> candidate = chart.notes;
     candidate[static_cast<std::size_t>(origin - chart.notes.begin())] = products[0];
     insertAtSlot(candidate, std::move(head));
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Cut Ring");
+    return finalizePlan(chart, tempo_map, std::move(candidate), "Cut Ring");
 }
 
 int chartFretInForceAt(
@@ -884,7 +893,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planDeleteSelection(
     {
         label = "Remove " + count_label(stripped_frets, "Fret", "Frets");
     }
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
+    return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
 }
 
 ChartMoveDelta chartMoveGestureDelta(
@@ -1075,7 +1084,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
         {
             return std::unexpected{ChartPlanNoChange{}};
         }
-        return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
+        return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
     }
     if (!moveKeyedNotes(tempo_map, notes.keyed, whole_note_delta, string_delta, string_count))
     {
@@ -1109,7 +1118,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     notes.rest.insert(notes.rest.end(), notes.keyed.begin(), notes.keyed.end());
     std::ranges::inplace_merge(
         notes.rest, notes.rest.begin() + moved_from, common::core::chartNoteOrderLess);
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
+    return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
 }
 
 std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
@@ -1257,12 +1266,12 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
             }
         }
     }
-    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
 std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& keys,
+    const common::core::Chart& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps)
 {
     // A gesture that has recorded nothing describes nothing; the finalize below would answer
@@ -1285,10 +1294,10 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
             continue;
         }
         const auto start = std::ranges::lower_bound(
-            base, chartSlotKeyOf(note), {}, [](const common::core::ChartNote& based) {
+            base.notes, chartSlotKeyOf(note), {}, [](const common::core::ChartNote& based) {
                 return chartSlotKeyOf(based);
             });
-        if (start == base.end() || chartSlotKeyOf(*start) != chartSlotKeyOf(note))
+        if (start == base.notes.end() || chartSlotKeyOf(*start) != chartSlotKeyOf(note))
         {
             continue;
         }
@@ -1379,7 +1388,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
     // needs no name at all: the finalize below refuses it as NoChange and the caller retires the
     // gesture's entry instead of labelling one that describes nothing.
     const std::string_view label = net.numerator > 0 ? "Grow Sustain" : "Shrink Sustain";
-    return finalizePlan(chart, tempo_map, base, std::move(candidate), label);
+    return finalizePlan(base, tempo_map, std::move(candidate), label);
 }
 
 // Claims a connection for every selected note the resolver justifies one for. Which note to connect
@@ -1513,7 +1522,7 @@ ChartSelectionPlan planSetLegato(
     // A gate refusal is forwarded as one: claims that resolved but cannot be kept are a refused
     // press, never an empty one that falls through to clear.
     return ChartSelectionPlan{
-        .plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label),
+        .plan = finalizePlan(chart, tempo_map, std::move(candidate), label),
         .refused = std::move(refused),
     };
 }
@@ -1527,15 +1536,19 @@ ChartEditPlan planSettleChart(
     static_cast<void>(common::core::flattenLegatoClaims(settled, unjustified));
     // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
     // order, the same-string overlap bound, and every intra-note rule are exactly as the stream
-    // already satisfied them — a plain pick demands nothing. Passing through the finalize would
-    // also diff against the current stream rather than `base`, which is the one thing this planner
-    // needs to control.
+    // already satisfied them — a plain pick demands nothing — and an unjustified claim already
+    // derives as the pick it becomes, so no span moves and the holds stay normal. Passing through
+    // the finalize would also diff against the current stream rather than `base`, which is the one
+    // thing this planner needs to control. The holds are carried as the chart holds them, so a fold
+    // over a burst that rewrote them keeps the rewrite.
     //
-    // The diff itself may come out EMPTY, and that is a real plan rather than a refusal: it means
-    // the flatten put the stream back exactly where `base` had it, so the caller still has to
+    // The plan itself may come out EMPTY, and that is a real plan rather than a refusal: it means
+    // the flatten put the chart back exactly where `base` had it, so the caller still has to
     // commit — walking the chart back to `base` is what removes the claim — and the entry it
     // replaces correctly describes nothing.
-    return diffNotes(base.notes, settled, label);
+    ChartEditPlan plan = diffNotes(base.notes, settled, label);
+    plan.shape_holds = shapeHoldsChange(base.shape_holds, chart.shape_holds);
+    return plan;
 }
 
 ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
@@ -1552,7 +1565,10 @@ ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
     {
         static_cast<void>(common::core::stripSilentKeyframes(note));
     }
-    return diffNotes(removed, inserted, plan.label);
+    // A silent point moves no span's close, so the holds are written as they are.
+    ChartEditPlan written = diffNotes(removed, inserted, plan.label);
+    written.shape_holds = plan.shape_holds;
+    return written;
 }
 
 ChartSelectionPlan planSetAttack(
@@ -1788,7 +1804,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
     const std::string_view label =
         split_any ? (join_any ? "Split and Join" : "Split Note") : "Join Notes";
     std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
-        finalizePlan(chart, tempo_map, chart.notes, std::move(joined), label);
+        finalizePlan(chart, tempo_map, std::move(joined), label);
     if (!plan.has_value())
     {
         return std::unexpected{plan.error()};
@@ -2482,17 +2498,38 @@ withPlanApplied(const std::vector<common::core::ChartNote>& current, const Chart
 
 } // namespace
 
+std::optional<ShapeHoldsChange> shapeHoldsChange(
+    const std::vector<common::core::ShapeHold>& before,
+    const std::vector<common::core::ShapeHold>& after)
+{
+    if (before == after)
+    {
+        return std::nullopt;
+    }
+    return ShapeHoldsChange{.before = before, .after = after};
+}
+
 std::expected<void, EditorUndoFailureCode> applyChartChange(
     common::core::Chart& chart, const ChartEditPlan& plan)
 {
-    // Rebuilt on a copy before it is swapped in, so a failed precondition partway through cannot
-    // leave half the plan applied.
+    // Rebuilt on a copy, and the holds checked, before anything is swapped in, so a failed
+    // precondition cannot leave half the plan applied.
     auto notes = withPlanApplied(chart.notes, plan);
     if (!notes.has_value())
     {
         return std::unexpected{notes.error()};
     }
+    // Bound once so the presence test and the reads are provably the same object.
+    const std::optional<ShapeHoldsChange>& holds = plan.shape_holds;
+    if (holds.has_value() && chart.shape_holds != holds->before)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
     chart.notes = std::move(*notes);
+    if (holds.has_value())
+    {
+        chart.shape_holds = holds->after;
+    }
     return {};
 }
 

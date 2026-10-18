@@ -376,7 +376,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // chartTechniqueLaw; the operand's heads are claimed or cleared, and the operand becomes the
     // selection.
     void toggleChartLegato(const ChartSelection& operand);
-    void disarmChartVerbWindow() noexcept;
+    void disarmChartVerbWindow();
     // The proof every coalescing window rests on, written once for both verbs: the window's
     // selection is still the live one, and the entry it names is still the history top this burst
     // pushed. Any push, undo, or redo moves the cursor and retires the record, so the position IS
@@ -1498,6 +1498,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // an armed window always has a verb, and an initializer here would instantiate the
         // variant's default constructor at class scope, which a strict standard library refuses.
         ChartVerbWindowVerb verb;
+        // What a gesture's replay rewrote, net against where its run began: recorded once the run
+        // ends (disarmChartVerbWindow), never per press, since every press replays from that start.
+        std::vector<common::core::ChartConversion> rewrites;
     };
     std::optional<ChartVerbWindow> m_chart_verb_window{};
     // The anchors the open bend question names, which its answer writes: set by the question
@@ -1761,13 +1764,29 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // anchor the dragged one's time.
     std::optional<std::int64_t> m_held_tempo_anchor_milliseconds{};
 
+    // A model the funnel's front half passed, normalized, and what normalizing it rewrote in the
+    // song's content: the lines its landing records (recordChartRewrites).
+    template <typename Snapshot> struct JudgedMarkerModel
+    {
+        Snapshot model;
+        std::vector<common::core::ChartConversion> rewrites;
+    };
+
     // The funnel's front half, asked by the commit and by anything that must know in advance what
     // the commit would do with a model (a pending fret entry's red box): the produced model
     // normalized, refused Invalid where it breaks a rule (with the rule's diagnostic), NoChange
     // where it matches `before`. Defined beside the commit in marker_model_commit.h.
     template <typename Snapshot>
-    [[nodiscard]] std::expected<Snapshot, ChartPlanRefusal> judgeMarkerModel(
+    [[nodiscard]] std::expected<JudgedMarkerModel<Snapshot>, ChartPlanRefusal> judgeMarkerModel(
         const Snapshot& before, Snapshot after) const;
+
+    // THE one record of a rewrite the hold normalizer made, for every edit that lands one: a chart
+    // edit as it commits, a held chart gesture once its run ends (disarmChartVerbWindow), and a
+    // marker landing. Logs each line once, by the landing that wrote it. Under the Note Lock a
+    // rewrite moves content the lock's origin does not hold, so the lock re-engages on what was
+    // written, the lock's rule for every write that moves content: the next locked edit starts from
+    // the rewrite rather than making and logging it again.
+    void recordChartRewrites(std::span<const common::core::ChartConversion> rewrites);
 
     // The index of the row's marker starting exactly at a position, or nothing where none does —
     // the one position-to-index rule every marker lookup by identity asks.

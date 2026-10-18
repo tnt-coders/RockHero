@@ -527,6 +527,67 @@ and that assertion are the coherence rule between a derivation and its chart.
     const std::vector<ChartNote>& notes, std::span<const ShapeHold> shape_holds, int capo,
     const TempoMap& tempo_map);
 
+/*! \brief Shape holds in their normal form and what reaching it took (\ref normalizeShapeHolds). */
+struct ShapeHoldNormalization
+{
+    /*! \brief The holds in their normal form, ascending and never overlapping. */
+    std::vector<ShapeHold> shape_holds;
+
+    /*! \brief One conversion per rewrite, each naming its hold as it now stands or stood. */
+    std::vector<ChartConversion> conversions;
+};
+
+/*!
+\brief Brings a chart's shape holds to their normal form (shape rule 9): THE one hold normalizer,
+run after every edit that is not a hold verb — a note edit (the editor's plan gate), a tempo or
+meter edit (the timeline funnel) and a load (\ref normalizeChart).
+
+The walk is the one authority on a hold, so the normal form is what it publishes. A hold the walk
+leaves nothing — one a re-address rounded onto no length, or whose span closes at its start — is
+dropped, each judged on a derivation of the holds that remain, since a dropped hold's start was a
+wall its neighbour's close may have stopped at. Then every end is written back where the walk
+published it (\ref shapeHoldPublishedEnd): one rule that is both the crop, back to a hand conflict
+an edit put inside, and the extension, on past an end where nothing closed. Neither can make two
+holds overlap, since every span closes at the next hold's start. Each moved end is one the walk
+closed a span at, so normalizing the result again changes nothing. A none hold always fits, so only
+its length can drop it.
+
+\param notes Note stream the holds are judged against, sorted by (position, string) and valid.
+\param shape_holds The holds: ascending and never overlapping, possibly with a hold of no length.
+\param tempo_map Song tempo map placing the notes and the holds.
+\return The holds in their normal form and one conversion per rewrite; no conversions where the
+        holds were already normal.
+*/
+[[nodiscard]] ShapeHoldNormalization normalizeShapeHolds(
+    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds,
+    const TempoMap& tempo_map);
+
+/*! \brief A notes layer derived under normalized shape holds (\ref normalizedChartResolutions). */
+struct NormalizedChartResolutions
+{
+    /*! \brief The notes layer, which records the holds in their normal form. */
+    ChartResolutions resolved;
+
+    /*! \brief What normalizing the holds took (\ref ShapeHoldNormalization::conversions). */
+    std::vector<ChartConversion> conversions;
+};
+
+/*!
+\brief The notes layer under shape holds brought to their normal form first (\ref
+normalizeShapeHolds), for the caller that judges the result whole: the derivation the normalizer
+judged with is the one the layer is completed from, so nothing is derived twice.
+
+\param notes Note stream to resolve, sorted by (position, string) and valid.
+\param shape_holds The holds, as \ref normalizeShapeHolds takes them.
+\param capo The tuning's capo fret; 0 for none.
+\param tempo_map Song tempo map supplying the meter every place is measured in.
+\return The layer, whose \ref ChartResolutions::shape_holds are the normalized holds, and the
+        rewrites.
+*/
+[[nodiscard]] NormalizedChartResolutions normalizedChartResolutions(
+    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds, int capo,
+    const TempoMap& tempo_map);
+
 /*!
 \brief Flattens the named legato claims to plain picks — THE statement of what a rejected claim
 becomes.

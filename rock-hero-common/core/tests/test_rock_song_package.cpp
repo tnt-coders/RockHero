@@ -1879,6 +1879,47 @@ TEST_CASE(
     }
 }
 
+// A shape hold whose stated end lies where its notes close nothing loads with the end its notes
+// publish, and the rewrite is REPORTED, which is what opens the session dirty.
+TEST_CASE("Rock song package read writes back a shape hold's extent", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    // A two-string chord ringing half a measure under a hold ending a quarter in, mid-sustain.
+    writeTextFile(
+        package_directory / chart_ref,
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+        R"( "notes": [ { "at": "0", "string": 1, "fret": 5, "sustain": "1/2" },)"
+        R"( { "at": "0", "string": 2, "fret": 7, "sustain": "1/2" } ],)"
+        R"( "holds": [ { "at": "0", "end": "1/4" } ] })");
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read = readRockSongPackageDirectory(package_directory);
+    REQUIRE(read.has_value());
+    REQUIRE(read->conversions.size() == 1);
+    CHECK(read->conversions.front().conversion.repair == ChartRepair::ShapeHoldEndMoved);
+    CHECK(read->conversions.front().conversion.where == "shape hold 1:1 to 1:3");
+    REQUIRE(read->song.arrangements.front().chart.has_value());
+    if (read->song.arrangements.front().chart.has_value())
+    {
+        const Chart& loaded_chart = *read->song.arrangements.front().chart;
+        CHECK(
+            loaded_chart.shape_holds == std::vector{ShapeHold{
+                                            .start = GridPosition{.measure = 1, .beat = 1},
+                                            .end = GridPosition{.measure = 1, .beat = 3},
+                                            .grip = UnnamedGrip{},
+                                        }});
+        CHECK(validateChartRules(loaded_chart, read->song.tempo_map).has_value());
+    }
+}
+
 // The load sweep: a hand-made document can carry a connection claim its own notes do not justify —
 // nothing the project writes can, since the writer settles first — and the reader settles it rather
 // than refusing the package, reporting the conversion so the editor can mark the session dirty.

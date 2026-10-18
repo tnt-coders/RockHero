@@ -518,9 +518,24 @@ chartResolutions can answer the class before the bracket re-read that consumes i
     const std::vector<ChartPosture>& postures);
 
 /*!
-\brief Whether a shape hold fits its notes: the span the walk publishes for it covers exactly its
-stated extent (shape rule 9). The walk is the one authority on a hold, so this only compares; the
-hold stream's structure is \ref validateShapeHolds's.
+\brief Where a shape hold's published extent ends (shape rule 9): the close of the span the walk
+publishes for it, fronted at its start. The walk is the one authority on a hold, so this only reads.
+
+A walk that published no span for the hold leaves it nothing, and so answers the start. A none hold
+states no span and nothing inside it closes, so its extent is its own.
+
+\param shapes The spans derived with the hold among the chart's holds (\ref deriveChartShapes),
+       sorted by place.
+\param tempo_map Tempo map the spans were derived against, placing the hold's edges.
+\param hold The hold read.
+\return The end on the whole-note axis; the start, or before it, where the extent is empty.
+*/
+[[nodiscard]] Fraction shapeHoldPublishedEnd(
+    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold);
+
+/*!
+\brief Whether a shape hold fits its notes: its published extent (\ref shapeHoldPublishedEnd) is
+exactly its stated extent (shape rule 9). The hold stream's structure is \ref validateShapeHolds's.
 
 A none hold always fits.
 
@@ -528,7 +543,7 @@ A none hold always fits.
        sorted by place.
 \param tempo_map Tempo map the spans were derived against, placing the hold's edges.
 \param hold The hold judged.
-\return True when a span the hold states runs exactly from the hold's start to its end.
+\return True when the span the hold states runs exactly from the hold's start to its end.
 */
 [[nodiscard]] bool shapeHoldFitsNotes(
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold);

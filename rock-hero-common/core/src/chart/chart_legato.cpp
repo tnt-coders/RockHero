@@ -3,6 +3,7 @@
 #include "span_cover.h"
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
@@ -12,6 +13,7 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
+#include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <span>
 #include <string>
 #include <utility>
@@ -329,22 +331,90 @@ std::vector<std::optional<int>> chartHeldStops(
     return held;
 }
 
-// The notes layer in pipeline order: connections, margins, spans, hand demands, held stops,
-// classes, then the one presentation pass that owns every tail decision.
-ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const std::span<const ShapeHold> shape_holds,
-    const int capo, const TempoMap& tempo_map)
+namespace
+{
+
+// Shape holds in their normal form with the spans derived under them, judged on connections and
+// margins the caller already holds.
+struct NormalSpans
+{
+    std::vector<ShapeHold> shape_holds;
+    ChartShapes derived;
+    std::vector<ChartConversion> conversions;
+};
+
+// The drops first, each pass derived afresh, then the ends written back once; the spans are derived
+// again only where an end moved, since a moved end is a moved wall.
+[[nodiscard]] NormalSpans normalSpans(
+    const ChartConnections& connections, const HeadMargins& margins,
+    std::vector<ShapeHold> shape_holds, const TempoMap& tempo_map)
+{
+    std::vector<ChartConversion> conversions;
+    // Erases every hold `empty` names, recording each; reports whether any went.
+    const auto drop_where = [&shape_holds, &conversions](const auto& empty) {
+        return std::erase_if(shape_holds, [&conversions, &empty](const ShapeHold& hold) {
+                   if (!empty(hold))
+                   {
+                       return false;
+                   }
+                   conversions.push_back(
+                       ChartConversion{
+                           .repair = ChartRepair::ShapeHoldDropped,
+                           .where = formatShapeHoldToken(hold),
+                       });
+                   return true;
+               }) > 0;
+    };
+    // A re-address can round a hold onto no length, which the walk cannot place.
+    static_cast<void>(drop_where([](const ShapeHold& hold) { return !(hold.start < hold.end); }));
+    ChartShapes derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
+    while (drop_where([&](const ShapeHold& hold) {
+        return !(
+            tempo_map.wholeNotePositionAt(hold.start) <
+            shapeHoldPublishedEnd(derived.shapes, tempo_map, hold));
+    }))
+    {
+        derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
+    }
+    bool moved = false;
+    for (ShapeHold& hold : shape_holds)
+    {
+        const Fraction end = shapeHoldPublishedEnd(derived.shapes, tempo_map, hold);
+        if (end == tempo_map.wholeNotePositionAt(hold.end))
+        {
+            continue;
+        }
+        // Every close is an onset, a ring's end, a landing or the song's end, all on the grid.
+        assert(isOnTickLattice(end) && "a shape hold's close lands on the grid");
+        hold.end = tempo_map.gridPositionAtWholeNote(end);
+        conversions.push_back(
+            ChartConversion{
+                .repair = ChartRepair::ShapeHoldEndMoved,
+                .where = formatShapeHoldToken(hold),
+            });
+        moved = true;
+    }
+    if (moved)
+    {
+        derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
+    }
+    return NormalSpans{
+        .shape_holds = std::move(shape_holds),
+        .derived = std::move(derived),
+        .conversions = std::move(conversions),
+    };
+}
+
+// The notes layer past the spans, completed on the stages a caller derived: hand demands, held
+// stops, classes, then the one presentation pass that owns every tail decision.
+[[nodiscard]] ChartResolutions completedResolutions(
+    ChartConnections connections, HeadMargins margins, std::vector<ShapeHold> shape_holds,
+    ChartShapes derived, const int capo, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
-    resolutions.connections = chartConnections(notes, tempo_map);
-    resolutions.shape_holds.assign(shape_holds.begin(), shape_holds.end());
-    // The margin before every head, asked once here because the spans, the ink ends and the drawn
-    // extents all keep it, each of them several times per head.
-    resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
-    // The SPANS are independent of presentation entirely: they read the stored stream and the
-    // charter's holds alone, since every stop they compare comes off a stored fret channel.
-    ChartShapes derived = deriveChartShapes(
-        resolutions.connections, resolutions.margins, resolutions.shape_holds, tempo_map);
+    resolutions.connections = std::move(connections);
+    resolutions.shape_holds = std::move(shape_holds);
+    resolutions.margins = std::move(margins);
     // WHAT THE NOTES DEMAND OF THE HAND, and its place in the pipeline is part of the rule: notes,
     // then grips, then positions, so a span's grip is a hold the hand never leaves
     // (\ref fretHandHolds). The spans never read the hand, and the positions come after this layer
@@ -380,6 +450,66 @@ ChartResolutions chartResolutions(
     resolutions.ink_end = std::move(presentation.ink_end);
     resolutions.rested_from = std::move(presentation.rested_from);
     return resolutions;
+}
+
+} // namespace
+
+// The notes layer in pipeline order: connections, margins, spans, then the rest.
+ChartResolutions chartResolutions(
+    const std::vector<ChartNote>& notes, const std::span<const ShapeHold> shape_holds,
+    const int capo, const TempoMap& tempo_map)
+{
+    ChartConnections connections = chartConnections(notes, tempo_map);
+    // The margin before every head, asked once here because the spans, the ink ends and the drawn
+    // extents all keep it, each of them several times per head.
+    HeadMargins margins{connections.places, tempo_map};
+    // The SPANS are independent of presentation entirely: they read the stored stream and the
+    // charter's holds alone, since every stop they compare comes off a stored fret channel.
+    ChartShapes derived = deriveChartShapes(connections, margins, shape_holds, tempo_map);
+    return completedResolutions(
+        std::move(connections),
+        std::move(margins),
+        std::vector<ShapeHold>(shape_holds.begin(), shape_holds.end()),
+        std::move(derived),
+        capo,
+        tempo_map);
+}
+
+ShapeHoldNormalization normalizeShapeHolds(
+    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds,
+    const TempoMap& tempo_map)
+{
+    // No holds are their own normal form, and cost no derivation.
+    if (shape_holds.empty())
+    {
+        return {};
+    }
+    const ChartConnections connections = chartConnections(notes, tempo_map);
+    const HeadMargins margins{connections.places, tempo_map};
+    NormalSpans normal = normalSpans(connections, margins, std::move(shape_holds), tempo_map);
+    return ShapeHoldNormalization{
+        .shape_holds = std::move(normal.shape_holds),
+        .conversions = std::move(normal.conversions),
+    };
+}
+
+NormalizedChartResolutions normalizedChartResolutions(
+    const std::vector<ChartNote>& notes, std::vector<ShapeHold> shape_holds, const int capo,
+    const TempoMap& tempo_map)
+{
+    ChartConnections connections = chartConnections(notes, tempo_map);
+    HeadMargins margins{connections.places, tempo_map};
+    NormalSpans normal = normalSpans(connections, margins, std::move(shape_holds), tempo_map);
+    return NormalizedChartResolutions{
+        .resolved = completedResolutions(
+            std::move(connections),
+            std::move(margins),
+            std::move(normal.shape_holds),
+            std::move(normal.derived),
+            capo,
+            tempo_map),
+        .conversions = std::move(normal.conversions),
+    };
 }
 
 std::vector<ChartConversion> flattenLegatoClaims(

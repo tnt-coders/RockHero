@@ -328,13 +328,13 @@ std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> Edito
         return std::unexpected{ChartPlanNoChange{}};
     }
     *match = retyped(*match, edge, fret);
-    std::expected<FretHandPositionsSnapshot, ChartPlanRefusal> judged =
+    std::expected<JudgedMarkerModel<FretHandPositionsSnapshot>, ChartPlanRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
         return std::unexpected{std::move(judged.error())};
     }
-    return ChartFretHandPlan{.placements = std::move(*judged), .edge = edge};
+    return ChartFretHandPlan{.placements = std::move(judged->model), .edge = edge};
 }
 
 // The settle of a placement's fret entry. Its selection names the placement by position, which the

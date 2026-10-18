@@ -1,11 +1,14 @@
 #include "chart/pick_slide_defaults.h"
+#include "log_capture.h"
 
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -927,6 +930,71 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     // The run netted to zero, so its own entry is gone — and only its own: the pick-slide entry it
     // started from is still the history top.
     CHECK(fixture.undoEntryCount() == entries_before);
+}
+
+// A gesture replays every press from the chart it started on, holds included: a tail grown across a
+// shape hold's end extends the hold to where its span now closes, and stepping back lands the
+// original hold exactly, because the normalizer never runs on the stretched one. The rewrite is
+// recorded once, when the run ends, and a run that walked back to its start records nothing.
+TEST_CASE("A sustain gesture's hold rewrite reverses as it steps back", "[core][chart]")
+{
+    const testing::LogCapture capture;
+    GestureFixture fixture;
+    common::core::Chart chart = makeTestChart();
+    chart.notes[0].sustain = common::core::Fraction{1, 4};
+    chart.notes[1].sustain = common::core::Fraction{1, 4};
+    const common::core::ShapeHold hold{
+        .start = common::core::GridPosition{.measure = 2, .beat = 1},
+        .end = common::core::GridPosition{.measure = 2, .beat = 2},
+        .grip = common::core::UnnamedGrip{},
+    };
+    chart.shape_holds = {hold};
+    REQUIRE(fixture.load(std::move(chart)));
+    const auto holds = [&fixture] {
+        const common::core::Chart* const live = chartOrNull(fixture.controller);
+        return live != nullptr ? live->shape_holds : std::vector<common::core::ShapeHold>{};
+    };
+    const auto rewrites_logged = [&capture] {
+        const std::string text = capture.text();
+        std::size_t count = 0;
+        for (std::size_t at = text.find("chart edit normalized"); at != std::string::npos;
+             at = text.find("chart edit normalized", at + 1))
+        {
+            ++count;
+        }
+        return count;
+    };
+    common::core::ShapeHold extended = hold;
+    extended.end = common::core::GridPosition{.measure = 2, .beat = 3};
+
+    // The double click selects the whole measure-2 chord.
+    doubleClick(fixture.controller, 40.0f, 220.0f);
+    const std::size_t entries_before = fixture.undoEntryCount();
+
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 2});
+    CHECK(holds() == std::vector{extended});
+    CHECK(rewrites_logged() == 0);
+
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
+    CHECK(holds() == std::vector{hold});
+    CHECK(fixture.undoEntryCount() == entries_before);
+
+    // A run that ends stretched has written its rewrite, recorded once; undo restores the hold.
+    fixture.step(1);
+    fixture.step(1);
+    fixture.step(-1);
+    CHECK(holds() == std::vector{extended});
+    click(fixture.controller, 80.0f, 220.0f);
+    CHECK(rewrites_logged() == 1);
+    CHECK(
+        capture.text().find(
+            "a shape hold's end moved to where its shape closes at shape hold "
+            "2:1 to 2:3") != std::string::npos);
+    fixture.controller.onUndoRequested();
+    CHECK(holds() == std::vector{hold});
+    CHECK(rewrites_logged() == 1);
 }
 
 } // namespace rock_hero::editor::core

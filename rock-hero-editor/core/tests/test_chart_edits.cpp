@@ -1955,7 +1955,7 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
         gridStep(g_quarter_grid, false), gridStep(g_quarter_grid, false)
     };
 
-    const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+    const auto plan = planAdjustSustain(chart, tempo_map, chart, keys, steps);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -1973,7 +1973,7 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
     // With nothing left that can shrink, the press changes nothing at all: NoChange, the same
     // answer every planner gives for an empty diff.
     const std::vector<ChartSlotKey> only_short{keyAt({.measure = 2, .beat = 1}, 1)};
-    const auto unchanged = planAdjustSustain(chart, tempo_map, chart.notes, only_short, steps);
+    const auto unchanged = planAdjustSustain(chart, tempo_map, chart, only_short, steps);
     REQUIRE_FALSE(unchanged.has_value());
     CHECK(std::holds_alternative<ChartPlanNoChange>(unchanged.error()));
 }
@@ -1994,8 +1994,8 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
 
     SECTION("a grid grow ceilings onto the next line")
     {
-        const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        const auto plan =
+            planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, true)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -2012,8 +2012,8 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
 
     SECTION("a grid shrink floors onto the previous line")
     {
-        const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
+        const auto plan =
+            planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, false)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -2032,7 +2032,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
         const auto plan = planAdjustSustain(
             chart,
             tempo_map,
-            chart.notes,
+            chart,
             keys,
             {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
         REQUIRE(plan.has_value());
@@ -2067,7 +2067,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which no
     // step below expects, so the caller's own comparison fails.
     const auto ring_after = [&](const std::vector<ChartSustainStep>& steps) {
-        const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+        const auto plan = planAdjustSustain(chart, tempo_map, chart, keys, steps);
         if (!plan.has_value())
         {
             return common::core::Fraction{};
@@ -2095,7 +2095,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
     // describes nothing at all: NoChange, the answer that retires the gesture's entry. Only a run
     // that STARTED on a line can come back to its start — see the off-grid case above.
     steps.push_back(gridStep(g_quarter_grid, false));
-    const auto closed = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+    const auto closed = planAdjustSustain(chart, tempo_map, chart, keys, steps);
     REQUIRE_FALSE(closed.has_value());
     CHECK(std::holds_alternative<ChartPlanNoChange>(closed.error()));
 }
@@ -2120,7 +2120,7 @@ TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][c
     };
 
     const auto plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2161,7 +2161,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     SECTION("an eighth-note grid lines up with the beat")
     {
         const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
+            chart, tempo_map, chart, keys, {gridStep(common::core::Fraction{1, 8}, true)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -2177,8 +2177,8 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
 
     SECTION("a quarter-note grid spans two beats")
     {
-        const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        const auto plan =
+            planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, true)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -2215,7 +2215,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
 
     // Assertion-free (read inside CHECK expressions), as in the tick-nudged run above.
     const auto ring_after = [&](const std::vector<ChartSustainStep>& steps) {
-        const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+        const auto plan = planAdjustSustain(chart, tempo_map, chart, keys, steps);
         if (!plan.has_value())
         {
             return common::core::Fraction{};
@@ -2231,7 +2231,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     const auto closed = planAdjustSustain(
         chart,
         tempo_map,
-        chart.notes,
+        chart,
         keys,
         {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
     REQUIRE_FALSE(closed.has_value());
@@ -2258,7 +2258,7 @@ TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[cor
         gridStep(g_quarter_grid, true)
     };
 
-    const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+    const auto plan = planAdjustSustain(chart, tempo_map, chart, keys, steps);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2286,7 +2286,7 @@ TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][cha
     const auto grown = planAdjustSustain(
         chart,
         tempo_map,
-        chart.notes,
+        chart,
         keys,
         {gridStep(g_quarter_grid, true),
          gridStep(g_quarter_grid, true),
@@ -2308,7 +2308,7 @@ TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][cha
     const auto shrunk = planAdjustSustain(
         chart,
         tempo_map,
-        chart.notes,
+        chart,
         keys,
         {gridStep(g_quarter_grid, false),
          gridStep(g_quarter_grid, false),
@@ -2335,7 +2335,7 @@ TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
     const auto plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(plan.has_value());
     CHECK(std::holds_alternative<ChartPlanNoChange>(plan.error()));
 }
@@ -2349,11 +2349,11 @@ TEST_CASE("planAdjustSustain plans nothing for no-op inputs", "[core][chart]")
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto no_keys =
-        planAdjustSustain(chart, tempo_map, chart.notes, {}, {gridStep(g_quarter_grid, true)});
+        planAdjustSustain(chart, tempo_map, chart, {}, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(no_keys.has_value());
     CHECK(std::holds_alternative<ChartPlanNoChange>(no_keys.error()));
 
-    const auto no_steps = planAdjustSustain(chart, tempo_map, chart.notes, keys, {});
+    const auto no_steps = planAdjustSustain(chart, tempo_map, chart, keys, {});
     REQUIRE_FALSE(no_steps.has_value());
     CHECK(std::holds_alternative<ChartPlanNoChange>(no_steps.error()));
 }
@@ -2378,7 +2378,7 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
     const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
-    const std::vector<common::core::ChartNote> base = chart.notes;
+    const common::core::Chart base = chart;
 
     // The controller's discipline in miniature: the press appends its step to the run, and the plan
     // describes start → now, so the live chart walks back to the start before it applies.
@@ -2390,7 +2390,7 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
-            live.notes = base;
+            live.notes = base.notes;
             REQUIRE(applyChartChange(live, plan->plan).has_value());
         }
     };
@@ -2448,7 +2448,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{3, 4})};
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
-    const std::vector<common::core::ChartNote> base = chart.notes;
+    const common::core::Chart base = chart;
 
     common::core::Chart live = chart;
     std::vector<ChartSustainStep> steps;
@@ -2462,7 +2462,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
-            live.notes = base;
+            live.notes = base.notes;
             REQUIRE(applyChartChange(live, plan->plan).has_value());
         }
         return plan;
@@ -2509,7 +2509,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
     REQUIRE(regrown.has_value());
     if (regrown.has_value())
     {
-        live.notes = base;
+        live.notes = base.notes;
         REQUIRE(applyChartChange(live, regrown->plan).has_value());
         CHECK(ring() == common::core::Fraction{1, 2});
     }
@@ -2530,7 +2530,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
-    const std::vector<common::core::ChartNote> base = chart.notes;
+    const common::core::Chart base = chart;
 
     common::core::Chart live = chart;
     std::vector<ChartSustainStep> steps;
@@ -2542,7 +2542,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
-            live.notes = base;
+            live.notes = base.notes;
             REQUIRE(applyChartChange(live, plan->plan).has_value());
         }
     };
@@ -2606,7 +2606,7 @@ TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "
     // First gesture: shrink the pitched glide onto its last fret statement. That statement becomes
     // the slide-out, so the note's tail is now unpitched.
     const auto slide_out_plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
+        planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, false)});
     REQUIRE(slide_out_plan.has_value());
     applyAndValidate(chart, tempo_map, *slide_out_plan);
     const common::core::ChartNote* slid_out = noteAt(chart.notes, glideOnset(), 1);
@@ -2614,7 +2614,7 @@ TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "
     CHECK(slid_out->sustain == common::core::Fraction{3, 4});
     REQUIRE(common::core::endStatedFretOrNull(*slid_out) != nullptr);
 
-    const std::vector<common::core::ChartNote> base = chart.notes;
+    const common::core::Chart base = chart;
 
     // Second gesture, first step: growing past the slide-out turns it back into an ordinary pitched
     // keyframe because the keyframe stays put while the ring moves on.
@@ -2656,6 +2656,7 @@ TEST_CASE("applyChartChange applies a removal and insertion", "[core][chart]")
         ChartEditPlan{
             .removed = to_remove,
             .inserted = to_insert,
+            .shape_holds = std::nullopt,
             .label = {},
         });
     CHECK(result.has_value());
@@ -2681,6 +2682,7 @@ TEST_CASE("applyChartChange rejects a stale removal", "[core][chart]")
         ChartEditPlan{
             .removed = to_remove,
             .inserted = {},
+            .shape_holds = std::nullopt,
             .label = {},
         });
     CHECK_FALSE(result.has_value());
@@ -2708,6 +2710,7 @@ TEST_CASE("applyChartChange rejects a colliding insertion atomically", "[core][c
         ChartEditPlan{
             .removed = to_remove,
             .inserted = to_insert,
+            .shape_holds = std::nullopt,
             .label = {},
         });
     CHECK_FALSE(result.has_value());
@@ -3176,7 +3179,7 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     // And the duration verbs go on working on it: nothing about the note is frozen by the mute.
     // The half-note ring ends on a grid line, so one grid step is a quarter.
     const auto grown =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE(grown.has_value());
     if (grown.has_value())
     {
@@ -3430,10 +3433,20 @@ TEST_CASE("writtenChartPlan records the written form of a transition", "[core][c
     landed.keyframes.push_back(
         common::core::Keyframe{.offset = common::core::Fraction{3, 16}, .fret = 9});
 
-    const ChartEditPlan plant{.removed = {plain}, .inserted = {started}, .label = "Insert"};
+    const ChartEditPlan plant{
+        .removed = {plain},
+        .inserted = {started},
+        .shape_holds = std::nullopt,
+        .label = "Insert",
+    };
     CHECK(writtenChartPlan(plant).empty());
 
-    const ChartEditPlan land{.removed = {started}, .inserted = {landed}, .label = "Type"};
+    const ChartEditPlan land{
+        .removed = {started},
+        .inserted = {landed},
+        .shape_holds = std::nullopt,
+        .label = "Type",
+    };
     const ChartEditPlan written = writtenChartPlan(land);
     REQUIRE(written.removed.size() == 1);
     REQUIRE(written.inserted.size() == 1);
@@ -3454,8 +3467,8 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
     SECTION("shrink compresses the terminal onto the new end")
     {
         // A sixteenth-note step is a sixteenth off the quarter-note ring's on-grid end.
-        const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(g_sixteenth_grid, false)});
+        const auto plan =
+            planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_sixteenth_grid, false)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -3489,7 +3502,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
         walled.notes.push_back(makeTestNote({.measure = 3, .beat = 2, .offset = {1, 2}}, 1, 5));
         std::ranges::sort(walled.notes, common::core::chartNoteOrderLess);
         const auto onto = planAdjustSustain(
-            walled, tempo_map, walled.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
+            walled, tempo_map, walled, keys, {gridStep(common::core::Fraction{1, 8}, true)});
         REQUIRE(onto.has_value());
         if (onto.has_value())
         {
@@ -3501,8 +3514,8 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             CHECK(walled_scrape->keyframes.back().offset == common::core::Fraction{3, 8});
             CHECK(common::core::endStatedFretOrNull(*walled_scrape) != nullptr);
         }
-        const auto inside = planAdjustSustain(
-            walled, tempo_map, walled.notes, keys, {gridStep(g_sixteenth_grid, true)});
+        const auto inside =
+            planAdjustSustain(walled, tempo_map, walled, keys, {gridStep(g_sixteenth_grid, true)});
         REQUIRE(inside.has_value());
         if (inside.has_value())
         {
@@ -3518,7 +3531,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
     {
         // An eighth-note step is an eighth in 4/4.
         const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
+            chart, tempo_map, chart, keys, {gridStep(common::core::Fraction{1, 8}, true)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -3540,8 +3553,8 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
     SECTION("shrink floors at the minimum gesture window")
     {
         // One quarter-note step takes the quarter-note ring's end back onto its own onset.
-        const auto plan = planAdjustSustain(
-            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
+        const auto plan =
+            planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, false)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -3584,7 +3597,7 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     // Shrink to an eighth: only the first turnaround survives, and the terminal fret 3 would sit
     // still against it, so the earlier differing fret 12 terminates instead.
     const auto plan = planAdjustSustain(
-        chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, false)});
+        chart, tempo_map, chart, keys, {gridStep(common::core::Fraction{1, 8}, false)});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -4268,7 +4281,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     const auto plan = planAdjustSustain(
         chart,
         tempo_map,
-        chart.notes,
+        chart,
         {keyAt({.measure = 1, .beat = 1}, 1)},
         {gridStep(g_quarter_grid, false)});
     REQUIRE(plan.has_value());
@@ -6996,6 +7009,71 @@ TEST_CASE("Chart verbs land every instant on the tick lattice", "[core][chart]")
                 });
         }
     }
+}
+
+// The gate normalizes the holds over every candidate, so a note edit that puts a hand conflict
+// inside a hold lands with the hold cropped to it, in the same plan: one undo restores both.
+TEST_CASE("A note edit's plan carries the hold rewrite it causes", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    chart.notes[0].sustain = common::core::Fraction{1, 2};
+    chart.notes[1].sustain = common::core::Fraction{1, 2};
+    const common::core::ShapeHold hold{
+        .start = {.measure = 2, .beat = 1},
+        .end = {.measure = 2, .beat = 3},
+        .grip = common::core::UnnamedGrip{},
+    };
+    chart.shape_holds = {hold};
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // A lower fret on the first string releases the stop the hold's span states there.
+    const auto plan = planInsertNote(
+        chart, tempo_map, makeTestNote({.measure = 2, .beat = 2}, 1, 1), g_fixture_sustain);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    common::core::ShapeHold cropped = hold;
+    cropped.end = {.measure = 2, .beat = 2};
+    const std::optional<ShapeHoldsChange> expected =
+        ShapeHoldsChange{.before = {hold}, .after = {cropped}};
+    CHECK(plan->plan.shape_holds == expected);
+    CHECK(plan->resolved.shape_holds == std::vector{cropped});
+    REQUIRE(plan->conversions.size() == 1);
+    CHECK(plan->conversions[0].repair == common::core::ChartRepair::ShapeHoldEndMoved);
+
+    applyAndValidate(chart, tempo_map, *plan);
+    CHECK(chart.shape_holds == std::vector{cropped});
+    REQUIRE(applyChartChange(chart, plan->plan.reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// A plan written against holds the chart no longer holds is refused whole, notes included.
+TEST_CASE("applyChartChange rejects a stale hold change atomically", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    const common::core::Chart original = chart;
+    const common::core::ShapeHold hold{
+        .start = {.measure = 2, .beat = 1},
+        .end = {.measure = 2, .beat = 2},
+        .grip = common::core::UnnamedGrip{},
+    };
+    const std::vector<common::core::ChartNote> to_insert{makeTestNote(
+        {.measure = 4, .beat = 1}, 1, 2)};
+
+    const auto result = applyChartChange(
+        chart,
+        ChartEditPlan{
+            .removed = {},
+            .inserted = to_insert,
+            .shape_holds = ShapeHoldsChange{.before = {hold}, .after = {}},
+            .label = {},
+        });
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error() == EditorUndoFailureCode::PreflightRejected);
+    CHECK(chart == original);
 }
 
 } // namespace rock_hero::editor::core

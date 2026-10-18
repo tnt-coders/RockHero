@@ -9,11 +9,13 @@
 #include "controller/marker_judge_context.h"
 
 #include <optional>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -51,11 +53,18 @@ struct SongTimelineSnapshot
     [[nodiscard]] bool applyTo(common::core::Session& session) const;
 
     /*!
-    \brief Nothing: the verbs state the meter list in order, and a time signature restating its
+    \brief Brings every chart's shape holds to their normal form under this timeline's map
+    (\ref common::core::normalizeShapeHolds): a re-address keeps each place's time, which can round
+    a span's close away from a hold's end, or a hold onto no length.
+
+    Nothing else: the verbs state the meter list in order, and a time signature restating its
     reign stays in the live model while its chip is selected. The history's and the file's form
     without it is the funnel's (`writtenModel`, \ref common::core::withoutRedundantTimeSignatures).
+
+    \return One conversion per rewrite, its place naming the arrangement; empty where every hold
+            already fit.
     */
-    void normalize();
+    [[nodiscard]] std::vector<common::core::ChartConversion> normalize();
 
     /*!
     \brief Reports the first structural rule this timeline breaks, in any of its slices

@@ -290,7 +290,19 @@ enum class ChartRepair : std::uint8_t
     dropped (\ref uncoveringFretHandPositions). Nothing says whether the position or the note is
     wrong, and the notes alone already derive a window; a converter cannot apply the rule itself.
     */
-    UncoveringHandPosition
+    UncoveringHandPosition,
+
+    /*!
+    \brief A shape hold's end moved to where its span closes (shape rule 9): back to a hand conflict
+    an edit put inside it, or on past an end where nothing closed (\ref normalizeShapeHolds).
+    */
+    ShapeHoldEndMoved,
+
+    /*!
+    \brief A shape hold left nothing to hold was dropped: its span closes at its start, or a
+    re-address rounded it onto no length (\ref normalizeShapeHolds).
+    */
+    ShapeHoldDropped
 };
 
 /*!
@@ -621,16 +633,18 @@ It applies \ref normalizeChartNote to every note, bounds every ring at its own s
 with \ref normalizeSustainOverlaps (the one stream-level note rule), applies
 \ref normalizeFretHandPosition to every hand position, then settles the relational truths against
 the stream as it will actually stand: \ref sweepUnjustifiedLegato, because a truncated tail can be
-the hold a neighbour's legato claim depended on, and last the drop of every authored hand position
-that breaks the hand-position coverage rule (\ref uncoveringFretHandPositions), because its demands
-read the bounded rings and its windows are the fitted ones.
+the hold a neighbour's legato claim depended on, then the shape holds (\ref normalizeShapeHolds),
+and last the drop of every authored hand position that breaks the hand-position coverage rule
+(\ref uncoveringFretHandPositions), because its demands read the bounded rings, the spans the holds
+give, and the fitted windows.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
 counts them), and the file is untouched until the user saves.
 
-\param chart Chart to normalize in place.
-\param tempo_map Song tempo map, for the connection hold test.
+\param chart Chart to normalize in place; its shape holds already well formed
+       (\ref validateShapeHolds), which the document reader refuses to load otherwise.
+\param tempo_map Song tempo map, for the connection hold test and the holds' places.
 
 \return Every repair applied, with the element it touched; empty when the chart was already
         normal, which is what callers test to know whether memory still equals disk.

@@ -32,8 +32,11 @@ insert/delete/move/retype/sustain/legato/attack, all seven authoring planners
 funnelled through the same finalize step, plus the settle sweep's `planSettleChart`, which
 deliberately bypasses that funnel because flattening a claim to a plain pick can violate no rule;
 see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` is one change to the note
-stream, which is the only per-string authored array there is; `applyChartChange` rebuilds the stream on a copy before swapping it
-in, so a failed precondition part way through leaves the chart entirely untouched),
+stream, which is the only per-string authored array there is, carrying the shape holds whole where
+the finalize step's hold normalizer rewrote them (`ShapeHoldsChange`), so one undo restores the
+notes and the holds together; `applyChartChange` rebuilds the stream on a copy and checks the holds
+before swapping either in, so a failed precondition part way through leaves the chart entirely
+untouched),
 `marker_model_edit.h` (ONE `MarkerModelEdit<Snapshot>` behind every timeline-marker verb of every
 kind, carrying that kind's whole model before and after; every marker verb commits through one
 funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,
@@ -89,8 +92,9 @@ automation, behind the time-signature verbs, the locked Scale Tempo and every te
 the Note Lock on (a held nudge run and a chip drag included), since each re-addresses all of it in
 every arrangement and lands as ONE entry per command — under the lock, the content the lock holds
 re-addressed under the verb's map, so the entry's `before` and `after` both descend from the lock's
-origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` does nothing,
-its WRITTEN form drops a meter restating its reign — the same meter as the authored reign before
+origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` brings every
+chart's shape holds to their normal form under the new map (`normalizeShapeHolds`), returning the
+rewrites for the landing to record once (`recordChartRewrites`), its WRITTEN form drops a meter restating its reign — the same meter as the authored reign before
 it, from one of that reign's own downbeats (`withoutRedundantTimeSignatures`, common core, which
 the package writer and reader apply too; a repeat placed off that grid cuts a bar short and
 stays) — its `validate` runs the tempo-map, section and chart rules, and its apply is

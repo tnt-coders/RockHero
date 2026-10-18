@@ -6481,4 +6481,125 @@ TEST_CASE("A shape hold exactly over a derived span derives it unchanged", "[cor
     CHECK(held.fits[0]);
 }
 
+namespace
+{
+
+// The holds normalized against the notes, asserting the normal form is a fixpoint: normalizing it
+// again rewrites nothing and leaves every hold fitting its notes.
+[[nodiscard]] ShapeHoldNormalization normalizedOnce(
+    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& holds)
+{
+    const TempoMap tempo_map = makeTempoMap();
+    ShapeHoldNormalization normal = normalizeShapeHolds(notes, holds, tempo_map);
+    const ShapeHoldNormalization again = normalizeShapeHolds(notes, normal.shape_holds, tempo_map);
+    CHECK(again.shape_holds == normal.shape_holds);
+    CHECK(again.conversions.empty());
+    const Held held = deriveUnder(notes, normal.shape_holds);
+    CHECK(std::ranges::all_of(held.fits, [](const bool fits) { return fits; }));
+    return normal;
+}
+
+} // namespace
+
+// The one rule writes back where the walk publishes the hold's span: back to a hand conflict inside
+// it, on past an end where nothing closes, and nowhere for a hold that already fits.
+TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]")
+{
+    SECTION("a hand conflict inside crops the hold to the conflict")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4}),
+            noteAt(gridAt(1, 1), 2, 7, Fraction{1, 4}),
+            noteAt(gridAt(1, 2), 1, 3, Fraction{1, 4}),
+            noteAt(gridAt(1, 2), 2, 7, Fraction{1, 4}),
+        });
+        const ShapeHoldNormalization normal =
+            normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 3))});
+        CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
+        REQUIRE(normal.conversions.size() == 1);
+        CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldEndMoved);
+        CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:2");
+    }
+
+    SECTION("an end in the middle of a sustain extends to where the span closes")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 1, 5, Fraction{1, 2}),
+            noteAt(gridAt(1, 1), 2, 7, Fraction{1, 2}),
+        });
+        const ShapeHoldNormalization normal =
+            normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
+        CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 3))});
+        REQUIRE(normal.conversions.size() == 1);
+        CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldEndMoved);
+        CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:3");
+    }
+
+    SECTION("an extension stops at the next hold's start, so the holds only touch")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 1, 5, Fraction{1}),
+            noteAt(gridAt(1, 1), 2, 7, Fraction{1}),
+        });
+        const ShapeHoldNormalization normal = normalizedOnce(
+            notes, {holdOver(gridAt(1, 1), gridAt(1, 2)), holdOver(gridAt(1, 3), gridAt(2, 1))});
+        REQUIRE(normal.shape_holds.size() == 2);
+        CHECK(normal.shape_holds[0] == holdOver(gridAt(1, 1), gridAt(1, 3)));
+        CHECK(normal.shape_holds[1].start == gridAt(1, 3));
+    }
+
+    SECTION("a hold that fits and a none hold are left as they are")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4}),
+            noteAt(gridAt(1, 1), 2, 7, Fraction{1, 4}),
+        });
+        ShapeHold none = holdOver(gridAt(2, 1), gridAt(2, 2));
+        none.grip = NoneGrip{};
+        const std::vector<ShapeHold> holds{holdOver(gridAt(1, 1), gridAt(1, 2)), none};
+        const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
+        CHECK(normal.shape_holds == holds);
+        CHECK(normal.conversions.empty());
+    }
+}
+
+// A re-address can round a hold onto no length; the walk cannot place it, so it is dropped and
+// reported, and the holds beside it are judged without it.
+TEST_CASE("The hold normalizer drops a hold left no length", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4}),
+        noteAt(gridAt(1, 1), 2, 7, Fraction{1, 4}),
+    });
+    const ShapeHoldNormalization normal = normalizedOnce(
+        notes, {holdOver(gridAt(1, 1), gridAt(1, 2)), holdOver(gridAt(1, 3), gridAt(1, 3))});
+    CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
+    REQUIRE(normal.conversions.size() == 1);
+    CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldDropped);
+    CHECK(normal.conversions[0].where == "shape hold 1:3 to 1:3");
+}
+
+// The notes layer completed from the normalizer's own derivation is the one a plain derivation
+// under the normalized holds gives, and records those holds.
+TEST_CASE("The normalized notes layer is the layer under the normalized holds", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(1, 1), 1, 5, Fraction{1, 2}),
+        noteAt(gridAt(1, 1), 2, 7, Fraction{1, 2}),
+        noteAt(gridAt(2, 1), 1, 3, Fraction{1, 4}),
+        noteAt(gridAt(2, 1), 2, 5, Fraction{1, 4}),
+    });
+    const NormalizedChartResolutions normal =
+        normalizedChartResolutions(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))}, 0, tempo_map);
+    const std::vector<ShapeHold> expected{holdOver(gridAt(1, 1), gridAt(1, 3))};
+    CHECK(normal.resolved.shape_holds == expected);
+    CHECK(normal.conversions.size() == 1);
+    const ChartResolutions plain = chartResolutions(notes, expected, 0, tempo_map);
+    CHECK(normal.resolved.shapes == plain.shapes);
+    CHECK(normal.resolved.postures == plain.postures);
+    CHECK(normal.resolved.held_stops == plain.held_stops);
+    CHECK(normal.resolved.note_lengths == plain.note_lengths);
+}
+
 } // namespace rock_hero::common::core
