@@ -107,15 +107,20 @@ with the refusal flash.
 **Overlap.** Every NEW hold, whatever verb authors it (a selection's `Ctrl+H`, or a derived span
 converted by `Ctrl+H`, an edge key or `Delete`, such as a chord box inside a `none` hold), carves
 its range out of every authored hold it overlaps: one it straddles is cropped to the new hold's
-start or end; one it lies inside is split into the parts before and after it. Each surviving part
-must be valid, or the verb is refused.
+start or end; one it lies inside is split into the parts before and after it; one it covers
+entirely is gone, since a selection's `Ctrl+H` is the charter's statement over its whole range.
+Each surviving part must be valid, or the verb is refused. `Ctrl+H` on a selected hold states an
+unnamed hold over it, so on a `none` hold it restores the shape a `Delete` denied (ruled
+2026-10-18).
 
 **Pushing.** An edge key that moves an edge into a neighbouring hold pushes that hold's facing
 edge along with it. Both holds must stay valid and the pushed one non-empty, or the press is
-refused. A held run of edge keys is one gesture that replays from its base on every press, so
-stepping back restores the pushed hold; once the gesture settles, the result is written and only
-undo restores it. The branch's edge gesture (`f3aed178`, `ChartHoldEdgeGesture`) is the part to
-reuse.
+refused: unlike a selection's `Ctrl+H`, a push is a nudge, and nudging a neighbour out of existence
+would be a surprise (ruled 2026-10-18). A held run of edge keys is one gesture that replays from its
+base on every press, so stepping back restores the pushed hold, and a run back where it began
+changes nothing, leaving a derived span derived; once the gesture settles, the result is written
+and only undo restores it. The branch's edge gesture (`f3aed178`, `ChartHoldEdgeGesture`) is the
+part to reuse.
 
 There is no `Alt+Delete` for holds: an end is required and is removed only with its hold. `Enter`
 and the grip picker belong to `60c`.
