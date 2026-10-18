@@ -24,9 +24,10 @@ are also called **the grip-tenure law**. The rules are implemented in
 - `makeChartViewState` (`chart_projection.h`) draws each span short of its close through
   `drawnSpanExtent` (rule 6) and decides the column of each posture digit (rule 7).
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
-- `deriveChartShapes` obeys the shape holds and `shapeHoldFitsNotes` compares each hold with the
-  span the walk published for it (rule 9); `validateShapeHolds` (`chart_rules.h`) checks the hold
-  stream's structure.
+- `deriveChartShapes` obeys the shape holds, and `normalizeShapeHolds` (`chart_legato.h`) compares
+  each hold with the span the walk published for it (`shapeHoldPublishedEnd`), so a hold fits
+  exactly when the normal form keeps it as stated (rule 9); `validateShapeHolds` (`chart_rules.h`)
+  checks the hold stream's structure.
 
 Whether a tail rests is tail rule 4 (\ref design_rulesets_tails), which reads no span.
 
@@ -433,4 +434,4 @@ takes the next one.
      end, that stated end walls nothing. Outside holds the derivation is unchanged, and at a
      hold's close the walk resumes as after any span closing with rings still sounding, a
      landing's hand-off included (rule 4).
-     (`deriveChartShapes`, `shapeHoldFitsNotes`)
+     (`deriveChartShapes`, `normalizeShapeHolds`)

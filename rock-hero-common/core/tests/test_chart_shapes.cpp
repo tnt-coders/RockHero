@@ -304,7 +304,8 @@ void holdsTheFloorGrip(const ChartShapes& derived)
     return ShapeHold{.start = start, .end = end, .grip = UnnamedGrip{}};
 }
 
-// The notes' resolutions under the holds, and whether each hold fits its notes.
+// The notes' resolutions under the holds, and whether each hold fits its notes: whether their
+// normal form keeps it exactly as stated.
 struct Held
 {
     ChartResolutions resolutions;
@@ -315,10 +316,13 @@ struct Held
     const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& holds)
 {
     const TempoMap tempo_map = makeTempoMap();
+    const std::vector<ShapeHold> normal =
+        normalizeShapeHolds(notes, holds, 0, tempo_map).resolved.shape_holds;
     Held held{.resolutions = chartResolutions(notes, holds, 0, tempo_map), .fits = {}};
     for (const ShapeHold& hold : holds)
     {
-        held.fits.push_back(shapeHoldFitsNotes(held.resolutions.shapes, tempo_map, hold));
+        held.fits.push_back(
+            std::ranges::any_of(normal, [&hold](const ShapeHold& kept) { return kept == hold; }));
     }
     return held;
 }

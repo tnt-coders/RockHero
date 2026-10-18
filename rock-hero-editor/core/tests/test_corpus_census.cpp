@@ -2129,7 +2129,10 @@ void countHeldSpans(
                                    connections, held.shapes, held.postures) != resolutions.arrivals;
         const std::string where = file + " bar " + std::to_string(hold.start.measure);
         ++census.held_spans;
-        if (!common::core::shapeHoldFitsNotes(held.shapes, tempo_map, hold))
+        // The walk alone, once per span: the normalizer would complete the whole notes layer for
+        // each, so the hold is read straight off the published spans.
+        if (common::core::shapeHoldPublishedEnd(held.shapes, tempo_map, hold) !=
+            tempo_map.wholeNotePositionAt(hold.end))
         {
             ++census.held_spans_invalid;
             if (census.held_invalid_cases.size() < kept_cases)

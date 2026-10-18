@@ -536,19 +536,4 @@ states no span and nothing inside it closes, so its extent is its own.
 [[nodiscard]] Fraction shapeHoldPublishedEnd(
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold);
 
-/*!
-\brief Whether a shape hold fits its notes: its published extent (\ref shapeHoldPublishedEnd) is
-exactly its stated extent (shape rule 9). The hold stream's structure is \ref validateShapeHolds's.
-
-A none hold always fits.
-
-\param shapes The spans derived with the hold among the chart's holds (\ref deriveChartShapes),
-       sorted by place.
-\param tempo_map Tempo map the spans were derived against, placing the hold's edges.
-\param hold The hold judged.
-\return True when the span the hold states runs exactly from the hold's start to its end.
-*/
-[[nodiscard]] bool shapeHoldFitsNotes(
-    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold);
-
 } // namespace rock_hero::common::core

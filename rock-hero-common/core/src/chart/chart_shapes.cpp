@@ -2020,11 +2020,4 @@ Fraction shapeHoldPublishedEnd(
     return published->place + published->sustain;
 }
 
-bool shapeHoldFitsNotes(
-    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold)
-{
-    return shapeHoldPublishedEnd(shapes, tempo_map, hold) ==
-           tempo_map.wholeNotePositionAt(hold.end);
-}
-
 } // namespace rock_hero::common::core

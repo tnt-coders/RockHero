@@ -182,9 +182,8 @@ surface **draws**.
   exemption for a travelling member. The charter's SHAPE HOLDS (shape rule 9) move only the edges:
   inside an unnamed hold the walk keeps one span, fronted at the hold's start, which only a hand
   conflict breaks, and from the hold's end on the span closes wherever the walk would close one
-  standing there. `shapeHoldPublishedEnd` reads where the walk closed the span a hold states,
-  `shapeHoldFitsNotes` compares it with the hold's stated end, and a `none` hold publishes no
-  arpeggio span inside it. After every edit that is not a hold verb, one normalizer writes each
+  standing there. `shapeHoldPublishedEnd` reads where the walk closed the span a hold states, a
+  hold fits where that is its stated end, and a `none` hold publishes no arpeggio span inside it. After every edit that is not a hold verb, one normalizer writes each
   hold's published end back (`normalizeShapeHolds`, in `chart_legato.h` beside `chartResolutions`,
   returning the notes layer completed from its own last derivation, so its caller derives nothing
   twice): the editor's plan gate on every note edit, the timeline funnel on every tempo or meter
