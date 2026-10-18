@@ -23,10 +23,10 @@
 namespace rock_hero::editor::core
 {
 
-// The span rows' verbs: Ctrl+H states a hold over the selection, and the edge keys move a hold's or
-// a derived span's edges. Every verb carves the hold it authors into the chart's holds
-// (carvedShapeHolds) and ends at the hold gate (finalizeShapeHoldPlan), so a result the normalizer
-// would rewrite is refused.
+// The span rows' verbs: Ctrl+H states a hold over the selection, the edge keys move a hold's or a
+// derived span's edges, and Delete removes a hold or denies a derived arpeggio with a none hold
+// over it. Every verb carves the hold it authors into the chart's holds (carvedShapeHolds) and ends
+// at the hold gate (finalizeShapeHoldPlan), so a result the normalizer would rewrite is refused.
 
 namespace
 {
@@ -252,6 +252,73 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
     {
         refuseShapeHoldVerb(verb, moved.error().reason, gesture.base);
     }
+}
+
+// The holds without it, judged like any hold verb's: removing a hold moves the walls its neighbours
+// may have closed at. Nothing is left selected here; the delete's walk back along the row selects.
+void EditorController::Impl::deleteSelectedShapeHold(const common::core::ShapeHold& hold)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    const common::core::Chart& chart = *arrangement->chart;
+    std::vector<common::core::ShapeHold> remaining = chart.shape_holds;
+    std::erase_if(
+        remaining, [&hold](const common::core::ShapeHold& standing) { return standing == hold; });
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = finalizeShapeHoldPlan(
+        chart,
+        session().song().tempo_map,
+        std::move(remaining),
+        markerVerbLabel(MarkerVerb::DeleteHold));
+    if (!plan.has_value())
+    {
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
+        {
+            refuseShapeHoldVerb(MarkerVerb::DeleteHold, invalid->reason, hold);
+        }
+        return;
+    }
+    static_cast<void>(
+        applyChartEditPlan(std::move(*plan), ChartEditLanding{std::vector<ChartSelectionKey>{}}));
+}
+
+// A none hold over a chord box would change nothing, since a none hold keeps the boxes struck
+// inside it, so a box is refused rather than given a hold that states nothing anyone can see.
+void EditorController::Impl::deleteSelectedHandSpan()
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::optional<std::size_t> shape = selectedHandSpanShape();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || !shape.has_value())
+    {
+        return;
+    }
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::ChartResolutions& resolved = chartResolutions();
+    const common::core::ShapeHold denial = shapeHoldOverSpan(
+        resolved.shapes.at(*shape), session().song().tempo_map, common::core::NoneGrip{});
+    if (!resolved.arrivals.at(*shape))
+    {
+        refuseShapeHoldVerb(
+            MarkerVerb::DeleteArpeggio, "a chord box is no arpeggio to delete", denial);
+        return;
+    }
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = finalizeShapeHoldPlan(
+        chart,
+        session().song().tempo_map,
+        carvedShapeHolds(chart.shape_holds, denial),
+        markerVerbLabel(MarkerVerb::DeleteArpeggio));
+    if (!plan.has_value())
+    {
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
+        {
+            refuseShapeHoldVerb(MarkerVerb::DeleteArpeggio, invalid->reason, denial);
+        }
+        return;
+    }
+    static_cast<void>(applyChartEditPlan(
+        std::move(*plan), ChartEditLanding{ShapeHoldSelection{.start = denial.start}}));
 }
 
 } // namespace rock_hero::editor::core

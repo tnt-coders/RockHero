@@ -2557,6 +2557,13 @@ void EditorController::Impl::deleteSelectedMarker()
         return;
     }
     const common::core::GridPosition start = before[*marker->index];
+    // A derived span is not removed but denied, by the none hold left selected in its place, so the
+    // walk back along the row is not this delete's.
+    if (row == MarkerRow::HandSpan)
+    {
+        deleteSelectedHandSpan();
+        return;
+    }
 
     if (const SongSectionSelection* const section = selectedSongSection())
     {
@@ -2577,6 +2584,11 @@ void EditorController::Impl::deleteSelectedMarker()
     {
         const FretHandPositionSelection selected = *placement;
         deleteSelectedFretHandPosition(selected);
+    }
+    else if (const common::core::ShapeHold* const hold = selectedShapeHold(); hold != nullptr)
+    {
+        const common::core::ShapeHold selected = *hold;
+        deleteSelectedShapeHold(selected);
     }
     else if (std::string region_id = selectedToneRegionId(); !region_id.empty())
     {

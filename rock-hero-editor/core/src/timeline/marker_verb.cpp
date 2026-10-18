@@ -96,6 +96,14 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Move Hold End";
         }
+        case MarkerVerb::DeleteHold:
+        {
+            return "Delete Hold";
+        }
+        case MarkerVerb::DeleteArpeggio:
+        {
+            return "Delete Arpeggio";
+        }
     }
     return {};
 }

@@ -264,6 +264,12 @@ struct HoldEditor
     {
         controller.onChartSustainAdjustRequested(later ? 1 : -1);
     }
+
+    // Delete.
+    void deleteSelection()
+    {
+        controller.onSelectionDeleteRequested();
+    }
 };
 
 // Four strums of one chord on strings 1 and 2, frets 3 and 5, on the beats of measure 3, the last
@@ -643,6 +649,89 @@ TEST_CASE("The start key pushes the previous hold", "[core][holds]")
 
     editor.controller.onUndoRequested();
     CHECK(editor.holds() == twoHeldHalves().shape_holds);
+}
+
+// Delete on a hold removes it and the derivation takes its stretch back, the walk back along the
+// row selecting the hold before it; undo restores the hold and selects it.
+TEST_CASE("Delete removes a selected hold", "[core][holds]")
+{
+    HoldEditor editor{twoHeldHalves()};
+    editor.walkDownAt(4.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+
+    editor.deleteSelection();
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(3, 3), at(4, 2))});
+    CHECK(editor.entries() == entries + 1);
+    CHECK(editor.lastLabel() == "Delete Hold");
+    CHECK(editor.spanCount() == 2);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.holds() == twoHeldHalves().shape_holds);
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+}
+
+// The second hold's start is where the first hold's span closes, so removing it would leave the
+// first ending where the same chord strums on and nothing closes: the delete is refused.
+TEST_CASE("Delete refuses a hold whose removal unfits its neighbour", "[core][holds]")
+{
+    const LogCapture capture;
+    HoldEditor editor{twoHeldHalves()};
+    editor.walkDownAt(5.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{1});
+    const std::size_t entries = editor.entries();
+
+    editor.deleteSelection();
+    CHECK(editor.holds() == twoHeldHalves().shape_holds);
+    CHECK(editor.entries() == entries);
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{1});
+    const std::string contents = capture.text();
+    INFO(contents);
+    CHECK(contents.find("shape hold 3:1 to 3:3 does not fit its notes") != std::string::npos);
+}
+
+// Delete on a derived arpeggio states a none hold over it, which publishes no arpeggio and is left
+// selected; on a derived chord box it is refused, since a none hold keeps the box.
+TEST_CASE("Delete denies a derived arpeggio and refuses a chord box", "[core][holds]")
+{
+    HoldEditor editor{chartOf({arpeggioIn(1), chordAt(at(3, 1), 3, 5)})};
+    REQUIRE(editor.spanCount() == 2);
+    const std::size_t entries = editor.entries();
+
+    SECTION("an arpeggio")
+    {
+        editor.walkDownAt(0.75, 1);
+        REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+        editor.deleteSelection();
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{noneHold(at(1, 1), at(1, 4))});
+        CHECK(editor.spanCount() == 1);
+        CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+        CHECK(editor.lastLabel() == "Delete Arpeggio");
+
+        // The none hold is a hold like any other: Delete removes it and the arpeggio returns.
+        editor.deleteSelection();
+        CHECK(editor.holds().empty());
+        CHECK(editor.spanCount() == 2);
+
+        editor.controller.onUndoRequested();
+        editor.controller.onUndoRequested();
+        CHECK(editor.holds().empty());
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    }
+
+    SECTION("a chord box")
+    {
+        editor.walkDownAt(4.25, 1);
+        REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{1});
+        const std::size_t flashes = editor.view.refusal_flashes.size();
+        editor.deleteSelection();
+        CHECK(editor.holds().empty());
+        CHECK(editor.entries() == entries);
+        CHECK(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{1});
+    }
 }
 
 } // namespace rock_hero::editor::core

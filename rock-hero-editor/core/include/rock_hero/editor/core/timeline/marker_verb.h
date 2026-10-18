@@ -84,6 +84,12 @@ enum class MarkerVerb : std::uint8_t
 
     /*! \brief Moves a hold's end, or a derived span's as it becomes a hold, one note boundary. */
     MoveHoldEnd,
+
+    /*! \brief Deletes a shape hold, giving its stretch back to the derivation. */
+    DeleteHold,
+
+    /*! \brief Denies a derived arpeggio by stating a none hold over it. */
+    DeleteArpeggio,
 };
 
 /*!

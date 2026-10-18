@@ -781,6 +781,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // selected hold or derived span: the edge stepped to the next note onset or boundary that way,
     // as one step of a held run replaying from its start (planMoveShapeHoldEdge).
     void stepShapeHoldEdge(ShapeHoldEdge edge, bool later);
+    // Delete on a selected hold: removes it, the derivation taking its stretch back.
+    void deleteSelectedShapeHold(const common::core::ShapeHold& hold);
+    // Delete on a selected derived span: a none hold over an arpeggio, left selected; refused on a
+    // chord box, which a none hold keeps.
+    void deleteSelectedHandSpan();
     // The unnamed hold the hold chord states, read off the selection: over a selected hold's or
     // derived span's own extent, a time selection's, or the selected notes' from their first onset
     // to their last ring's end. Nothing where the selection covers nothing.
