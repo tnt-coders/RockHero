@@ -243,8 +243,7 @@ constexpr Fraction g_fixture_ring{1, 32};
     const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
     const ChartResolutions resolved = chartResolutions(notes, 0, tempo_map);
-    const std::vector<bool> arrivals =
-        chartShapeArrivals(resolved.connections, resolved.shapes, resolved.postures);
+    const std::vector<bool> arrivals = chartShapeArrivals(resolved.connections, resolved.shapes);
     REQUIRE(arrivals.size() == resolved.shapes.size());
     // The span COVERING the slot, not the one starting exactly on it. THE DATING RULE puts a span's
     // FRONT at its earliest uncovered member onset, so a strum that picks around a still-ringing
@@ -4504,20 +4503,8 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK_FALSE(arrivesAsArpeggio(chart.notes, strum_at, tempo_map));
 
     // A tapped note sounding within the span turns that box into a held arpeggio: the fretting
-    // hand holds the shape while the right hand taps above it (held-chord-under-tap). The strum
-    // gains a third string first, since a derived span of fewer than three members is never an
-    // arpeggio.
-    Chart three_strings = chart; // the box state above (the ring ended before the strum)
-    three_strings.notes.push_back(
-        ChartNote{
-            .position = strum_at,
-            .string = 5,
-            .fret = 5,
-            .sustain = Fraction{1, 4},
-            .bend = 0.0,
-            .keyframes = {},
-        });
-    Chart tapped_over_hold = three_strings;
+    // hand holds the shape while the right hand taps above it (held-chord-under-tap).
+    Chart tapped_over_hold = chart; // the box state above (the ring ended before the strum)
     tapped_over_hold.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 2}},
@@ -4532,7 +4519,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 
     // A pick slide inside the span flips the box exactly like a tap: both are right-hand
     // onsets sounding over the held shape.
-    Chart scraped_over_hold = three_strings;
+    Chart scraped_over_hold = chart;
     scraped_over_hold.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 2}},

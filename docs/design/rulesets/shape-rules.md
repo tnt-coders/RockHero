@@ -190,6 +190,10 @@ takes the next one.
        sounding turns its class in place. A member mid-travel blocks both splits and the class
        turn, because a glide is not the figure coming apart. A span already in parts rides its
        partials unchanged.
+     - **A derived span of fewer than three members never turns to parts.** It is never born in
+       parts and never turns in place: a bracket over two strings states nothing its boxes do not.
+       Where it would turn, it breaks instead, as any box breaks at a partial sounding, and what
+       follows is judged by the opening law.
    - **The close is the earlier of the reach and the event that ended the span**: the closing
      event's own onset, or the span's reach where its statement simply ran out. It is stored as the
      musical close (`ChartShape::sustain`), with no display margin in it (rule 6). The reach is the
@@ -291,9 +295,6 @@ takes the next one.
    the bracket's anchor (`ShapeViewState::bracket_seconds`) for an arpeggio span alone. A landing
    successor that never sounds inside draws no furniture at all: no bracket, and no box, since
    nothing strikes it.
-   - **A derived span of fewer than three members is never an arpeggio.** It is a box-class span
-     whatever its soundings: a bracket over two strings states nothing the boxes do not. The
-     triggers below apply to a derived span from three members up (`chartShapeArrivals`).
    - **A sounding that is only part of the shape** makes the span an arpeggio: its own start where
      a member is carried in rather than struck, a partial restrike, a lone re-pick, growth by a
      string the span never stated, a partial slide, or a whole stroke absorbed by its parts
@@ -301,7 +302,8 @@ takes the next one.
      and the walk records the answer (`ChartShape::sounds_in_parts`), because only the walk knows
      which slots the statement covers. Every accumulation is an arpeggio by construction. A
      landing is no sounding, so it is no partial one. The posture only grows within a span, so the
-     comparison's denominator is well defined.
+     comparison's denominator is well defined. A derived span of fewer than three members never
+     sounds in parts: such a sounding breaks it instead (rule 3).
    - **A right-hand onset sounding within the span**, from its front up to its musical close, makes
      it an arpeggio: the fretting hand holds the shape while the other hand sounds above it. This is
      the one trigger `chartShapeArrivals` derives itself, because it asks about the span's extent.

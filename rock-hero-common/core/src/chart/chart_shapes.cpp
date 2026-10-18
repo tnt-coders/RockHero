@@ -42,10 +42,17 @@ constexpr std::size_t g_span_member_threshold = 2;
 // minimum, and a landing opens at the statement threshold above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
 
-// The fewest members a derived arpeggio has (shape rule 5): a derived span of one or two members is
-// a box-class span however its members sound, since a bracket over two strings states nothing a box
-// does not.
-constexpr std::size_t g_arpeggio_member_minimum = 3;
+// The fewest members a derived span sounds in parts with (shape rules 3 and 5): a grip of one or
+// two stops never turns to parts, since a bracket over two strings states nothing its boxes do
+// not, so a partial sounding of it breaks it like any box.
+constexpr std::size_t g_parts_member_minimum = 3;
+
+// Whether a grip is too small to sound in parts (\ref g_parts_member_minimum).
+[[nodiscard]] bool tooFewForParts(const std::vector<std::optional<ChartStop>>& stops)
+{
+    return static_cast<std::size_t>(std::ranges::count_if(
+               stops, [](const auto& stop) { return stop.has_value(); })) < g_parts_member_minimum;
+}
 
 } // namespace
 
@@ -1229,6 +1236,30 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         };
         const bool chord_statement_stands = !absorbed_by_the_next_slot();
 
+        // THE TURN TO PARTS (shape rule 5), asked once of the grip as this slot's growth leaves it:
+        // a stroke that does not state the whole grip standing alone, or a partial slide, turns a
+        // never-in-parts span in place. A member travelling turns nothing: a chord slide with
+        // transit picks is chord frames joined by slide lines, never an arpeggio bracket. A grip
+        // too small for parts never turns: its partial sounding breaks it below, like any box's.
+        bool turns_to_parts = false;
+        bool too_few_for_parts = false;
+        if (standing)
+        {
+            std::vector<std::optional<ChartStop>> grown = open->stops;
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                if (const std::optional<ChartStop> statement = grip_statement_of(string_index);
+                    statement.has_value())
+                {
+                    grown[string_index] = statement;
+                }
+            }
+            turns_to_parts =
+                slot.struck > 0 && !member_travelling &&
+                (!(stroke_says_whole(grown) && chord_statement_stands) || partial_slide);
+            too_few_for_parts = tooFewForParts(grown);
+        }
+
         bool unison_restatement = false;
         bool partial_sounding = false;
         if (standing && !hand_conflict && !notation_contradiction)
@@ -1284,6 +1315,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             partial_sounding = partial_sounding ||
                                (partial_slide && touched_stated > 0 && !open->struck_in_parts &&
                                 open->last_stated_place.has_value() && !member_travelling);
+            // A grip too small for parts is a box to the end: where it would turn, it breaks.
+            partial_sounding =
+                partial_sounding || (turns_to_parts && too_few_for_parts && !open->struck_in_parts);
         }
 
         // ---- 4. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
@@ -1311,19 +1345,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 open->last_stated_place = slot.place;
                 // Live only for the spans the character splits exclude — a landing successor's
                 // FIRST sounding, growth by strings the span never stated, and the ABSORBED
-                // whole-grip stroke the span flows through — whose class still
-                // turns in place, for every way a statement divides: sounding fewer members than
-                // sound, the partial slide, and a stroke that stated the whole grip but did not
-                // stand alone to state it. A partial beside a TRAVELLING member turns nothing: a
-                // chord slide with transit picks is chord frames joined by slide lines, never an
-                // arpeggio bracket, so the box the chord earned survives its own slide out. The
-                // mid-slide protection — the span RIDES the transit, per member, and closes at the
-                // landing — is the span-shape half, and it stands above.
-                open->struck_in_parts =
-                    open->struck_in_parts ||
-                    (!member_travelling &&
-                     (!(stroke_says_whole(open->stops) && chord_statement_stands) ||
-                      partial_slide));
+                // whole-grip stroke the span flows through — whose class still turns in place, for
+                // every way a statement divides (the turn, above). The mid-slide protection — the
+                // span RIDES the transit, per member, and closes at the landing — is the
+                // span-shape half, and it stands above.
+                open->struck_in_parts = open->struck_in_parts || turns_to_parts;
                 if (!open->bracket_place.has_value())
                 {
                     open->bracket_place = slot.place;
@@ -1443,9 +1469,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 // separately, the glide leaving while the held strings stay — and so is a span an
                 // ABSORBED stroke founds, for the mirror reason: the parts that sound under its
                 // rings are what the figure turns out to be, so the bracket covers the stroke
-                // rather than a one-slot box standing in front of it.
-                const bool whole_stroke = slot.struck > 0 && !partial_slide &&
-                                          stroke_says_whole(stops) && chord_statement_stands;
+                // rather than a one-slot box standing in front of it. A grip too small for parts
+                // is never born in them: its stroke stands as a box.
+                const bool whole_stroke =
+                    slot.struck > 0 && stroke_says_whole(stops) &&
+                    (tooFewForParts(stops) || (!partial_slide && chord_statement_stands));
                 Fraction front_place = slot.place;
                 if (!whole_stroke)
                 {
@@ -1556,8 +1584,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 }
 
 std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
-    const std::vector<ChartPosture>& postures)
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
@@ -1569,14 +1596,6 @@ std::vector<bool> chartShapeArrivals(
         while (next_note < notes.size() && places[next_note] < shape.place)
         {
             ++next_note;
-        }
-        const std::vector<std::optional<ChartStop>>& stops = postures[shape.posture].stops;
-        const auto members = static_cast<std::size_t>(
-            std::ranges::count_if(stops, [](const auto& stop) { return stop.has_value(); }));
-        if (members < g_arpeggio_member_minimum)
-        {
-            arpeggio.push_back(false);
-            continue;
         }
         if (shape.sounds_in_parts)
         {

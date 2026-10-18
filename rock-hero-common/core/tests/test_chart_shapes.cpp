@@ -141,7 +141,7 @@ using rock_hero::common::core::testing::metersAt;
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartShapes derived = deriveWith(notes, tempo_map);
-    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes, derived.postures);
+    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes);
 }
 
 // THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
@@ -886,12 +886,13 @@ TEST_CASE("Chart shape derivation rings a span through tap-only onsets", "[core]
 // merely assumed harmless.
 TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][chart]")
 {
-    // A two-string chord ringing two whole quarters, then one of its own members picked again
-    // alone.
+    // A three-string chord ringing two whole quarters, then one of its own members picked again
+    // alone. Three strings, since a derived span of fewer than three members never turns to parts.
     const auto chord_then_repick = [](const Fraction chord_ring) {
         return std::vector<ChartNote>{
             noteAt(1, Fraction{}, 1, 5, chord_ring),
             noteAt(1, Fraction{}, 2, 7, chord_ring),
+            noteAt(1, Fraction{}, 3, 7, chord_ring),
             noteAt(2, Fraction{}, 1, 5, Fraction{1, 4}),
         };
     };
@@ -932,9 +933,9 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         //
         // And joining nothing is founding nothing: A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK
         // IN, so the chord's rings still sounding under the re-pick belong to the span that struck
-        // them and accumulate no second shape. A THIRD chord string rings through beside string 2
-        // to say that the refusal is the reason rather than the count — three rings under the
-        // re-pick would be an accumulation twice over if any of them could still be a member.
+        // them and accumulate no second shape. A FOURTH chord string rings through beside strings
+        // 2 and 3 to say that the refusal is the reason rather than the count — three rings under
+        // the re-pick would be an accumulation if any of them could still be a member.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{1, 2});
         notes[0].sustain = Fraction{1, 8};
         notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{1, 2}));
@@ -956,6 +957,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
+            noteAt(1, Fraction{}, 3, 7, Fraction{1, 2}),
             noteAt(2, Fraction{}, 1, 5, Fraction{1, 4}),
         };
         notes[1].dead = true;
@@ -975,7 +977,7 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // Shape rule 2 asked of one string: the span is a fretting-hand statement, so the palm of
         // the OTHER hand cannot end it — the finger is still on fret 5.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{1, 2});
-        notes[2].palm_mute = true;
+        notes[3].palm_mute = true;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         // The absorption rule carries the span through the re-pick either way; what this section
@@ -991,10 +993,10 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // growth, never a stop the shape already states differently). Without this the section
         // above would pass on a rule that had stopped comparing anything. The moved finger then
         // stands alone: the chord's rings sounding beside it belong to the span it just broke (A
-        // RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so they accumulate nothing — a third
+        // RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN), so they accumulate nothing — another
         // chord string rings through to say that the refusal is the reason and not the count.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{1, 2});
-        notes[2].fret = 6;
+        notes[3].fret = 6;
         notes.push_back(noteAt(1, Fraction{}, 4, 11, Fraction{1, 2}));
         const ChartShapes derived = deriveFrom(streamOf(std::move(notes)));
         REQUIRE(derived.shapes.size() == 1);
@@ -1007,8 +1009,8 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         // rings still sound, so the new stop unions with them and the statement runs on, ONE
         // statement from the strum's own onset.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{1, 2});
-        notes[2].string = 3;
-        notes[2].fret = 9;
+        notes[3].string = 4;
+        notes[3].fret = 9;
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].place == Fraction{});
@@ -1019,7 +1021,8 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
             derived.postures[derived.shapes[0].posture].stops;
         CHECK(grown[0] == std::optional{fretStop(5)});
         CHECK(grown[1] == std::optional{fretStop(7)});
-        CHECK(grown[2] == std::optional{fretStop(9)});
+        CHECK(grown[2] == std::optional{fretStop(7)});
+        CHECK(grown[3] == std::optional{fretStop(9)});
     }
 
     SECTION("a re-pick cannot OPEN a shape")
@@ -1043,34 +1046,40 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 // a partial restrike with NO ring behind it is interior to nothing, because it split into a span of
 // its own. And an interior slot that restates the shape WHOLE is the box chain the repeat marks are
 // for, which is what keeps this from collapsing into "any span with an interior onset".
-// Shape rule 5: a derived span of fewer than three members is never an arpeggio. A dyad with one
-// string re-picked under the other's ring sounds in parts, and is still a box-class span; the same
-// figure over three strings is an arpeggio.
-TEST_CASE("A derived span of fewer than three members is never an arpeggio", "[core][chart]")
+// Shape rules 3 and 5: a derived span of fewer than three members never turns to parts. The One
+// Last Breath figure: open string 3 and string 6 fret 2 struck together, string 3 re-picked half a
+// beat later while string 6 still rings. The two-note grip stays a box and the re-pick breaks it
+// there; over three strings the same re-pick turns the span to an arpeggio.
+TEST_CASE(
+    "A derived span of fewer than three members closes at a partial sounding", "[core][chart]")
 {
-    SECTION("a two-note strike, then a lone re-pick under the other ring, is a box")
+    SECTION("a two-note strike closes at the lone re-pick, a box")
     {
         const std::vector<ChartNote> notes = streamOf({
-            noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
-            noteAt(1, Fraction{}, 2, 7, Fraction{1, 4}),
-            noteAt(1, Fraction{1, 2}, 1, 5, Fraction{1, 8}),
+            noteAt(1, Fraction{}, 3, 0, Fraction{1, 8}),
+            noteAt(1, Fraction{}, 6, 2, Fraction{1, 4}),
+            noteAt(1, Fraction{1, 2}, 3, 0, Fraction{1, 4}),
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{1, 8});
+        CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 8}});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
         CHECK(arpeggiosFrom(notes) == std::vector<bool>{false});
     }
 
-    SECTION("the same re-pick under a three-note grip is an arpeggio")
+    SECTION("the same re-pick under a three-note grip turns it to an arpeggio")
     {
         const std::vector<ChartNote> notes = streamOf({
-            noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
-            noteAt(1, Fraction{}, 2, 7, Fraction{1, 4}),
-            noteAt(1, Fraction{}, 3, 7, Fraction{1, 4}),
-            noteAt(1, Fraction{1, 2}, 1, 5, Fraction{1, 8}),
+            noteAt(1, Fraction{}, 3, 0, Fraction{1, 8}),
+            noteAt(1, Fraction{}, 5, 2, Fraction{1, 4}),
+            noteAt(1, Fraction{}, 6, 2, Fraction{1, 4}),
+            noteAt(1, Fraction{1, 2}, 3, 0, Fraction{1, 4}),
         });
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK(arpeggiosFrom(notes) == std::vector<bool>{true});
     }
@@ -1147,6 +1156,7 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         const std::vector<ChartNote> notes{
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 4}),
             noteAt(1, Fraction{}, 2, 7, Fraction{5, 16}),
+            noteAt(1, Fraction{}, 3, 7, Fraction{5, 16}),
             noteAt(2, Fraction{}, 1, 5, Fraction{1, 16}),
             noteAt(2, Fraction{1, 4}, 1, 3, Fraction{1, 4}),
             noteAt(2, Fraction{1, 4}, 2, 3, Fraction{1, 4}),
@@ -1156,11 +1166,9 @@ TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[co
         CHECK(derived.shapes.front().sustain == Fraction{5, 16});
         CHECK(derived.shapes.front().stated_extent == Fraction{1, 4});
         CHECK(derived.shapes[1].place == Fraction{5, 16});
-        // The first span sounds in parts, but it has two members, so it is a box-class span.
-        CHECK(derived.shapes.front().sounds_in_parts);
         const std::vector<bool> arpeggio = arpeggiosFrom(notes);
         REQUIRE(arpeggio.size() == 2);
-        CHECK_FALSE(arpeggio.front());
+        CHECK(arpeggio.front());
     }
 
     SECTION("a chug chain restating the shape whole stays a box")

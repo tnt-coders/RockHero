@@ -2652,18 +2652,18 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22334.0,
+                .expected = 22343.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
                 // a chord box, because something is picked apart inside them. A span classes by
                 // its own strokes alone: a ring struck before it — an open drone included — is a
                 // tail under it and classes nothing, so what is counted here is the spans whose
-                // own members sound apart, and only derived spans of three members or more
-                // (shape rule 5).
+                // own members sound apart. A derived span of fewer than three members never
+                // sounds in parts: a partial sounding breaks it instead (shape rules 3 and 5).
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 963.0,
+                .expected = 931.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2674,7 +2674,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // a tail, not a member to fold in, and is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 84.0,
+                .expected = 64.0,
             },
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking
@@ -2686,7 +2686,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2773.0,
+                .expected = 2778.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
