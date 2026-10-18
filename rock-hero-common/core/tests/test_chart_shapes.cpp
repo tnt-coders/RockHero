@@ -141,7 +141,7 @@ using rock_hero::common::core::testing::metersAt;
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartShapes derived = deriveWith(notes, tempo_map);
-    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes);
+    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes, derived.postures);
 }
 
 // THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
@@ -1082,6 +1082,23 @@ TEST_CASE(
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
         CHECK(derived.shapes[0].sounds_in_parts);
         CHECK(arpeggiosFrom(notes) == std::vector<bool>{true});
+    }
+
+    SECTION("a tap over a two-note grip leaves it a box; over three strings it is an arpeggio")
+    {
+        const auto held_under_tap = [](const int strings) {
+            std::vector<ChartNote> notes;
+            for (int string = 1; string <= strings; ++string)
+            {
+                notes.push_back(noteAt(1, Fraction{}, string, 5, Fraction{1, 2}));
+            }
+            notes.push_back(tapAt(2, Fraction{}, 5, 12, Fraction{1, 8}));
+            return streamOf(std::move(notes));
+        };
+        REQUIRE(deriveFrom(held_under_tap(2)).shapes.size() == 1);
+        CHECK(arpeggiosFrom(held_under_tap(2)) == std::vector<bool>{false});
+        REQUIRE(deriveFrom(held_under_tap(3)).shapes.size() == 1);
+        CHECK(arpeggiosFrom(held_under_tap(3)) == std::vector<bool>{true});
     }
 }
 

@@ -478,10 +478,13 @@ note in the song whenever a posture string had none.
 
 \param connections The resolved connections: the stored stream, sorted by (position, string), whose
        positions and attacks are all that is read, and its places.
-\param shapes Hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
+\param shapes Derived hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
+\param postures The posture table `shapes` index (\ref ChartResolutions::postures): a derived span
+       of fewer than three members is never an arpeggio, a right-hand onset inside it included.
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes);
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartPosture>& postures);
 
 } // namespace rock_hero::common::core

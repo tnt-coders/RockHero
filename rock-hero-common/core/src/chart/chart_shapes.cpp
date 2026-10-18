@@ -1584,7 +1584,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
 }
 
 std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes)
+    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
+    const std::vector<ChartPosture>& postures)
 {
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
@@ -1600,6 +1601,12 @@ std::vector<bool> chartShapeArrivals(
         if (shape.sounds_in_parts)
         {
             arpeggio.push_back(true);
+            continue;
+        }
+        // A grip too small for parts is a box under the other hand too (shape rule 5).
+        if (tooFewForParts(postures[shape.posture].stops))
+        {
+            arpeggio.push_back(false);
             continue;
         }
         // The one trigger still derived here, because it is a question about the span's extent:
