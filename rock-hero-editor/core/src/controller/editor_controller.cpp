@@ -2603,6 +2603,8 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_chart = hasLoadedChart(),
         .transport_playing = transport_state.playing,
         .has_chart_selection = !chartSelection().empty(),
+        .has_span_row_selection = std::holds_alternative<ShapeHoldSelection>(m_selection) ||
+                                  std::holds_alternative<HandSpanSelection>(m_selection),
         .has_armed_caret = armedChartCaret() != nullptr,
         .note_locked = m_grid_session.note_lock.has_value(),
     };

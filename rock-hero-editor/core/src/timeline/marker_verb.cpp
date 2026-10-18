@@ -88,6 +88,14 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Hold Shape";
         }
+        case MarkerVerb::MoveHoldStart:
+        {
+            return "Move Hold Start";
+        }
+        case MarkerVerb::MoveHoldEnd:
+        {
+            return "Move Hold End";
+        }
     }
     return {};
 }

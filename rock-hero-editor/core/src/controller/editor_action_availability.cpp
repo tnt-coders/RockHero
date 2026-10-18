@@ -431,8 +431,18 @@ using Verdict = std::optional<ActionUnavailableReason>;
         {
             return require(conditions.has_chart, Reason::NoChart);
         }
-        case EditorAction::Id::ShiftChartFrets:
+        // The duration keys move a selected hold's or derived span's end too, so either selection
+        // opens them; with neither, the refusal names the chart selection they mostly serve.
         case EditorAction::Id::AdjustChartSustain:
+        {
+            return firstFailure({
+                require(conditions.has_chart, Reason::NoChart),
+                require(
+                    conditions.has_chart_selection || conditions.has_span_row_selection,
+                    Reason::NoChartSelection),
+            });
+        }
+        case EditorAction::Id::ShiftChartFrets:
         case EditorAction::Id::ChooseChartHarmonic:
         case EditorAction::Id::SetChartHarmonicNode:
         // The junction toggle is selection-scoped like the verbs beside it: its operand is a

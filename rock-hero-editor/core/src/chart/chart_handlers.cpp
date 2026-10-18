@@ -1228,6 +1228,22 @@ void EditorController::Impl::landChartSelection(std::vector<ChartSelectionKey> k
     chartSelectionMutable().applyBox(keys, false);
 }
 
+// A step that names no landing leaves the chart keys standing where the step left them.
+void EditorController::Impl::landGestureSelection(const std::optional<ChartEditLanding>& landing)
+{
+    if (!landing.has_value())
+    {
+        landChartSelection(chartSelection().keys());
+        return;
+    }
+    std::visit(
+        common::core::Overloaded{
+            [this](const std::vector<ChartSelectionKey>& keys) { landChartSelection(keys); },
+            [this](const ShapeHoldSelection& hold) { landShapeHoldSelection(hold); },
+        },
+        *landing);
+}
+
 // Inside an edit the caret is a stale answer to what the charter acts on, so it demotes as every
 // selecting gesture demotes it; the selection is replaced in place, as chartSelectionMutable does,
 // and the audible tone re-derived for the same reason.
@@ -2246,6 +2262,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         moveSelectedFretHandPosition(selected, direction);
         return;
     }
+    if (std::holds_alternative<ShapeHoldSelection>(m_selection) ||
+        std::holds_alternative<HandSpanSelection>(m_selection))
+    {
+        // A hold's or derived span's start, stepped by the notes rather than the grid.
+        stepShapeHoldEdge(ShapeHoldEdge::Start, direction == ChartStepDirection::Right);
+        return;
+    }
     if (!chartSelection().empty())
     {
         moveChartSelection(direction);
@@ -2401,7 +2424,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     }
     // The gesture is COPIED into the window rather than moved: the replan reads it while the arming
     // argument is being evaluated, and a moved-from list would replay nothing.
-    const bool committed = commitChartGestureStep(
+    const std::expected<bool, ChartPlanInvalid> committed = commitChartGestureStep(
         live != nullptr,
         [this, &delta, &gesture, label](const common::core::Chart& pre_gesture) {
             return planMoveSelection(
@@ -2415,7 +2438,11 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         },
         gesture,
         landing);
-    if (committed && caret_rides)
+    if (!committed.has_value())
+    {
+        reportChartPlanRefusal(committed.error(), chartSelection());
+    }
+    if (committed.value_or(false) && caret_rides)
     {
         // Re-read after the edit: the selection followed the move, so it names where the caret
         // landed.
@@ -3282,6 +3309,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
     const int direction = action.direction;
+    // On a selected hold or derived span the same keys step its end, by the notes.
+    if (std::holds_alternative<ShapeHoldSelection>(m_selection) ||
+        std::holds_alternative<HandSpanSelection>(m_selection))
+    {
+        if (direction != 0)
+        {
+            stepShapeHoldEdge(ShapeHoldEdge::End, direction > 0);
+        }
+        return;
+    }
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty() ||
         direction == 0)
@@ -3319,17 +3356,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     //
     // No select_exactly: a duration step rewrites its notes IN PLACE, so every key stays where it
     // was and the plan's own follow is exactly right.
-    static_cast<void>(commitChartGestureStep(
-        live != nullptr,
-        [this, &live_chart, &gesture](const common::core::Chart& pre_gesture) {
-            return planAdjustSustain(
-                live_chart,
-                session().song().tempo_map,
-                pre_gesture,
-                notesTouchedBy(chartSelection().notes(), chartSelection().keyframes()),
-                gesture.steps);
-        },
-        gesture));
+    if (const std::expected<bool, ChartPlanInvalid> stepped = commitChartGestureStep(
+            live != nullptr,
+            [this, &live_chart, &gesture](const common::core::Chart& pre_gesture) {
+                return planAdjustSustain(
+                    live_chart,
+                    session().song().tempo_map,
+                    pre_gesture,
+                    notesTouchedBy(chartSelection().notes(), chartSelection().keyframes()),
+                    gesture.steps);
+            },
+            gesture);
+        !stepped.has_value())
+    {
+        reportChartPlanRefusal(stepped.error(), chartSelection());
+    }
 }
 
 // ONE step of a coalescing gesture, whichever verb's — the duration run, the move run, and whatever
@@ -3352,7 +3393,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
 // the plan's default follow to it, which is right for every verb that rewrites in place. Asked of
 // the pre-gesture chart, exactly like the replan, because a landing a bound HELD is a fact about
 // that same state.
-bool EditorController::Impl::commitChartGestureStep(
+std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGestureStep(
     const bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
     const ChartGestureLanding& landing)
 {
@@ -3382,7 +3423,7 @@ bool EditorController::Impl::commitChartGestureStep(
         pre_gesture = &reconstructed;
     }
 
-    std::optional<std::vector<ChartSelectionKey>> select_exactly;
+    std::optional<ChartEditLanding> select_exactly;
     if (landing)
     {
         select_exactly = landing(*pre_gesture);
@@ -3392,8 +3433,8 @@ bool EditorController::Impl::commitChartGestureStep(
     {
         // Invalid is the gate refusing the result, so this step never happened: it is not recorded
         // (the appended list is the caller's local until the window is armed below), a running
-        // gesture keeps the entry and the steps it had, and the refusal is reported like any
-        // verb's.
+        // gesture keeps the entry and the steps it had, and the refusal goes back to the caller,
+        // which reports it against what its verb acts on.
         //
         // NoChange is the gesture standing exactly where it started — every object already at its
         // bound on a first step, or a run that replayed back to its start — so it describes no edit
@@ -3407,13 +3448,16 @@ bool EditorController::Impl::commitChartGestureStep(
             // steps re-key its objects has been pointing at where the run had reached, and a
             // replay describing nothing is exactly the case where that landing IS the start.
             retireChartGesture(burst->plan);
-            landChartSelection(select_exactly.value_or(chartSelection().keys()));
+            landGestureSelection(select_exactly);
             updateView();
             // The chart MOVED — back to where the run began — so this is a step the caller must
             // follow exactly as it follows any other: a caret riding the lone object rides it home.
             return true;
         }
-        reportChartPlanRefusal(plan.error(), chartSelection());
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
+        {
+            return std::unexpected{*invalid};
+        }
         return false;
     }
 
@@ -3480,7 +3524,7 @@ bool EditorController::Impl::commitChartGestureStep(
         // The replace path has no plan-driven selection follow of its own (that lives in
         // applyChartEditPlan, which only the first step runs), so a verb whose step re-keys its
         // objects states the landing here or leaves the next press holding keys naming nothing.
-        landChartSelection(select_exactly.value_or(chartSelection().keys()));
+        landGestureSelection(select_exactly);
         // The run began where the burst record says; it now leaves the charter on its landing.
         EditFocus after = chartEditFocus();
         if (replaceUndoTop(std::make_unique<ChartEdit>(std::move(written), burst->before, after)))
@@ -3858,19 +3902,23 @@ void EditorController::Impl::commitChartHarmonic(const std::optional<int> partia
     // The notes the choice refused, reported once the step has published the chart they are named
     // against.
     std::vector<ChartRefusedNote> refused;
-    static_cast<void>(commitChartGestureStep(
-        continues,
-        [this, &keys, partial, &refused](const common::core::Chart& pre_gesture) {
-            ChartSelectionPlan planned =
-                partial.has_value()
-                    ? planSetHarmonic(
-                          pre_gesture, session().song().tempo_map, keys, partial, "Harmonic")
-                    : planClearHarmonic(
-                          pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
-            refused = std::move(planned.refused);
-            return std::move(planned.plan);
-        },
-        ChartHarmonicGesture{}));
+    if (const std::expected<bool, ChartPlanInvalid> stepped = commitChartGestureStep(
+            continues,
+            [this, &keys, partial, &refused](const common::core::Chart& pre_gesture) {
+                ChartSelectionPlan planned =
+                    partial.has_value()
+                        ? planSetHarmonic(
+                              pre_gesture, session().song().tempo_map, keys, partial, "Harmonic")
+                        : planClearHarmonic(
+                              pre_gesture, session().song().tempo_map, keys, "Remove Harmonic");
+                refused = std::move(planned.refused);
+                return std::move(planned.plan);
+            },
+            ChartHarmonicGesture{});
+        !stepped.has_value())
+    {
+        reportChartPlanRefusal(stepped.error(), chartSelection());
+    }
     reportChartRefusedNotes(refused);
 }
 

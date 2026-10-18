@@ -427,6 +427,60 @@ std::vector<common::core::ShapeHold> carvedShapeHolds(
     return carved;
 }
 
+// One pass keeping the nearest stop beyond `from`: an end stops at either boundary of a ring, a
+// start only where a note is struck.
+std::optional<common::core::GridPosition> steppedShapeHoldEdge(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    const ShapeHoldEdge edge, const common::core::GridPosition& from, const bool later)
+{
+    std::optional<common::core::GridPosition> stepped;
+    const auto consider = [&stepped, &from, later](const common::core::GridPosition& stop) {
+        const bool beyond = later ? from < stop : stop < from;
+        if (beyond && (!stepped.has_value() || (later ? stop < *stepped : *stepped < stop)))
+        {
+            stepped = stop;
+        }
+    };
+    for (const common::core::ChartNote& note : notes)
+    {
+        consider(note.position);
+        if (edge == ShapeHoldEdge::End)
+        {
+            consider(
+                common::core::advanceGridPositionByWholeNotes(
+                    tempo_map, note.position, note.sustain));
+        }
+    }
+    return stepped;
+}
+
+std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
+    const common::core::GridPosition& value, const std::string_view label)
+{
+    common::core::ShapeHold edged = moved;
+    (edge == ShapeHoldEdge::Start ? edged.start : edged.end) = value;
+    if (!(edged.start < edged.end))
+    {
+        return std::unexpected{
+            ChartPlanInvalid{common::core::formatShapeHoldToken(moved) + " would hold nothing"}
+        };
+    }
+    std::vector<common::core::ShapeHold> others = base.shape_holds;
+    std::erase_if(others, [&moved](const common::core::ShapeHold& hold) { return hold == moved; });
+    for (const common::core::ShapeHold& other : others)
+    {
+        if (!(other.start < edged.start) && !(edged.end < other.end))
+        {
+            return std::unexpected{ChartPlanInvalid{
+                "the edge would push " + common::core::formatShapeHoldToken(other) + " to nothing"
+            }};
+        }
+    }
+    return finalizeShapeHoldPlan(base, tempo_map, carvedShapeHolds(others, edged), label);
+}
+
 common::core::ShapeHold shapeHoldOverSpan(
     const common::core::ChartShape& span, const common::core::TempoMap& tempo_map,
     common::core::HoldGrip grip)

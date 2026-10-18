@@ -278,6 +278,53 @@ after it, and one it covers is gone. Every verb that authors a hold adds it thro
 [[nodiscard]] std::vector<common::core::ShapeHold> carvedShapeHolds(
     const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& carved_in);
 
+/*! \brief Which edge of a shape hold an edge key moves. */
+enum class ShapeHoldEdge : std::uint8_t
+{
+    /*! \brief The start, which the edge keys step from note onset to note onset. */
+    Start,
+
+    /*! \brief The end, which the edge keys step from note boundary to note boundary. */
+    End,
+};
+
+/*!
+\brief Where a hold edge key steps an edge standing at `from`: a start to the adjacent note onset,
+an end to the adjacent note boundary, an onset or a ring's end, of any string.
+\param notes The note stream, in slot order.
+\param tempo_map Tempo map placing the rings' ends.
+\param edge The edge stepped.
+\param from Where the edge stands.
+\param later True to step later, false earlier.
+\return The adjacent stop strictly beyond `from` that way; nothing where no note gives one.
+*/
+[[nodiscard]] std::optional<common::core::GridPosition> steppedShapeHoldEdge(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    ShapeHoldEdge edge, const common::core::GridPosition& from, bool later);
+
+/*!
+\brief Plans a hold edge key's run: `moved` with its edge at `value`, carved into the other holds
+(\ref carvedShapeHolds) and judged by the hold gate (\ref finalizeShapeHoldPlan).
+
+An edge moved into a neighbouring hold pushes that hold's facing edge along with it, which is the
+carve cropping the hold it straddles. A neighbour pushed to nothing is refused, as is the moved hold
+left with no length. `moved` is the hold as the run began, so a run that steps back restores the
+neighbour it pushed: every press replays from the run's start chart.
+
+\param base The chart the run began from.
+\param tempo_map Tempo map placing the notes and the holds.
+\param moved The hold being moved as the run began: an authored hold of `base`, which the plan
+       replaces, or a derived span's extent as an unnamed hold, which the plan adds.
+\param edge The edge moved.
+\param value Where the run has moved that edge.
+\param label User-visible undo label.
+\return The plan; NoChange where the holds come back to `base`'s, Invalid naming the rule broken.
+*/
+[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    const common::core::ShapeHold& moved, ShapeHoldEdge edge,
+    const common::core::GridPosition& value, std::string_view label);
+
 /*!
 \brief A hold stating `grip` over exactly a derived span's extent: what converting the span to a
 hold starts from.

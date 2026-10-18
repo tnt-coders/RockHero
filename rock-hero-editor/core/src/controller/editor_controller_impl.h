@@ -239,22 +239,43 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         friend bool operator==(const ChartMoveGesture& lhs, const ChartMoveGesture& rhs) = default;
     };
 
+    // The hold edge keys' run (shape_hold_handlers.cpp): the hold being moved as it stood when the
+    // run began — an authored hold, or a derived span's extent as the unnamed hold converting it —
+    // and where the run has moved its edge. The latest edge is the whole gesture, not a step list:
+    // a step reads the notes, which no hold verb moves, so one value replays exactly. A selected
+    // hold has no chart keys for the window's proof to compare, so setSelection's disarm is what
+    // ends the run on any other selection.
+    struct ChartHoldEdgeGesture
+    {
+        ShapeHoldEdge edge{};
+        common::core::ShapeHold base;
+        common::core::GridPosition value;
+
+        friend bool operator==(const ChartHoldEdgeGesture& lhs, const ChartHoldEdgeGesture& rhs) =
+            default;
+    };
+
     // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
     // equality rather than a per-verb unwrap each caller could spell differently.
     using ChartVerbWindowVerb = std::variant<
-        ChartTechniqueToggle, ChartHarmonicGesture, ChartSustainGesture, ChartMoveGesture>;
+        ChartTechniqueToggle, ChartHarmonicGesture, ChartSustainGesture, ChartMoveGesture,
+        ChartHoldEdgeGesture>;
 
     // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
     // state that run started from.
     using ChartGestureReplan = std::function<std::expected<JudgedChartPlan, ChartPlanRefusal>(
         const common::core::Chart& pre_gesture)>;
 
+    // Where a chart edit leaves the selection when its verb says: exactly these chart keys, or the
+    // shape hold a hold verb wrote. A verb that says nothing has its selection follow the edit.
+    using ChartEditLanding = std::variant<std::vector<ChartSelectionKey>, ShapeHoldSelection>;
+
     // Where a run's objects have LANDED, for a verb whose steps re-key them. Asked of the same
     // pre-gesture chart the replay is planned against, because a landing a bound HELD is a fact
     // about that chart and nothing else — delta arithmetic alone would name an offset the plan
     // clamped away, leaving the selection pointing at no keyframe at all.
     using ChartGestureLanding =
-        std::function<std::vector<ChartSelectionKey>(const common::core::Chart& pre_gesture)>;
+        std::function<ChartEditLanding(const common::core::Chart& pre_gesture)>;
 
     void performActionImpl(const EditorAction::StepChartCaret& action);
     void performActionImpl(const EditorAction::StepToRowObject& action);
@@ -396,8 +417,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // started at (`replan`) and folds the result into the single entry the run owns — pushed by the
     // first step, replaced by every later one, so the entry always describes start → now. A replay
     // that describes exactly the plan already on that entry moved nothing and is NOT recorded, so a
-    // press into a bound costs nothing to come back from. True when the chart moved.
-    bool commitChartGestureStep(
+    // press into a bound costs nothing to come back from. True when the chart moved; the gate's
+    // refusal is the caller's to report, against the subject its verb acts on.
+    std::expected<bool, ChartPlanInvalid> commitChartGestureStep(
         bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
         const ChartGestureLanding& landing = {});
     // Ends a gesture whose replayed steps describe no edit at all: takes its entry back out of
@@ -544,9 +566,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
-    // Where a chart edit leaves the selection when its verb says: exactly these chart keys, or the
-    // shape hold a hold verb wrote. A verb that says nothing has its selection follow the edit.
-    using ChartEditLanding = std::variant<std::vector<ChartSelectionKey>, ShapeHoldSelection>;
     // A plan the caller already holds as valid, which therefore names no subject. Once the write
     // has landed it seeds the notes-layer memo with the plan's own derivation.
     bool applyChartEditPlan(
@@ -568,6 +587,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Makes the hold the selection inside an edit, as landChartSelection makes chart keys: the
     // caret demoted in place, and no commit point, so a gesture's window survives its own landing.
     void landShapeHoldSelection(const ShapeHoldSelection& hold);
+    // Lands a gesture step's selection where its verb says, and the chart keys standing otherwise.
+    void landGestureSelection(const std::optional<ChartEditLanding>& landing);
     // Where the charter stands right now: the one capture both sides of a chart undo entry record.
     // A selected hold or derived span is shown as every marker entry shows its own
     // (MarkerEditFocus); anything else is the place in the chart (ChartEditFocus). Nothing where
@@ -753,6 +774,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The index into the notes layer's spans of the derived span the selection names, or nothing
     // where it names none or the span is gone.
     [[nodiscard]] std::optional<std::size_t> selectedHandSpanShape() const;
+    // The span rows' selected marker as a hold: the authored hold as it stands, or a derived span's
+    // extent as the unnamed hold that converts it. Nothing where neither is selected.
+    [[nodiscard]] std::optional<common::core::ShapeHold> selectedSpanRowHold() const;
+    // One press of a hold edge key (Alt+Left/Right the start, Alt+Shift+Left/Right the end) on the
+    // selected hold or derived span: the edge stepped to the next note onset or boundary that way,
+    // as one step of a held run replaying from its start (planMoveShapeHoldEdge).
+    void stepShapeHoldEdge(ShapeHoldEdge edge, bool later);
     // The unnamed hold the hold chord states, read off the selection: over a selected hold's or
     // derived span's own extent, a time selection's, or the selected notes' from their first onset
     // to their last ring's end. Nothing where the selection covers nothing.

@@ -23,9 +23,10 @@
 namespace rock_hero::editor::core
 {
 
-// The span rows' verbs: Ctrl+H states a hold over the selection. Every verb carves the hold it
-// authors into the chart's holds (carvedShapeHolds) and ends at the hold gate
-// (finalizeShapeHoldPlan), so a result the normalizer would rewrite is refused.
+// The span rows' verbs: Ctrl+H states a hold over the selection, and the edge keys move a hold's or
+// a derived span's edges. Every verb carves the hold it authors into the chart's holds
+// (carvedShapeHolds) and ends at the hold gate (finalizeShapeHoldPlan), so a result the normalizer
+// would rewrite is refused.
 
 namespace
 {
@@ -79,6 +80,22 @@ std::optional<std::size_t> EditorController::Impl::selectedHandSpanShape() const
     return derivedSpanShapes().at(*index);
 }
 
+std::optional<common::core::ShapeHold> EditorController::Impl::selectedSpanRowHold() const
+{
+    if (const common::core::ShapeHold* const hold = selectedShapeHold(); hold != nullptr)
+    {
+        return *hold;
+    }
+    if (const std::optional<std::size_t> shape = selectedHandSpanShape(); shape.has_value())
+    {
+        return shapeHoldOverSpan(
+            chartResolutions().shapes.at(*shape),
+            session().song().tempo_map,
+            common::core::UnnamedGrip{});
+    }
+    return std::nullopt;
+}
+
 // One target per selection kind, so the precedence is the selection's own: exactly one exists.
 std::optional<common::core::ShapeHold> EditorController::Impl::holdShapeTarget() const
 {
@@ -94,14 +111,9 @@ std::optional<common::core::ShapeHold> EditorController::Impl::holdShapeTarget()
             .start = start, .end = end, .grip = common::core::UnnamedGrip{}
         };
     };
-    if (const common::core::ShapeHold* const hold = selectedShapeHold(); hold != nullptr)
+    if (const std::optional<common::core::ShapeHold> held = selectedSpanRowHold(); held.has_value())
     {
-        return unnamed(hold->start, hold->end);
-    }
-    if (const std::optional<std::size_t> shape = selectedHandSpanShape(); shape.has_value())
-    {
-        return shapeHoldOverSpan(
-            chartResolutions().shapes.at(*shape), tempo_map, common::core::UnnamedGrip{});
+        return unnamed(held->start, held->end);
     }
     if (const TimeSelection* const range = selectedTimeSelection(); range != nullptr)
     {
@@ -169,6 +181,77 @@ void EditorController::Impl::performActionImpl(EditorAction::HoldShape /*action*
     }
     static_cast<void>(applyChartEditPlan(
         std::move(*plan), ChartEditLanding{ShapeHoldSelection{.start = target->start}}));
+}
+
+// A press continues the live run of the same edge, whose start state the gesture authority replays
+// from; any other press starts one from the selection as it stands. The edge steps from where the
+// run has moved it, by the notes, never by the grid, and the hold stays selected under its start.
+void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const bool later)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const MarkerVerb verb =
+        edge == ShapeHoldEdge::Start ? MarkerVerb::MoveHoldStart : MarkerVerb::MoveHoldEnd;
+
+    // Copied out of the window, which the commit below reassigns.
+    const ChartVerbWindowVerb* const live_verb = liveChartGestureVerb();
+    const auto* const live =
+        live_verb != nullptr ? std::get_if<ChartHoldEdgeGesture>(live_verb) : nullptr;
+    const bool continues = live != nullptr && live->edge == edge;
+    std::optional<ChartHoldEdgeGesture> run;
+    if (continues)
+    {
+        run = *live;
+    }
+    else if (
+        const std::optional<common::core::ShapeHold> held = selectedSpanRowHold(); held.has_value()
+    )
+    {
+        run = ChartHoldEdgeGesture{
+            .edge = edge,
+            .base = *held,
+            .value = edge == ShapeHoldEdge::Start ? held->start : held->end,
+        };
+    }
+    if (!run.has_value())
+    {
+        return;
+    }
+    ChartHoldEdgeGesture gesture = *run;
+    const std::optional<common::core::GridPosition> stepped =
+        steppedShapeHoldEdge(chart.notes, tempo_map, edge, gesture.value, later);
+    if (!stepped.has_value())
+    {
+        refuseShapeHoldVerb(
+            verb,
+            edge == ShapeHoldEdge::Start ? "no note onset to step the start to"
+                                         : "no note boundary to step the end to",
+            gesture.base);
+        return;
+    }
+    gesture.value = *stepped;
+    const common::core::GridPosition landed =
+        edge == ShapeHoldEdge::Start ? gesture.value : gesture.base.start;
+    const std::string label = markerVerbLabel(verb);
+    const std::expected<bool, ChartPlanInvalid> moved = commitChartGestureStep(
+        continues,
+        [&tempo_map, &gesture, &label](const common::core::Chart& pre_gesture) {
+            return planMoveShapeHoldEdge(
+                pre_gesture, tempo_map, gesture.base, gesture.edge, gesture.value, label);
+        },
+        gesture,
+        [&landed](const common::core::Chart& /*pre_gesture*/) -> ChartEditLanding {
+            return ShapeHoldSelection{.start = landed};
+        });
+    if (!moved.has_value())
+    {
+        refuseShapeHoldVerb(verb, moved.error().reason, gesture.base);
+    }
 }
 
 } // namespace rock_hero::editor::core

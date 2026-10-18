@@ -405,7 +405,9 @@ public:
     adjacent line of that same lattice, Up/Down step its value (one real state on a discrete lane,
     else 0.01), clamped strictly between its neighbors and inside the active region's window. With
     no selection but an armed caret on an empty lane slot, the arrow creates an on-curve point with
-    the step baked in — one keystroke, one undo entry.
+    the step baked in — one keystroke, one undo entry. A shape hold or a derived span: Left/Right
+    step its start to the adjacent note onset, a derived span becoming a hold, and the start pushes
+    a hold it moves into, as one held run.
 
     \param direction Move direction.
     */
@@ -473,7 +475,9 @@ public:
     One placement-quantum step, which moves each ring's END onto the adjacent line of that lattice,
     so a ring left between lines snaps back onto them. Growth stops at exact adjacency with the next
     onset on the note's OWN string, a ring a step would empty holds where it is, and a run of
-    presses is ONE gesture, replayed from the rings it started at onto one undo entry.
+    presses is ONE gesture, replayed from the rings it started at onto one undo entry. On a selected
+    shape hold or derived span the same keys step its end to the adjacent note boundary instead, as
+    the move keys step its start.
 
     \param direction +1 to grow, -1 to shrink.
     */

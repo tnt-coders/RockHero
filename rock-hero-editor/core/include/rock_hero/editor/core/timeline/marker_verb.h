@@ -78,6 +78,12 @@ enum class MarkerVerb : std::uint8_t
 
     /*! \brief States that the hand holds one shape over the selection's extent. */
     HoldShape,
+
+    /*! \brief Moves a hold's start, or a derived span's as it becomes a hold, one note onset. */
+    MoveHoldStart,
+
+    /*! \brief Moves a hold's end, or a derived span's as it becomes a hold, one note boundary. */
+    MoveHoldEnd,
 };
 
 /*!

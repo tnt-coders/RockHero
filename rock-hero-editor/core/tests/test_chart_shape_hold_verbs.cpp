@@ -251,7 +251,39 @@ struct HoldEditor
     {
         controller.onHoldShapeRequested();
     }
+
+    // Alt+Right or Alt+Left: the start key.
+    void startKey(const bool later)
+    {
+        controller.onSelectionMoveRequested(
+            later ? ChartStepDirection::Right : ChartStepDirection::Left);
+    }
+
+    // Alt+Shift+Right or Alt+Shift+Left: the end key.
+    void endKey(const bool later)
+    {
+        controller.onChartSustainAdjustRequested(later ? 1 : -1);
+    }
 };
+
+// Four strums of one chord on strings 1 and 2, frets 3 and 5, on the beats of measure 3, the last
+// ringing a half note to 4:2: one derived span, [3:1, 4:2), which the holds below cut in two.
+[[nodiscard]] std::vector<std::vector<common::core::ChartNote>> strummedMeasure()
+{
+    return {
+        chordAt(at(3, 1), 3, 5),
+        chordAt(at(3, 2), 3, 5),
+        chordAt(at(3, 3), 3, 5),
+        chordAt(at(3, 4), 3, 5, Fraction{1, 2}),
+    };
+}
+
+// The strummed measure under two touching holds, [3:1, 3:3) and [3:3, 4:2).
+[[nodiscard]] common::core::Chart twoHeldHalves()
+{
+    return chartOf(
+        strummedMeasure(), {unnamedHold(at(3, 1), at(3, 3)), unnamedHold(at(3, 3), at(4, 2))});
+}
 
 } // namespace
 
@@ -488,6 +520,129 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
         INFO(contents);
         CHECK(contents.find("shape hold 1:3 to 2:3 does not fit its notes") != std::string::npos);
     }
+}
+
+// The start key steps a derived span's start one note onset, converting the span to a hold, and
+// the end key steps its end one note boundary; a step leaving a hold that does not fit its notes is
+// refused.
+TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
+{
+    HoldEditor editor{chartOf({arpeggioIn(1)})};
+    REQUIRE(editor.spanCount() == 1);
+    editor.walkDownAt(0.75, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+
+    SECTION("the start key")
+    {
+        editor.startKey(true);
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 2), at(1, 4))});
+        CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+        CHECK(editor.entries() == entries + 1);
+        CHECK(editor.lastLabel() == "Move Hold Start");
+
+        editor.controller.onUndoRequested();
+        CHECK(editor.holds().empty());
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    }
+
+    SECTION("the end key, refused where the end would fall inside the rings")
+    {
+        const std::size_t flashes = editor.view.refusal_flashes.size();
+        const LogCapture capture;
+        editor.endKey(false);
+        const std::string contents = capture.text();
+        INFO(contents);
+        CHECK(contents.find("shape hold 1:1 to 1:3 does not fit its notes") != std::string::npos);
+        CHECK(editor.holds().empty());
+        CHECK(editor.entries() == entries);
+        CHECK(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    }
+}
+
+// The end key moved into the next hold pushes that hold's start along with it, and a step back in
+// the same run restores it, the run being one undo entry; an edge that would push its neighbour to
+// nothing is refused.
+TEST_CASE("The end key pushes the next hold and a step back restores it", "[core][holds]")
+{
+    HoldEditor editor{twoHeldHalves()};
+    editor.walkDownAt(4.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+
+    editor.endKey(true);
+    INFO(editor.holdsText());
+    CHECK(
+        editor.holds() ==
+        std::vector{unnamedHold(at(3, 1), at(3, 4)), unnamedHold(at(3, 4), at(4, 2))});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    SECTION("a step back in the run restores the pushed hold")
+    {
+        editor.endKey(false);
+        CHECK(editor.holds() == twoHeldHalves().shape_holds);
+        CHECK(editor.entries() == entries);
+    }
+
+    SECTION("a neighbour pushed to nothing refuses the press")
+    {
+        const LogCapture capture;
+        editor.endKey(true);
+        const std::string contents = capture.text();
+        INFO(contents);
+        CHECK(
+            contents.find("the edge would push shape hold 3:3 to 4:2 to nothing") !=
+            std::string::npos);
+        CHECK(
+            editor.holds() ==
+            std::vector{unnamedHold(at(3, 1), at(3, 4)), unnamedHold(at(3, 4), at(4, 2))});
+        CHECK(editor.entries() == entries + 1);
+    }
+
+    SECTION("once the run ends, only undo restores the pushed hold")
+    {
+        editor.controller.onRowObjectStepRequested(true, false);
+        REQUIRE(editor.selectedHold() == std::optional<std::size_t>{1});
+        editor.controller.onRowObjectStepRequested(false, false);
+        REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+        const LogCapture capture;
+        editor.endKey(false);
+        const std::string contents = capture.text();
+        INFO(contents);
+        CHECK(contents.find("shape hold 3:1 to 3:3 does not fit its notes") != std::string::npos);
+        CHECK(
+            editor.holds() ==
+            std::vector{unnamedHold(at(3, 1), at(3, 4)), unnamedHold(at(3, 4), at(4, 2))});
+        CHECK(editor.entries() == entries + 1);
+
+        editor.controller.onUndoRequested();
+        CHECK(editor.holds() == twoHeldHalves().shape_holds);
+    }
+}
+
+// The start key moved into the previous hold pushes that hold's end back with it.
+TEST_CASE("The start key pushes the previous hold", "[core][holds]")
+{
+    HoldEditor editor{twoHeldHalves()};
+    editor.walkDownAt(5.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{1});
+
+    editor.startKey(false);
+    INFO(editor.holdsText());
+    CHECK(
+        editor.holds() ==
+        std::vector{unnamedHold(at(3, 1), at(3, 2)), unnamedHold(at(3, 2), at(4, 2))});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{1});
+
+    editor.startKey(false);
+    CHECK(
+        editor.holds() ==
+        std::vector{unnamedHold(at(3, 1), at(3, 2)), unnamedHold(at(3, 2), at(4, 2))});
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.holds() == twoHeldHalves().shape_holds);
 }
 
 } // namespace rock_hero::editor::core
