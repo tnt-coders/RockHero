@@ -57,18 +57,29 @@ equals its stated extent.** So an end in the middle of a sustain, where nothing 
 every derived span is a valid hold by construction, and authoring one exactly changes nothing (the
 census gate pins both rows at zero).
 
-A hold whose notes never found a span still publishes its span over `[start, end)` with whatever
-posture its notes give (possibly empty), and is valid. A `none` hold is always valid. A hold with
-nothing sounding inside is valid and stands.
+The close rule is one for every unnamed hold. A hold whose notes never found a span is a span
+standing at its end, its grip what rings into the end (read as a founding there reads its carried
+rings) and the stop of each string its own notes struck that no longer rings; the walk closes it
+there like any other span. So a hold over silence, or over a single note's whole ring, is valid,
+and one ending in the middle of that ring, nothing else happening, is not. Every hold's span is
+published, visible and selectable, except one that closes at its own start: it holds nothing. A
+`none` hold is always valid.
+
+**Walls at the published end.** A hold's edges are walls for every other span, and its end is a
+wall only while its span reaches it: once the walk has closed the span short of the stated end,
+that end walls nothing. The spans derived under the stated holds are therefore the spans under the
+holds the walk publishes.
 
 ## 3. Keeping holds valid after other edits
 
 An edit that is not a hold verb (a note edit, a tempo edit, a load) always lands. Afterwards one
-normalizer, run once in the timeline funnel and logged once per rewrite, writes back each hold's
-published extent: that one rule is both the crop (a conflict inside) and the extension (an end
-where nothing breaks). A hold whose published extent is empty, or that would overlap another hold,
-is dropped (touching is legal: holds are half-open). One pass is stable: a crop lands on a
-conflict, which is a break, and an extension stops at the first break with no conflict before it.
+normalizer, run once wherever the edit lands (the plan gate, the timeline funnel, the load) and
+logged once per rewrite, writes back each hold's published extent: that one rule is both the crop
+(a conflict inside) and the extension (an end where nothing breaks). A hold whose span closes at
+its own start is dropped. No rewrite can make two holds overlap, since every span closes at the
+next hold's start (touching is legal: holds are half-open). Because the walk walls each hold at its
+published end, the normalizer is one derivation and one pass reading it, and the notes layer it
+returns is that same derivation; normalizing the result again changes nothing.
 
 Inside an unsettled gesture (a held run of note or edge keys) the normalizer runs on each candidate
 replayed from the pre-gesture chart, never on that base, so every extend, crop and drop it makes

@@ -16,6 +16,15 @@ against the code before execution.
 - An authored grip may state an open string with a fretted note above it on the same string (a
   hold of the open stop under, say, a 4): legal for an authored hold, never inferred by the
   derivation, which ends a span where a finger lands on a string ringing open.
+- A named grip may state stops the notes never sound (a multi-fret grip over a single note, say),
+  so a finger can lift mid-sustain and end the grip without changing any sound. A named-grip hold
+  may therefore end where the notes show no close: its end is the charter's statement. An unnamed
+  hold keeps 60b's rule that its end must fall where the walk would close. So `Ctrl+H` over a range
+  whose end is invalid for an unnamed hold opens the grip picker instead of refusing, giving the
+  charter the chance to state a grip that makes the end valid. It refuses at once only where no grip
+  could: every string sounds across the end, leaving no silent string for a finger to lift from
+  inaudibly. Finer impossibilities (no free finger, reach) are refused when the grip is confirmed,
+  and cancelling the picker refuses. In 60b, which has no grips, such a `Ctrl+H` is refused.
 - The grip picker and the "New Grip Template..." fingering dialog: `Ctrl+H` and `Enter` on a
   derived span or hold open it; naming a grip is never required to author a hold.
 - The export gate: export refuses while a span has no named grip, with the toolbar count. Save
