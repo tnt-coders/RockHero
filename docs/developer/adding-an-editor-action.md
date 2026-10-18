@@ -58,7 +58,8 @@ These are the loose ends. Check each one deliberately.
    HOLDS or repeats — an arrow step, a nudge — one press is not one gesture: run it through the
    shared gesture authority (`commitChartGestureStep`, `chart_handlers.cpp`), which replays the
    run's step list over the state it started at and keeps the whole burst one entry. You write
-   what a STEP means and nothing else; see \ref guide_undo.
+   what a STEP means and report the refusal it hands back against what your verb acts on, and
+   nothing else; see \ref guide_undo.
 4. **New availability preconditions.** If gating needs a fact the policy cannot see, add a field
    to `ActionConditions` (`editor_action_availability.h`) and populate it in
    `currentActionConditions` — do not reach around the policy from the handler.

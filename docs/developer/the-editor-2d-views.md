@@ -1012,8 +1012,11 @@ note reveal's exactly — the same ink, simply reaching further, snapping back w
 away — because a reveal shows the truth in the notation's own terms rather than annotating it. Both
 reach the paint core as a bare per-index answer (`common::ui::TabNotePresence` per note for
 `paintTabLane`, `common::ui::TabSpanRevealed` per span for `paintTabLaneFurniture`), since each
-projected event already carries both of its ends. Spans are not selectable in their own right
-yet; that arrives with the span-marker work.
+projected event already carries both of its ends. A derived span and a shape hold are selectable
+from the keyboard, on the walk's two span rows (\ref guide_keyboard), and their indices are
+published (`ChartEditViewState::selected_hand_span`, `selected_shape_hold`); the lane does not yet
+draw them selected, reveal a selected span or select one with the pointer, which plan 60b's marks
+add.
 
 **A FACE IS ONE OBJECT'S** (user ruling 2026-09-29, which retired the
 selection handle): a click on a bend chip selects its object alone with the caret on that face, even

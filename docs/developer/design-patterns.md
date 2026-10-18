@@ -484,14 +484,16 @@ differs, and that is the point of keeping the proof outside them:
 
 **One authority serves every gesture** (`commitChartGestureStep`, `chart_handlers.cpp`): the verb
 records its own step — nothing at all where a run's whole state is its latest choice — then hands
-over a replan callback (`the whole run, given the state it started
-from`), the verb value the next press must match, and — for a verb whose steps RE-KEY what they move
-— where the run has landed. Everything after that is shared: reconstructing the pre-gesture chart,
-push-or-replace, retire-on-`NoChange`, and arming the window. A second copy of that machinery per
-verb is exactly the "one rule stated twice" defect; adding a gesture verb means writing what a STEP
-means and nothing else — and three verbs run the shape today. The move gesture is the one that needs the landing keys, because a note's
-key is its slot and a keyframe's identity IS its offset, so every step re-points the selection — and
-the window's proof then compares against the re-pointed keys.
+over a replan callback (`the whole run, given the state it started from`), the verb value the next
+press must match, and — for a verb whose steps RE-KEY what they move — where the run has landed.
+Everything after that is shared: reconstructing the pre-gesture chart, push-or-replace,
+retire-on-`NoChange`, and arming the window; a refusal goes back to the verb, which reports it
+against what it acts on. A second copy of that machinery per verb is exactly the "one rule stated
+twice" defect; adding a gesture verb means writing what a STEP means and nothing else — and four
+verbs run the shape today. Two need the landing: the move gesture, because a note's key is its slot
+and a keyframe's identity IS its offset, so every step re-points the selection — and the window's
+proof then compares against the re-pointed keys — and the hold edge keys, because a hold is
+selected by its start, which the start key moves.
 
 # Asynchrony and lifetime patterns
 
