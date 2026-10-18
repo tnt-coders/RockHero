@@ -1498,9 +1498,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // an armed window always has a verb, and an initializer here would instantiate the
         // variant's default constructor at class scope, which a strict standard library refuses.
         ChartVerbWindowVerb verb;
-        // What a gesture's replay rewrote, net against where its run began: recorded once the run
-        // ends (disarmChartVerbWindow), never per press, since every press replays from that start.
-        std::vector<common::core::ChartConversion> rewrites;
+        // What a gesture's replay converted, net against where its run began: reported once the
+        // run ends (disarmChartVerbWindow), never per press, since every press replays from that
+        // start.
+        std::vector<common::core::ChartConversion> conversions;
     };
     std::optional<ChartVerbWindow> m_chart_verb_window{};
     // The anchors the open bend question names, which its answer writes: set by the question
@@ -1764,12 +1765,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // anchor the dragged one's time.
     std::optional<std::int64_t> m_held_tempo_anchor_milliseconds{};
 
-    // A model the funnel's front half passed, normalized, and what normalizing it rewrote in the
-    // song's content: the lines its landing records (recordChartRewrites).
+    // A model the funnel's front half passed, normalized, and what normalizing it converted in
+    // the song's content: the lines its landing reports (reportChartConversions).
     template <typename Snapshot> struct JudgedMarkerModel
     {
         Snapshot model;
-        std::vector<common::core::ChartConversion> rewrites;
+        std::vector<common::core::ChartConversion> conversions;
     };
 
     // The funnel's front half, asked by the commit and by anything that must know in advance what
@@ -1780,13 +1781,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::expected<JudgedMarkerModel<Snapshot>, ChartPlanRefusal> judgeMarkerModel(
         const Snapshot& before, Snapshot after) const;
 
-    // THE one record of a rewrite the hold normalizer made, for every edit that lands one: a chart
-    // edit as it commits, a held chart gesture once its run ends (disarmChartVerbWindow), and a
-    // marker landing. Logs each line once, by the landing that wrote it. Under the Note Lock a
-    // rewrite moves content the lock's origin does not hold, so the lock re-engages on what was
-    // written, the lock's rule for every write that moves content: the next locked edit starts from
-    // the rewrite rather than making and logging it again.
-    void recordChartRewrites(std::span<const common::core::ChartConversion> rewrites);
+    // THE one log of a conversion an edit's normalizer made, for every edit that lands one: a
+    // chart edit as it commits, a held chart gesture once its run ends (disarmChartVerbWindow),
+    // and a marker landing. Each line is logged once, by the landing that wrote it.
+    void reportChartConversions(std::span<const common::core::ChartConversion> conversions);
+    // The Note Lock's rule for a landing whose normalizer converted content: the conversion moved
+    // content the lock's origin does not hold, so the lock re-engages on what was written, as for
+    // every write that moves content, and the next locked edit starts from the conversion rather
+    // than making and reporting it again. Nothing while the lock is off or nothing was converted.
+    void relockOnConvertedContent(std::span<const common::core::ChartConversion> conversions);
 
     // The index of the row's marker starting exactly at a position, or nothing where none does —
     // the one position-to-index rule every marker lookup by identity asks.

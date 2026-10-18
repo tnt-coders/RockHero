@@ -360,7 +360,7 @@ struct NormalSpans
         {
             conversions.push_back(
                 ChartConversion{
-                    .repair = ChartRepair::ShapeHoldDropped,
+                    .repair = ChartRepair::EmptyShapeHold,
                     .where = formatShapeHoldToken(hold),
                 });
         }
@@ -368,7 +368,7 @@ struct NormalSpans
         {
             conversions.push_back(
                 ChartConversion{
-                    .repair = ChartRepair::ShapeHoldEndMoved,
+                    .repair = ChartRepair::UnfitShapeHold,
                     .where = formatShapeHoldToken(*kept),
                 });
         }

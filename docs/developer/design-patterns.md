@@ -240,7 +240,7 @@ the whole-stream questions, because a span and a grip are derived from their who
 edit can move them far from the notes it touched; both read the one notes layer the normalizer
 derives, which the funnel returns with the diff and the rewrites (`JudgedChartPlan`) so the commit
 seeds the controller's memo with it rather than the projection deriving it again, and logs each
-rewrite once (`recordChartRewrites`; a gesture's net rewrites once its run ends). A new planner must
+rewrite once (`reportChartConversions`; a gesture's net conversions once its run ends). A new planner must
 end at the funnel too; skipping it is how a verb authors a chart the document reader would reject. Relational truths deliberately do NOT repair in the funnel:
 a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
 (`planSettleChart`) flattens it in one batch at the burst's end, which is what keeps a burst one

@@ -61,7 +61,8 @@ struct SongTimelineSnapshot
     reign stays in the live model while its chip is selected. The history's and the file's form
     without it is the funnel's (`writtenModel`, \ref common::core::withoutRedundantTimeSignatures).
 
-    \return One conversion per rewrite, its place naming the arrangement; empty where every hold
+    \return One conversion per hold the normal form changed, its place naming the arrangement;
+            empty where every hold
             already fit.
     */
     [[nodiscard]] std::vector<common::core::ChartConversion> normalize();

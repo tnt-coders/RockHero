@@ -22,7 +22,7 @@ bool SongTimelineSnapshot::applyTo(common::core::Session& session) const
 // Each chart judged under the map it now stands on; a chart with no holds costs nothing.
 std::vector<common::core::ChartConversion> SongTimelineSnapshot::normalize()
 {
-    std::vector<common::core::ChartConversion> rewrites;
+    std::vector<common::core::ChartConversion> conversions;
     for (common::core::ArrangementTimeline& arrangement : timeline.arrangements)
     {
         if (!arrangement.chart.has_value())
@@ -33,13 +33,13 @@ std::vector<common::core::ChartConversion> SongTimelineSnapshot::normalize()
         common::core::ShapeHoldNormalization normal =
             common::core::normalizeShapeHolds(chart.notes, chart.shape_holds, timeline.tempo_map);
         chart.shape_holds = std::move(normal.shape_holds);
-        for (common::core::ChartConversion& rewrite : normal.conversions)
+        for (common::core::ChartConversion& conversion : normal.conversions)
         {
-            rewrite.where = "arrangement " + arrangement.id + ", " + rewrite.where;
-            rewrites.push_back(std::move(rewrite));
+            conversion.where = "arrangement " + arrangement.id + ", " + conversion.where;
+            conversions.push_back(std::move(conversion));
         }
     }
-    return rewrites;
+    return conversions;
 }
 
 // Every rule lives in common core, where the package reader asks the same questions, so this only

@@ -1904,7 +1904,7 @@ TEST_CASE("Rock song package read writes back a shape hold's extent", "[core][ro
     const auto read = readRockSongPackageDirectory(package_directory);
     REQUIRE(read.has_value());
     REQUIRE(read->conversions.size() == 1);
-    CHECK(read->conversions.front().conversion.repair == ChartRepair::ShapeHoldEndMoved);
+    CHECK(read->conversions.front().conversion.repair == ChartRepair::UnfitShapeHold);
     CHECK(read->conversions.front().conversion.where == "shape hold 1:1 to 1:3");
     REQUIRE(read->song.arrangements.front().chart.has_value());
     if (read->song.arrangements.front().chart.has_value())

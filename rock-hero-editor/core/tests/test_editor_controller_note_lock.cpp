@@ -362,7 +362,7 @@ TEST_CASE("A locked tempo edit rewrites a shape hold once", "[core][tempo][note-
         .grip = common::core::UnnamedGrip{},
     }};
     DenseNoteLockEditor editor{std::move(song)};
-    const auto rewrites_logged = [&capture] {
+    const auto conversions_logged = [&capture] {
         const std::string text = capture.text();
         std::size_t count = 0;
         for (std::size_t at = text.find("chart edit normalized"); at != std::string::npos;
@@ -386,12 +386,12 @@ TEST_CASE("A locked tempo edit rewrites a shape hold once", "[core][tempo][note-
         .grip = common::core::UnnamedGrip{},
     }};
     CHECK(holds() == extended);
-    CHECK(rewrites_logged() == 1);
+    CHECK(conversions_logged() == 1);
 
     // A slower tempo still would round the restatement onto the end again from the content as it
     // stood at lock-on; from the rewritten content there is nothing left to rewrite.
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
-    CHECK(rewrites_logged() == 1);
+    CHECK(conversions_logged() == 1);
     REQUIRE(holds().size() == 1);
     CHECK(holds().front().start == beatAt(1, 1));
 }

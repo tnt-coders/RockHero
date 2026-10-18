@@ -7042,7 +7042,7 @@ TEST_CASE("A note edit's plan carries the hold rewrite it causes", "[core][chart
     CHECK(plan->plan.shape_holds == expected);
     CHECK(plan->resolved.shape_holds == std::vector{cropped});
     REQUIRE(plan->conversions.size() == 1);
-    CHECK(plan->conversions[0].repair == common::core::ChartRepair::ShapeHoldEndMoved);
+    CHECK(plan->conversions[0].repair == common::core::ChartRepair::UnfitShapeHold);
 
     applyAndValidate(chart, tempo_map, *plan);
     CHECK(chart.shape_holds == std::vector{cropped});

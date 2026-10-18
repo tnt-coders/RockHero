@@ -445,7 +445,7 @@ the automation points verb refuses — and the plugin removal, which takes a plu
 of the song, is unavailable (`ActionConditions::note_locked`). Three writes the lock admits move
 content, and each re-engages the lock on what it wrote (`engageNoteLock`): the locked Scale Tempo,
 whose free factor rounds the content it scales, the settle sweep, whose flatten is the chart's
-normal form, and a landing whose hold normalizer rewrote a shape hold (`recordChartRewrites`) —
+normal form, and a landing whose hold normalizer rewrote a shape hold (`relockOnConvertedContent`) —
 otherwise every later locked edit would lay its map under an origin without the rewrite, and make
 and log it again. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
 true through it; `timeKeptTimeline` reads its meters from the verb's map for that reason.

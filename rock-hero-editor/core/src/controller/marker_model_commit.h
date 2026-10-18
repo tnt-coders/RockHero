@@ -51,7 +51,7 @@ template <typename Snapshot> [[nodiscard]] Snapshot writtenModel(Snapshot model)
 }
 
 // THE NORMAL FORM a marker model lands in, and what reaching it rewrote in the song's content, for
-// the landing to record. Every model normalizes its own markers and rewrites no content, except the
+// the landing to report. Every model normalizes its own markers and rewrites no content, except the
 // song timeline, whose charts' shape holds a re-address can leave unfit (SongTimelineSnapshot).
 template <typename Snapshot>
 [[nodiscard]] std::vector<common::core::ChartConversion> normalizedModel(Snapshot& model)
@@ -97,7 +97,7 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
             return std::unexpected{std::move(*refusal)};
         }
     }
-    std::vector<common::core::ChartConversion> rewrites = normalizedModel(after);
+    std::vector<common::core::ChartConversion> conversions = normalizedModel(after);
     if (std::optional<std::string> violation = after.validate(
             MarkerJudgeContext{.session = session(), .notes_layer = chartResolutions()});
         violation.has_value())
@@ -108,7 +108,10 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
     {
         return std::unexpected{ChartPlanNoChange{}};
     }
-    return JudgedMarkerModel<Snapshot>{.model = std::move(after), .rewrites = std::move(rewrites)};
+    return JudgedMarkerModel<Snapshot>{
+        .model = std::move(after),
+        .conversions = std::move(conversions),
+    };
 }
 
 // Lands one marker-model change, publishing nothing. Every marker verb lands here, whatever kind
@@ -146,8 +149,9 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
     {
         pushUndoEntry(std::move(entry));
     }
+    reportChartConversions(judged->conversions);
     // Once the history stands on the landing, so a lock re-engaged here holds what it wrote.
-    recordChartRewrites(judged->rewrites);
+    relockOnConvertedContent(judged->conversions);
     return committed;
 }
 
@@ -234,8 +238,8 @@ bool EditorController::Impl::commitMarkerMove(
         return false;
     }
 
-    const std::vector<common::core::ChartConversion> rewrites =
-        judged.has_value() ? std::move(judged->rewrites)
+    const std::vector<common::core::ChartConversion> conversions =
+        judged.has_value() ? std::move(judged->conversions)
                            : std::vector<common::core::ChartConversion>{};
     std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
         judged.has_value()
@@ -251,7 +255,8 @@ bool EditorController::Impl::commitMarkerMove(
     {
         static_cast<void>(dropUndoTop());
     }
-    recordChartRewrites(rewrites);
+    reportChartConversions(conversions);
+    relockOnConvertedContent(conversions);
     selectMarker(landed);
     finishMarkerCommit();
     if (recorded)

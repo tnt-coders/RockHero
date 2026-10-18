@@ -94,7 +94,7 @@ every arrangement and lands as ONE entry per command — under the lock, the con
 re-addressed under the verb's map, so the entry's `before` and `after` both descend from the lock's
 origin and undo and redo among them keep it (\ref guide_musical_time); its `normalize` brings every
 chart's shape holds to their normal form under the new map (`normalizeShapeHolds`), returning the
-rewrites for the landing to record once (`recordChartRewrites`), its WRITTEN form drops a meter restating its reign — the same meter as the authored reign before
+conversions for the landing to report once (`reportChartConversions`), its WRITTEN form drops a meter restating its reign — the same meter as the authored reign before
 it, from one of that reign's own downbeats (`withoutRedundantTimeSignatures`, common core, which
 the package writer and reader apply too; a repeat placed off that grid cuts a bar short and
 stays) — its `validate` runs the tempo-map, section and chart rules, and its apply is

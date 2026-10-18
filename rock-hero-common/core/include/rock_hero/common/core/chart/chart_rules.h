@@ -293,16 +293,17 @@ enum class ChartRepair : std::uint8_t
     UncoveringHandPosition,
 
     /*!
-    \brief A shape hold's end moved to where its span closes (shape rule 9): back to a hand conflict
-    an edit put inside it, or on past an end where nothing closed (\ref normalizeShapeHolds).
+    \brief A shape hold did not fit its notes (shape rule 9): the walk closes its span short of its
+    stated end, at a hand conflict an edit put inside, or past it, where nothing closed. Its end
+    moved to that close (\ref normalizeShapeHolds).
     */
-    ShapeHoldEndMoved,
+    UnfitShapeHold,
 
     /*!
-    \brief A shape hold left nothing to hold was dropped: its span closes at its start, or a
-    re-address rounded it onto no length (\ref normalizeShapeHolds).
+    \brief A shape hold held nothing: its span closes at its start, or a re-address rounded it onto
+    no length. It was dropped (\ref normalizeShapeHolds).
     */
-    ShapeHoldDropped
+    EmptyShapeHold
 };
 
 /*!

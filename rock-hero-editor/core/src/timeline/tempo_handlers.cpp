@@ -25,6 +25,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <rock_hero/editor/core/timeline/tempo_span_text.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -119,6 +120,16 @@ const common::core::SongTimeline& EditorController::Impl::engageNoteLock()
 {
     m_undo_history.markBase();
     return m_grid_session.note_lock.emplace(common::core::makeSongTimeline(session().song()));
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+void EditorController::Impl::relockOnConvertedContent(
+    const std::span<const common::core::ChartConversion> conversions)
+{
+    if (!conversions.empty() && m_grid_session.note_lock.has_value())
+    {
+        engageNoteLock();
+    }
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.

@@ -115,19 +115,15 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
 } // namespace
 
 // Rationale lives on the declaration in editor_controller_impl.h.
-void EditorController::Impl::recordChartRewrites(
-    const std::span<const common::core::ChartConversion> rewrites)
+void EditorController::Impl::reportChartConversions(
+    const std::span<const common::core::ChartConversion> conversions)
 {
-    for (const common::core::ChartConversion& rewrite : rewrites)
+    for (const common::core::ChartConversion& conversion : conversions)
     {
         RH_LOG_INFO(
             "editor.chart",
             "chart edit normalized: {}",
-            common::core::chartConversionText(rewrite));
-    }
-    if (!rewrites.empty() && m_grid_session.note_lock.has_value())
-    {
-        engageNoteLock();
+            common::core::chartConversionText(conversion));
     }
 }
 
@@ -1073,9 +1069,9 @@ bool EditorController::Impl::applyChartEditPlan(
     // so committing both here could preflight-collide.
     discardChartFretEntry();
     disarmChartVerbWindow();
-    // What the gate rewrote to land the plan. A gesture's press hands its plan over without them,
-    // since its run records them once it ends (commitChartGestureStep).
-    recordChartRewrites(plan.conversions);
+    // What the gate converted to land the plan. A gesture's press hands its plan over without
+    // them, since its run reports them once it ends (commitChartGestureStep).
+    reportChartConversions(plan.conversions);
 
     // The selection follows the edit: a verb that knows where its objects landed says so, and
     // otherwise retyped/moved/inserted records stay selected under their new keys.
@@ -3377,9 +3373,9 @@ bool EditorController::Impl::commitChartGestureStep(
     {
         retireChartGesture(burst->plan);
     }
-    // The replay's rewrites are net against the run's start, so they ride the window armed below
-    // and are recorded once the run ends, never per press.
-    std::vector<common::core::ChartConversion> rewrites = std::exchange(plan->conversions, {});
+    // The replay's conversions are net against the run's start, so they ride the window armed
+    // below and are reported once the run ends, never per press.
+    std::vector<common::core::ChartConversion> conversions = std::exchange(plan->conversions, {});
     if (burst == nullptr || retired)
     {
         if (!applyChartEditPlan(std::move(*plan), select_exactly))
@@ -3427,12 +3423,12 @@ bool EditorController::Impl::commitChartGestureStep(
     }
 
     // Both paths arm the same window: the live selection, the gesture the next press continues, and
-    // the run's rewrites so far. Read back from the selection rather than carried across the apply,
-    // so the keys are always the ones the next press will compare against.
+    // the run's conversions so far. Read back from the selection rather than carried across the
+    // apply, so the keys are always the ones the next press will compare against.
     m_chart_verb_window = ChartVerbWindow{
         .keys = chartSelection().keys(),
         .verb = std::move(verb),
-        .rewrites = std::move(rewrites),
+        .conversions = std::move(conversions),
     };
     return true;
 }
@@ -3444,10 +3440,10 @@ bool EditorController::Impl::commitChartGestureStep(
 void EditorController::Impl::disarmChartVerbWindow()
 {
     // The window is the run, so disarming it ends a gesture: what the run rewrote, net against
-    // where it began, is recorded here and nowhere else.
+    // where it began, is reported here and nowhere else.
     if (const std::optional<ChartVerbWindow>& window = m_chart_verb_window; window.has_value())
     {
-        recordChartRewrites(window->rewrites);
+        reportChartConversions(window->conversions);
     }
     m_chart_verb_window.reset();
 }
@@ -3515,7 +3511,7 @@ void EditorController::Impl::retireChartGesture(const ChartEditPlan& applied)
     // opens a fresh gesture from rings that ARE the pre-gesture rings. (Between the drop and here
     // the record is already inert — every reader proves ownership by the history position first.)
     m_chart_notes_top.reset();
-    // Withdrawn whole, the run wrote nothing, so its window goes unrecorded.
+    // Withdrawn whole, the run wrote nothing, so its window goes unreported.
     m_chart_verb_window.reset();
     updateView();
 }
@@ -3540,7 +3536,7 @@ bool EditorController::Impl::reverseChartVerbWindow(
     {
         return false;
     }
-    // Ended through the one end of a run, so a gesture this press interrupts is recorded.
+    // Ended through the one end of a run, so a gesture this press interrupts is reported.
     const ChartVerbWindow window = *m_chart_verb_window;
     disarmChartVerbWindow();
     if (window.verb != pressed)
@@ -3961,7 +3957,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
             .verb = ChartTechniqueToggle{.technique = technique},
-            .rewrites = {},
+            .conversions = {},
         };
     }
 }
@@ -3988,7 +3984,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
             .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
-            .rewrites = {},
+            .conversions = {},
         };
     };
     // A claim that resolved sets, and a gate refusal of one is a refused press: only a press with

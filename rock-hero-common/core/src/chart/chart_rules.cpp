@@ -436,13 +436,13 @@ std::string_view chartRepairText(const ChartRepair repair)
             return "a hand position did not cover a fretted note gripped at its instant and was "
                    "dropped";
         }
-        case ChartRepair::ShapeHoldEndMoved:
+        case ChartRepair::UnfitShapeHold:
         {
-            return "a shape hold's end moved to where its shape closes";
+            return "a shape hold did not fit its notes and now ends where its shape closes";
         }
-        case ChartRepair::ShapeHoldDropped:
+        case ChartRepair::EmptyShapeHold:
         {
-            return "a shape hold left nothing to hold and was dropped";
+            return "a shape hold held nothing and was dropped";
         }
     }
     return "chart repaired";

@@ -2767,7 +2767,7 @@ TEST_CASE("Chart normalization writes back a shape hold's published extent", "[c
 
     const std::vector<ChartConversion> conversions = normalizeChart(chart, tempo_map);
     REQUIRE(conversions.size() == 1);
-    CHECK(conversions[0].repair == ChartRepair::ShapeHoldEndMoved);
+    CHECK(conversions[0].repair == ChartRepair::UnfitShapeHold);
     CHECK(
         chart.shape_holds ==
         std::vector{unnamedHold(

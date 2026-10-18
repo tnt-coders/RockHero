@@ -6517,7 +6517,7 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
             normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 3))});
         CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
         REQUIRE(normal.conversions.size() == 1);
-        CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldEndMoved);
+        CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
         CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:2");
     }
 
@@ -6531,7 +6531,7 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
             normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
         CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 3))});
         REQUIRE(normal.conversions.size() == 1);
-        CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldEndMoved);
+        CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
         CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:3");
     }
 
@@ -6618,7 +6618,7 @@ TEST_CASE("The hold normalizer drops a hold that closes at its own start", "[cor
         notes, {holdOver(gridAt(8, 1), gridAt(9, 1)), holdOver(gridAt(9, 1), gridAt(9, 2))});
     CHECK(normal.shape_holds == std::vector{holdOver(gridAt(8, 1), gridAt(9, 1))});
     REQUIRE(normal.conversions.size() == 1);
-    CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldDropped);
+    CHECK(normal.conversions[0].repair == ChartRepair::EmptyShapeHold);
     CHECK(normal.conversions[0].where == "shape hold 9:1 to 9:2");
 }
 
@@ -6632,7 +6632,7 @@ TEST_CASE("The hold normalizer drops a hold left no length", "[core][chart]")
         notes, {holdOver(gridAt(1, 1), gridAt(1, 2)), holdOver(gridAt(1, 3), gridAt(1, 3))});
     CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
     REQUIRE(normal.conversions.size() == 1);
-    CHECK(normal.conversions[0].repair == ChartRepair::ShapeHoldDropped);
+    CHECK(normal.conversions[0].repair == ChartRepair::EmptyShapeHold);
     CHECK(normal.conversions[0].where == "shape hold 1:3 to 1:3");
 }
 

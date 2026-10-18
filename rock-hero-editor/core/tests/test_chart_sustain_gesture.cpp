@@ -954,7 +954,7 @@ TEST_CASE("A sustain gesture's hold rewrite reverses as it steps back", "[core][
         const common::core::Chart* const live = chartOrNull(fixture.controller);
         return live != nullptr ? live->shape_holds : std::vector<common::core::ShapeHold>{};
     };
-    const auto rewrites_logged = [&capture] {
+    const auto conversions_logged = [&capture] {
         const std::string text = capture.text();
         std::size_t count = 0;
         for (std::size_t at = text.find("chart edit normalized"); at != std::string::npos;
@@ -974,7 +974,7 @@ TEST_CASE("A sustain gesture's hold rewrite reverses as it steps back", "[core][
     fixture.step(1);
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 2});
     CHECK(holds() == std::vector{extended});
-    CHECK(rewrites_logged() == 0);
+    CHECK(conversions_logged() == 0);
 
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1, 4});
@@ -987,14 +987,14 @@ TEST_CASE("A sustain gesture's hold rewrite reverses as it steps back", "[core][
     fixture.step(-1);
     CHECK(holds() == std::vector{extended});
     click(fixture.controller, 80.0f, 220.0f);
-    CHECK(rewrites_logged() == 1);
+    CHECK(conversions_logged() == 1);
     CHECK(
         capture.text().find(
-            "a shape hold's end moved to where its shape closes at shape hold "
-            "2:1 to 2:3") != std::string::npos);
+            "a shape hold did not fit its notes and now ends where its shape closes at shape "
+            "hold 2:1 to 2:3") != std::string::npos);
     fixture.controller.onUndoRequested();
     CHECK(holds() == std::vector{hold});
-    CHECK(rewrites_logged() == 1);
+    CHECK(conversions_logged() == 1);
 }
 
 } // namespace rock_hero::editor::core
