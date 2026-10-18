@@ -47,6 +47,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <set>
+#include <span>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -1633,6 +1634,16 @@ struct Census
     // chart's notes — the stored stream also carries the import's fabricated slide windows, which
     // the rule never sees.
     common::core::FretHandDerivationTally hand;
+
+    // THE SHAPE-HOLD GATE (shape rule 9): an unnamed hold authored exactly over each derived span,
+    // one at a time, as `Ctrl+H` over that span authors it. The walk is the one authority on a
+    // hold, so every such hold is valid and leaves the derivation as it was, its span marked
+    // authored. A few departures are kept with their file and bar.
+    long long held_spans{0};
+    long long held_spans_invalid{0};
+    long long held_spans_rederived{0};
+    std::vector<std::string> held_invalid_cases;
+    std::vector<std::string> held_rederived_cases;
 };
 
 [[nodiscard]] std::optional<std::string> readScoreXml(const std::filesystem::path& gp_file)
@@ -2078,6 +2089,50 @@ void printFoldInReach(const char* const title, FoldInReach& reach)
     }
 }
 
+// THE SHAPE-HOLD GATE over one arrangement: each derived span held alone, compared on the spans,
+// the postures and the classes, all a hold can change.
+void countHeldSpans(
+    const common::core::ChartResolutions& resolutions, const TempoMap& tempo_map,
+    const std::string& file, Census& census)
+{
+    constexpr std::size_t kept_cases = 2;
+    const common::core::ChartConnections& connections = resolutions.connections;
+    for (std::size_t span = 0; span < resolutions.shapes.size(); ++span)
+    {
+        const ChartShape& shape = resolutions.shapes[span];
+        const common::core::ShapeHold hold{
+            .start = tempo_map.gridPositionAtWholeNote(shape.place),
+            .end = tempo_map.gridPositionAtWholeNote(shape.place + shape.sustain),
+            .grip = common::core::UnnamedGrip{},
+        };
+        const common::core::ChartShapes held = common::core::deriveChartShapes(
+            connections, resolutions.margins, std::span{&hold, 1}, tempo_map);
+        std::vector<ChartShape> expected = resolutions.shapes;
+        expected[span].authored = true;
+        const bool rederived = held.shapes != expected || held.postures != resolutions.postures ||
+                               common::core::chartShapeArrivals(
+                                   connections, held.shapes, held.postures) != resolutions.arrivals;
+        const std::string where = file + " bar " + std::to_string(hold.start.measure);
+        ++census.held_spans;
+        if (!common::core::shapeHoldIsValid(held.shapes, tempo_map, hold))
+        {
+            ++census.held_spans_invalid;
+            if (census.held_invalid_cases.size() < kept_cases)
+            {
+                census.held_invalid_cases.push_back(where);
+            }
+        }
+        if (rederived)
+        {
+            ++census.held_spans_rederived;
+            if (census.held_rederived_cases.size() < kept_cases)
+            {
+                census.held_rederived_cases.push_back(where);
+            }
+        }
+    }
+}
+
 struct CrossCheck
 {
     std::string label;
@@ -2209,8 +2264,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                     note.vibrato == common::core::VibratoState::Wide ? 1 : 0;
             }
 
-            const common::core::ChartResolutions resolutions =
-                common::core::chartResolutions(chart.notes, chart.tuning.capo, built->tempo_map);
+            const common::core::ChartResolutions resolutions = common::core::chartResolutions(
+                chart.notes, chart.shape_holds, chart.tuning.capo, built->tempo_map);
 
             // DERIVED HELD's population, read off the production derivation rather than restated:
             // a PLANT under a note the picking hand stops the string for is exactly a pull-off
@@ -2286,6 +2341,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 demands.holds,
                 built->tempo_map,
                 census.derivation);
+            countHeldSpans(resolutions, built->tempo_map, entry.path().filename().string(), census);
         }
     }
 
@@ -2555,6 +2611,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     std::cout << "      notes in them / of those legato      : " << census.region_gap_short_notes
               << " / " << census.region_gap_short_legato << "\n";
 
+    std::cout << "\n[SHAPE RULE 9] an unnamed hold exactly over each derived span, one at a time\n";
+    std::cout << "  spans held                              : " << census.held_spans << "\n";
+    for (const std::string& held_case : census.held_invalid_cases)
+    {
+        std::cout << "    invalid: " << held_case << "\n";
+    }
+    for (const std::string& held_case : census.held_rederived_cases)
+    {
+        std::cout << "    rederived: " << held_case << "\n";
+    }
+
     reportCrossCheck(
         std::vector<CrossCheck>{
             CrossCheck{
@@ -2760,6 +2827,19 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // 128 before the grips became holds).
                 .label = "spans holding a stop outside the window",
                 .rig = static_cast<double>(census.derivation.fhp_out_of_reach_spans),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // SHAPE RULE 9's gate: the walk is the one authority on a hold, so a hold exactly
+                // over a derived span publishes exactly that span. ZERO BY CONSTRUCTION.
+                .label = "held spans invalid (ZERO)",
+                .rig = static_cast<double>(census.held_spans_invalid),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // ...and derives everything else as before, the held span marked authored.
+                .label = "held spans deriving otherwise (ZERO)",
+                .rig = static_cast<double>(census.held_spans_rederived),
                 .expected = 0.0,
             },
             CrossCheck{

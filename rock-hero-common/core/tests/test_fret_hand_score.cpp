@@ -102,7 +102,7 @@ void scoreChart(const Chart& chart, const TempoMap& tempo_map, PartScore& part, 
     // Both derivations add to the one tally, the demands their counts and the walk its own.
     const FretHandDemands demands = fretHandDemands(
         connections,
-        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}),
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}, {}, tempo_map),
         chart.tuning.capo,
         tempo_map,
         &score.tally);

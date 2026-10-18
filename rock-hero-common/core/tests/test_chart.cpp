@@ -242,7 +242,7 @@ constexpr Fraction g_fixture_ring{1, 32};
 [[nodiscard]] bool arrivesAsArpeggio(
     const std::vector<ChartNote>& notes, const GridPosition& position, const TempoMap& tempo_map)
 {
-    const ChartResolutions resolved = chartResolutions(notes, 0, tempo_map);
+    const ChartResolutions resolved = chartResolutions(notes, {}, 0, tempo_map);
     const std::vector<bool> arrivals =
         chartShapeArrivals(resolved.connections, resolved.shapes, resolved.postures);
     REQUIRE(arrivals.size() == resolved.shapes.size());
@@ -4076,7 +4076,7 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
 
         // And what the span says about the DISPLAY: the strum's members are held while the shape
         // is, capped at each one's own ring.
-        const ChartResolutions resolutions = chartResolutions({low, high, claim}, 0, tempo_map);
+        const ChartResolutions resolutions = chartResolutions({low, high, claim}, {}, 0, tempo_map);
         REQUIRE(resolutions.shapes.size() == 1);
         CHECK(resolutions.shapes.front().place == Fraction{});
         REQUIRE(resolutions.note_lengths.size() == 3);
@@ -4114,8 +4114,8 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         const std::vector<ChartNote> as_saved{
             dead_low, savedChartNote(latent_scrape), dead_high, claim_at(2, 1, 5)
         };
-        const ChartResolutions memory_resolutions = chartResolutions(in_memory, 0, tempo_map);
-        const ChartResolutions saved_resolutions = chartResolutions(as_saved, 0, tempo_map);
+        const ChartResolutions memory_resolutions = chartResolutions(in_memory, {}, 0, tempo_map);
+        const ChartResolutions saved_resolutions = chartResolutions(as_saved, {}, 0, tempo_map);
         REQUIRE(memory_resolutions.note_lengths.size() == 4);
         REQUIRE(saved_resolutions.note_lengths.size() == 4);
         // Each dead member holds nothing: a percussive choke is not a grip, however far the shape
@@ -4494,7 +4494,8 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     // of their onsets that no preceding span covers. The strum arrives inside the statement rather
     // than opening it, which is what makes "fewer than two sounds at a span start" a precondition
     // rather than a trigger.
-    const ChartResolutions resolved = chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
+    const ChartResolutions resolved =
+        chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     REQUIRE(resolved.shapes.size() == 1);
     CHECK(resolved.shapes.front().place == Fraction{1});
 

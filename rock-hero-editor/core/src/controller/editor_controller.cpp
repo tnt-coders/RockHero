@@ -2077,9 +2077,9 @@ void EditorController::Impl::refreshChartProjections() const
     if (notes_stale)
     {
         m_chart_resolutions =
-            chart.has_value()
-                ? common::core::chartResolutions(chart->notes, chart->tuning.capo, tempo_map)
-                : common::core::ChartResolutions{};
+            chart.has_value() ? common::core::chartResolutions(
+                                    chart->notes, chart->shape_holds, chart->tuning.capo, tempo_map)
+                              : common::core::ChartResolutions{};
     }
     // ONE publication: the highway state composes the scene, and the tab's pointer aliases that
     // very member, sharing the board's ownership, so both surfaces read one build with no copy

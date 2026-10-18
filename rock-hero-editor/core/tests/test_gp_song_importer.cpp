@@ -250,8 +250,8 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 [[nodiscard]] common::core::ChartShapes spansOf(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
-    common::core::ChartResolutions resolutions =
-        common::core::chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
+    common::core::ChartResolutions resolutions = common::core::chartResolutions(
+        chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     return common::core::ChartShapes{
         .shapes = std::move(resolutions.shapes),
         .postures = std::move(resolutions.postures),
@@ -279,7 +279,9 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 [[nodiscard]] std::vector<bool> shapeArrivalsOf(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
-    return common::core::chartResolutions(chart.notes, chart.tuning.capo, tempo_map).arrivals;
+    return common::core::chartResolutions(
+               chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map)
+        .arrivals;
 }
 
 // One hand position a reader derives from an imported chart, on the grid: the import stores none,
@@ -302,7 +304,8 @@ struct DerivedHand
     std::vector<DerivedHand> hands;
     for (const common::core::FretHandEvent& event :
          common::core::fretHandResolutions(
-             common::core::chartResolutions(chart.notes, chart.tuning.capo, tempo_map),
+             common::core::chartResolutions(
+                 chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map),
              chart.fret_hand_positions,
              tempo_map)
              .events)
@@ -3531,8 +3534,8 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartResolutions resolutions =
-            common::core::chartResolutions(chart.notes, chart.tuning.capo, built->tempo_map);
+        const common::core::ChartResolutions resolutions = common::core::chartResolutions(
+            chart.notes, chart.shape_holds, chart.tuning.capo, built->tempo_map);
         // The roll's figure, read back by rules that know nothing about rolls: the members' rings
         // overlap into one shape, so the ordinary opening law brackets the whole chord as ONE
         // posture with no claim anywhere in it.
@@ -3801,8 +3804,8 @@ TEST_CASE("Guitar Pro import honours a rolled chord's stated anticipation", "[co
         const auto built = buildGpSong(score_with({rest_beat(Fraction{1, 2}), roll}));
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        const common::core::ChartResolutions resolutions =
-            common::core::chartResolutions(chart.notes, chart.tuning.capo, built->tempo_map);
+        const common::core::ChartResolutions resolutions = common::core::chartResolutions(
+            chart.notes, chart.shape_holds, chart.tuning.capo, built->tempo_map);
         // THE GATE'S FOURTH VERDICT, on the one corpus figure that actually fronts (two of the
         // three corpus rolls anticipate): moving the whole figure moves the span with it, because
         // THE DATING RULE puts the front at the earliest member onset — which is the first string

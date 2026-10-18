@@ -24,8 +24,9 @@ are also called **the grip-tenure law**. The rules are implemented in
 - `makeChartViewState` (`chart_projection.h`) draws each span short of its close through
   `drawnSpanExtent` (rule 6) and decides the column of each posture digit (rule 7).
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
-- `shapeHoldNormalEnd` (`chart_shape_holds.h`) judges a shape hold against its notes (rule 9), and
-  `validateShapeHolds` (`chart_rules.h`) the hold stream's structure.
+- `deriveChartShapes` obeys the shape holds and `shapeHoldIsValid` compares each hold with the span
+  the walk published for it (rule 9); `validateShapeHolds` (`chart_rules.h`) checks the hold
+  stream's structure.
 
 Whether a tail rests is tail rule 4 (\ref design_rulesets_tails), which reads no span.
 
@@ -398,24 +399,32 @@ takes the next one.
    `[start, end)`, both edges stated, and holds never overlap, though one may begin where the last
    ends. Its grip is unnamed — the hand holds one shape there, read from the notes inside — or
    none: no arpeggio shape is held there, though a chord struck inside still grips its own.
-   - **What a hold states.** On each string, an unnamed hold states the pressed stop of the first
-     fretting-hand note struck on it inside the hold. Open strings, natural harmonics and the
-     picking hand state nothing, and neither does a ring sounding in from before the start. A none
-     hold states no stop.
-   - **No conflict inside.** A conflict is a later note releasing a stated stop under
-     hand-position rule 6's release: a lower fret on the string, the open string, a node, the
-     stating finger's own glide leaving it, a tap at or below it, or another note arriving at it.
-     A higher fret is another finger and fits, and other strings, rests and silence never
-     conflict. A conflict lies at its release instant: a struck note's onset, or a glide's landing.
-   - **A stated stop has stopped sounding at the end.** The end fails where every stated stop
-     still sounds across it, from a note struck inside the hold that grips it, so a higher fret
-     struck on the string has ended the stated stop's sound. Once any stated stop has stopped,
-     notes may ring on past the end, as they do past a derived span's close. A hold stating no
-     pressed stop always passes.
-   - **A hold fits its notes where it is its own normal end.** It fits where no conflict lies
-     inside it and its end passes. Its normal end is its first conflict where one lies inside it,
-     its own end where that passes, and otherwise the earliest later end that does, judged over the
-     stops the longer hold states, a string first struck inside the extension included, and never
-     past the song's end, past which nothing sounds. No conflict can lie inside the extension: a
-     note releasing a stop there would have ended that stop's sound first.
-     (`shapeHoldNormalEnd`, `shapeHoldFitsNotes`)
+   - **The walk is the one authority.** A hold changes only the edges. Everything inside is the
+     span walk's own judgement by rules 1 to 5 and hand-position rule 6: grip statements and
+     plants, membership and founding, the landing instant, the class and the posture. Inside an
+     unnamed hold the walk keeps exactly one span, fronted at the hold's start.
+   - **Inside, only a hand conflict breaks the span.** A hand conflict is hand-position rule 6's
+     release of a stop the span states, the tap's floor (rule 3), or a member's glide leaving the
+     stop the span states, at its landing (rule 4). Every other break is a notation split — a
+     contradiction no release makes, the join break, the character splits (rule 3), the drop of a
+     crowded landing (rule 4) — and the hold suppresses it, as it suppresses a member's quit: rests
+     inside a hold are legal. A grip the hold keeps whole across a unison restatement was stated
+     before only in part, so it sounds in parts (rule 5); a grip of fewer than three members never
+     does.
+   - **The close.** An unnamed hold's span closes at its first hand conflict inside it, or at the
+     first instant at or after its stated end where the walk would close a span standing there:
+     any break the walk recognises, hand conflict or notation split; its statement no longer in
+     force, a rest included; the next hold's start; or the song's end. From the end on the span
+     reaches as its members do, never short of the end, so a ring a tap renews ends where the
+     fretting hand's ring ends (rule 3).
+   - **A hold is valid where its published extent equals its stated extent.** An end where the
+     walk closes nothing — in the middle of a sustain, nothing happening — is invalid. A hold
+     exactly over a derived span is valid and leaves every span as derived. A hold whose notes never
+     found a span publishes a span with an empty posture over its extent and is valid; a none hold
+     is always valid.
+   - **Every other edge is a wall.** Any span but an unnamed hold's own at that hold's end closes
+     where it stands across a hold's edge, and no span dates its front behind one (rule 1's dating
+     floor).
+     Outside holds the derivation is unchanged, and at a hold's close the walk resumes as after any
+     span closing with rings still sounding, a landing's hand-off included (rule 4).
+     (`deriveChartShapes`, `shapeHoldIsValid`)

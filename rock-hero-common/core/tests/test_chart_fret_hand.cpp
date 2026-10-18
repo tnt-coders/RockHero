@@ -75,7 +75,7 @@ namespace
 {
     return fretHandDemands(
         connections,
-        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}),
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}, {}, tempo_map),
         capo,
         tempo_map);
 }
@@ -85,7 +85,9 @@ namespace
     const ChartConnections& connections, const TempoMap& tempo_map)
 {
     return fretHandHolds(
-        connections, deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}), 0);
+        connections,
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}, {}, tempo_map),
+        0);
 }
 
 // One stream's spans and the holds derived through them, ring holds first.
@@ -101,7 +103,8 @@ struct SpanHolds
 {
     const TempoMap tempo_map = makeTempoMap();
     const ChartConnections connections = chartConnections(notes, tempo_map);
-    ChartShapes shapes = deriveChartShapes(connections, HeadMargins{connections.places, tempo_map});
+    ChartShapes shapes =
+        deriveChartShapes(connections, HeadMargins{connections.places, tempo_map}, {}, tempo_map);
     std::vector<FretHandHold> holds = fretHandHolds(connections, shapes, 0);
     const std::size_t ring_holds = fretHandHolds(connections, ChartShapes{}, 0).size();
     return SpanHolds{
@@ -159,7 +162,8 @@ struct SpanHolds
 [[nodiscard]] bool coveredBy(const std::vector<ChartNote>& notes, const FretHandPosition& position)
 {
     const TempoMap tempo_map = makeTempoMap();
-    return validateFretHandCoverage(chartResolutions(notes, 0, tempo_map), {position}, tempo_map)
+    return validateFretHandCoverage(
+               chartResolutions(notes, {}, 0, tempo_map), {position}, tempo_map)
         .has_value();
 }
 
@@ -608,7 +612,7 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
         positionAt(1, 2, 5), positionAt(1, 3, 5), positionAt(2, 1, 5, 8)
     };
     const TempoMap tempo_map = makeTempoMap();
-    const ChartResolutions resolved = chartResolutions(notes, 0, tempo_map);
+    const ChartResolutions resolved = chartResolutions(notes, {}, 0, tempo_map);
     const std::vector<UncoveringFretHandPosition> uncovering =
         uncoveringFretHandPositions(resolved, positions, tempo_map);
     REQUIRE(uncovering.size() == 2);
@@ -844,7 +848,7 @@ TEST_CASE("Every derived window covers every hold standing under it", "[core][ch
     {
         const ChartConnections connections = chartConnections(figure.notes, tempo_map);
         const FretHandDemands demands = demandsOf(connections, tempo_map);
-        const ChartResolutions resolved = chartResolutions(figure.notes, 0, tempo_map);
+        const ChartResolutions resolved = chartResolutions(figure.notes, {}, 0, tempo_map);
         REQUIRE(validateFretHandCoverage(resolved, {figure.authored}, tempo_map).has_value());
         const auto check_holds_covered = [&](const std::vector<FretHandEvent>& derived) {
             std::vector<Fraction> instants = connections.places;
@@ -1042,10 +1046,10 @@ TEST_CASE("The hand's demand never lies at or below the capo", "[core][chart]")
 
     const TempoMap tempo_map = makeTempoMap();
     CHECK(validateFretHandCoverage(
-              chartResolutions({bent}, 2, tempo_map), {positionAt(1, 1, 3)}, tempo_map)
+              chartResolutions({bent}, {}, 2, tempo_map), {positionAt(1, 1, 3)}, tempo_map)
               .has_value());
     CHECK(validateFretHandCoverage(
-              chartResolutions({chime}, 3, tempo_map), {positionAt(1, 1, 4)}, tempo_map)
+              chartResolutions({chime}, {}, 3, tempo_map), {positionAt(1, 1, 4)}, tempo_map)
               .has_value());
 }
 

@@ -213,7 +213,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     }
     // Last, because it derives the holds from the notes and searches the positions, so it needs
     // both streams already valid.
-    const ChartResolutions resolved = chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
+    const ChartResolutions resolved =
+        chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     return validateFretHandCoverage(resolved, chart.fret_hand_positions, tempo_map);
 }
 
@@ -839,7 +840,8 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // The hand-position coverage rule last, against the notes and the fitted windows as they will
     // stand: derived after the sweep, which can retype a claim. One pass is complete: a position's
     // demands come from the notes alone, so dropping one never changes another's verdict.
-    const ChartResolutions resolved = chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
+    const ChartResolutions resolved =
+        chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     const std::vector<UncoveringFretHandPosition> uncovering =
         uncoveringFretHandPositions(resolved, chart.fret_hand_positions, tempo_map);
     for (const UncoveringFretHandPosition& uncovered : uncovering)

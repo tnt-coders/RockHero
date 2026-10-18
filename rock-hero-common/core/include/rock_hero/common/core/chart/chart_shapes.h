@@ -12,6 +12,8 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -259,15 +261,15 @@ struct ChartShape
     \brief The place this span's one OPENING MARK draws at (shape rule 4); absent where it draws
            none.
 
-    Every span an EVENT states — a strum, an authored hold — carries its own FRONT here (\ref
-    place), because that is the statement's own extent and the rails run from it. An ACCUMULATION
-    is no exception and needs no clause: its front is where its earliest uncovered member's
-    statement began — that member's onset, or the landing a glide brought it to — so the bracket
-    starts there and the later members' heads arrive under it. A LANDING SUCCESSOR carries its
-    first INTERIOR sounding instead: the whole grip slid in, so its landing states nothing the
-    predecessor's mark did not, and THE INK FOLLOWS THE SOUND. One that never sounds interiorly
-    carries nothing and draws no mark at all — the rails and the chord name changing there are its
-    whole statement.
+    Every span an EVENT states — a strum, or a shape hold opening its own span — carries its own
+    FRONT here (\ref place), because that is the statement's own extent and the rails run from it.
+    An ACCUMULATION is no exception and needs no clause: its front is where its earliest uncovered
+    member's statement began — that member's onset, or the landing a glide brought it to — so the
+    bracket starts there and the later members' heads arrive under it. A LANDING SUCCESSOR, a hold
+    opening at a landing included, carries its first INTERIOR sounding instead: the whole grip slid
+    in, so its landing states nothing the predecessor's mark did not, and THE INK FOLLOWS THE
+    SOUND. One that never sounds interiorly carries nothing and draws no mark at all — the rails
+    and the chord name changing there are its whole statement.
 
     ONE field with one write rule, which is what makes those cases one law rather than a branch on
     \ref landing_opened: the seed happens where a span opens and the fill happens at the first
@@ -284,6 +286,12 @@ struct ChartShape
     shortened.
     */
     std::optional<Fraction> bracket_place{};
+
+    /*!
+    \brief True where a charter's unnamed shape hold states this span (shape rule 9): it fronts at
+    the hold's start, and every other field is read from its notes like a derived span's.
+    */
+    bool authored{false};
 
     /*!
     \brief Compares two spans by their stored fields.
@@ -306,12 +314,20 @@ struct ChartShapes
 
 /*!
 \brief Derives the hand-posture spans a note stream implies — shape rules 1 to 4, the grip-tenure
-law (\ref design_rulesets_shapes).
+law — obeying the charter's shape holds (shape rule 9; \ref design_rulesets_shapes).
 
 One idea: a span is the statement "the hand holds this grip, from here to here", and the walk keeps
 the EVIDENCE — what each string is doing — in one per-string table that outlives every span. Every
 span it publishes carries its musical close, never a display value: shape rule 6's margin lives
 wholly at the projection.
+
+A hold changes only the edges (shape rule 9). Inside an unnamed hold the span the notes found is
+the hold's, fronted at its start, and only a hand conflict breaks it; it closes at the first hand
+conflict inside, or at the first instant at or after the hold's end where the walk would close a
+span standing there, and never short of that end. A hold whose notes found nothing
+publishes an empty span over its extent. Every other edge is a wall: a span standing across it
+closes there, and no span dates its front behind it. A none hold publishes no arpeggio span inside
+it. Handed no holds, the walk derives from the notes alone.
 
 A SHIFT SLIDE never reaches the landed span's emission test: its arrival stands at the ring's own
 end (\ref arrivesIntoNextHead) and a landing opens a successor only where the ring runs strictly
@@ -328,11 +344,15 @@ past it, so what the test governs is a charter's own crowded landing.
 \param margins The margin before every head of `connections.saved_notes` (\ref HeadMargins), built
        once per revision because every drawn rule keeps the same distances; the landed span's
        emission test reads it at the closing head.
+\param shape_holds The chart's shape holds (\ref Chart::shape_holds), structurally valid
+       (\ref validateShapeHolds): ascending and never overlapping.
+\param tempo_map Tempo map the connections were resolved against, placing the holds' edges.
 
 \return The spans and their posture table (\ref ChartShapes).
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
-    const ChartConnections& connections, const HeadMargins& margins);
+    const ChartConnections& connections, const HeadMargins& margins,
+    std::span<const ShapeHold> shape_holds, const TempoMap& tempo_map);
 
 /*!
 \brief One travel of a note's fret channel: where it leaves a stop and where it next LANDS.
@@ -459,7 +479,7 @@ whether the figure could EVER found a span.
 [[nodiscard]] bool foundsSpan(std::size_t stated_together, std::size_t sounding_together);
 
 /*!
-\brief Classifies every shape span as an arpeggio or a strummed chord box — shape rule 5
+\brief Whether a span is an arpeggio rather than a strummed chord box — shape rule 5
 (\ref design_rulesets_shapes).
 
 The second half of the same derivation, and here beside the first for that reason: \ref
@@ -473,19 +493,42 @@ question about the extent this rule is handed. What it reads off the note stream
 attacks alone, which presentation never touches, so the rule takes the stored stream and \ref
 chartResolutions can answer the class before the bracket re-read that consumes it runs.
 
-One forward cursor over the sorted notes serves every shape. No backward look is needed — nothing
-here reads a posture string's most recent earlier note, which would mean walking back to the first
-note in the song whenever a posture string had none.
-
 \param connections The resolved connections: the stored stream, sorted by (position, string), whose
        positions and attacks are all that is read, and its places.
+\param shape A span derived from those connections.
+\param posture The posture `shape` holds: a span of fewer than three members is never an arpeggio,
+       a right-hand onset inside it included.
+\return True where the span renders arpeggio-style.
+*/
+[[nodiscard]] bool chartShapeIsArpeggio(
+    const ChartConnections& connections, const ChartShape& shape, const ChartPosture& posture);
+
+/*!
+\brief Classifies every shape span as an arpeggio or a strummed chord box
+(\ref chartShapeIsArpeggio).
+
+\param connections The resolved connections the spans were derived from.
 \param shapes Derived hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
-\param postures The posture table `shapes` index (\ref ChartResolutions::postures): a derived span
-       of fewer than three members is never an arpeggio, a right-hand onset inside it included.
+\param postures The posture table `shapes` index (\ref ChartResolutions::postures).
 \return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
 [[nodiscard]] std::vector<bool> chartShapeArrivals(
     const ChartConnections& connections, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures);
+
+/*!
+\brief Whether a shape hold is valid: the span the walk publishes for it covers exactly its stated
+extent (shape rule 9). The walk is the one authority on a hold, so this only compares.
+
+A none hold is always valid.
+
+\param shapes The spans derived with the hold among the chart's holds (\ref deriveChartShapes),
+       sorted by place.
+\param tempo_map Tempo map the spans were derived against, placing the hold's edges.
+\param hold The hold judged.
+\return True when an authored span runs exactly from the hold's start to its end.
+*/
+[[nodiscard]] bool shapeHoldIsValid(
+    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold);
 
 } // namespace rock_hero::common::core

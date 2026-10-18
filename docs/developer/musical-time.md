@@ -142,7 +142,7 @@ surface **draws**.
   sliding; and last the tail law below, which reads no spans and so takes none. In the ending zone
   keyframes stay stored and are neither drawn nor judged, and the leg crossing the crop is drawn on
   its true path and stops there.
-- `deriveChartShapes(connections, margins, tempo_map)` — the hand-posture spans and the
+- `deriveChartShapes(connections, margins, shape_holds, tempo_map)` — the hand-posture spans and the
   posture table the notes imply. The chart stores none: a span is a statement about the notes under
   it, so deriving it is the only way it can never disagree with them. **A span is GRIP TENURE — the
   statement "the hand holds this grip, from here to here"** (the grip-tenure law); everything else
@@ -179,7 +179,11 @@ surface **draws**.
   a proxy that holds, so the walk that read the channels states both. No founding MODE rides a span
   — growth is accumulation in place, so nothing turns on how a span was born — and no travel flag
   either, because the tail law never hides a ring that STATES something and so needs no span-level
-  exemption for a travelling member.
+  exemption for a travelling member. The charter's SHAPE HOLDS (shape rule 9) move only the edges:
+  inside an unnamed hold the walk keeps one span, fronted at the hold's start, which only a hand
+  conflict breaks, and from the hold's end on the span closes wherever the walk would close one
+  standing there. `shapeHoldIsValid` compares the span the walk published with the hold's stated
+  extent, and a `none` hold publishes no arpeggio span inside it.
 - `chartNoteLengths(presentation, connections, shapes)` — how long the 3D board shows a note as
   still in play, which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS
   or was never earned, covered by a span, is held to the span's reach — while the grip is held, the

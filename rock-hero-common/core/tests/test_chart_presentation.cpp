@@ -134,7 +134,7 @@ struct SpanFigure
 {
     const ChartConnections connections = chartConnections(saved, tempo_map);
     const HeadMargins margins{connections.places, tempo_map};
-    const ChartShapes derived = deriveChartShapes(connections, margins);
+    const ChartShapes derived = deriveChartShapes(connections, margins, {}, tempo_map);
     SpanFigure figure;
     figure.arrivals = chartShapeArrivals(connections, derived.shapes, derived.postures);
     ChartPresentation presentation = chartPresentation(connections, margins, tempo_map);

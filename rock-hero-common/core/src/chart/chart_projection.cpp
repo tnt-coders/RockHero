@@ -232,7 +232,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     }
     const Chart& chart = *arrangement.chart;
     const ChartResolutions resolutions =
-        chartResolutions(chart.notes, chart.tuning.capo, tempo_map);
+        chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     return makeChartViewState(
         chart,
         resolutions,

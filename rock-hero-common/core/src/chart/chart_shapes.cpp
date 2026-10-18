@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <cstddef>
+#include <functional>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -10,7 +12,10 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -214,6 +219,22 @@ struct StringHand
     return stop.node.has_value() && stop.fret == 0;
 }
 
+// A span an unnamed shape hold states, while the walk is inside the hold (shape rule 9): only a
+// hand conflict breaks it.
+struct InsideHold
+{
+    // The earliest hand conflict still to come that no slot states: a member's glide landing, or
+    // hand-position rule 6's release by the note sounding a stated string. The span closes there.
+    std::optional<Fraction> conflict{};
+};
+
+// A span an unnamed shape hold states, once the walk has reached the hold's end (shape rule 9): it
+// closes wherever the walk would close a span standing there, and never short of that end.
+struct PastHoldEnd
+{
+    Fraction end{};
+};
+
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
 // carries is only its statement — which strings at which stops, and the handful of facts published
 // at emit that only the walk's own passage through the slots can know.
@@ -222,9 +243,9 @@ struct OpenSpan
     Fraction front_place{};
 
     // The sounded grip: the stop this span states per string, empty where it states none. Growth
-    // writes in place (shape rule 2: adding a stop breaks nothing — growth IS accumulation), a
-    // member strike restates in place, and nothing ever removes one: a stop's silence is what
-    // BREAKS the grip, never what shrinks it.
+    // fills a string the grip lacks (shape rule 2: adding a stop breaks nothing — growth IS
+    // accumulation), and nothing ever rewrites or removes an entry: a stop's silence is what BREAKS
+    // the grip, never what shrinks it, and a higher fret restated inside a shape hold leaves it.
     std::vector<std::optional<ChartStop>> stops;
 
     // Where this span's opening mark draws, published to \ref ChartShape::bracket_place. Every
@@ -247,7 +268,25 @@ struct OpenSpan
     // keys the bracket deferral on it. Not derivable from `last_stated_place`, which stops being
     // empty the moment an interior re-pick states the successor.
     bool landing_opened{false};
+
+    // The unnamed shape hold stating this span (shape rule 9); empty on a span its notes alone
+    // state. Published as \ref ChartShape::authored.
+    std::optional<std::variant<InsideHold, PastHoldEnd>> hold{};
 };
+
+// A shape hold on the walk's whole-note axis.
+struct HoldExtent
+{
+    Fraction start{};
+    Fraction end{};
+    bool unnamed{false};
+};
+
+// The unnamed hold stating a span while the walk is still inside it; null on any other span.
+[[nodiscard]] const InsideHold* insideHold(const OpenSpan& span)
+{
+    return span.hold.has_value() ? std::get_if<InsideHold>(&*span.hold) : nullptr;
+}
 
 // Everything one slot states, read before any span is touched. The reading is pure; the walk's
 // verdicts are functions of it and the pre-instant hand table.
@@ -294,7 +333,9 @@ bool foundsSpan(const std::size_t stated_together, const std::size_t sounding_to
            sounding_together >= g_accumulation_member_minimum;
 }
 
-ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMargins& margins)
+ChartShapes deriveChartShapes(
+    const ChartConnections& connections, const HeadMargins& margins,
+    const std::span<const ShapeHold> shape_holds, const TempoMap& tempo_map)
 {
     const std::vector<ChartNote>& saved_notes = connections.saved_notes;
     // Both stop tables are derivations of the connections themselves, so they are asked here rather
@@ -330,6 +371,33 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // sounding joins the posture of a span founded anyway. The reach never reads it — ground a
     // statement held is ground it held.
     Fraction covered{};
+
+    // THE HOLDS (shape rule 9), on this axis. Every edge is a wall but an unnamed hold's end to its
+    // own span: a span standing across one breaks there, and the latest one passed is a dating
+    // floor beside the frontier.
+    std::vector<HoldExtent> holds;
+    holds.reserve(shape_holds.size());
+    for (const ShapeHold& hold : shape_holds)
+    {
+        holds.push_back(
+            HoldExtent{
+                .start = tempo_map.wholeNotePositionAt(hold.start),
+                .end = tempo_map.wholeNotePositionAt(hold.end),
+                .unnamed = !std::holds_alternative<NoneGrip>(hold.grip),
+            });
+    }
+    Fraction last_wall{};
+    // Nothing sounds past the song's end, so a hold's span reaches no further.
+    const Fraction song_end = tempo_map.wholeNotePositionAt(terminalGridPosition(tempo_map));
+    // Whether a span fronted at `front` lies inside a none hold, which publishes no arpeggio span.
+    const auto inside_none_hold = [&holds](const Fraction front) {
+        const auto after =
+            std::ranges::upper_bound(holds, front, std::ranges::less{}, &HoldExtent::start);
+        return after != holds.begin() && front < std::prev(after)->end &&
+               !std::prev(after)->unnamed;
+    };
+    // The start of the unnamed hold the walk is inside whose notes have not yet founded its span.
+    std::optional<Fraction> unfounded_hold;
 
     std::optional<OpenSpan> open;
     // Keyed by the posture itself, so the table deduplicates by exactly the identity the type
@@ -462,11 +530,16 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // (shape rule 3's quit arm), with its per-string renewal: a member string whose sound ends
     // exactly here and is re-sounded by this slot was REPLACED, not silenced. Judged per stop: a
     // string still sounding keeps the span's stop in force only while its finger states that stop,
-    // rides above it, or is gliding (the span covers the glide, shape rule 4).
+    // rides above it, or is gliding (the span covers the glide, shape rule 4). Inside its shape
+    // hold a span stands whatever its members do: a quit is notation there (shape rule 9).
     const auto in_force = [&hand, &covers_at](
                               const OpenSpan& span,
                               const Fraction now,
                               const std::vector<std::optional<Fraction>>& sounding) {
+        if (insideHold(span) != nullptr)
+        {
+            return true;
+        }
         for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
         {
             // Bound once so the presence test and every read are provably the same object.
@@ -495,8 +568,15 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     };
 
     // How far the span's own statement reaches: the minimum of its sounded members' coverage —
-    // the fretting hand's rings, landing-capped.
-    const auto span_reach = [&hand](const OpenSpan& span) {
+    // the fretting hand's rings, landing-capped. Inside its shape hold a span reaches to its first
+    // hand conflict no slot states; from the hold's end on it reaches as its members do, never
+    // short of that end; and neither runs past the song's end, past which nothing sounds (shape
+    // rule 9).
+    const auto span_reach = [&hand, song_end](const OpenSpan& span) {
+        if (const InsideHold* const inside = insideHold(span); inside != nullptr)
+        {
+            return std::min(inside->conflict.value_or(song_end), song_end);
+        }
         std::optional<Fraction> reach;
         for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
         {
@@ -507,7 +587,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             const Fraction covers = hand[string_index].covers;
             reach = reach.has_value() ? std::min(*reach, covers) : covers;
         }
-        return reach.value_or(span.front_place);
+        const Fraction members_reach = reach.value_or(span.front_place);
+        if (span.hold.has_value())
+        {
+            return std::min(
+                std::max(members_reach, std::get<PastHoldEnd>(*span.hold).end), song_end);
+        }
+        return members_reach;
     };
 
     // The one act that publishes a span (shape rule 3: the close is the breaking event's onset or
@@ -536,8 +622,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // A SHIFT SLIDE REACHES THIS TEST NEVER, by construction: its ARRIVAL stands at the ring's
         // own END (\ref arrivesIntoNextHead), and a landing opens a successor only where the ring
         // runs STRICTLY PAST it (`settle_landings`). What the strictness governs is a charter's own
-        // landing crowded against the head after it.
-        if (open->landing_opened && !open->last_stated_place.has_value() && close_place.has_value())
+        // landing crowded against the head after it. A shape hold states its span, so it never
+        // drops.
+        if (open->landing_opened && !open->last_stated_place.has_value() &&
+            close_place.has_value() && !open->hold.has_value())
         {
             const Fraction tenure = end - open->front_place;
             const Fraction quantum = head.has_value() ? margins.length(*head) : Fraction{};
@@ -547,28 +635,37 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 return;
             }
         }
+        ChartShape shape{
+            .place = open->front_place,
+            .sustain = end - open->front_place,
+            .stated_extent = std::min(open->last_stated_place.value_or(open->front_place), end) -
+                             open->front_place,
+            .closing_onset_place = head,
+            // Indexed below, once the span is known to be published.
+            .posture = 0,
+            .sounds_in_parts = open->struck_in_parts,
+            .landing_opened = open->landing_opened,
+            .bracket_place = open->bracket_place,
+            .authored = open->hold.has_value(),
+        };
+        covered = std::max(covered, end);
         // Built once and handed to the table; the row copies it only on a first sighting.
-        ChartPosture posture{.stops = open->stops};
+        ChartPosture posture{.stops = std::move(open->stops)};
+        // A none hold publishes no arpeggio span inside it (shape rule 9). The walk runs on
+        // unchanged, so the span still covers its ground and its rings join no later span.
+        if (inside_none_hold(shape.place) && chartShapeIsArpeggio(connections, shape, posture))
+        {
+            open.reset();
+            return;
+        }
         const auto [entry, inserted] =
             posture_indices.try_emplace(std::move(posture), derived.postures.size());
         if (inserted)
         {
             derived.postures.push_back(entry->first);
         }
-        derived.shapes.push_back(
-            ChartShape{
-                .place = open->front_place,
-                .sustain = end - open->front_place,
-                .stated_extent =
-                    std::min(open->last_stated_place.value_or(open->front_place), end) -
-                    open->front_place,
-                .closing_onset_place = head,
-                .posture = entry->second,
-                .sounds_in_parts = open->struck_in_parts,
-                .landing_opened = open->landing_opened,
-                .bracket_place = open->bracket_place,
-            });
-        covered = std::max(covered, end);
+        shape.posture = entry->second;
+        derived.shapes.push_back(shape);
         open.reset();
     };
 
@@ -582,13 +679,18 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     // closed, so nothing here is an accumulation. Each boundary is judged once, at the first
     // instant the walk reaches it, against the hand as it stood there: one a slot's verdicts then
     // let stand is never judged again with that slot's strikes counted among its survivors.
+    //
+    // Inside a shape hold the boundary is the span's first hand conflict no slot states (shape rule
+    // 9), which closes the span whether or not a landing hands it over.
     std::optional<Fraction> settled_through;
     const auto settle_landings = [&](const Fraction now) {
         const std::optional<Fraction> judged_through = std::exchange(settled_through, now);
         while (open.has_value())
         {
+            const bool held = insideHold(*open) != nullptr;
             const Fraction boundary = span_reach(*open);
-            if (now < boundary || (judged_through.has_value() && boundary <= *judged_through))
+            if (now < boundary ||
+                (!held && judged_through.has_value() && boundary <= *judged_through))
             {
                 return;
             }
@@ -638,9 +740,11 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 }
                 landed[string_index] = stop;
                 ++survivors;
-                // A travel arriving exactly at the boundary is what makes it a landing at all:
-                // this member's coverage was capped at its arrival while its ring runs past it.
-                arrived = arrived || (hand[string_index].covers == boundary &&
+                // A travel arriving exactly at the boundary, its ring running past it, is what
+                // makes it a landing at all. Asked of the channel: inside a shape hold a member may
+                // have landed before, after its coverage was last read.
+                arrived = arrived || (stated.stated_from != Fraction{} &&
+                                      onset_place[*finger] + stated.stated_from == boundary &&
                                       boundary < ring_end_of(*finger));
             }
             const bool opens_successor = arrived && survivors >= g_span_member_threshold;
@@ -650,7 +754,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 // pass's: a death may still be renewed by the slot standing at it (the per-string
                 // renewal in the quit arm), and where it is not, the ordinary break emits with
                 // the close capped at the reach. Closing here instead would end a chug at every
-                // restrike.
+                // restrike. A held span's conflict before this instant closes it here all the
+                // same; one AT this instant is the slot path's hand conflict, judged against the
+                // grip still standing, as the derivation judges it.
+                if (held && boundary < now)
+                {
+                    emit(boundary, std::nullopt);
+                }
                 return;
             }
             emit(boundary, std::nullopt);
@@ -661,6 +771,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 .last_stated_place = std::nullopt,
                 .struck_in_parts = false,
                 .landing_opened = true,
+                .hold = std::nullopt,
             };
             // The landing restarts each survivor's fretting-hand coverage at the landed grip —
             // re-read from the channel, so a multi-leg glide's NEXT departure still caps it
@@ -677,12 +788,79 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         }
     };
 
+    // Whether a notation split breaks a span (shape rule 9): inside its shape hold a span breaks on
+    // a hand conflict alone, and from the hold's end on it breaks wherever the walk would break a
+    // span standing there.
+    const auto notation_breaks = [](const OpenSpan& span) { return insideHold(span) == nullptr; };
+
+    // A span inside its shape hold watches for the hand conflicts no slot states (shape rule 9): a
+    // member's glide leaving the stop the span states, at its landing (shape rule 4), and
+    // hand-position rule 6's release by the note sounding a stated string from `now`. Asked after
+    // every instant, of the notes then sounding; the earliest stands.
+    const auto watch_conflicts = [&](const Fraction now) {
+        if (!open.has_value())
+        {
+            return;
+        }
+        // Bound once so the presence test and the read are provably the same object.
+        std::optional<std::variant<InsideHold, PastHoldEnd>>& hold = open->hold;
+        if (!hold.has_value())
+        {
+            return;
+        }
+        InsideHold* const inside = std::get_if<InsideHold>(&*hold);
+        if (inside == nullptr)
+        {
+            return;
+        }
+        const auto conflict_at = [inside](const Fraction at) {
+            inside->conflict = std::min(inside->conflict.value_or(at), at);
+        };
+        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        {
+            // Bound once so each presence test and its reads are provably the same object.
+            const std::optional<ChartStop>& stop = open->stops[string_index];
+            const std::optional<std::size_t>& finger = hand[string_index].finger;
+            if (!stop.has_value() || !finger.has_value())
+            {
+                continue;
+            }
+            const StatedStop stated = channel_at(*finger, now);
+            const std::optional<FretTravel>& travel = stated.travel;
+            if (stated.stop == stop && travel.has_value())
+            {
+                conflict_at(onset_place[*finger] + travel->arrival);
+            }
+            if (const std::optional<Fraction> released =
+                    released_at(string_index, *stop, now, *finger);
+                released.has_value())
+            {
+                conflict_at(*released);
+            }
+        }
+    };
+
+    // Each hold's edges in order — its start, then its end.
+    const std::size_t edge_count = 2 * holds.size();
+    const auto edge_place = [&holds](const std::size_t at) {
+        const HoldExtent& extent = holds[at / 2];
+        return at % 2 == 0 ? extent.start : extent.end;
+    };
+
     std::size_t index = 0;
-    while (index < saved_notes.size())
+    std::size_t edge = 0;
+    while (index < saved_notes.size() || edge < edge_count)
     {
+        // The next instant anything happens: a slot, a hold's edge, or both.
+        Fraction place = index < saved_notes.size() ? onset_place[index] : edge_place(edge);
+        if (edge < edge_count)
+        {
+            place = std::min(place, edge_place(edge));
+        }
+
         // ---- 1. READ THE SLOT (pure; nothing span-shaped is touched yet) --------------------
         SlotReading slot{
-            .place = onset_place[index],
+            .place = place,
             .strikes = std::vector<std::optional<ChartStop>>(string_count),
             .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
             .sounding = std::vector<std::optional<Fraction>>(string_count),
@@ -720,9 +898,77 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             }
             ++onset_end;
         }
+        // The head a span closing here keeps its distance from: only a fretting-hand strike states
+        // the new grip, and a slot of held fingers or bare taps states none.
+        const std::optional<Fraction> closing_head =
+            slot.struck > 0 ? std::optional<Fraction>{slot.place} : std::nullopt;
 
         // ---- 2. LANDINGS RESOLVE FIRST -------------------------------------------------------
+        // A held span's conflict before this instant is one of them.
         settle_landings(slot.place);
+
+        // ---- 2b. THE HOLDS' EDGES (shape rule 9) ----------------------------------------------
+        // An unnamed hold's end hands its span to the walk's own breaks, and publishes the span of
+        // a hold whose notes never founded one. Every other edge is a WALL: a span standing across
+        // it breaks here, judged at a slot against its own grip like any broken span. A span a
+        // landing opened exactly here stands, and an unnamed hold starting here states it (shape
+        // rule 4's hand-off).
+        bool walled = false;
+        bool opens_hold = false;
+        for (; edge < edge_count && edge_place(edge) == slot.place; ++edge)
+        {
+            const bool ends = edge % 2 == 1;
+            const bool unnamed = holds[edge / 2].unnamed;
+            if (ends && unnamed && open.has_value() && insideHold(*open) != nullptr)
+            {
+                open->hold = PastHoldEnd{.end = slot.place};
+                continue;
+            }
+            // Bound once so the presence test and the read are provably the same object.
+            const std::optional<Fraction>& unfounded = unfounded_hold;
+            if (ends && unnamed && unfounded.has_value())
+            {
+                open = OpenSpan{
+                    .front_place = *unfounded,
+                    .stops = std::vector<std::optional<ChartStop>>(string_count),
+                    .bracket_place = std::nullopt,
+                    .last_stated_place = std::nullopt,
+                    .struck_in_parts = false,
+                    .landing_opened = false,
+                    .hold = PastHoldEnd{.end = slot.place},
+                };
+                unfounded_hold.reset();
+                emit(slot.place, closing_head);
+                continue;
+            }
+            walled = true;
+            opens_hold = opens_hold || (!ends && unnamed);
+        }
+        const bool walled_off = walled && open.has_value() && open->front_place < slot.place;
+        if (walled)
+        {
+            last_wall = slot.place;
+        }
+        if (opens_hold)
+        {
+            unfounded_hold = slot.place;
+            if (open.has_value() && !walled_off)
+            {
+                open->hold = InsideHold{};
+                unfounded_hold.reset();
+            }
+        }
+        // An instant no note sounds at is a hold's edge alone: a wall, or an instant a span's
+        // statement no longer stands at, its shape hold's end included.
+        if (index == onset_end)
+        {
+            if (open.has_value() && (walled_off || !in_force(*open, slot.place, slot.sounding)))
+            {
+                emit(slot.place, std::nullopt);
+            }
+            watch_conflicts(slot.place);
+            continue;
+        }
 
         // ---- 3. THE VERDICT, against the PRE-instant hand table ------------------------------
         // Standing = the span's statement is still in force here, with per-string renewal (a
@@ -993,6 +1239,13 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     (stated.has_value() && differs_by_hand(string_index, *stated, here_stop)) ||
                     (!stated.has_value() && statement.has_value() &&
                      open->front_place < foreign_until_at(string_index, slot.place));
+            }
+            // A held span's own pending conflict — a glide landing, a release by a sounding note —
+            // falling at this slot.
+            if (const InsideHold* const inside = insideHold(*open);
+                inside != nullptr && inside->conflict == slot.place)
+            {
+                hand_conflict = true;
             }
             // THE TAP'S FLOOR. A picking-hand stop sounds only ABOVE the finger holding its
             // string, so a tap whose path reaches the standing grip's fret or below it — struck
@@ -1326,7 +1579,8 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         // statement changing character.
         const bool notation_split =
             notation_contradiction || unison_restatement || partial_sounding;
-        if (standing && !hand_conflict && !notation_split)
+        if (standing && !walled_off && !hand_conflict &&
+            !(notation_split && notation_breaks(*open)))
         {
             // GROWTH IS ACCUMULATION (shape rule 2): every struck stop the grip lacks joins in
             // place; the quit arm is what guarantees absorption only ever unions grips whose sounds
@@ -1335,10 +1589,10 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             // still held states that stop — never the ornament it sounds — and the entry stays put.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                const std::optional<ChartStop> statement = grip_statement_of(string_index);
-                if (statement.has_value())
+                std::optional<ChartStop>& entry = open->stops[string_index];
+                if (!entry.has_value())
                 {
-                    open->stops[string_index] = statement;
+                    entry = grip_statement_of(string_index);
                 }
             }
             if (slot.struck > 0)
@@ -1349,8 +1603,14 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 // whole-grip stroke the span flows through — whose class still turns in place, for
                 // every way a statement divides (the turn, above). The mid-slide protection — the
                 // span RIDES the transit, per member, and closes at the landing — is the
-                // span-shape half, and it stands above.
-                open->struck_in_parts = open->struck_in_parts || turns_to_parts;
+                // span-shape half, and it stands above. A grip too small for parts never turns,
+                // even where a shape hold keeps it whole across the break it would make. A unison
+                // restatement reaches here only inside a shape hold, which keeps the span whole
+                // across it: the grip it restates whole was stated before only in part, so its
+                // members arrived separately (shape rule 9).
+                open->struck_in_parts =
+                    open->struck_in_parts ||
+                    ((turns_to_parts || unison_restatement) && !too_few_for_parts);
                 if (!open->bracket_place.has_value())
                 {
                     open->bracket_place = slot.place;
@@ -1359,11 +1619,9 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
         }
         else
         {
-            // The grip broke here (a hand conflict, a notation split, or the statement no longer
-            // stands). The close carries a sounding head only where the FRETTING hand strikes here:
-            // the display trim keeps its distance from a head that states the new grip, and a slot
-            // of held fingers or bare taps states none.
-            emit(slot.place, slot.struck > 0 ? std::optional<Fraction>{slot.place} : std::nullopt);
+            // The grip broke here (a hand conflict, a notation split, a wall, or the statement no
+            // longer stands), closing on the fretting hand's head here where it strikes.
+            emit(slot.place, closing_head);
 
             // THE SLOT OPEN (shape rule 1's two thresholds, one disjunction): the slot's own stated
             // members, plus the rings still sounding strictly past this instant on strings it does
@@ -1486,14 +1744,14 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                 Fraction front_place = slot.place;
                 if (!whole_stroke)
                 {
-                    // THE FRONT: one floor — the coverage frontier and the foreign-sound ends of
-                    // every stated string — CLAMPS the earliest member STATEMENT. A member whose
-                    // statement began behind the floor dates the span from the floor itself, where
-                    // that statement is already in force: an inherited beginning an emitted
-                    // span already fronted, or a string held through another string's foreign
-                    // sound. The front is the later of the floor and the earliest member
-                    // statement, so extending a member's statement backward never moves a front
-                    // later.
+                    // THE FRONT: one floor — the coverage frontier, the last hold edge passed and
+                    // the foreign-sound ends of every stated string — CLAMPS the earliest member
+                    // STATEMENT. A member whose statement began behind the floor dates the span
+                    // from the floor itself, where that statement is already in force: an
+                    // inherited beginning an emitted span already fronted, or a string held through
+                    // another string's foreign sound. The front is the later of the floor and the
+                    // earliest member statement, so extending a member's statement backward never
+                    // moves a front later.
                     //
                     // Every dating string reads the ONE statement-began column, struck and carried
                     // alike: a member's own onset is not the question — it is only a substitute for
@@ -1505,7 +1763,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     // hold one of its stops with a ring abutting the stroke — a palm-muted stab
                     // into the chord that restates it — and a box fronting before the stroke that
                     // says it whole misstates what a box is.
-                    Fraction floor = covered;
+                    Fraction floor = std::max(covered, last_wall);
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
                         if (stops[string_index].has_value() && states_since_frontier(string_index))
@@ -1531,6 +1789,16 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                         hand[string_index].covers = coverage_at(string_index, slot.place);
                     }
                 }
+                // Inside an unnamed hold the span the notes found is the hold's, fronted at its
+                // stated start (shape rule 9).
+                std::optional<std::variant<InsideHold, PastHoldEnd>> hold;
+                if (const std::optional<Fraction>& unfounded = unfounded_hold;
+                    unfounded.has_value())
+                {
+                    front_place = *unfounded;
+                    hold = InsideHold{};
+                    unfounded_hold.reset();
+                }
                 // The opening mark draws at the front: the chord frame states the grip where its
                 // first member's statement began, and a glide's landing begins one exactly as a
                 // strike does, so a front dated to a landing takes the mark there too.
@@ -1541,6 +1809,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
                     .last_stated_place = slot.place,
                     .struck_in_parts = false,
                     .landing_opened = false,
+                    .hold = hold,
                 };
                 // Born in parts exactly when a stroke founded it and that stroke was not whole
                 // (above): a member it did not strike, a ring from before the frontier included,
@@ -1584,6 +1853,7 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
             string_hand.stated_since = stated_since_here[*string_index];
             string_hand.covers = coverage_at(*string_index, slot.place);
         }
+        watch_conflicts(slot.place);
 
         index = onset_end;
     }
@@ -1602,44 +1872,57 @@ ChartShapes deriveChartShapes(const ChartConnections& connections, const HeadMar
     return derived;
 }
 
+// Its own parts first, then its size, then the one trigger derived here.
+bool chartShapeIsArpeggio(
+    const ChartConnections& connections, const ChartShape& shape, const ChartPosture& posture)
+{
+    if (shape.sounds_in_parts)
+    {
+        return true;
+    }
+    // A grip too small for parts is a box under the other hand too (shape rule 5).
+    if (tooFewForParts(posture.stops))
+    {
+        return false;
+    }
+    // The one trigger derived here, because it is a question about the span's extent: the other
+    // hand sounding while the fretting hand held the shape. The musical close bounds the window
+    // (shape rule 3); display's margin has nothing to say about it.
+    const std::vector<Fraction>& places = connections.places;
+    const auto from = std::ranges::lower_bound(places, shape.place);
+    const auto until = std::ranges::lower_bound(from, places.end(), shape.place + shape.sustain);
+    const auto first = static_cast<std::size_t>(std::distance(places.begin(), from));
+    const auto last = static_cast<std::size_t>(std::distance(places.begin(), until));
+    return std::ranges::any_of(
+        std::span{connections.saved_notes}.subspan(first, last - first),
+        [](const ChartNote& note) { return rightHandOnset(note.attack); });
+}
+
 std::vector<bool> chartShapeArrivals(
     const ChartConnections& connections, const std::vector<ChartShape>& shapes,
     const std::vector<ChartPosture>& postures)
 {
-    const std::vector<ChartNote>& notes = connections.saved_notes;
-    const std::vector<Fraction>& places = connections.places;
     std::vector<bool> arpeggio;
     arpeggio.reserve(shapes.size());
-    std::size_t next_note = 0;
     for (const ChartShape& shape : shapes)
     {
-        while (next_note < notes.size() && places[next_note] < shape.place)
-        {
-            ++next_note;
-        }
-        if (shape.sounds_in_parts)
-        {
-            arpeggio.push_back(true);
-            continue;
-        }
-        // A grip too small for parts is a box under the other hand too (shape rule 5).
-        if (tooFewForParts(postures[shape.posture].stops))
-        {
-            arpeggio.push_back(false);
-            continue;
-        }
-        // The one trigger still derived here, because it is a question about the span's extent:
-        // the other hand sounding while the fretting hand held the shape. The musical close
-        // bounds the window (shape rule 3); display's margin has nothing to say about it.
-        const Fraction span_end = shape.place + shape.sustain;
-        bool held_under_right_hand = false;
-        for (std::size_t scan = next_note; scan < notes.size() && places[scan] < span_end; ++scan)
-        {
-            held_under_right_hand = held_under_right_hand || rightHandOnset(notes[scan].attack);
-        }
-        arpeggio.push_back(held_under_right_hand);
+        arpeggio.push_back(chartShapeIsArpeggio(connections, shape, postures[shape.posture]));
     }
     return arpeggio;
+}
+
+// The hold's span is the authored one fronted at its start, so one search finds it.
+bool shapeHoldIsValid(
+    const std::vector<ChartShape>& shapes, const TempoMap& tempo_map, const ShapeHold& hold)
+{
+    if (std::holds_alternative<NoneGrip>(hold.grip))
+    {
+        return true;
+    }
+    const Fraction start = tempo_map.wholeNotePositionAt(hold.start);
+    const auto published = std::ranges::lower_bound(shapes, start, {}, &ChartShape::place);
+    return published != shapes.end() && published->authored && published->place == start &&
+           published->place + published->sustain == tempo_map.wholeNotePositionAt(hold.end);
 }
 
 } // namespace rock_hero::common::core

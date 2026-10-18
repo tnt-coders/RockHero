@@ -313,7 +313,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     // because the derivation assumes the valid, slot-ordered stream the checks above just proved,
     // and kept: it is the notes layer of the stream this plan lands, which the commit seeds.
     common::core::ChartResolutions resolved =
-        common::core::chartResolutions(candidate, chart.tuning.capo, tempo_map);
+        common::core::chartResolutions(candidate, chart.shape_holds, chart.tuning.capo, tempo_map);
     if (std::expected<void, common::core::ChartError> covered =
             common::core::validateFretHandCoverage(resolved, chart.fret_hand_positions, tempo_map);
         !covered.has_value())

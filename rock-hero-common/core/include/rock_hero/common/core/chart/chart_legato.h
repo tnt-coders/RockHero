@@ -399,8 +399,9 @@ edit that reflows the spans re-derives every default.
 \brief The notes layer of a chart revision: everything derived from the notes, resolved once for
 every consumer.
 
-A function of the notes, the capo and the tempo map alone — the authored positions are the hand
-layer's input (\ref FretHandResolutions), never this one's. The per-note facts each surface needs
+A function of the notes, the shape holds, the capo and the tempo map alone — the holds being what
+the spans obey (shape rule 9), and the authored positions the hand layer's input
+(\ref FretHandResolutions), never this one's. The per-note facts each surface needs
 and none may restate: the connections the saved stream justifies, where each note's ink stops — how
 far every surface DRAWS the stored note and the scorer will judge it — and how long each note is
 held — plus the hand-posture spans the notes imply and what they demand of the fretting hand, which
@@ -497,7 +498,7 @@ struct ChartResolutions
 \brief Resolves a chart's notes layer once: connections, spans, hand demands, ink ends, note
 lengths.
 
-A function of the notes, the capo and the tempo map. The connections come from
+A function of the notes, the shape holds, the capo and the tempo map. The connections come from
 \ref chartConnections, so the walk that answers them is stated once for both the callers that want
 the whole picture and the callers that want a claim. The spans, the held stops and the hand demands
 come from the same stream rather than from a caller, so there is no second posture input a caller
@@ -508,13 +509,16 @@ and a commit that seeds that memo asserts it was derived from the very notes it 
 and that assertion are the coherence rule between a derivation and its chart.
 
 \param notes Note stream to resolve, sorted by (position, string) and valid.
+\param shape_holds The chart's shape holds (\ref Chart::shape_holds), structurally valid; the spans
+       obey them (\ref deriveChartShapes).
 \param capo The tuning's capo fret; 0 for none.
 \param tempo_map Song tempo map supplying the meter every place is measured in.
 
 \return The resolutions; every per-note vector is index-parallel to `notes`.
 */
 [[nodiscard]] ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, int capo, const TempoMap& tempo_map);
+    const std::vector<ChartNote>& notes, std::span<const ShapeHold> shape_holds, int capo,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Flattens the named legato claims to plain picks — THE statement of what a rejected claim

@@ -1,8 +1,12 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
-#include <rock_hero/common/core/chart/chart_shape_holds.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
@@ -12,260 +16,387 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Sixteen seconds of default 4/4 — eight bars — so a whole note is one bar from `0` at 1:1.
+// Sixteen seconds of default 4/4 — eight bars — so a whole note is one bar from `0` at 1:1, and
+// the song ends at 8.
 [[nodiscard]] TempoMap makeTempoMap()
 {
     return TempoMap::defaultMap(TimeDuration{16.0});
 }
 
-// A picked note at a measure and beat, ringing a quarter unless a case says otherwise.
+// A picked note at a measure, a beat and a fraction of that beat.
 [[nodiscard]] ChartNote noteAt(
-    const int measure, const int beat, const int string, const int fret,
-    const Fraction ring = Fraction{1, 4})
+    const GridPosition position, const int string, const int fret, const Fraction ring)
 {
     ChartNote note;
-    note.position = GridPosition{.measure = measure, .beat = beat};
+    note.position = position;
     note.string = string;
     note.fret = fret;
     note.sustain = ring;
     return note;
 }
 
-// A two-hand tap landing at `fret`.
-[[nodiscard]] ChartNote tapAt(const int measure, const int beat, const int string, const int fret)
+// A grid position, `offset` beats past the beat.
+[[nodiscard]] GridPosition at(const int measure, const int beat, const Fraction offset = Fraction{})
 {
-    ChartNote note = noteAt(measure, beat, string, fret);
-    note.attack = NoteAttack::Tap;
-    return note;
+    return GridPosition{.measure = measure, .beat = beat, .offset = offset};
 }
 
-// A note whose fret channel states `fret` at `offset` along its ring.
-[[nodiscard]] ChartNote withFretAt(ChartNote note, const Fraction offset, const int fret)
+// The notes in the chart's own slot order.
+[[nodiscard]] std::vector<ChartNote> streamOf(std::vector<ChartNote> notes)
 {
-    note.keyframes.push_back(Keyframe{.offset = offset, .fret = fret});
-    return note;
+    std::ranges::sort(notes, [](const ChartNote& lhs, const ChartNote& rhs) {
+        return lhs.position == rhs.position ? lhs.string < rhs.string : lhs.position < rhs.position;
+    });
+    return notes;
 }
 
-// An unnamed hold from one downbeat-relative beat to another.
-[[nodiscard]] ShapeHold holdOver(
-    const int start_measure, const int start_beat, const int end_measure, const int end_beat)
+// An unnamed hold between two grid positions.
+[[nodiscard]] ShapeHold holdOver(const GridPosition start, const GridPosition end)
 {
-    return ShapeHold{
-        .start = GridPosition{.measure = start_measure, .beat = start_beat},
-        .end = GridPosition{.measure = end_measure, .beat = end_beat},
-        .grip = UnnamedGrip{},
-    };
+    return ShapeHold{.start = start, .end = end, .grip = UnnamedGrip{}};
 }
 
-// The end shape rule 9 gives `hold` over `notes`, on the whole-note axis.
-[[nodiscard]] Fraction normalEndOf(const std::vector<ChartNote>& notes, const ShapeHold& hold)
+// The notes' resolutions under the holds, and whether each hold is valid.
+struct Held
+{
+    ChartResolutions resolutions;
+    std::vector<bool> valid;
+};
+
+[[nodiscard]] Held deriveUnder(
+    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& holds)
 {
     const TempoMap tempo_map = makeTempoMap();
-    return shapeHoldNormalEnd(chartConnections(notes, tempo_map), tempo_map, hold);
+    Held held{.resolutions = chartResolutions(notes, holds, 0, tempo_map), .valid = {}};
+    for (const ShapeHold& hold : holds)
+    {
+        held.valid.push_back(shapeHoldIsValid(held.resolutions.shapes, tempo_map, hold));
+    }
+    return held;
 }
 
-// Whether `hold` fits `notes` by shape rule 9.
-[[nodiscard]] bool fitsNotes(const std::vector<ChartNote>& notes, const ShapeHold& hold)
+// The stop a span's posture holds on a one-based string.
+[[nodiscard]] std::optional<ChartStop> stopOf(
+    const ChartResolutions& resolutions, const std::size_t span, const int string)
 {
-    const TempoMap tempo_map = makeTempoMap();
-    return shapeHoldFitsNotes(chartConnections(notes, tempo_map), tempo_map, hold);
+    return resolutions.postures[resolutions.shapes[span].posture]
+        .stops[static_cast<std::size_t>(string - 1)];
 }
 
 } // namespace
 
-// Shape rule 9's conflict: a later note on a stated string releasing its stop under hand-position
-// rule 6, at the release instant. The hold is the first two bars, `[0, 2)` in whole notes, and its
-// notes end before its end, so only a conflict moves the answer.
-TEST_CASE("A shape hold conflicts where a stated stop is released", "[core][chart]")
+// Inside a hold only a hand conflict breaks the span: a higher fret restated on a stated string is
+// another finger, so the notation split the derivation makes there is suppressed, and the hold's
+// span keeps the stop first stated.
+TEST_CASE("A shape hold is one span across a notation split", "[core][chart]")
 {
-    const ShapeHold hold = holdOver(1, 1, 3, 1);
-    const ChartNote stated = noteAt(1, 1, 1, 5);
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{1, 4}),
+        noteAt(at(1, 1), 2, 7, Fraction{1, 4}),
+        noteAt(at(1, 2), 1, 5, Fraction{1, 4}),
+        noteAt(at(1, 2), 2, 9, Fraction{1, 4}),
+    });
+    REQUIRE(deriveUnder(notes, {}).resolutions.shapes.size() == 2);
 
-    SECTION("a higher fret on the string is another finger and fits")
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(1, 3))});
+    REQUIRE(held.resolutions.shapes.size() == 1);
+    CHECK(held.resolutions.shapes[0].authored);
+    CHECK(held.resolutions.shapes[0].place == Fraction{});
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+    CHECK(stopOf(held.resolutions, 0, 2) == std::optional{fretStop(7)});
+    CHECK(held.valid[0]);
+}
+
+// A hand conflict inside a hold crops its span there: a lower fret releases the stated stop
+// (hand-position rule 6), so the published extent falls short of the stated one.
+TEST_CASE("A hand conflict crops a shape hold's span", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{1, 4}),
+        noteAt(at(1, 1), 2, 7, Fraction{1, 4}),
+        noteAt(at(1, 2), 1, 3, Fraction{1, 4}),
+        noteAt(at(1, 2), 2, 7, Fraction{1, 4}),
+    });
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(1, 3))});
+    REQUIRE_FALSE(held.resolutions.shapes.empty());
+    CHECK(held.resolutions.shapes[0].authored);
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
+    CHECK_FALSE(held.valid[0]);
+}
+
+// At or after its stated end the span closes wherever the walk would close a span standing there:
+// an end where nothing closes one is invalid, so the span runs on to the first close; an end where
+// a stated stop has stopped sounding, or at the next hold's start, or at the song's end, is valid.
+TEST_CASE("A shape hold's end must be a break", "[core][chart]")
+{
+    const std::vector<ChartNote> chord = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{1, 2}),
+        noteAt(at(1, 1), 2, 7, Fraction{1, 2}),
+    });
+
+    SECTION("an end in the middle of a sustain is invalid, the span running to the break")
     {
-        CHECK(fitsNotes({stated, noteAt(1, 3, 1, 7)}, hold));
+        const Held held = deriveUnder(chord, {holdOver(at(1, 1), at(1, 2))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+        CHECK_FALSE(held.valid[0]);
     }
 
-    SECTION("a lower fret conflicts at its onset")
+    SECTION("an end where one stated stop has stopped sounding is valid, the rest ringing on")
     {
-        CHECK(normalEndOf({stated, noteAt(1, 3, 1, 3)}, hold) == Fraction{1, 2});
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(at(1, 1), 1, 5, Fraction{1, 4}),
+            noteAt(at(1, 1), 2, 7, Fraction{1, 2}),
+        });
+        CHECK(deriveUnder(notes, {holdOver(at(1, 1), at(1, 2))}).valid[0]);
     }
 
-    SECTION("the open string conflicts at its onset")
+    SECTION("the next hold's start is a break")
     {
-        CHECK(normalEndOf({stated, noteAt(1, 3, 1, 0)}, hold) == Fraction{1, 2});
+        const Held held =
+            deriveUnder(chord, {holdOver(at(1, 1), at(1, 2)), holdOver(at(1, 2), at(1, 3))});
+        CHECK(held.valid[0]);
+        CHECK(held.valid[1]);
     }
 
-    SECTION("a natural harmonic's node conflicts at its onset")
+    SECTION("the song's end is a break")
     {
-        ChartNote chime = noteAt(1, 3, 1, 0);
-        chime.harmonic_node = 12.0;
-        CHECK(normalEndOf({stated, chime}, hold) == Fraction{1, 2});
+        const std::vector<ChartNote> last = streamOf({
+            noteAt(at(8, 1), 1, 5, Fraction{2}),
+            noteAt(at(8, 1), 2, 7, Fraction{2}),
+        });
+        CHECK(deriveUnder(last, {holdOver(at(8, 1), at(9, 1))}).valid[0]);
     }
 
-    SECTION("a tap at or below the stop conflicts, and one above fits")
+    SECTION("a finger landing on a string ringing open is a break")
     {
-        CHECK(normalEndOf({stated, tapAt(1, 3, 1, 5)}, hold) == Fraction{1, 2});
-        CHECK(normalEndOf({stated, tapAt(1, 3, 1, 3)}, hold) == Fraction{1, 2});
-        CHECK(fitsNotes({stated, tapAt(1, 3, 1, 7)}, hold));
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(at(1, 1), 1, 5, Fraction{1, 2}),
+            noteAt(at(1, 1), 2, 0, Fraction{1, 4}),
+            noteAt(at(1, 2), 2, 4, Fraction{1, 4}),
+        });
+        CHECK(deriveUnder(notes, {holdOver(at(1, 1), at(1, 2))}).valid[0]);
     }
 
-    SECTION("the stating finger sliding away conflicts where it lands")
+    SECTION(
+        "a tap renewing the rings at the end leaves the end where the fretting hand's rings end")
     {
-        const ChartNote sliding = withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 4}, 7);
-        CHECK(normalEndOf({sliding}, hold) == Fraction{1, 4});
-    }
-
-    SECTION("another note sliding onto the stated fret conflicts where it lands")
-    {
-        const ChartNote arriving =
-            withFretAt(noteAt(1, 2, 1, 7, Fraction{1, 2}), Fraction{1, 4}, 5);
-        CHECK(normalEndOf({stated, arriving}, hold) == Fraction{1, 2});
-    }
-
-    SECTION("a rest and a restrike of the stop never conflict")
-    {
-        CHECK(fitsNotes({stated, noteAt(2, 1, 1, 5)}, hold));
-    }
-
-    SECTION("another string never conflicts")
-    {
-        CHECK(fitsNotes({stated, noteAt(1, 2, 2, 0), noteAt(1, 3, 2, 2)}, hold));
-    }
-
-    SECTION("the earliest conflict across the strings is the answer")
-    {
-        CHECK(
-            normalEndOf(
-                {stated, noteAt(1, 1, 2, 7), noteAt(1, 3, 2, 5), noteAt(1, 4, 1, 3)}, hold) ==
-            Fraction{1, 2});
+        ChartNote low_tap = noteAt(at(1, 2), 1, 12, Fraction{1, 4});
+        low_tap.attack = NoteAttack::Tap;
+        ChartNote high_tap = noteAt(at(1, 2), 2, 14, Fraction{1, 4});
+        high_tap.attack = NoteAttack::Tap;
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(at(1, 1), 1, 5, Fraction{1, 4}),
+            noteAt(at(1, 1), 2, 7, Fraction{1, 4}),
+            low_tap,
+            high_tap,
+        });
+        const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+        REQUIRE(plain.shapes.size() == 1);
+        REQUIRE(plain.shapes[0].sustain == Fraction{1, 4});
+        CHECK(deriveUnder(notes, {holdOver(at(1, 1), at(1, 2))}).valid[0]);
     }
 }
 
-// Only notes struck inside a hold state its stops: a ring sounding in from before the start states
-// nothing, so a lower fret after it is the string's first statement rather than a conflict.
-TEST_CASE("A ring sounding into a shape hold states nothing", "[core][chart]")
+// A superset restatement — the grip restruck whole with a finger added on a silent string — splits
+// the derived span, while a hold across it keeps one span; the grip was stated only in part at the
+// hold's start, so the span sounds in parts. The notes after the hold derive as with no hold.
+TEST_CASE("A shape hold keeps one arpeggio across a superset restatement", "[core][chart]")
 {
-    const ShapeHold hold = holdOver(1, 3, 3, 1);
-    CHECK(fitsNotes({noteAt(1, 1, 1, 5, Fraction{1}), noteAt(2, 1, 1, 3)}, hold));
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 3, Fraction{1, 4}),
+        noteAt(at(1, 1), 2, 3, Fraction{1, 4}),
+        noteAt(at(1, 2), 1, 3, Fraction{1, 8}),
+        noteAt(at(1, 2), 2, 3, Fraction{1, 8}),
+        noteAt(at(1, 2), 3, 5, Fraction{1, 8}),
+        noteAt(at(1, 2, Fraction{1, 2}), 1, 3, Fraction{1, 8}),
+        noteAt(at(1, 2, Fraction{1, 2}), 2, 3, Fraction{1, 8}),
+    });
+    const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+    REQUIRE(plain.shapes.size() == 3);
+    REQUIRE(plain.shapes[1].place == Fraction{1, 4});
+
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(1, 2, Fraction{1, 2}))});
+    REQUIRE(held.resolutions.shapes.size() == 2);
+    CHECK(held.resolutions.shapes[0].authored);
+    CHECK(held.resolutions.shapes[0].place == Fraction{});
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{3, 8});
+    CHECK(stopOf(held.resolutions, 0, 3) == std::optional{fretStop(5)});
+    CHECK(held.resolutions.arrivals[0]);
+    // The posture table orders its rows by first sighting, so the after-span's row is compared by
+    // what it holds rather than by its index.
+    ChartShape after = held.resolutions.shapes[1];
+    CHECK(held.resolutions.postures[after.posture] == plain.postures[plain.shapes[2].posture]);
+    after.posture = plain.shapes[2].posture;
+    CHECK(after == plain.shapes[2]);
+    CHECK(held.valid[0]);
 }
 
-// A hold stating no pressed stop always passes, whatever rings across its end, and a none hold
-// states no stop at all.
-TEST_CASE("A shape hold stating no pressed stop fits its notes", "[core][chart]")
+// A finger landing on a string ringing open closes the derived span, and is notation inside a
+// hold: the span stays whole.
+TEST_CASE("A shape hold spans a finger landing on an open ring", "[core][chart]")
 {
-    const ShapeHold hold = holdOver(1, 1, 2, 1);
-
-    SECTION("open strings, a natural harmonic and a tap state nothing")
-    {
-        ChartNote chime = noteAt(1, 2, 2, 0, Fraction{2});
-        chime.harmonic_node = 12.0;
-        CHECK(fitsNotes({noteAt(1, 1, 1, 0, Fraction{2}), chime, tapAt(1, 3, 3, 9)}, hold));
-    }
-
-    SECTION("a none hold keeps its end over a conflict and a ring across it")
-    {
-        ShapeHold none = hold;
-        none.grip = NoneGrip{};
-        CHECK(fitsNotes({noteAt(1, 1, 1, 5), noteAt(1, 2, 1, 3, Fraction{2})}, none));
-    }
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{1, 2}),
+        noteAt(at(1, 1), 2, 0, Fraction{1, 4}),
+        noteAt(at(1, 2), 2, 4, Fraction{1, 4}),
+    });
+    const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+    REQUIRE(plain.shapes.size() == 1);
+    REQUIRE(plain.shapes[0].sustain == Fraction{1, 4});
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(1, 3))});
+    REQUIRE(held.resolutions.shapes.size() == 1);
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+    CHECK(held.valid[0]);
 }
 
-// Shape rule 9's end check: the end fails where every stated stop still sounds across it, from a
-// note struck inside that grips it. The hold is the first bar, `[0, 1)` in whole notes.
-TEST_CASE("A shape hold's end passes once a stated stop falls silent", "[core][chart]")
+// Rests are legal inside a hold: a member's silence is notation, so the span runs on over the rest
+// and the restrike after it, and a hold ending in a rest ends where its statement is no longer in
+// force.
+TEST_CASE("A shape hold spans a rest", "[core][chart]")
 {
-    const ShapeHold hold = holdOver(1, 1, 2, 1);
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{1, 4}),
+        noteAt(at(1, 1), 2, 7, Fraction{1, 4}),
+        noteAt(at(1, 3), 1, 5, Fraction{1, 4}),
+        noteAt(at(1, 3), 2, 7, Fraction{1, 4}),
+    });
+    REQUIRE(deriveUnder(notes, {}).resolutions.shapes.size() == 2);
 
-    SECTION("a stop ringing across the end alone extends the hold to its ring's end")
+    SECTION("a hold over the rest is one span and valid")
     {
-        CHECK(normalEndOf({noteAt(1, 1, 1, 5, Fraction{3, 2})}, hold) == Fraction{3, 2});
+        const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(2, 1))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
+        CHECK(held.valid[0]);
     }
 
-    SECTION("a ring ending exactly at the end has stopped sounding")
+    SECTION("a hold ending in the rest is valid")
     {
-        CHECK(fitsNotes({noteAt(1, 1, 1, 5, Fraction{1})}, hold));
-    }
-
-    SECTION("one stated stop silent before the end passes, though another rings across")
-    {
-        CHECK(fitsNotes({noteAt(1, 1, 1, 5, Fraction{3, 2}), noteAt(1, 1, 2, 7)}, hold));
-    }
-
-    SECTION("every stated stop across the end extends to the first that falls silent")
-    {
-        CHECK(
-            normalEndOf(
-                {noteAt(1, 1, 1, 5, Fraction{3, 2}), noteAt(1, 1, 2, 7, Fraction{5, 4})}, hold) ==
-            Fraction{5, 4});
-    }
-
-    SECTION("a higher fret ringing across the end has ended the stated stop's sound")
-    {
-        CHECK(
-            fitsNotes({noteAt(1, 1, 1, 5, Fraction{1, 2}), noteAt(1, 3, 1, 7, Fraction{1})}, hold));
-    }
-
-    SECTION("a restrike of the stated stop inside the hold still sounds it")
-    {
-        CHECK(
-            normalEndOf(
-                {noteAt(1, 1, 1, 5, Fraction{1, 2}), noteAt(1, 3, 1, 5, Fraction{1})}, hold) ==
-            Fraction{3, 2});
-    }
-
-    SECTION("a slide away past the end silences the stop where it lands")
-    {
-        const ChartNote sliding = withFretAt(noteAt(1, 1, 1, 5, Fraction{2}), Fraction{3, 2}, 7);
-        CHECK(normalEndOf({sliding}, hold) == Fraction{3, 2});
-    }
-
-    SECTION("a conflict inside crops the hold even where its end would extend")
-    {
-        CHECK(
-            normalEndOf(
-                {noteAt(1, 1, 1, 5, Fraction{2}), noteAt(1, 1, 2, 7), noteAt(1, 3, 2, 3)}, hold) ==
-            Fraction{1, 2});
+        const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(1, 3))});
+        REQUIRE_FALSE(held.resolutions.shapes.empty());
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+        CHECK(held.valid[0]);
     }
 }
 
-// The earliest fitting end comes from one sweep past the end: a string first struck inside the
-// extension states its stop there, and ends the extension sooner where that stop falls silent
-// first. An open string so struck states nothing.
-TEST_CASE("A shape hold's extension counts a string first struck inside it", "[core][chart]")
+// A hold whose notes never found a span still publishes its span, with the empty posture, and is
+// valid: the notes say nothing against it.
+TEST_CASE("A shape hold whose notes found nothing publishes an empty span", "[core][chart]")
 {
-    const ShapeHold hold = holdOver(1, 1, 2, 1);
-    const ChartNote ringing = noteAt(1, 1, 1, 5, Fraction{2});
+    const std::vector<ChartNote> notes{noteAt(at(1, 1), 1, 5, Fraction{1, 4})};
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(2, 1))});
+    REQUIRE(held.resolutions.shapes.size() == 1);
+    CHECK(held.resolutions.shapes[0].authored);
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
+    CHECK(
+        std::ranges::none_of(
+            held.resolutions.postures[held.resolutions.shapes[0].posture].stops,
+            [](const std::optional<ChartStop>& stop) { return stop.has_value(); }));
+    CHECK(held.valid[0]);
+}
 
-    SECTION("a stop struck inside the extension that falls silent first ends it")
+// A none hold publishes no arpeggio span inside it, while a chord struck inside keeps its box; the
+// notes after the hold derive as they do with no hold.
+TEST_CASE("A none hold drops an arpeggio span and keeps a chord box", "[core][chart]")
+{
+    ShapeHold none = holdOver(at(1, 1), at(2, 1));
+    none.grip = NoneGrip{};
+    const std::vector<ChartNote> after{
+        noteAt(at(3, 1), 1, 3, Fraction{1, 4}),
+        noteAt(at(3, 1), 2, 5, Fraction{1, 4}),
+    };
+
+    SECTION("an arpeggio inside is dropped")
     {
-        CHECK(normalEndOf({ringing, noteAt(2, 2, 2, 7)}, hold) == Fraction{3, 2});
+        std::vector<ChartNote> notes{
+            noteAt(at(1, 1), 1, 5, Fraction{3, 4}),
+            noteAt(at(1, 2), 2, 7, Fraction{1, 2}),
+            noteAt(at(1, 3), 3, 7, Fraction{1, 4}),
+        };
+        notes.insert(notes.end(), after.begin(), after.end());
+        notes = streamOf(notes);
+        REQUIRE(deriveUnder(notes, {}).resolutions.shapes.size() == 2);
+        const Held held = deriveUnder(notes, {none});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].place == Fraction{2});
+        CHECK(held.valid[0]);
     }
 
-    SECTION("an open string struck inside the extension states nothing")
+    SECTION("a chord box inside stays")
     {
-        CHECK(normalEndOf({ringing, noteAt(2, 2, 2, 0)}, hold) == Fraction{2});
-    }
-
-    SECTION("a stop falling silent after the stated stops does not move the end")
-    {
-        CHECK(normalEndOf({ringing, noteAt(2, 4, 2, 7, Fraction{1})}, hold) == Fraction{2});
-    }
-
-    SECTION("a glide away on a string first struck inside the extension ends it where it lands")
-    {
-        const ChartNote gliding = withFretAt(noteAt(2, 2, 2, 7, Fraction{1}), Fraction{1, 4}, 9);
-        CHECK(normalEndOf({ringing, gliding}, hold) == Fraction{3, 2});
+        std::vector<ChartNote> notes{
+            noteAt(at(1, 1), 1, 5, Fraction{1, 4}),
+            noteAt(at(1, 1), 2, 7, Fraction{1, 4}),
+        };
+        notes.insert(notes.end(), after.begin(), after.end());
+        notes = streamOf(notes);
+        const Held held = deriveUnder(notes, {none});
+        CHECK(held.resolutions.shapes == deriveUnder(notes, {}).resolutions.shapes);
     }
 }
 
-// Nothing sounds past the song's end, so a ring crossing it extends no hold: a hold ending at the
-// song's end fits its notes there. The timeline's last bar is the eighth, ending at 8.
-TEST_CASE("A shape hold never extends past the song's end", "[core][chart]")
+// A pull-off source riding the stop the hold's span states, and its release back onto it, are one
+// hand: neither is a conflict, so the hold stands.
+TEST_CASE("A pull-off inside a shape hold leaves it whole", "[core][chart]")
 {
-    const ShapeHold last_bar = holdOver(8, 1, 9, 1);
-    CHECK(fitsNotes({noteAt(8, 1, 1, 5, Fraction{2})}, last_bar));
-    CHECK(normalEndOf({noteAt(8, 1, 1, 5, Fraction{2})}, holdOver(8, 1, 8, 3)) == Fraction{8});
+    ChartNote pull = noteAt(at(1, 2, Fraction{1, 2}), 2, 7, Fraction{3, 8});
+    pull.attack = NoteAttack::Legato;
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{3, 4}),
+        noteAt(at(1, 1), 2, 7, Fraction{1, 4}),
+        noteAt(at(1, 2), 2, 9, Fraction{1, 8}),
+        pull,
+    });
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(1, 4))});
+    REQUIRE(held.resolutions.shapes.size() == 1);
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{3, 4});
+    CHECK(stopOf(held.resolutions, 0, 2) == std::optional{fretStop(7)});
+    CHECK(held.valid[0]);
+}
+
+// A member's glide leaving the stop the span states is a hand conflict at its landing (shape rule
+// 4), a multi-leg glide landing where it comes to rest; the landed grip opens its successor there.
+TEST_CASE("A glide inside a shape hold crops it where it lands", "[core][chart]")
+{
+    ChartNote gliding = noteAt(at(1, 1), 2, 7, Fraction{1});
+    gliding.keyframes = {
+        Keyframe{.offset = Fraction{1, 4}, .fret = 9},
+        Keyframe{.offset = Fraction{1, 2}, .fret = 11},
+    };
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 5, Fraction{1}),
+        gliding,
+    });
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(2, 1))});
+    REQUIRE(held.resolutions.shapes.size() == 2);
+    CHECK(held.resolutions.shapes[0].authored);
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+    CHECK(held.resolutions.shapes[1].landing_opened);
+    CHECK(stopOf(held.resolutions, 1, 2) == std::optional{fretStop(11)});
+    CHECK_FALSE(held.valid[0]);
+}
+
+// A hold exactly over a derived span changes nothing but marking that span authored, and is valid.
+TEST_CASE("A shape hold exactly over a derived span derives it unchanged", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(at(1, 1), 1, 3, Fraction{3, 4}),
+        noteAt(at(1, 1), 2, 5, Fraction{3, 4}),
+        noteAt(at(1, 4), 1, 3, Fraction{1, 4}),
+        noteAt(at(1, 4), 2, 5, Fraction{1, 4}),
+        noteAt(at(2, 1), 1, 5, Fraction{1, 4}),
+        noteAt(at(2, 1), 2, 7, Fraction{1, 4}),
+    });
+    const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+    REQUIRE(plain.shapes.size() == 2);
+    const Held held = deriveUnder(notes, {holdOver(at(1, 1), at(2, 1))});
+    std::vector<ChartShape> expected = plain.shapes;
+    expected[0].authored = true;
+    CHECK(held.resolutions.shapes == expected);
+    CHECK(held.resolutions.postures == plain.postures);
+    CHECK(held.resolutions.arrivals == plain.arrivals);
+    CHECK(held.valid[0]);
 }
 
 } // namespace rock_hero::common::core

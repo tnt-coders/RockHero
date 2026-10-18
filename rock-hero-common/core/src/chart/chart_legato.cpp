@@ -332,16 +332,18 @@ std::vector<std::optional<int>> chartHeldStops(
 // The notes layer in pipeline order: connections, margins, spans, hand demands, held stops,
 // classes, then the one presentation pass that owns every tail decision.
 ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const int capo, const TempoMap& tempo_map)
+    const std::vector<ChartNote>& notes, const std::span<const ShapeHold> shape_holds,
+    const int capo, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
     // The margin before every head, asked once here because the spans, the ink ends and the drawn
     // extents all keep it, each of them several times per head.
     resolutions.margins = HeadMargins{resolutions.connections.places, tempo_map};
-    // The SPANS are independent of presentation entirely: they read the stored stream alone, since
-    // every stop they compare comes off a stored fret channel.
-    ChartShapes derived = deriveChartShapes(resolutions.connections, resolutions.margins);
+    // The SPANS are independent of presentation entirely: they read the stored stream and the
+    // charter's holds alone, since every stop they compare comes off a stored fret channel.
+    ChartShapes derived =
+        deriveChartShapes(resolutions.connections, resolutions.margins, shape_holds, tempo_map);
     // WHAT THE NOTES DEMAND OF THE HAND, and its place in the pipeline is part of the rule: notes,
     // then grips, then positions, so a span's grip is a hold the hand never leaves
     // (\ref fretHandHolds). The spans never read the hand, and the positions come after this layer
