@@ -2131,6 +2131,29 @@ void EditorController::Impl::seedChartResolutions(common::core::ChartResolutions
     m_chart_resolutions_revision = session().chartNotesRevision();
 }
 
+// The layers are index-parallel to the song's arrangements, so the displayed one is found by the
+// arrangement's own place among them.
+void EditorController::Impl::seedNormalizedNotesLayer(
+    std::vector<std::optional<common::core::ChartResolutions>> notes_layers)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || notes_layers.empty())
+    {
+        return;
+    }
+    const std::vector<common::core::Arrangement>& arrangements = session().song().arrangements;
+    const auto displayed =
+        std::ranges::find(arrangements, arrangement->id, &common::core::Arrangement::id);
+    const auto index =
+        static_cast<std::size_t>(std::ranges::distance(arrangements.begin(), displayed));
+    // Bound once so the presence test and the read are provably the same object.
+    std::optional<common::core::ChartResolutions>& notes_layer = notes_layers.at(index);
+    if (notes_layer.has_value())
+    {
+        seedChartResolutions(std::move(*notes_layer));
+    }
+}
+
 // The memo's notes layer, refreshed first like the published projections.
 const common::core::ChartResolutions& EditorController::Impl::chartResolutions() const
 {

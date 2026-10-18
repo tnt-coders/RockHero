@@ -1,6 +1,7 @@
 #include "chart/chart_rules.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <compare>
 #include <cstddef>
@@ -162,7 +163,12 @@ bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map)
     return isValidGridPosition(position, tempo_map) && position < terminalGridPosition(tempo_map);
 }
 
-std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
+namespace
+{
+
+// Every chart rule but the hand-position coverage rule, which reads the notes layer.
+[[nodiscard]] std::expected<void, ChartError> validateChartStructure(
+    const Chart& chart, const TempoMap& tempo_map)
 {
     const auto string_count = static_cast<int>(chart.tuning.strings.size());
     if (string_count < 1 || string_count > g_max_chart_strings)
@@ -211,11 +217,36 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     {
         return std::unexpected{std::move(notes.error())};
     }
-    // Last, because it derives the holds from the notes and searches the positions, so it needs
-    // both streams already valid.
+    return {};
+}
+
+} // namespace
+
+// The coverage rule last, because it derives the spans from the notes and the holds and searches
+// the positions, so it needs every stream already valid.
+std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
+{
+    if (auto structure = validateChartStructure(chart, tempo_map); !structure.has_value())
+    {
+        return structure;
+    }
     const ChartResolutions resolved =
         chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     return validateFretHandCoverage(resolved, chart.fret_hand_positions, tempo_map);
+}
+
+std::expected<void, ChartError> validateChartRules(
+    const Chart& chart, const TempoMap& tempo_map, const ChartResolutions& notes_layer)
+{
+    assert(
+        notes_layer.shape_holds == chart.shape_holds &&
+        notes_layer.connections.saved_notes.size() == chart.notes.size() &&
+        "a chart validated against the notes layer of another chart");
+    if (auto structure = validateChartStructure(chart, tempo_map); !structure.has_value())
+    {
+        return structure;
+    }
+    return validateFretHandCoverage(notes_layer, chart.fret_hand_positions, tempo_map);
 }
 
 // Separate from validateChartRules so a placement edit can be judged without re-judging every note
@@ -849,8 +880,8 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // last, against the spans those holds give and the fitted windows: derived after the sweep,
     // which can retype a claim. One pass is complete: a position's demands come from the notes and
     // the holds alone, so dropping one never changes another's verdict.
-    NormalizedChartResolutions normal =
-        normalizedChartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
+    ShapeHoldNormalization normal =
+        normalizeShapeHolds(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     chart.shape_holds = normal.resolved.shape_holds;
     conversions.insert(
         conversions.end(),

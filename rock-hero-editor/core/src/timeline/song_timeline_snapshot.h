@@ -61,16 +61,17 @@ struct SongTimelineSnapshot
     reign stays in the live model while its chip is selected. The history's and the file's form
     without it is the funnel's (`writtenModel`, \ref common::core::withoutRedundantTimeSignatures).
 
-    \return One conversion per hold the normal form changed, its place naming the arrangement;
-            empty where every hold
-            already fit.
+    \return One conversion per hold the normal form changed, its place naming the arrangement, and
+            every arrangement's notes layer under the normalized timeline, derived once for the
+            validation and the memo.
     */
-    [[nodiscard]] std::vector<common::core::ChartConversion> normalize();
+    [[nodiscard]] MarkerModelNormalization normalize();
 
     /*!
     \brief Reports the first structural rule this timeline breaks, in any of its slices
     (\ref common::core::validateSongTimelineRules).
-    \param context Unused; every rule reads the timeline's own map.
+    \param context Carries the notes layers this timeline's normalization derived, which each
+           chart's coverage reads; every other rule reads the timeline's own map.
     \return The violation to report, or empty when the timeline satisfies every rule.
     */
     [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;

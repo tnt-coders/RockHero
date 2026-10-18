@@ -856,4 +856,19 @@ and nothing for a rule to refuse.
 [[nodiscard]] std::expected<void, ChartError> validateChartRules(
     const Chart& chart, const TempoMap& tempo_map);
 
+/*!
+\brief Validates a chart against the same rules as \ref validateChartRules, its hand-position
+coverage read from a notes layer the caller already derived rather than derived again.
+
+For the caller that derived the chart's notes layer to normalize its holds
+(\ref normalizeShapeHolds), so one edit walks the chart once.
+
+\param chart Chart to validate.
+\param tempo_map Song tempo map the chart's positions must lie on.
+\param notes_layer The notes layer of exactly this chart's notes and shape holds under this map.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateChartRules(
+    const Chart& chart, const TempoMap& tempo_map, const ChartResolutions& notes_layer);
+
 } // namespace rock_hero::common::core

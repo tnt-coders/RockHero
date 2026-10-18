@@ -527,20 +527,23 @@ and that assertion are the coherence rule between a derivation and its chart.
     const std::vector<ChartNote>& notes, std::span<const ShapeHold> shape_holds, int capo,
     const TempoMap& tempo_map);
 
-/*! \brief Shape holds in their normal form and what reaching it took (\ref normalizeShapeHolds). */
+/*!
+\brief A chart's notes layer under its shape holds in their normal form, and what reaching that form
+took (\ref normalizeShapeHolds).
+*/
 struct ShapeHoldNormalization
 {
-    /*! \brief The holds in their normal form, ascending and never overlapping. */
-    std::vector<ShapeHold> shape_holds;
+    /*! \brief The notes layer, its \ref ChartResolutions::shape_holds the normalized holds. */
+    ChartResolutions resolved;
 
     /*! \brief One conversion per hold the normal form changed, naming it as it stands or stood. */
     std::vector<ChartConversion> conversions;
 };
 
 /*!
-\brief Brings a chart's shape holds to their normal form (shape rule 9): THE one hold normalizer,
-run after every edit that is not a hold verb — a note edit (the editor's plan gate), a tempo or
-meter edit (the timeline funnel) and a load (\ref normalizeChart).
+\brief Brings a chart's shape holds to their normal form (shape rule 9) and derives the notes layer
+under them: THE one hold normalizer, run after every edit that is not a hold verb — a note edit (the
+editor's plan gate), a tempo or meter edit (the timeline funnel) and a load (\ref normalizeChart).
 
 The walk is the one authority on a hold, so the normal form is what it publishes: every hold's end
 is written back where the walk published it (\ref shapeHoldPublishedEnd), one rule that is both the
@@ -551,40 +554,18 @@ next hold's start. A rewrite moves a wall, and a crop can let a span run on to a
 hold then states, so the rule is applied until a pass rewrites nothing: the result is a fixpoint,
 and normalizing it again changes nothing. A none hold always fits, so only its length can drop it.
 
-\param notes Note stream the holds are judged against, sorted by (position, string) and valid.
-\param shape_holds The holds: ascending and never overlapping, possibly with a hold of no length.
-\param tempo_map Song tempo map placing the notes and the holds.
-\return The holds in their normal form and one conversion per hold the normal form changed, naming
-        it as it now stands or, dropped, as it stood; no conversions where the holds were already
-        normal.
-*/
-[[nodiscard]] ShapeHoldNormalization normalizeShapeHolds(
-    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds,
-    const TempoMap& tempo_map);
-
-/*! \brief A notes layer derived under normalized shape holds (\ref normalizedChartResolutions). */
-struct NormalizedChartResolutions
-{
-    /*! \brief The notes layer, which records the holds in their normal form. */
-    ChartResolutions resolved;
-
-    /*! \brief What normalizing the holds took (\ref ShapeHoldNormalization::conversions). */
-    std::vector<ChartConversion> conversions;
-};
-
-/*!
-\brief The notes layer under shape holds brought to their normal form first (\ref
-normalizeShapeHolds), for the caller that judges the result whole: the derivation the normalizer
-judged with is the one the layer is completed from, so nothing is derived twice.
+The layer is completed from the derivation the last pass judged with, so the caller that judges the
+result whole (coverage, validation, the editor's memo) derives nothing twice.
 
 \param notes Note stream to resolve, sorted by (position, string) and valid.
-\param shape_holds The holds, as \ref normalizeShapeHolds takes them.
+\param shape_holds The holds: ascending and never overlapping, possibly with a hold of no length.
 \param capo The tuning's capo fret; 0 for none.
-\param tempo_map Song tempo map supplying the meter every place is measured in.
-\return The layer, whose \ref ChartResolutions::shape_holds are the normalized holds, and the
-        rewrites.
+\param tempo_map Song tempo map placing the notes and the holds.
+\return The notes layer under the normalized holds, and one conversion per hold the normal form
+        changed, naming it as it now stands or, dropped, as it stood; no conversions where the
+        holds were already normal.
 */
-[[nodiscard]] NormalizedChartResolutions normalizedChartResolutions(
+[[nodiscard]] ShapeHoldNormalization normalizeShapeHolds(
     const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds, int capo,
     const TempoMap& tempo_map);
 

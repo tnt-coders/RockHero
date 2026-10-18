@@ -8,10 +8,12 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -110,5 +112,21 @@ each tone automation entry.
 */
 [[nodiscard]] std::expected<void, std::string> validateSongTimelineRules(
     const SongTimeline& timeline);
+
+/*!
+\brief Validates every slice of a timeline as \ref validateSongTimelineRules does, each chart's
+hand-position coverage read from the notes layer the caller already derived for it.
+
+For the caller that derived every chart's notes layer to normalize the timeline, so one edit walks
+each chart once.
+
+\param timeline Timeline to validate.
+\param notes_layers Each arrangement's notes layer, index-parallel to the timeline's arrangements:
+       the layer of exactly that chart under the timeline's map, or nothing, where one is derived
+       here.
+\return Empty success, or the first violation's diagnostic, an arrangement's prefixed with its id.
+*/
+[[nodiscard]] std::expected<void, std::string> validateSongTimelineRules(
+    const SongTimeline& timeline, std::span<const std::optional<ChartResolutions>> notes_layers);
 
 } // namespace rock_hero::common::core

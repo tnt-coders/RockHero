@@ -224,7 +224,7 @@ Every chart-note planner builds a candidate stream in slot order (a new note ent
 flatten, then the technique-matrix gate — `validateChartNotes`' own questions asked of the
 candidate's *saved* form (`savedChartNote`), refusing the whole plan on any violation — then the
 diff against the chart the plan is expressed against, the shape holds brought to their normal form
-over the candidate (`normalizedChartResolutions`: each hold's end written back where the span walk
+over the candidate (`normalizeShapeHolds`: each hold's end written back where the span walk
 publishes it, a hold left nothing dropped), and the authored positions' coverage of the whole
 candidate (`validateFretHandCoverage`). That chart is the live one for every verb that edits from
 what it finds, and the chart the gesture started from for a gesture, whose plan describes the whole

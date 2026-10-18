@@ -6490,11 +6490,12 @@ namespace
     const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& holds)
 {
     const TempoMap tempo_map = makeTempoMap();
-    ShapeHoldNormalization normal = normalizeShapeHolds(notes, holds, tempo_map);
-    const ShapeHoldNormalization again = normalizeShapeHolds(notes, normal.shape_holds, tempo_map);
-    CHECK(again.shape_holds == normal.shape_holds);
+    ShapeHoldNormalization normal = normalizeShapeHolds(notes, holds, 0, tempo_map);
+    const ShapeHoldNormalization again =
+        normalizeShapeHolds(notes, normal.resolved.shape_holds, 0, tempo_map);
+    CHECK(again.resolved.shape_holds == normal.resolved.shape_holds);
     CHECK(again.conversions.empty());
-    const Held held = deriveUnder(notes, normal.shape_holds);
+    const Held held = deriveUnder(notes, normal.resolved.shape_holds);
     CHECK(std::ranges::all_of(held.fits, [](const bool fits) { return fits; }));
     return normal;
 }
@@ -6515,7 +6516,7 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
         });
         const ShapeHoldNormalization normal =
             normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 3))});
-        CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
+        CHECK(normal.resolved.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
         REQUIRE(normal.conversions.size() == 1);
         CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
         CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:2");
@@ -6529,7 +6530,7 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
         });
         const ShapeHoldNormalization normal =
             normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
-        CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 3))});
+        CHECK(normal.resolved.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 3))});
         REQUIRE(normal.conversions.size() == 1);
         CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
         CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:3");
@@ -6543,9 +6544,9 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
         });
         const ShapeHoldNormalization normal = normalizedOnce(
             notes, {holdOver(gridAt(1, 1), gridAt(1, 2)), holdOver(gridAt(1, 3), gridAt(2, 1))});
-        REQUIRE(normal.shape_holds.size() == 2);
-        CHECK(normal.shape_holds[0] == holdOver(gridAt(1, 1), gridAt(1, 3)));
-        CHECK(normal.shape_holds[1].start == gridAt(1, 3));
+        REQUIRE(normal.resolved.shape_holds.size() == 2);
+        CHECK(normal.resolved.shape_holds[0] == holdOver(gridAt(1, 1), gridAt(1, 3)));
+        CHECK(normal.resolved.shape_holds[1].start == gridAt(1, 3));
     }
 
     SECTION("a hold that fits and a none hold are left as they are")
@@ -6558,7 +6559,7 @@ TEST_CASE("The hold normalizer writes back the published extent", "[core][chart]
         none.grip = NoneGrip{};
         const std::vector<ShapeHold> holds{holdOver(gridAt(1, 1), gridAt(1, 2)), none};
         const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
-        CHECK(normal.shape_holds == holds);
+        CHECK(normal.resolved.shape_holds == holds);
         CHECK(normal.conversions.empty());
     }
 }
@@ -6593,14 +6594,14 @@ TEST_CASE(
 
     const ShapeHoldNormalization normal = normalizedOnce(notes, holds);
     CHECK(
-        normal.shape_holds == std::vector{
-                                  holdOver(gridAt(1, 1), gridAt(1, 1, Fraction{1, 2})),
-                                  holdOver(gridAt(1, 3), gridAt(1, 3, Fraction{1, 2})),
-                              });
+        normal.resolved.shape_holds == std::vector{
+                                           holdOver(gridAt(1, 1), gridAt(1, 1, Fraction{1, 2})),
+                                           holdOver(gridAt(1, 3), gridAt(1, 3, Fraction{1, 2})),
+                                       });
     REQUIRE(normal.conversions.size() == 2);
     CHECK(normal.conversions[0].where == "shape hold 1:1 to 1:1+1/2");
     CHECK(normal.conversions[1].where == "shape hold 1:3 to 1:3+1/2");
-    const Held held = deriveUnder(notes, normal.shape_holds);
+    const Held held = deriveUnder(notes, normal.resolved.shape_holds);
     REQUIRE(held.resolutions.shapes.size() == 3);
     CHECK(held.resolutions.shapes[2].landing_opened);
     CHECK(held.resolutions.shapes[2].hold_stated);
@@ -6616,7 +6617,7 @@ TEST_CASE("The hold normalizer drops a hold that closes at its own start", "[cor
     });
     const ShapeHoldNormalization normal = normalizedOnce(
         notes, {holdOver(gridAt(8, 1), gridAt(9, 1)), holdOver(gridAt(9, 1), gridAt(9, 2))});
-    CHECK(normal.shape_holds == std::vector{holdOver(gridAt(8, 1), gridAt(9, 1))});
+    CHECK(normal.resolved.shape_holds == std::vector{holdOver(gridAt(8, 1), gridAt(9, 1))});
     REQUIRE(normal.conversions.size() == 1);
     CHECK(normal.conversions[0].repair == ChartRepair::EmptyShapeHold);
     CHECK(normal.conversions[0].where == "shape hold 9:1 to 9:2");
@@ -6630,7 +6631,7 @@ TEST_CASE("The hold normalizer drops a hold left no length", "[core][chart]")
     });
     const ShapeHoldNormalization normal = normalizedOnce(
         notes, {holdOver(gridAt(1, 1), gridAt(1, 2)), holdOver(gridAt(1, 3), gridAt(1, 3))});
-    CHECK(normal.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
+    CHECK(normal.resolved.shape_holds == std::vector{holdOver(gridAt(1, 1), gridAt(1, 2))});
     REQUIRE(normal.conversions.size() == 1);
     CHECK(normal.conversions[0].repair == ChartRepair::EmptyShapeHold);
     CHECK(normal.conversions[0].where == "shape hold 1:3 to 1:3");
@@ -6647,8 +6648,8 @@ TEST_CASE("The normalized notes layer is the layer under the normalized holds", 
         noteAt(gridAt(2, 1), 1, 3, Fraction{1, 4}),
         noteAt(gridAt(2, 1), 2, 5, Fraction{1, 4}),
     });
-    const NormalizedChartResolutions normal =
-        normalizedChartResolutions(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))}, 0, tempo_map);
+    const ShapeHoldNormalization normal =
+        normalizeShapeHolds(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))}, 0, tempo_map);
     const std::vector<ShapeHold> expected{holdOver(gridAt(1, 1), gridAt(1, 3))};
     CHECK(normal.resolved.shape_holds == expected);
     CHECK(normal.conversions.size() == 1);

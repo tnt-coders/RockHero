@@ -50,18 +50,16 @@ template <typename Snapshot> [[nodiscard]] Snapshot writtenModel(Snapshot model)
     return model;
 }
 
-// THE NORMAL FORM a marker model lands in, and what reaching it rewrote in the song's content, for
-// the landing to report. Every model normalizes its own markers and rewrites no content, except the
-// song timeline, whose charts' shape holds a re-address can leave unfit (SongTimelineSnapshot).
-template <typename Snapshot>
-[[nodiscard]] std::vector<common::core::ChartConversion> normalizedModel(Snapshot& model)
+// THE NORMAL FORM a marker model lands in, and what reaching it converted and derived. Every model
+// normalizes its own markers and converts no content, except the song timeline, whose charts' shape
+// holds a re-address can leave unfit and whose notes layers it derives (SongTimelineSnapshot).
+template <typename Snapshot> [[nodiscard]] MarkerModelNormalization normalizedModel(Snapshot& model)
 {
     model.normalize();
     return {};
 }
 
-[[nodiscard]] inline std::vector<common::core::ChartConversion> normalizedModel(
-    SongTimelineSnapshot& model)
+[[nodiscard]] inline MarkerModelNormalization normalizedModel(SongTimelineSnapshot& model)
 {
     return model.normalize();
 }
@@ -97,9 +95,13 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
             return std::unexpected{std::move(*refusal)};
         }
     }
-    std::vector<common::core::ChartConversion> conversions = normalizedModel(after);
+    MarkerModelNormalization normalization = normalizedModel(after);
     if (std::optional<std::string> violation = after.validate(
-            MarkerJudgeContext{.session = session(), .notes_layer = chartResolutions()});
+            MarkerJudgeContext{
+                .session = session(),
+                .notes_layer = chartResolutions(),
+                .normalized_layers = normalization.notes_layers,
+            });
         violation.has_value())
     {
         return std::unexpected{ChartPlanInvalid{std::move(*violation)}};
@@ -110,7 +112,7 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
     }
     return JudgedMarkerModel<Snapshot>{
         .model = std::move(after),
-        .conversions = std::move(conversions),
+        .normalization = std::move(normalization),
     };
 }
 
@@ -141,6 +143,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
         m_refusal_log.markerEdit(label, "no model to apply onto");
         return MarkerCommit::Refused;
     }
+    seedNormalizedNotesLayer(std::move(judged->normalization.notes_layers));
 
     std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
         writtenMarkerEdit(std::move(before), std::move(judged->model), std::move(label), focus);
@@ -149,9 +152,9 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
     {
         pushUndoEntry(std::move(entry));
     }
-    reportChartConversions(judged->conversions);
+    reportChartConversions(judged->normalization.conversions);
     // Once the history stands on the landing, so a lock re-engaged here holds what it wrote.
-    relockOnConvertedContent(judged->conversions);
+    relockOnConvertedContent(judged->normalization.conversions);
     return committed;
 }
 
@@ -238,8 +241,12 @@ bool EditorController::Impl::commitMarkerMove(
         return false;
     }
 
+    if (judged.has_value())
+    {
+        seedNormalizedNotesLayer(std::move(judged->normalization.notes_layers));
+    }
     const std::vector<common::core::ChartConversion> conversions =
-        judged.has_value() ? std::move(judged->conversions)
+        judged.has_value() ? std::move(judged->normalization.conversions)
                            : std::vector<common::core::ChartConversion>{};
     std::unique_ptr<MarkerModelEdit<Snapshot>> entry =
         judged.has_value()

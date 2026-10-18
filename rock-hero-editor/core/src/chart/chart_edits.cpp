@@ -315,8 +315,8 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     // an edit can move a hold's close or what the hand grips far from the notes it touched. Derived
     // only now, because the derivation assumes the valid, slot-ordered stream the checks above just
     // proved, and kept: it is the notes layer of the chart this plan lands, which the commit seeds.
-    common::core::NormalizedChartResolutions normal = common::core::normalizedChartResolutions(
-        candidate, base.shape_holds, base.tuning.capo, tempo_map);
+    common::core::ShapeHoldNormalization normal =
+        common::core::normalizeShapeHolds(candidate, base.shape_holds, base.tuning.capo, tempo_map);
     plan.shape_holds = shapeHoldsChange(base.shape_holds, normal.resolved.shape_holds);
     if (std::expected<void, common::core::ChartError> covered =
             common::core::validateFretHandCoverage(

@@ -1765,13 +1765,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // anchor the dragged one's time.
     std::optional<std::int64_t> m_held_tempo_anchor_milliseconds{};
 
-    // A model the funnel's front half passed, normalized, and what normalizing it converted in
-    // the song's content: the lines its landing reports (reportChartConversions).
+    // A model the funnel's front half passed, normalized, and what normalizing it converted and
+    // derived: the lines its landing reports (reportChartConversions) and the notes layers its
+    // landing seeds (seedNormalizedNotesLayer).
     template <typename Snapshot> struct JudgedMarkerModel
     {
         Snapshot model;
-        std::vector<common::core::ChartConversion> conversions;
+        MarkerModelNormalization normalization;
     };
+
+    // Hands the memo the displayed arrangement's notes layer a landed model's normalization
+    // derived, so the projection derives nothing the funnel already did; nothing where it derived
+    // none. Called right after the model is applied.
+    void seedNormalizedNotesLayer(
+        std::vector<std::optional<common::core::ChartResolutions>> notes_layers);
 
     // The funnel's front half, asked by the commit and by anything that must know in advance what
     // the commit would do with a model (a pending fret entry's red box): the produced model

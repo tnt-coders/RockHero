@@ -2151,8 +2151,9 @@ void countHeldSpans(
 // THE HOLD NORMALIZER over one arrangement: every derived span held at once, then every hold
 // stated only to its span's midpoint, each normalized and normalized again.
 void countNormalizedHolds(
-    const std::vector<ChartNote>& notes, const common::core::ChartResolutions& resolutions,
-    const TempoMap& tempo_map, const std::string& file, Census& census)
+    const std::vector<ChartNote>& notes, const int capo,
+    const common::core::ChartResolutions& resolutions, const TempoMap& tempo_map,
+    const std::string& file, Census& census)
 {
     constexpr std::size_t kept_cases = 2;
     std::vector<common::core::ShapeHold> over_spans;
@@ -2178,7 +2179,7 @@ void countNormalizedHolds(
     }
     census.normalized_holds += static_cast<long long>(over_spans.size());
     const std::vector<common::core::ChartConversion> rewrites =
-        common::core::normalizeShapeHolds(notes, over_spans, tempo_map).conversions;
+        common::core::normalizeShapeHolds(notes, over_spans, capo, tempo_map).conversions;
     census.normalized_rewrites += static_cast<long long>(rewrites.size());
     if (!rewrites.empty() && census.normalized_rewrite_cases.size() < kept_cases)
     {
@@ -2187,17 +2188,17 @@ void countNormalizedHolds(
     }
 
     const common::core::ShapeHoldNormalization midpoints =
-        common::core::normalizeShapeHolds(notes, to_midpoints, tempo_map);
+        common::core::normalizeShapeHolds(notes, to_midpoints, capo, tempo_map);
     census.midpoint_rewrites += static_cast<long long>(midpoints.conversions.size());
     census.midpoint_rewrites_again += static_cast<long long>(
-        common::core::normalizeShapeHolds(notes, midpoints.shape_holds, tempo_map)
+        common::core::normalizeShapeHolds(notes, midpoints.resolved.shape_holds, capo, tempo_map)
             .conversions.size());
     // A midpoint hold drops only where it is empty, which no derived span is, so the two lists
     // stay index-parallel.
-    REQUIRE(midpoints.shape_holds.size() == over_spans.size());
+    REQUIRE(midpoints.resolved.shape_holds.size() == over_spans.size());
     for (std::size_t index = 0; index < over_spans.size(); ++index)
     {
-        const common::core::ShapeHold& settled = midpoints.shape_holds[index];
+        const common::core::ShapeHold& settled = midpoints.resolved.shape_holds[index];
         if (settled == over_spans[index])
         {
             continue;
@@ -2423,6 +2424,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             countHeldSpans(resolutions, built->tempo_map, entry.path().filename().string(), census);
             countNormalizedHolds(
                 chart.notes,
+                chart.tuning.capo,
                 resolutions,
                 built->tempo_map,
                 entry.path().filename().string(),

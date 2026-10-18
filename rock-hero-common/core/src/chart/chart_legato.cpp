@@ -498,31 +498,13 @@ ChartResolutions chartResolutions(
 }
 
 ShapeHoldNormalization normalizeShapeHolds(
-    const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds,
-    const TempoMap& tempo_map)
-{
-    // No holds are their own normal form, and cost no derivation.
-    if (shape_holds.empty())
-    {
-        return {};
-    }
-    const ChartConnections connections = chartConnections(notes, tempo_map);
-    const HeadMargins margins{connections.places, tempo_map};
-    NormalSpans normal = normalSpans(connections, margins, shape_holds, tempo_map);
-    return ShapeHoldNormalization{
-        .shape_holds = std::move(normal.shape_holds),
-        .conversions = std::move(normal.conversions),
-    };
-}
-
-NormalizedChartResolutions normalizedChartResolutions(
     const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& shape_holds, const int capo,
     const TempoMap& tempo_map)
 {
     ChartConnections connections = chartConnections(notes, tempo_map);
     HeadMargins margins{connections.places, tempo_map};
     NormalSpans normal = normalSpans(connections, margins, shape_holds, tempo_map);
-    return NormalizedChartResolutions{
+    return ShapeHoldNormalization{
         .resolved = completedResolutions(
             std::move(connections),
             std::move(margins),
