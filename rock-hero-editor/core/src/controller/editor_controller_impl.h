@@ -241,16 +241,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The hold edge keys' run (shape_hold_handlers.cpp): the hold being moved as it stood when the
     // run began — an authored hold, or a derived span's extent as the unnamed hold converting it —
-    // the selection that named it, and where the run has moved its edge. The latest edge is the
-    // whole gesture, not a step list: a step reads the notes, which no hold verb moves, so one
-    // value replays exactly. A selected hold has no chart keys for the window's proof to compare,
-    // so setSelection's disarm is what ends the run on any other selection.
+    // and where the run has moved its edge. The latest edge is the whole gesture, not a step list:
+    // a step reads the notes, which no hold verb moves, so one value replays exactly. A selected
+    // hold has no chart keys for the window's proof to compare, so setSelection's disarm is what
+    // ends the run on any other selection.
     struct ChartShapeHoldEdgeGesture
     {
         ShapeHoldEdge edge{};
         common::core::ShapeHold base;
-        // Where a run that comes back to its start lands: a derived span it never converted.
-        MarkerSelection origin;
         common::core::GridPosition value;
 
         friend bool operator==(

@@ -3451,11 +3451,24 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
         // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
         if (std::holds_alternative<ChartPlanNoChange>(plan.error()) && burst != nullptr)
         {
-            // The selection goes back with the chart, landed once it is written. A verb whose
-            // steps re-key its objects has been pointing at where the run had reached, and a
-            // replay describing nothing is exactly the case where that landing IS the start.
+            // The selection goes back with the chart, landed once it is written: to the selection
+            // the run's entry recorded before its first step, whatever the steps re-keyed or
+            // converted since. Read out first, since the retire takes the record.
+            std::optional<ChartEditLanding> start_selection;
+            if (const auto* const chart_focus = std::get_if<ChartEditFocus>(&burst->before))
+            {
+                start_selection = chart_focus->selected;
+            }
+            else if (const auto* const marker_focus = std::get_if<MarkerEditFocus>(&burst->before))
+            {
+                const std::optional<MarkerSelection>& marker = marker_focus->marker;
+                if (marker.has_value())
+                {
+                    start_selection = *marker;
+                }
+            }
             retireChartGesture(burst->plan);
-            landGestureSelection(select_exactly);
+            landGestureSelection(start_selection);
             updateView();
             // The chart MOVED — back to where the run began — so this is a step the caller must
             // follow exactly as it follows any other: a caret riding the lone object rides it home.
