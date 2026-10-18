@@ -151,6 +151,24 @@ void EditorController::Impl::refuseShapeHoldVerb(
     }
 }
 
+void EditorController::Impl::commitShapeHolds(
+    const common::core::Chart& chart, const MarkerVerb verb,
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& target,
+    ChartEditLanding landing)
+{
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
+        finalizeShapeHoldPlan(chart, session().song().tempo_map, holds, markerVerbLabel(verb));
+    if (!plan.has_value())
+    {
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
+        {
+            refuseShapeHoldVerb(verb, invalid->reason, target);
+        }
+        return;
+    }
+    static_cast<void>(applyChartEditPlan(std::move(*plan), std::move(landing)));
+}
+
 // Ctrl+H: the unnamed hold over what the selection covers, carved into the chart's holds and
 // judged by the hold gate, left selected. A bare caret covers nothing and is refused; a hold that
 // is already exactly there changes nothing.
@@ -161,26 +179,20 @@ void EditorController::Impl::performActionImpl(EditorAction::HoldShape /*action*
     {
         return;
     }
-    const std::string label = markerVerbLabel(MarkerVerb::HoldShape);
     const std::optional<common::core::ShapeHold> target = holdShapeTarget();
     if (!target.has_value())
     {
-        m_refusal_log.markerEdit(label, "nothing is selected to hold a shape over");
+        m_refusal_log.markerEdit(
+            markerVerbLabel(MarkerVerb::HoldShape), "nothing is selected to hold a shape over");
         return;
     }
     const common::core::Chart& chart = *arrangement->chart;
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = finalizeShapeHoldPlan(
-        chart, session().song().tempo_map, carvedShapeHolds(chart.shape_holds, *target), label);
-    if (!plan.has_value())
-    {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
-        {
-            refuseShapeHoldVerb(MarkerVerb::HoldShape, invalid->reason, *target);
-        }
-        return;
-    }
-    static_cast<void>(applyChartEditPlan(
-        std::move(*plan), ChartEditLanding{ShapeHoldSelection{.start = target->start}}));
+    commitShapeHolds(
+        chart,
+        MarkerVerb::HoldShape,
+        carvedShapeHolds(chart.shape_holds, *target),
+        *target,
+        ShapeHoldSelection{.start = target->start});
 }
 
 // A press continues the live run of the same edge, whose start state the gesture authority replays
@@ -280,18 +292,8 @@ void EditorController::Impl::deleteSelectedShapeHold(const common::core::ShapeHo
     std::vector<common::core::ShapeHold> remaining = chart.shape_holds;
     std::erase_if(
         remaining, [&hold](const common::core::ShapeHold& standing) { return standing == hold; });
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = finalizeShapeHoldPlan(
-        chart, session().song().tempo_map, remaining, markerVerbLabel(MarkerVerb::DeleteHold));
-    if (!plan.has_value())
-    {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
-        {
-            refuseShapeHoldVerb(MarkerVerb::DeleteHold, invalid->reason, hold);
-        }
-        return;
-    }
-    static_cast<void>(
-        applyChartEditPlan(std::move(*plan), ChartEditLanding{std::vector<ChartSelectionKey>{}}));
+    commitShapeHolds(
+        chart, MarkerVerb::DeleteHold, remaining, hold, std::vector<ChartSelectionKey>{});
 }
 
 // A none hold over a chord box would change nothing, since a none hold keeps the boxes struck
@@ -314,21 +316,12 @@ void EditorController::Impl::deleteSelectedDerivedSpan()
             MarkerVerb::DeleteArpeggio, "a chord box is no arpeggio to delete", denial);
         return;
     }
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = finalizeShapeHoldPlan(
+    commitShapeHolds(
         chart,
-        session().song().tempo_map,
+        MarkerVerb::DeleteArpeggio,
         carvedShapeHolds(chart.shape_holds, denial),
-        markerVerbLabel(MarkerVerb::DeleteArpeggio));
-    if (!plan.has_value())
-    {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
-        {
-            refuseShapeHoldVerb(MarkerVerb::DeleteArpeggio, invalid->reason, denial);
-        }
-        return;
-    }
-    static_cast<void>(applyChartEditPlan(
-        std::move(*plan), ChartEditLanding{ShapeHoldSelection{.start = denial.start}}));
+        denial,
+        ShapeHoldSelection{.start = denial.start});
 }
 
 } // namespace rock_hero::editor::core

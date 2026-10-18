@@ -181,4 +181,12 @@ using EditorSelection = std::variant<
     TimeSignatureSelection, ShapeHoldSelection, DerivedSpanSelection, FretHandPositionSelection,
     AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
 
+// Whether the selection is a span row's marker, an authored shape hold or a derived span: what the
+// hold verbs act on.
+[[nodiscard]] inline bool selectsSpanRow(const EditorSelection& selection)
+{
+    return std::holds_alternative<ShapeHoldSelection>(selection) ||
+           std::holds_alternative<DerivedSpanSelection>(selection);
+}
+
 } // namespace rock_hero::editor::core

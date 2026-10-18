@@ -797,6 +797,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // notes struck inside the target's extent.
     void refuseShapeHoldVerb(
         MarkerVerb verb, std::string_view reason, const common::core::ShapeHold& target);
+    // A one-press hold verb's end: the holds it leaves judged by the hold gate and applied, the
+    // selection landing where the verb says, or the gate's refusal reported over `target`.
+    void commitShapeHolds(
+        const common::core::Chart& chart, MarkerVerb verb,
+        const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& target,
+        ChartEditLanding landing);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();

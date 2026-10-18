@@ -208,8 +208,8 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
     // The position row's markers are the lane's chips and the hold row's the chart's holds, so a
-    // selected marker's index is the chip's or the hold's; a derived span's is its marker's place
-    // among the projection's spans, which are the notes layer's in order.
+    // selected marker's index is the chip's or the hold's; a derived span's is its index among the
+    // projection's spans, which are the notes layer's in order.
     if (const std::optional<SelectedMarker> marker = selectedMarker(); marker.has_value())
     {
         switch (marker->row)
@@ -226,10 +226,7 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
             }
             case MarkerRow::DerivedSpan:
             {
-                if (const std::optional<std::size_t> index = marker->index; index.has_value())
-                {
-                    edit.selected_derived_span = derivedSpanShapes().at(*index);
-                }
+                edit.selected_derived_span = selectedDerivedSpanShape();
                 break;
             }
             case MarkerRow::Section:
@@ -2004,9 +2001,9 @@ EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const Focus
 // its letter names — and only if the stack lists that row. Stack membership is the one silence
 // rule: a song with no sections lists no section row (a loaded arrangement always has a region and
 // an active tone, so the tone and "+" rows are always listed), and then the press selects nothing
-// and leaves an armed caret armed. It is not
-// entirely inert: the column rule has already brought the cursor inside a marker selected
-// elsewhere, as it does before every walk step, which is why the publish below is unconditional.
+// and leaves an armed caret armed. It is not entirely inert: the column rule has already brought
+// the cursor inside a marker selected elsewhere, as it does before every walk step, which is why
+// the publish below is unconditional.
 // The keep-the-row landing (prepareLandingRow) is not for this: a jump changes rows.
 void EditorController::Impl::performActionImpl(const EditorAction::JumpToFocusRow& action)
 {
@@ -2262,8 +2259,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
         moveSelectedFretHandPosition(selected, direction);
         return;
     }
-    if (std::holds_alternative<ShapeHoldSelection>(m_selection) ||
-        std::holds_alternative<DerivedSpanSelection>(m_selection))
+    if (selectsSpanRow(m_selection))
     {
         // A hold's or derived span's start, stepped by the notes rather than the grid.
         stepShapeHoldEdge(ShapeHoldEdge::Start, direction == ChartStepDirection::Right);
@@ -3322,8 +3318,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
 {
     const int direction = action.direction;
     // On a selected hold or derived span the same keys step its end, by the notes.
-    if (std::holds_alternative<ShapeHoldSelection>(m_selection) ||
-        std::holds_alternative<DerivedSpanSelection>(m_selection))
+    if (selectsSpanRow(m_selection))
     {
         if (direction != 0)
         {
