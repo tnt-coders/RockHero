@@ -2643,7 +2643,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // other span row is read against. The figure is what the span laws produce
                 // together: a run over one grip is ONE span however often it restrikes (shape rule
                 // 2 and the grip-statement law), a span ends at the first genuine stored gap on a
-                // sounding member (the continuity law), a ring belongs only to the span it was
+                // sounding member (the continuity law), a ring belongs to the span it was
                 // struck in, and a strike on a ringing open breaks the span it stands
                 // in rather than growing it. THE EXACT END OF A TAIL NEVER FOUNDS A SPAN: where a
                 // tail's end lands on the same instant as an onset, only the onset is a member of
@@ -2670,11 +2670,13 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // only arrival trigger they meet, so each would print as a chord box without it.
                 // Far fewer than the spans that meet trigger 4 at all (section [3]), because a
                 // span some interior sounding already flipped needs no carry to do it. The carry
-                // is read as a GRIP here, so a ring struck inside a span that has since closed is
-                // a tail, not a member to fold in, and is not counted.
+                // is read off the POSTURE, so it counts every ring the span's grip holds that its
+                // founding stroke did not strike — a fretted ring struck in a span that has since
+                // closed included, since it joins the grip it sounds into (shape rule 1), while an
+                // open or chimed one is a tail and is not counted. A posture row, not the class.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 64.0,
+                .expected = 80.0,
             },
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking

@@ -1391,7 +1391,7 @@ TEST_CASE(
         // strikes nothing at (THE TAP'S FLOOR). The close states no grip, so there is no head to
         // keep clear of and the shape ends exactly where its statement did. What opens on the far
         // side of that break is nothing — the rings crossing it belong to the span it broke (A
-        // RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN) — so the figure is one shape closed at
+        // RING BELONGS TO THE SPAN IT WAS STRUCK IN) — so the figure is one shape closed at
         // the tap.
         const ChartViewState state = project({
             note(one, 1, 5, Fraction{1, 2}),

@@ -1140,15 +1140,16 @@ TEST_CASE(
     CHECK(derived.shapes[1].sustain == Fraction{1, 4});
     CHECK_FALSE(derived.shapes[1].landing_opened);
     REQUIRE(derived.shapes[1].posture < derived.postures.size());
-    // Its GRIP is what the beat-3 chord itself STRUCK, and nothing else: THE EXACT END OF A TAIL
-    // NEVER FOUNDS A SPAN, so the glides arriving on this instant are no members of the span it
-    // founds, and a ring belongs only to the span it was struck in. The tied fret-3 ring held
-    // through the chord is therefore a tail here, absent from the grip.
+    // Its GRIP is what the beat-3 chord itself STRUCK, plus the fretted ring still sounding where
+    // it founds: THE EXACT END OF A TAIL NEVER FOUNDS A SPAN, so the glides arriving on this
+    // instant are no members of the span it founds, while the tied fret-3 ring held through the
+    // chord is a finger down and joins the grip (shape rule 1), taking no part in its founding.
     const common::core::ChartPosture& landed = derived.postures[derived.shapes[1].posture];
     CHECK(
-        heldStops(landed) == std::vector<std::optional<common::core::ChartStop>>{
-                                 std::nullopt, common::core::fretStop(2), common::core::fretStop(4)
-                             });
+        heldStops(landed) ==
+        std::vector<std::optional<common::core::ChartStop>>{
+            common::core::fretStop(3), common::core::fretStop(2), common::core::fretStop(4)
+        });
     // Struck whole in one strum, so it is a BOX where the departing shape was an arpeggio.
     CHECK_FALSE(shapeArrivalsOf(chart, song->tempo_map)[1]);
 

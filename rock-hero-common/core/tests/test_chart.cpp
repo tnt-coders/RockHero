@@ -4569,7 +4569,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK_FALSE(arrivesAsArpeggio(tapped_before.notes, strum_at, tempo_map));
 
     // A ring from an earlier SPAN is no member: giving string 2 a co-struck partner at 2:1 makes
-    // the pair a span of their own, so by A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN the
+    // the pair a span of their own, so by A RING BELONGS TO THE SPAN IT WAS STRUCK IN the
     // ring crossing the strum belongs there and nothing is carried into it. The strum states its
     // own two strings whole and is a box — the same answer the un-carried case above gives, now
     // reached because the ring was spoken for rather than because it had stopped.

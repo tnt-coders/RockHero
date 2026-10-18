@@ -74,14 +74,17 @@ takes the next one.
      states no grip: the finger lifts at the chime, so its node founds, grows and joins nothing,
      though its strike still sounds and can contradict (rule 3). A right-hand onset is no member
      (rule 7), and a ring caught mid-travel states no stop and joins nothing (rule 4).
-   - **A ring belongs only to the span it was struck in.** Every member's onset lies inside its
-     span. A ring struck before the coverage frontier founds nothing, joins no posture and prints in
-     no later bracket — fretted, open or chimed alike — until it is restruck. A ring struck at or
-     after the frontier is fresh evidence and folds in like any other member, which is what lets an
-     open-position arpeggio found a span from its first open string. A ring also folds into no new
-     span on a string the slot strikes at another stop. The landing is the one seam a member
-     crosses (rule 4). A bracket states the onsets inside its span and nothing else: a refused ring
-     is a plain tail whatever its stop, so it prints in no later bracket and classifies no span.
+   - **A ring belongs to the span it was struck in.** A ring struck before the coverage frontier
+     founds nothing and never counts toward a founding, until it is restruck. An open or chimed one
+     holds no finger: it joins no posture and prints in no later bracket. A **fretted** one still
+     sounding where a span is founded is a finger down, since a fretted note rings only while its
+     finger is down, so it joins that span's posture and bounds its reach like any member. It never
+     founds or prevents a span, dates no front and decides no class; it only completes the grip of
+     a span founded anyway. A ring struck at or after the frontier is fresh evidence and folds in
+     like any other member, which is what lets an open-position arpeggio found a span from its
+     first open string. A ring also folds into no new span on a string the slot strikes at another
+     stop. The landing is the one other seam a member crosses (rule 4). A refused ring is a plain
+     tail whatever its stop, so it prints in no later bracket and classifies no span.
    - **The posture** is the stop each member string holds, deduplicated by stop vector across the
      chart. It carries no name and no fingering, because nothing authors either.
    - **The dating rule: a span dates from its front, the earliest member statement not covered by a
@@ -152,8 +155,8 @@ takes the next one.
      the ring abutting the strike, not the ring sounding at its end. A ringing open string is
      evidence too: a fret or a node struck over it displaces it. A slide-out ring witnesses nothing,
      its finger being off the board by its end. A span opening over a ring that sounds another stop
-     contradicts nothing until it states that string, and a foreign ring never joins a posture: it
-     contradicts or it is a tail. A strike on a string the grip does not state, whose last foreign
+     contradicts nothing until it states that string, and a foreign ring joins a posture only as
+     rule 1's fretted ring at a founding: otherwise it contradicts or it is a tail. A strike on a string the grip does not state, whose last foreign
      sound ended after the span's front, breaks the span rather than growing it (rule 1's dating
      floor). A pull-off source riding above a stop the grip holds, and its release back onto that
      stop, contradict nothing (rule 7). The one contradiction a right-hand onset makes is **the
