@@ -6469,7 +6469,7 @@ namespace
 {
 
 // The holds normalized against the notes, asserting the normal form is a fixpoint: normalizing it
-// again rewrites nothing and leaves every hold fitting its notes.
+// again rewrites nothing, derives the same spans, and leaves every hold fitting its notes.
 [[nodiscard]] ShapeHoldNormalization normalizedOnce(
     const std::vector<ChartNote>& notes, const std::vector<ShapeHold>& holds)
 {
@@ -6479,6 +6479,8 @@ namespace
         normalizeShapeHolds(notes, normal.resolved.shape_holds, 0, tempo_map);
     CHECK(again.resolved.shape_holds == normal.resolved.shape_holds);
     CHECK(again.conversions.empty());
+    CHECK(again.resolved.shapes == normal.resolved.shapes);
+    CHECK(again.resolved.postures == normal.resolved.postures);
     const Held held = deriveUnder(notes, normal.resolved.shape_holds);
     CHECK(std::ranges::all_of(held.fits, [](const bool fits) { return fits; }));
     return normal;
@@ -6571,9 +6573,9 @@ TEST_CASE("A shape hold over silence fits and publishes its span", "[core][chart
     CHECK(held.fits[0]);
 }
 
-// A hold whose notes never found a span stands its span at its end over the stops they left
-// pressed, and the walk closes it by its one rule: over a single note's whole ring the hold fits,
-// and ending in the middle of that ring, with nothing else happening, it does not.
+// A hold whose notes never found a span stands its span at its end over what rings into it, and
+// the walk closes it by its one rule: over a single note's whole ring the hold fits, and ending in
+// the middle of that ring, with nothing else happening, it does not.
 TEST_CASE("A shape hold over a single note closes where the note's ring ends", "[core][chart]")
 {
     const std::vector<ChartNote> notes{noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4})};
@@ -6610,8 +6612,85 @@ TEST_CASE("A shape hold over a single note closes where the note's ring ends", "
     }
 }
 
-// A re-address can round a hold onto no length; the walk cannot place it, so it is dropped and
-// reported, and the holds beside it are judged without it.
+// The span a hold's notes never founded stands at the hold's end over what each string states into
+// that end and still reaches it, end-inclusively. So the close the walk publishes, read again as
+// the end, stands the same span: one normalization settles the hold.
+TEST_CASE("A hold its notes never founded stands over what reaches its end", "[core][chart]")
+{
+    SECTION("a ring ending exactly at the end is a member")
+    {
+        // The open string rings to 1:3 and the fret-5 note to 1:4; neither founds a span.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 6, 0, Fraction{1, 2}),
+            noteAt(gridAt(1, 2), 3, 5, Fraction{1, 2}),
+        });
+        const ShapeHoldNormalization normal =
+            normalizedOnce(notes, {holdOver(gridAt(1, 2), gridAt(1, 2, Fraction{1, 2}))});
+        CHECK(normal.resolved.shape_holds == std::vector{holdOver(gridAt(1, 2), gridAt(1, 3))});
+        REQUIRE(normal.resolved.shapes.size() == 1);
+        CHECK(stopOf(normal.resolved, 0, 6) == std::optional{fretStop(0)});
+        CHECK(stopOf(normal.resolved, 0, 3) == std::optional{fretStop(5)});
+    }
+
+    SECTION("a note that died before the end is not, so the span runs on with the ring")
+    {
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 1, 5, Fraction{3, 4}),
+            noteAt(gridAt(1, 2), 2, 7, Fraction{1, 8}),
+        });
+        const std::vector<ShapeHold> holds{holdOver(gridAt(1, 1), gridAt(1, 3))};
+        const Held held = deriveUnder(notes, holds);
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{3, 4});
+        CHECK(stopOf(held.resolutions, 0, 1) == std::optional{fretStop(5)});
+        CHECK_FALSE(stopOf(held.resolutions, 0, 2).has_value());
+        CHECK_FALSE(held.fits[0]);
+        CHECK(
+            normalizedOnce(notes, holds).resolved.shape_holds ==
+            std::vector{holdOver(gridAt(1, 1), gridAt(1, 4))});
+    }
+
+    SECTION("a glide landing past the end closes the span at the landing, its departure stop held")
+    {
+        // The fret-5 note glides to 7 over 1:3 to 1:3+1/2; the landing hands the grip on.
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(
+                noteAt(gridAt(1, 1), 1, 5, Fraction{1}),
+                {{Fraction{1, 2}, 5}, {Fraction{5, 8}, 7}}),
+            noteAt(gridAt(1, 1, Fraction{1, 2}), 2, 7, Fraction{1}),
+        });
+        const ShapeHoldNormalization normal =
+            normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
+        CHECK(
+            normal.resolved.shape_holds ==
+            std::vector{holdOver(gridAt(1, 1), gridAt(1, 3, Fraction{1, 2}))});
+        REQUIRE(normal.resolved.shapes.size() == 2);
+        CHECK(stopOf(normal.resolved, 0, 1) == std::optional{fretStop(5)});
+        CHECK(normal.resolved.shapes[1].landing_opened);
+        CHECK(stopOf(normal.resolved, 1, 1) == std::optional{fretStop(7)});
+    }
+}
+
+// Hand-position rule 6's release inside a hold crops its span, a glide's release at its landing;
+// the cropped hold's end is then a close the walk makes there, so one normalization settles it.
+TEST_CASE("A hold cropped at a release normalizes once", "[core][chart]")
+{
+    // At 1:2 string 1 sounds fret 7, above the stated 5, and glides down to 3: its landing at
+    // 1:2+1/2 releases the 5.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(1, 1), 1, 5, Fraction{1, 4}),
+        noteAt(gridAt(1, 1), 2, 7, Fraction{1}),
+        travellingAt(noteAt(gridAt(1, 2), 1, 7, Fraction{1, 4}), {{Fraction{1, 8}, 3}}),
+    });
+    const ShapeHoldNormalization normal =
+        normalizedOnce(notes, {holdOver(gridAt(1, 1), gridAt(1, 3))});
+    CHECK(
+        normal.resolved.shape_holds ==
+        std::vector{holdOver(gridAt(1, 1), gridAt(1, 2, Fraction{1, 2}))});
+    REQUIRE(normal.conversions.size() == 1);
+    CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
+}
+
 // A hold's wall is its published end. Here the first hold's span closes at a conflict, and the span
 // struck there runs on past the hold's stated end to a two-finger glide landing exactly where the
 // next hold starts, so the next hold states the landed grip and closes where a lower fret releases
@@ -6668,6 +6747,8 @@ TEST_CASE("The hold normalizer drops a hold that closes at its own start", "[cor
     CHECK(normal.conversions[0].where == "shape hold 9:1 to 9:2");
 }
 
+// A re-address can round a hold onto no length; the walk cannot place it, so it is dropped and
+// reported, and the holds beside it are judged without it.
 TEST_CASE("The hold normalizer drops a hold left no length", "[core][chart]")
 {
     const std::vector<ChartNote> notes = streamOf({

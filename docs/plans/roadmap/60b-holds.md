@@ -58,12 +58,13 @@ every derived span is a valid hold by construction, and authoring one exactly ch
 census gate pins both rows at zero).
 
 The close rule is one for every unnamed hold. A hold whose notes never found a span is a span
-standing at its end, its grip what rings into the end (read as a founding there reads its carried
-rings) and the stop of each string its own notes struck that no longer rings; the walk closes it
-there like any other span. So a hold over silence, or over a single note's whole ring, is valid,
-and one ending in the middle of that ring, nothing else happening, is not. Every hold's span is
-published, visible and selectable, except one that closes at its own start: it holds nothing. A
-`none` hold is always valid.
+standing at its end, its grip what each string states into the end and still reaches it, read
+end-inclusively (a ring ending exactly there is in it, a glide is its departure stop up to the
+landing, a note dead before the end is not); it stands before the end's landings are judged, and
+the walk closes it like any other span. So a hold over silence, or over a single note's whole
+ring, is valid, and one ending in the middle of that ring, nothing else happening, is not. Every
+hold's span is published, visible and selectable, except one that closes at its own start: it
+holds nothing. A `none` hold is always valid.
 
 **Walls at the published end.** A hold's edges are walls for every other span, and its end is a
 wall only while its span reaches it: once the walk has closed the span short of the stated end,

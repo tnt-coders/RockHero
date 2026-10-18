@@ -364,10 +364,9 @@ struct NormalSpans
     };
     for (const ShapeHold& hold : stated)
     {
-        const Fraction end = hold.start < hold.end
-                                 ? shapeHoldPublishedEnd(normal.derived.shapes, tempo_map, hold)
-                                 : tempo_map.wholeNotePositionAt(hold.start);
-        if (!(tempo_map.wholeNotePositionAt(hold.start) < end))
+        const Fraction end = shapeHoldPublishedEnd(normal.derived.shapes, tempo_map, hold);
+        // A hold the walk was never handed, or whose span closes at its own start, holds nothing.
+        if (!(hold.start < hold.end) || !(tempo_map.wholeNotePositionAt(hold.start) < end))
         {
             normal.conversions.push_back(
                 ChartConversion{

@@ -163,7 +163,8 @@ namespace
 // exactly on the displacing strike, so the junction instant is the only one at which the two
 // coexist — read strictly, the junction is invisible), while MEMBERSHIP and the fold-in read
 // STRICTLY (a ring ending at a slot crosses no slot; the inclusive reading births zero-length
-// spans).
+// spans). A span stood at its shape hold's end reads its members end-inclusively all the same: its
+// ground lies behind that instant, fronted at the hold's start.
 struct StringHand
 {
     // The last fretting-hand sounding note on this string — the record the channel reader is
@@ -675,8 +676,8 @@ ChartShapes deriveChartShapes(
         // A SHIFT SLIDE REACHES THIS TEST NEVER, by construction: its ARRIVAL stands at the ring's
         // own END (\ref arrivesIntoNextHead), and a landing opens a successor only where the ring
         // runs STRICTLY PAST it (`settle_landings`). What the strictness governs is a charter's own
-        // landing crowded against the head after it. A shape hold states its span, so it never
-        // drops.
+        // landing crowded against the head after it. A span a shape hold states is stated by the
+        // hold, so this test never drops it.
         if (open->landing_opened && !open->last_stated_place.has_value() &&
             close_place.has_value() && !open->hold.has_value())
         {
@@ -981,16 +982,62 @@ ChartShapes deriveChartShapes(
             slot.struck > 0 ? std::optional<Fraction>{slot.place} : std::nullopt;
 
         // ---- 2. LANDINGS RESOLVE FIRST -------------------------------------------------------
+        // A hold whose notes never founded its span stands that span here at its end, before the
+        // landings, so the walk closes it like any span standing here (shape rule 9). Its grip is
+        // what each string states INTO the end and still reaches it, end-inclusively: the span's
+        // ground lies behind this instant, so a ring ending exactly here is in it, and a glide
+        // landing here or later is its departure stop, which the span covers to the landing
+        // (shape rule 4). Each statement is read from the last landing before the end, the channel
+        // asked again from there (\ref statedStopFrom).
+        if (const std::optional<std::size_t>& unfounded = unfounded_hold;
+            unfounded.has_value() && holds[*unfounded].end == slot.place)
+        {
+            const Fraction front = holds[*unfounded].start;
+            std::vector<std::optional<ChartStop>> grip(string_count);
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                const std::optional<std::size_t>& finger = hand[string_index].finger;
+                if (!finger.has_value())
+                {
+                    continue;
+                }
+                const Fraction onset = onset_place[*finger];
+                Fraction from = onset;
+                for (std::optional<FretTravel> next = channel_at(*finger, from).travel;
+                     next.has_value() && onset + next->arrival < slot.place;
+                     next = channel_at(*finger, from).travel)
+                {
+                    from = onset + next->arrival;
+                }
+                const Fraction reach = coverage_at(string_index, from);
+                const std::optional<ChartStop> stop = covers_at(string_index, from);
+                if (reach < slot.place || !stop.has_value() || nodeGrip(*stop))
+                {
+                    continue;
+                }
+                grip[string_index] = carried_statement(string_index, *stop);
+                hand[string_index].covers = reach;
+            }
+            open = OpenSpan{
+                .front_place = front,
+                .stops = std::move(grip),
+                .bracket_place = std::nullopt,
+                .last_stated_place = std::nullopt,
+                .struck_in_parts = false,
+                .landing_opened = false,
+                .hold = HoldTenure{.end = slot.place, .conflict = std::nullopt},
+            };
+            unfounded_hold.reset();
+        }
         // A held span's conflict before this instant is one of them.
         settle_landings(slot.place);
 
         // ---- 2b. THE HOLDS' EDGES (shape rule 9) ----------------------------------------------
-        // An unnamed hold's end hands its span to the walk's own breaks; a hold whose notes never
-        // founded one stands its span here, over the stops its notes left pressed, for those
-        // breaks to close. An end whose span already closed short of it is no edge at all. Every
-        // other edge is a WALL: a span standing across it breaks here, judged at a slot against its
-        // own grip like any broken span. A span a landing opened exactly here stands, and an
-        // unnamed hold starting here states it (shape rule 4's hand-off).
+        // An unnamed hold's end hands its span to the walk's own breaks, and an end whose span
+        // already closed short of it is no edge at all. Every other edge is a WALL: a span standing
+        // across it breaks here, judged at a slot against its own grip like any broken span. A
+        // span a landing opened exactly here stands, and an unnamed hold starting here states it
+        // (shape rule 4's hand-off).
         bool walled = false;
         std::optional<std::size_t> opened_hold;
         for (; edge < edge_count && edge_place(edge) == slot.place; ++edge)
@@ -1005,48 +1052,6 @@ ChartShapes deriveChartShapes(
             if (ends && states_shape && closed_hold_end == slot.place)
             {
                 closed_hold_end.reset();
-                continue;
-            }
-            if (ends && states_shape && unfounded_hold == hold_index)
-            {
-                // The span's grip is what rings into the end, read as a founding there reads its
-                // carried rings, and the stop of each string the hold's own notes struck that no
-                // longer rings: that string's statement is no longer in force, so the span closes
-                // here.
-                std::vector<std::optional<ChartStop>> grip(string_count);
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                {
-                    if (const std::optional<ChartStop> carried =
-                            carried_stop(string_index, slot.place);
-                        carried.has_value())
-                    {
-                        grip[string_index] = carried_statement(string_index, *carried);
-                        // Its reach as of now, as a founding brings each carried member's.
-                        hand[string_index].covers = coverage_at(string_index, slot.place);
-                        continue;
-                    }
-                    const std::optional<std::size_t>& finger = hand[string_index].finger;
-                    if (!finger.has_value() || onset_place[*finger] < holds[hold_index].start)
-                    {
-                        continue;
-                    }
-                    if (const std::optional<ChartStop> struck =
-                            channel_at(*finger, slot.place).stop;
-                        struck.has_value() && !nodeGrip(*struck))
-                    {
-                        grip[string_index] = struck;
-                    }
-                }
-                open = OpenSpan{
-                    .front_place = holds[hold_index].start,
-                    .stops = std::move(grip),
-                    .bracket_place = std::nullopt,
-                    .last_stated_place = std::nullopt,
-                    .struck_in_parts = false,
-                    .landing_opened = false,
-                    .hold = HoldTenure{.end = slot.place, .conflict = std::nullopt},
-                };
-                unfounded_hold.reset();
                 continue;
             }
             walled = true;

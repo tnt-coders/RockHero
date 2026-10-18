@@ -419,15 +419,18 @@ takes the next one.
    - **A hold fits its notes where its published extent equals its stated extent.** One ending
      where the walk closes nothing — in the middle of a sustain, nothing happening — does not fit.
      A hold exactly over a derived span fits and leaves every span as derived. One close rule
-     serves every unnamed hold: a hold whose notes never found a span stands its span at its end
-     over the stops its notes left pressed, possibly none, and the walk closes it there like any
-     other, so a hold over silence or over a single note's whole ring fits and one ending in the
-     middle of that ring does not. Its span is always published; one closing at its own start
-     holds nothing and is not. A none hold always fits. Whether the hold stream is well formed is
-     a structural check of its own.
+     serves every unnamed hold: a hold whose notes never found a span stands its span at its end,
+     and the walk closes it there like any other. Its grip is what each string states into the end
+     and still reaches it: a ring ending exactly at the end is in it, a glide is its departure
+     stop, which the span covers to the landing (rule 4), and a note that died before the end is
+     not, since a span founded there would not take it. So a hold over silence or over a single
+     note's whole ring fits, and one ending in the middle of that ring does not. Its span is
+     always published; one closing at its own start holds nothing and is not. A none hold always
+     fits. Whether the hold stream is well formed is a structural check of its own.
    - **Every other edge is a wall.** Any span but an unnamed hold's own at that hold's end closes
      where it stands across a hold's edge, and no span dates its front behind one (rule 1's dating
      floor). A hold's wall is its published end: once its span has closed short of its stated
-     end, that stated end walls nothing. Outside holds the derivation is unchanged, and at a hold's close the walk resumes as
-     after any span closing with rings still sounding, a landing's hand-off included (rule 4).
+     end, that stated end walls nothing. Outside holds the derivation is unchanged, and at a
+     hold's close the walk resumes as after any span closing with rings still sounding, a
+     landing's hand-off included (rule 4).
      (`deriveChartShapes`, `shapeHoldFitsNotes`)
