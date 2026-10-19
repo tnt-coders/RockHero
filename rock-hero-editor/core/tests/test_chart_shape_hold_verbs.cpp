@@ -840,7 +840,7 @@ TEST_CASE("Delete adds a none hold over a derived arpeggio or chord box", "[core
         CHECK(editor.holds() == std::vector{noneHold(at(1, 1), at(1, 4))});
         CHECK(editor.spanCount() == 1);
         CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
-        CHECK(editor.lastLabel() == "Add None Hold");
+        CHECK(editor.lastLabel() == "Hold None");
 
         // The none hold is a hold like any other: Delete removes it, and the arpeggio returns
         // selected, one level down.
@@ -865,7 +865,7 @@ TEST_CASE("Delete adds a none hold over a derived arpeggio or chord box", "[core
         CHECK(editor.spanCount() == 2);
         CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
         CHECK(editor.entries() == entries + 1);
-        CHECK(editor.lastLabel() == "Add None Hold");
+        CHECK(editor.lastLabel() == "Hold None");
 
         editor.deleteSelection();
         CHECK(editor.holds().empty());
@@ -1094,7 +1094,7 @@ TEST_CASE("Ctrl+H None over a time selection keeps the chord inside it", "[core]
     CHECK(editor.holds() == std::vector{noneHold(at(3, 1), at(4, 1))});
     CHECK(editor.spanCount() == 1);
     CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
-    CHECK(editor.lastLabel() == "Add None Hold");
+    CHECK(editor.lastLabel() == "Hold None");
 }
 
 // Auto over the middle of a merged none hold carves only that stretch out: the hold keeps its
@@ -1110,7 +1110,7 @@ TEST_CASE("Ctrl+H Auto over the middle of a none hold leaves its two ends", "[co
     CHECK(
         editor.holds() == std::vector{noneHold(at(1, 1), at(2, 1)), noneHold(at(3, 1), at(4, 1))});
     CHECK(editor.spanCount() == 1);
-    CHECK(editor.lastLabel() == "Clear Holds");
+    CHECK(editor.lastLabel() == "Hold Auto");
 }
 
 // Auto over a held span takes its hold away, and the span the notes derive there stays selected.

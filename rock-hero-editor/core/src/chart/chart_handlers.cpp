@@ -2621,7 +2621,7 @@ void EditorController::Impl::deleteSelectedMarker()
         if (const std::optional<ShapeHoldExtent> extent = selectedHoldExtent(); extent.has_value())
         {
             commitHoldChoice(
-                derived ? MarkerVerb::AddNoneHold : MarkerVerb::DeleteHold,
+                derived ? MarkerVerb::HoldNone : MarkerVerb::DeleteHold,
                 *extent,
                 derived ? std::optional<common::core::HoldGrip>{common::core::NoneGrip{}}
                         : std::nullopt);

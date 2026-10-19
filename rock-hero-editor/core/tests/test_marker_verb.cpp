@@ -33,8 +33,8 @@ TEST_CASE("Every marker verb's label is pinned", "[core][marker-verb]")
     CHECK(markerVerbLabel(MarkerVerb::MoveHoldStart) == "Move Hold Start");
     CHECK(markerVerbLabel(MarkerVerb::MoveHoldEnd) == "Move Hold End");
     CHECK(markerVerbLabel(MarkerVerb::DeleteHold) == "Delete Hold");
-    CHECK(markerVerbLabel(MarkerVerb::AddNoneHold) == "Add None Hold");
-    CHECK(markerVerbLabel(MarkerVerb::ClearHolds) == "Clear Holds");
+    CHECK(markerVerbLabel(MarkerVerb::HoldNone) == "Hold None");
+    CHECK(markerVerbLabel(MarkerVerb::HoldAuto) == "Hold Auto");
 }
 
 // The ellipsis is the one display convention for a row that opens the verb's prompt, applied to

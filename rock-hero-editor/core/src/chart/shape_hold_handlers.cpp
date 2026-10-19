@@ -93,13 +93,13 @@ struct HoldChoiceRow
         },
         {
             .grip = common::core::NoneGrip{},
-            .verb = MarkerVerb::AddNoneHold,
+            .verb = MarkerVerb::HoldNone,
             .label = "None",
             .tooltip = "Hide arpeggios here; chords still stand",
         },
         {
             .grip = std::nullopt,
-            .verb = MarkerVerb::ClearHolds,
+            .verb = MarkerVerb::HoldAuto,
             .label = "Auto",
             .tooltip = "Clear holds here and let the notes decide the spans",
         },

@@ -104,13 +104,13 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Delete Hold";
         }
-        case MarkerVerb::AddNoneHold:
+        case MarkerVerb::HoldNone:
         {
-            return "Add None Hold";
+            return "Hold None";
         }
-        case MarkerVerb::ClearHolds:
+        case MarkerVerb::HoldAuto:
         {
-            return "Clear Holds";
+            return "Hold Auto";
         }
     }
     return {};

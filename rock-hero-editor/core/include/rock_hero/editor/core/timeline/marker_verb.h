@@ -98,13 +98,13 @@ enum class MarkerVerb : std::uint8_t
     \brief States a none hold over a span, merged with any none hold it meets: the arpeggios fronted
     inside it are hidden, and a chord the notes derive there still stands.
     */
-    AddNoneHold,
+    HoldNone,
 
     /*!
     \brief Clears every hold from an extent (the hold picker's Auto), so the notes decide the spans
     there again.
     */
-    ClearHolds,
+    HoldAuto,
 };
 
 /*!
