@@ -388,6 +388,8 @@ struct ArpeggioBracket
     // digit reads on clean background exactly like the bracketed head does. Equals bar_right when
     // the lane is too short to carry text at all.
     int mark_right{};
+    // True where the bracket's span is a hold's; a derived span's bracket draws as a ghost.
+    bool held{};
 };
 
 // Draws one string line per displayed lane across the given clip (the repaint region held to the
@@ -2039,31 +2041,30 @@ void drawNoteHead(
 // span's duration, in its kind's ink (TabLaneMetrics::shape_inks), echoing the 3D highway's
 // shape rails at the hand-window fret lines (a departure from Charter's full-height tint, which
 // reads as an ugly wall of color). The rails are the WHOLE indication: a span carries no name to
-// draw — ShapeViewState publishes its ends, its arpeggio flag and its posture, and nothing else.
+// draw.
 //
 // WHERE THE RAILS STOP is handed in rather than read off the span, because a span carries two ends
 // and the caller has already picked between them (TabSpanRevealed) and kept the parting before the
-// next span.
+// next span (tabShapeStopX).
+//
+// A hold's span draws solid and a DERIVED span's at a derived fret-hand chip's weight
+// (g_ghost_opacity): the fade is the one tell of what the chart stores, on the rails, the brackets
+// and the chip alike. Each rail is one rectangle, so its ink's alpha is the ghost layer's composite
+// without the layer.
 void drawShapeSpan(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape,
     const float end_x)
 {
-    const float start_x = metrics.x(shape.start_seconds);
-    if (end_x <= start_x)
+    const auto [top_rail, bottom_rail] = tabShapeRailBounds(metrics, shape.start_seconds, end_x);
+    if (top_rail.isEmpty())
     {
         return;
     }
-
-    const juce::Colour color{metrics.shape_inks.of(shape.arpeggio)};
-    const float width = end_x - start_x;
-    const float bottom_rail_y =
-        static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
-    g.setColour(color);
-    g.fillRect(
-        juce::Rectangle<float>{
-            start_x, static_cast<float>(metrics.bounds.getY()), width, g_shape_rail_height
-        });
-    g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
+    g.setColour(
+        juce::Colour{metrics.shape_inks.of(shape.arpeggio)}.withMultipliedAlpha(
+            shape.held ? 1.0f : g_ghost_opacity));
+    g.fillRect(top_rail);
+    g.fillRect(bottom_rail);
 }
 
 // Draws the capo chip pinned in the lane's top-left corner, in the FHP chips' boxed style. The
@@ -2660,13 +2661,57 @@ float tabSpanStopX(const float end_x, const std::optional<float> next_start_x)
     return next_start_x.has_value() ? std::min(end_x, *next_start_x - g_span_parting) : end_x;
 }
 
+// Rationale lives on the declaration in tab_paint_core.h.
+float tabShapeStopX(
+    const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
+    const std::size_t shape_index, const bool revealed)
+{
+    const common::core::ShapeViewState& shape = tab.shapes[shape_index];
+    const double end_seconds = revealed ? shape.close_seconds : shape.drawn_end_seconds;
+    const std::optional<float> next_start_x =
+        shape_index + 1 < tab.shapes.size()
+            ? std::optional{metrics.x(tab.shapes[shape_index + 1].start_seconds)}
+            : std::nullopt;
+    return tabSpanStopX(metrics.x(end_seconds), next_start_x);
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+std::pair<juce::Rectangle<float>, juce::Rectangle<float>> tabShapeRailBounds(
+    const TabLaneMetrics& metrics, const double start_seconds, const float end_x)
+{
+    const float start_x = metrics.x(start_seconds);
+    if (end_x <= start_x)
+    {
+        return {};
+    }
+    const float width = end_x - start_x;
+    const float bottom_rail_y =
+        static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
+    return {
+        juce::Rectangle<float>{
+            start_x, static_cast<float>(metrics.bounds.getY()), width, g_shape_rail_height
+        },
+        juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height},
+    };
+}
+
 // What a span chip prints when it is given no name: the span still lacks the grip template that
 // would complete it.
 constexpr auto g_unnamed_span_text = "?";
 
-// Rationale lives on the declaration in tab_paint_core.h.
-void drawTabSpanChip(
-    juce::Graphics& g, const TabLaneFont& font, const TabShapeInks inks, const TabSpanChip& chip)
+namespace
+{
+
+// A span chip as placed: its box, empty where it would stand under a pixel wide, and the label it
+// prints, empty where the chip draws blank.
+struct SpanChipLayout
+{
+    juce::Rectangle<float> box{};
+    juce::String printed{};
+};
+
+// The one placement of a span chip, read by its drawing and by its exported bounds alike.
+[[nodiscard]] SpanChipLayout spanChipLayout(const TabLaneFont& font, const TabSpanChip& chip)
 {
     const float left = chip.base_left.x;
     const float bottom = chip.base_left.y;
@@ -2691,12 +2736,42 @@ void drawTabSpanChip(
     const float width = std::min(natural_width, room);
     if (width < 1.0f)
     {
+        return {};
+    }
+    return SpanChipLayout{
+        .box = juce::Rectangle<float>{left, bottom - height, width, height},
+        .printed = std::move(printed),
+    };
+}
+
+} // namespace
+
+// Rationale lives on the declaration in tab_paint_core.h.
+juce::Rectangle<float> tabSpanChipBounds(const TabLaneFont& font, const TabSpanChip& chip)
+{
+    return spanChipLayout(font, chip).box;
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+void drawTabSpanChip(
+    juce::Graphics& g, const TabLaneFont& font, const TabShapeInks inks, const TabSpanChip& chip)
+{
+    const SpanChipLayout layout = spanChipLayout(font, chip);
+    if (layout.box.isEmpty())
+    {
         return;
     }
+    const juce::String& printed = layout.printed;
 
     // Only the top corners round; the base meets the line square. JUCE holds the radius to half
     // the width, so a narrowed chip's two curves never cross.
-    const juce::Rectangle<float> box{left, bottom - height, width, height};
+    const juce::Rectangle<float> box = layout.box;
+    // A DERIVED span's chip draws as a ghost, a hold's solid, as its rails do (drawShapeSpan).
+    std::optional<ScopedTransparencyLayer> ghost;
+    if (!chip.held && g.clipRegionIntersects(layerBounds(box)))
+    {
+        ghost.emplace(g, layerBounds(box), g_ghost_opacity);
+    }
     juce::Path outline;
     outline.addRoundedRectangle(
         box.getX(),
@@ -2838,7 +2913,8 @@ void paintTabLane(
                     .side_slot = side_slot,
                     .bar_left = bar_left,
                     .bar_right = bar_right,
-                    .mark_right = mark_right
+                    .mark_right = mark_right,
+                    .held = shape.held,
                 });
         }
     }
@@ -3093,6 +3169,33 @@ void paintTabLane(
         // against a tail, so it stays legible by construction.
         const juce::Colour bracket_ink = style[Ink::TailEdge];
 
+        // The digit's cell: the side slot (tabSatelliteLayoutAt), else the centred box between the
+        // bars.
+        const TabSatelliteLayout satellite =
+            tabSatelliteLayoutAt(metrics, bracket.center_x, center_y);
+        const TabLayoutRect& slot_box = satellite.box;
+        const juce::Rectangle<float> digit_cell =
+            bracket.side_slot
+                ? juce::Rectangle<float>{slot_box.x, slot_box.y, slot_box.width, slot_box.height}
+                : juce::Rectangle<float>{
+                      static_cast<float>(bracket.digit_left),
+                      center_y - bracket_size / 2.0f,
+                      static_cast<float>(bracket.digit_width),
+                      bracket_size
+                  };
+
+        // A DERIVED span's bracket draws as a ghost, bars and digit flattened together, as its
+        // rails do (drawShapeSpan).
+        const juce::Rectangle<int> bars{
+            bracket.bar_left, top, bracket.bar_right - bracket.bar_left, bottom - top
+        };
+        const juce::Rectangle<int> mark_area = bars.getUnion(layerBounds(digit_cell));
+        std::optional<ScopedTransparencyLayer> ghost;
+        if (!bracket.held && g.clipRegionIntersects(mark_area))
+        {
+            ghost.emplace(g, mark_area, g_ghost_opacity);
+        }
+
         g.setColour(bracket_ink);
         g.fillRect(bracket.bar_left, top, bracket_bar, bottom - top);
         g.fillRect(bracket.bar_left, top, bracket_serif, bracket_bar);
@@ -3110,24 +3213,12 @@ void paintTabLane(
             // statement (drawSatelliteDigit).
             if (bracket.side_slot)
             {
-                drawSatelliteDigit(
-                    g,
-                    metrics,
-                    style,
-                    tabSatelliteLayoutAt(metrics, bracket.center_x, center_y),
-                    bracket.digit_text,
-                    ground);
+                drawSatelliteDigit(g, metrics, style, satellite, bracket.digit_text, ground);
             }
             else
             {
-                const juce::Rectangle<float> box{
-                    static_cast<float>(bracket.digit_left),
-                    center_y - bracket_size / 2.0f,
-                    static_cast<float>(bracket.digit_width),
-                    bracket_size
-                };
                 g.setColour(juce::Colours::white);
-                metrics.fret_font.draw(g, bracket.digit_text, box);
+                metrics.fret_font.draw(g, bracket.digit_text, digit_cell);
             }
         }
     }
@@ -3187,23 +3278,17 @@ void paintTabLaneFurniture(
     const auto [first_shape, last_shape] = visibleShapeRange(tab, span);
     for (std::size_t shape_index = first_shape; shape_index < last_shape; ++shape_index)
     {
-        const common::core::ShapeViewState& shape = tab.shapes[shape_index];
-        // WHERE THIS SPAN'S RAILS STOP, resolved once for the cull and the drawing alike: the drawn
-        // extent shape rule 6 trimmed, or the musical close where the host reveals this span — the
-        // same shape the note passes take, a note drawing to its ink end or, revealed, its ring
-        // end.
-        const double end_seconds = tabSpanRevealed(revealed_shape, shape_index)
-                                       ? shape.close_seconds
-                                       : shape.drawn_end_seconds;
-        if (end_seconds < span_start)
+        // WHERE THIS SPAN'S RAILS STOP: the drawn extent shape rule 6 trimmed, or the musical close
+        // where the host reveals this span — the same shape the note passes take, a note drawing
+        // to its ink end or, revealed, its ring end. Rails stopping before the visible span draw
+        // nothing the clip would keep.
+        const float stop_x =
+            tabShapeStopX(metrics, tab, shape_index, tabSpanRevealed(revealed_shape, shape_index));
+        if (stop_x < metrics.x(span_start))
         {
             continue;
         }
-        const std::optional<float> next_start_x =
-            shape_index + 1 < tab.shapes.size()
-                ? std::optional{metrics.x(tab.shapes[shape_index + 1].start_seconds)}
-                : std::nullopt;
-        drawShapeSpan(g, metrics, shape, tabSpanStopX(metrics.x(end_seconds), next_start_x));
+        drawShapeSpan(g, metrics, tab.shapes[shape_index], stop_x);
     }
 
     // The capo chip shares the lane's top-left band with the fret-hand chips, and a placement

@@ -198,11 +198,7 @@ std::optional<std::size_t> EditorController::Impl::fretHandChipIndex(
 // markers are the chips, so the chip's index is its marker's.
 void EditorController::Impl::performActionImpl(const EditorAction::SelectFretHandPosition& action)
 {
-    if (action.index < markerStarts(MarkerRow::FretHandPosition).size())
-    {
-        selectMarker(markerSelectionAt(MarkerRow::FretHandPosition, action.index));
-    }
-    updateView();
+    selectMarkerAt(MarkerRow::FretHandPosition, action.index);
 }
 
 // The fret-hand position chord runs its own target: the verb has nothing to prompt for, so the

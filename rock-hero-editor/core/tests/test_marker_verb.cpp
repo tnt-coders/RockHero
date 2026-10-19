@@ -28,11 +28,13 @@ TEST_CASE("Every marker verb's label is pinned", "[core][marker-verb]")
     CHECK(markerVerbLabel(MarkerVerb::ClearHandPositionEndFret) == "Clear Hand Position End Fret");
     CHECK(markerVerbLabel(MarkerVerb::DeleteHandPosition) == "Delete Hand Position");
     CHECK(markerVerbLabel(MarkerVerb::PruneHandPositions) == "Prune Hand Positions");
+    CHECK(markerVerbLabel(MarkerVerb::ChooseHold) == "Hold");
     CHECK(markerVerbLabel(MarkerVerb::HoldShape) == "Hold Shape");
     CHECK(markerVerbLabel(MarkerVerb::MoveHoldStart) == "Move Hold Start");
     CHECK(markerVerbLabel(MarkerVerb::MoveHoldEnd) == "Move Hold End");
     CHECK(markerVerbLabel(MarkerVerb::DeleteHold) == "Delete Hold");
-    CHECK(markerVerbLabel(MarkerVerb::DeleteArpeggio) == "Delete Arpeggio");
+    CHECK(markerVerbLabel(MarkerVerb::AddNoneHold) == "Add None Hold");
+    CHECK(markerVerbLabel(MarkerVerb::ClearHolds) == "Clear Holds");
 }
 
 // The ellipsis is the one display convention for a row that opens the verb's prompt, applied to
@@ -43,6 +45,7 @@ TEST_CASE("A prompt row is its verb's label and an ellipsis", "[core][marker-ver
     CHECK(markerVerbPromptRow(MarkerVerb::AddTimeSignature) == "Add Time Signature...");
     CHECK(markerVerbPromptRow(MarkerVerb::SetTimeSignature) == "Set Time Signature...");
     CHECK(markerVerbPromptRow(MarkerVerb::ScaleTempo) == "Scale Tempo...");
+    CHECK(markerVerbPromptRow(MarkerVerb::ChooseHold) == "Hold...");
 }
 
 // Scale Tempo's two forms are told apart by the lock, so its entry, prompt and log line carry the

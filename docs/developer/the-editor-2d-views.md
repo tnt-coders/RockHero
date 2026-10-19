@@ -1012,11 +1012,22 @@ note reveal's exactly — the same ink, simply reaching further, snapping back w
 away — because a reveal shows the truth in the notation's own terms rather than annotating it. Both
 reach the paint core as a bare per-index answer (`common::ui::TabNotePresence` per note for
 `paintTabLane`, `common::ui::TabSpanRevealed` per span for `paintTabLaneFurniture`), since each
-projected event already carries both of its ends. A derived span and a shape hold are selectable
-from the keyboard, on the walk's two span rows (\ref guide_keyboard), and their indices are
-published (`ChartEditViewState::selected_derived_span`, `selected_shape_hold`); the lane does not yet
-draw them selected, reveal a selected span or select one with the pointer, which plan 60b's marks
-add.
+projected event already carries both of its ends. A span, derived or held, is selectable from the
+keyboard on the walk's span row (\ref guide_keyboard) and with the pointer on its rails or its ruler
+chip (`TabView::spanAt`, `TimelineRuler::spanChipAt`, both hit-testing the paint core's own
+geometry: `tabShapeRailBounds`, `tabShapeStopX`, `tabSpanChipBounds`); its index is published as
+`ChartEditViewState::selected_span`, the selected span wears the accent outline on both rails and on
+its chip (`TimelineRuler::setSelectedSpan`), and being selected is the fourth reveal ground. A held
+span draws solid and a derived one at the derived fret-hand chip's weight (`ShapeViewState::held`,
+`common::ui::g_ghost_opacity`), rails, brackets and chip alike. A none hold
+(`ChartViewState::none_holds`, merged where two meet) draws its rails as a slashed hatch in
+`EditorTheme::none_hold_rail`, clipped to the rail band (`fillHatchedRail`), beneath the furniture
+(`TabView::paintNoneHolds`, before `paintTabLaneFurniture`), so a chord box standing inside it draws
+over the hatch. A press on the
+rails reports every mark under it (`TabView::mouseDown`: `spanAt` and `noneHoldAt`, gaps between
+the slashes included, as one `SpanRowMarks` to `onSpanRowMarksPressed`) and the core picks by its
+one row order (`g_span_rows`): over a chord box inside a none hold the none hold wins, and that
+chord is selected by its ruler chip. The selection is published as `selected_none_hold`.
 
 **A FACE IS ONE OBJECT'S** (user ruling 2026-09-29, which retired the
 selection handle): a click on a bend chip selects its object alone with the caret on that face, even

@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -304,8 +305,10 @@ std::expected<void, ChartError> validateFretHandPositions(
     return {};
 }
 
-// Each hold's own edges, then its start against the previous hold's end. Holds are half-open, so
-// one may begin exactly where the last ended, and an end may lie exactly at the song's end.
+// Each hold's own edges, then its start against the furthest end before it. Holds are half-open,
+// so one may begin exactly where the last ended, and an end may lie exactly at the song's end. None
+// holds may overlap one another, since the normalizer merges them (mergedNoneHolds); an unnamed
+// hold may overlap nothing.
 std::expected<void, ChartError> validateShapeHolds(
     const std::vector<ShapeHold>& holds, const TempoMap& tempo_map)
 {
@@ -315,8 +318,13 @@ std::expected<void, ChartError> validateShapeHolds(
             .message = rule + " at " + formatGridPositionToken(at),
         }};
     };
+    const auto is_none = [](const ShapeHold& hold) {
+        return std::holds_alternative<NoneGrip>(hold.grip);
+    };
     const GridPosition song_end = terminalGridPosition(tempo_map);
     const ShapeHold* previous = nullptr;
+    // The hold reaching furthest so far, which any later hold overlaps if it starts before its end.
+    const ShapeHold* furthest = nullptr;
     for (const ShapeHold& hold : holds)
     {
         if (!markerCanStartAt(hold.start, tempo_map))
@@ -331,11 +339,20 @@ std::expected<void, ChartError> validateShapeHolds(
         {
             return refused("shape hold does not end after its start", hold.start);
         }
-        if (previous != nullptr && hold.start < previous->end)
+        if (previous != nullptr && hold.start < previous->start)
+        {
+            return refused("shape hold begins before the previous one", hold.start);
+        }
+        previous = &hold;
+        if (furthest != nullptr && hold.start < furthest->end &&
+            !(is_none(hold) && is_none(*furthest)))
         {
             return refused("shape hold begins before the previous one ends", hold.start);
         }
-        previous = &hold;
+        if (furthest == nullptr || furthest->end < hold.end)
+        {
+            furthest = &hold;
+        }
     }
     return {};
 }
@@ -474,6 +491,10 @@ std::string_view chartRepairText(const ChartRepair repair)
         case ChartRepair::EmptyShapeHold:
         {
             return "a shape hold held nothing and was dropped";
+        }
+        case ChartRepair::MergedNoneHolds:
+        {
+            return "none holds that met were merged into one";
         }
     }
     return "chart repaired";

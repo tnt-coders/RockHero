@@ -303,7 +303,13 @@ enum class ChartRepair : std::uint8_t
     \brief A shape hold held nothing: its span closes at its start, or a re-address rounded it onto
     no length. It was dropped (\ref normalizeShapeHolds).
     */
-    EmptyShapeHold
+    EmptyShapeHold,
+
+    /*!
+    \brief None holds that abutted or overlapped were merged into one (\ref mergedNoneHolds): two
+    stretches with no arpeggio shape that meet are one stretch.
+    */
+    MergedNoneHolds
 };
 
 /*!
@@ -744,8 +750,9 @@ judged by exactly the rules a package load applies without re-judging every note
 
 /*!
 \brief Validates the shape-hold stream's structure: every start on the grid and before the song's
-end, every end on the grid and at or before it, every end after its start, and each hold beginning
-at or after the previous one's end.
+end, every end on the grid and at or before it, every end after its start, the holds in start
+order, and each hold beginning at or after every earlier hold's end, but for none holds overlapping
+one another, which the normalizer merges (\ref mergedNoneHolds).
 
 Only the stated extents are judged: no note is read.
 
@@ -837,10 +844,10 @@ Broadly, the structural half: a usable tuning and the cent-offset bound; notes s
 and keyframe on the tick lattice; strings in range; non-negative frets, and a strictly positive
 sustain on every note; keyframe offsets strictly positive and ascending within the sustain, none
 stating a negative fret or bend; fret-hand positions strictly ascending and unique by position;
-shape holds non-empty, in order and never overlapping (\ref validateShapeHolds); harmonic-node
-range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the attack that
-cannot carry every technique, that the note already equals its own \ref savedChartNote form — a
-pick slide's pitched fields being in-memory latents the writer omits.
+shape holds non-empty, in order and overlapping only none on none (\ref validateShapeHolds);
+harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node; and, on the
+attack that cannot carry every technique, that the note already equals its own
+\ref savedChartNote form — a pick slide's pitched fields being in-memory latents the writer omits.
 Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
 position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).

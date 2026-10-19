@@ -28,6 +28,16 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the shape-hold simplicity review (2026-10-19)
+
+- **The ruler states its section selection as one `bool` per label.** `RulerSectionLabel::selected`
+  (`timeline_ruler.h` ~:61) lets two sections read as selected, and `placeChipRow` takes the first
+  (`timeline_ruler.cpp` ~:1295), while the tempo and signature chips (`setSelectedTempoMapChips`)
+  and the span chips (`setSelectedSpan`) store one optional. The section selection does claim its
+  chip's room when the row places, so the fix is an optional index beside the labels that still
+  rebuilds the geometry when it changes. Small: one setter, the label struct, `EditorView::setState`
+  and the ruler tests.
+
 ## Found by the theme close-out cleanup (2026-10-13)
 
 - **The renderer takes the CRT as a bare `bool`.** `HighwayRenderer::create` and `setTheme` take

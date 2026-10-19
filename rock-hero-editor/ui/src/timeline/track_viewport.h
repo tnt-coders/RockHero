@@ -9,6 +9,7 @@
 #include "timeline/timeline_ruler.h"
 
 #include <compare>
+#include <cstddef>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -373,6 +374,12 @@ public:
     the chips.
     */
     void setSpans(std::vector<RulerSpan> spans);
+
+    /*!
+    \brief Forwards the selected span to the pinned ruler, which outlines its chip.
+    \param span Index of the selected span in the spans given, or empty when none is selected.
+    */
+    void setSelectedSpan(std::optional<std::size_t> span);
 
     /*!
     \brief Forwards the tab lane's span inks to the pinned ruler, which fills its span chips in

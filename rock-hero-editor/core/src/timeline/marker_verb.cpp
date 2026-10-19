@@ -84,6 +84,10 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Prune Hand Positions";
         }
+        case MarkerVerb::ChooseHold:
+        {
+            return "Hold";
+        }
         case MarkerVerb::HoldShape:
         {
             return "Hold Shape";
@@ -100,9 +104,13 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Delete Hold";
         }
-        case MarkerVerb::DeleteArpeggio:
+        case MarkerVerb::AddNoneHold:
         {
-            return "Delete Arpeggio";
+            return "Add None Hold";
+        }
+        case MarkerVerb::ClearHolds:
+        {
+            return "Clear Holds";
         }
     }
     return {};

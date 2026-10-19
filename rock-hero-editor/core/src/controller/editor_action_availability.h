@@ -90,7 +90,7 @@ struct ActionConditions
     /*! \brief True when the editor-wide selection holds chart notes. */
     bool has_chart_selection{false};
 
-    /*! \brief True when the editor-wide selection holds a shape hold or a derived span. */
+    /*! \brief True when the editor-wide selection holds a span or a none hold. */
     bool has_span_row_selection{false};
 
     /*! \brief True when the chart caret is armed on some slot, string or lane. */

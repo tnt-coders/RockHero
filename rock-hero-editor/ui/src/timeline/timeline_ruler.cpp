@@ -14,6 +14,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/core/timeline/time_signature_text.h>
@@ -351,9 +352,19 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawBeatTicks(g);
     drawMeasureLabels(g);
-    for (const common::ui::TabSpanChip& chip : m_span_chips)
+    for (const PlacedSpanChip& placed : m_span_chips)
     {
-        common::ui::drawTabSpanChip(g, m_chip_font, m_shape_inks, chip);
+        common::ui::drawTabSpanChip(g, m_chip_font, m_shape_inks, placed.chip);
+        // The selected span's chip wears the ring a selected section chip wears, on the box the
+        // paint core filled.
+        if (placed.index == m_selected_span)
+        {
+            g.setColour(editorTheme().accent);
+            g.drawRoundedRectangle(
+                common::ui::tabSpanChipBounds(m_chip_font, placed.chip),
+                g_chip_corner_radius,
+                1.0f);
+        }
     }
 
     drawSectionChips(g);
@@ -390,7 +401,23 @@ std::optional<juce::Rectangle<int>> TimelineRuler::selectedChipBounds() const
     {
         return chip;
     }
-    return in_row(m_signature_row, g_signature_row_y);
+    if (const auto chip = in_row(m_signature_row, g_signature_row_y); chip.has_value())
+    {
+        return chip;
+    }
+    const auto span = std::ranges::find_if(m_span_chips, [this](const PlacedSpanChip& placed) {
+        return placed.index == m_selected_span;
+    });
+    if (span == m_span_chips.end() || span->pinned)
+    {
+        return std::nullopt;
+    }
+    const juce::Rectangle<float> box = common::ui::tabSpanChipBounds(m_chip_font, span->chip);
+    if (box.isEmpty())
+    {
+        return std::nullopt;
+    }
+    return box.getSmallestIntegerContainer();
 }
 
 // Adopts the core's published marker-plane availability.
@@ -473,6 +500,11 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         if (const RulerChip* const chip = chipAt(m_signature_row.chips, g_signature_row_y, point))
         {
             m_listener->onTimeSignatureSelected(m_reigns[chip->source_index].first_measure);
+            return;
+        }
+        if (const PlacedSpanChip* const span = spanChipAt(event.position); span != nullptr)
+        {
+            m_listener->onSpanSelected(span->index);
             return;
         }
     }
@@ -834,6 +866,18 @@ void TimelineRuler::setSpans(std::vector<RulerSpan> spans)
     repaint();
 }
 
+// Stores the selected span. A selection places no chip, so a repaint is the whole change.
+void TimelineRuler::setSelectedSpan(const std::optional<std::size_t> span)
+{
+    if (m_selected_span == span)
+    {
+        return;
+    }
+
+    m_selected_span = span;
+    repaint();
+}
+
 // Stores the span chips' inks; the chips' placement does not depend on them, so a repaint is the
 // whole change.
 void TimelineRuler::setShapeInks(const common::ui::TabShapeInks shape_inks)
@@ -973,14 +1017,34 @@ void TimelineRuler::refreshSpanChips()
             continue;
         }
         m_span_chips.push_back(
-            common::ui::TabSpanChip{
-                .base_left = {*left, static_cast<float>(getHeight())},
-                .stop_x = stop_x,
-                .max_height = max_height,
-                .arpeggio = span.arpeggio,
-                .name = std::nullopt,
+            PlacedSpanChip{
+                .chip =
+                    common::ui::TabSpanChip{
+                        .base_left = {*left, static_cast<float>(getHeight())},
+                        .stop_x = stop_x,
+                        .max_height = max_height,
+                        .arpeggio = span.arpeggio,
+                        .held = span.held,
+                        .name = std::nullopt,
+                    },
+                .index = index,
+                .pinned = *start_x < *left,
             });
     }
+}
+
+// Chips advance with their spans' starts, and a chip only ever meets its successor at the parting,
+// so a reverse walk finds the one drawn on top first.
+const TimelineRuler::PlacedSpanChip* TimelineRuler::spanChipAt(const juce::Point<float> point) const
+{
+    for (const PlacedSpanChip& placed : std::views::reverse(m_span_chips))
+    {
+        if (common::ui::tabSpanChipBounds(m_chip_font, placed.chip).contains(point))
+        {
+            return &placed;
+        }
+    }
+    return nullptr;
 }
 
 // Rebuilds the cached tick rectangles, the measure-number row, the chip rows and the span chips

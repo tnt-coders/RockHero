@@ -1659,6 +1659,13 @@ struct Census
     long long midpoint_off_span_holds{0};
     std::vector<std::string> normalized_rewrite_cases;
     std::vector<std::string> midpoint_off_span_cases;
+
+    // THE NONE-HOLD MERGE (shape rule 9): a none hold over every bar fronting a derived arpeggio,
+    // so the bars of a run of arpeggios abut. The normalizer merges each abutting run into one
+    // hold, reading their edges alone, and a second pass leaves the result as it is.
+    long long none_bar_holds{0};
+    long long none_bar_merges{0};
+    long long none_bar_rewrites_again{0};
 };
 
 [[nodiscard]] std::optional<std::string> readScoreXml(const std::filesystem::path& gp_file)
@@ -2216,6 +2223,48 @@ void countNormalizedHolds(
     }
 }
 
+// THE NONE-HOLD MERGE over one arrangement: a none hold over every bar fronting a derived arpeggio,
+// normalized, then normalized again.
+void countMergedNoneHolds(
+    const std::vector<ChartNote>& notes, const int capo,
+    const common::core::ChartResolutions& resolutions, const TempoMap& tempo_map, Census& census)
+{
+    std::vector<common::core::ShapeHold> over_bars;
+    for (std::size_t index = 0; index < resolutions.shapes.size(); ++index)
+    {
+        if (!resolutions.arrivals[index])
+        {
+            continue;
+        }
+        const int measure =
+            tempo_map.gridPositionAtWholeNote(resolutions.shapes[index].place).measure;
+        const GridPosition bar_start = common::core::measureDownbeat(measure);
+        if (over_bars.empty() || over_bars.back().start != bar_start)
+        {
+            over_bars.push_back(
+                common::core::ShapeHold{
+                    .start = bar_start,
+                    .end = common::core::measureDownbeat(measure + 1),
+                    .grip = common::core::NoneGrip{},
+                });
+        }
+    }
+    if (over_bars.empty())
+    {
+        return;
+    }
+    census.none_bar_holds += static_cast<long long>(over_bars.size());
+    const common::core::ShapeHoldNormalization merged =
+        common::core::normalizeShapeHolds(notes, over_bars, capo, tempo_map);
+    census.none_bar_merges += static_cast<long long>(std::ranges::count_if(
+        merged.conversions, [](const common::core::ChartConversion& conversion) {
+            return conversion.repair == common::core::ChartRepair::MergedNoneHolds;
+        }));
+    census.none_bar_rewrites_again += static_cast<long long>(
+        common::core::normalizeShapeHolds(notes, merged.resolved.shape_holds, capo, tempo_map)
+            .conversions.size());
+}
+
 struct CrossCheck
 {
     std::string label;
@@ -2432,6 +2481,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 built->tempo_map,
                 entry.path().filename().string(),
                 census);
+            countMergedNoneHolds(
+                chart.notes, chart.tuning.capo, resolutions, built->tempo_map, census);
         }
     }
 
@@ -2722,6 +2773,9 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
     {
         std::cout << "    settled off its span: " << off_case << "\n";
     }
+    std::cout << "\n[SHAPE RULE 9] a none hold over every bar fronting a derived arpeggio\n";
+    std::cout << "  none holds stated                       : " << census.none_bar_holds << "\n";
+    std::cout << "  runs merged into one                    : " << census.none_bar_merges << "\n";
 
     reportCrossCheck(
         std::vector<CrossCheck>{
@@ -2953,6 +3007,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // ...and one pass is stable: holds stated to their span's midpoint normalize once.
                 .label = "normalizer rewrites on a second pass (ZERO)",
                 .rig = static_cast<double>(census.midpoint_rewrites_again),
+                .expected = 0.0,
+            },
+            CrossCheck{
+                // THE NONE-HOLD MERGE is one pass too: merged none holds normalize to themselves.
+                .label = "merged none holds rewritten on a second pass (ZERO)",
+                .rig = static_cast<double>(census.none_bar_rewrites_again),
                 .expected = 0.0,
             },
             CrossCheck{

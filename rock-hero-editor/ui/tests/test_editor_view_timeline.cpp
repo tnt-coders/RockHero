@@ -64,6 +64,11 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         last_selected_signature_measure = measure;
     }
 
+    void onSpanSelected(std::size_t index) override
+    {
+        last_selected_span = index;
+    }
+
     void onSongSectionInsertPromptRequested(common::core::GridPosition position) override
     {
         insert_count += 1;
@@ -128,6 +133,9 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     // Anchor beat and measure last reported by a tempo or time-signature chip click.
     std::optional<common::core::GridPosition> last_selected_tempo_anchor{};
     std::optional<int> last_selected_signature_measure{};
+
+    // Span index last reported by a span chip click.
+    std::optional<std::size_t> last_selected_span{};
 
     // Anchor and time a tempo-chip drag last asked for, how many drag events asked, and how many
     // drags reported their release.
@@ -528,8 +536,8 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     ruler.setProjectLoaded(true);
     ruler.setSpans(
         std::vector<RulerSpan>{
-            RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false},
-            RulerSpan{.start_seconds = 2.0, .end_seconds = 3.0, .arpeggio = true},
+            RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false, .held = true},
+            RulerSpan{.start_seconds = 2.0, .end_seconds = 3.0, .arpeggio = true, .held = true},
         });
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -596,7 +604,7 @@ TEST_CASE(
     };
     const juce::Image bare = render({});
     const juce::Image chipped = render({
-        RulerSpan{.start_seconds = 0.0, .end_seconds = 4.0, .arpeggio = false},
+        RulerSpan{.start_seconds = 0.0, .end_seconds = 4.0, .arpeggio = false, .held = true},
     });
 
     // The measure "1" prints right of the downbeat at x = 0, clear of every tick in these
@@ -627,6 +635,77 @@ TEST_CASE(
     REQUIRE(chip_top < g_timeline_ruler_height);
     CHECK(chip_top == g_timeline_ruler_height - chipHeight());
     CHECK(chip_top >= ink_bottom + 2);
+}
+
+// A span chip is the span row's marker on the ruler: a press on one reports its span's index and
+// seeks nothing, and the selected span's chip wears an outline and answers selectedChipBounds.
+TEST_CASE("TimelineRuler span chips report clicks and outline the selected", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
+    RecordingRulerListener listener;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setListener(listener);
+    ruler.setMarkerEditsEnabled(true);
+    int placement_count = 0;
+    ruler.setCursorPlacementCallback(
+        [&placement_count](common::core::TimePosition) { placement_count += 1; });
+    ruler.setSpans(
+        std::vector<RulerSpan>{
+            RulerSpan{.start_seconds = 1.0, .end_seconds = 2.0, .arpeggio = false},
+            RulerSpan{.start_seconds = 2.0, .end_seconds = 3.0, .arpeggio = false},
+        });
+    CHECK_FALSE(ruler.selectedChipBounds().has_value());
+    const juce::Image plain = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // One measure across 401px maps seconds * 100: the chips' left edges stand at x = 100 and 200
+    // on the ruler's bottom edge.
+    const auto inside_y = static_cast<float>(g_timeline_ruler_height - 4);
+    ruler.mouseDown(makeMouseDownEvent(ruler, 102.0f, inside_y));
+    CHECK(listener.last_selected_span == std::optional<std::size_t>{0});
+    ruler.mouseDown(makeMouseDownEvent(ruler, 202.0f, inside_y));
+    CHECK(listener.last_selected_span == std::optional<std::size_t>{1});
+    CHECK(placement_count == 0);
+
+    ruler.setSelectedSpan(1);
+    const std::optional<juce::Rectangle<int>> chip = ruler.selectedChipBounds();
+    REQUIRE(chip.has_value());
+    if (chip.has_value())
+    {
+        CHECK(chip->getX() == 200);
+        CHECK(chip->getBottom() == g_timeline_ruler_height);
+        CHECK(chip->getHeight() == chipHeight());
+
+        // The outline marks the selected chip's columns, and only those.
+        const juce::Image outlined = ruler.createComponentSnapshot(ruler.getLocalBounds());
+        const auto differs = [&plain, &outlined](const int x_from, const int x_to) {
+            for (int x = x_from; x <= x_to; ++x)
+            {
+                for (int y = 0; y < g_timeline_ruler_height; ++y)
+                {
+                    if (plain.getPixelAt(x, y) != outlined.getPixelAt(x, y))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        CHECK(differs(chip->getX(), chip->getRight() - 1));
+        CHECK_FALSE(differs(100, 190));
+    }
 }
 
 // A span whose start has scrolled off the left keeps its chip at the ruler's left edge while the
@@ -660,7 +739,9 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
         ruler.setProjectLoaded(true);
         ruler.setSpans(
             std::vector<RulerSpan>{
-                RulerSpan{.start_seconds = start, .end_seconds = end, .arpeggio = false},
+                RulerSpan{
+                    .start_seconds = start, .end_seconds = end, .arpeggio = false, .held = true
+                },
             });
         return ruler.createComponentSnapshot(ruler.getLocalBounds());
     };

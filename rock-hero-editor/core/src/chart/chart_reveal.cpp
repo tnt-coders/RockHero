@@ -98,10 +98,13 @@ std::vector<common::ui::TabNotePresence> chartPresence(
 
 // Rationale lives on the declaration in chart_reveal.h.
 bool chartSpanRevealed(
-    const common::core::ShapeViewState& span, const bool lane_reveal,
-    const std::vector<common::core::NoteViewState>& notes, const ChartEditViewState& edit) noexcept
+    const common::core::ChartViewState& tab, const std::size_t span_index, const bool lane_reveal,
+    const ChartEditViewState& edit) noexcept
 {
-    if (lane_reveal || caretWithin(edit.caret, span.start_seconds, span.close_seconds))
+    const common::core::ShapeViewState& span = tab.shapes[span_index];
+    const std::vector<common::core::NoteViewState>& notes = tab.notes;
+    if (lane_reveal || edit.selected_span == span_index ||
+        caretWithin(edit.caret, span.start_seconds, span.close_seconds))
     {
         return true;
     }

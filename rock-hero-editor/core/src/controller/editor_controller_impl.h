@@ -36,6 +36,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "tone_designer/tone_designer_edits.h"
 #include "tone_designer/tone_designer_state.h"
 
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -58,6 +59,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_settings_store.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -594,7 +596,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // marker. Nothing where the focus names none.
     [[nodiscard]] static std::optional<ChartEditLanding> selectionLandingOf(const EditFocus& focus);
     // Where the charter stands right now: the one capture both sides of a chart undo entry record.
-    // A selected hold or derived span is shown as every marker entry shows its own
+    // A selected span or none hold is shown as every marker entry shows its own
     // (MarkerEditFocus); anything else is the place in the chart (ChartEditFocus). Nothing where
     // no slot says it — a caret riding an automation lane, or a passive cursor with nothing
     // selected and no column of its own.
@@ -772,38 +774,31 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The red glow on the hand chip fronting at `position`, where one does: a refused hand verb's
     // half of the refusal beside its log record.
     void flashFretHandChip(const common::core::GridPosition& position);
-    // Shape holds (src/chart/shape_hold_handlers.cpp), the span rows' verbs.
-    // The authored hold the selection names, or null where it names none or the hold is gone.
-    [[nodiscard]] const common::core::ShapeHold* selectedShapeHold() const;
-    // The index into the notes layer's spans of the derived span the selection names, or nothing
-    // where it names none or the span is gone.
-    [[nodiscard]] std::optional<std::size_t> selectedDerivedSpanShape() const;
-    // The span rows' selected marker as a hold: the authored hold as it stands, or a derived span's
-    // extent as the unnamed hold that converts it. Nothing where neither is selected.
+    // Shape holds (src/chart/shape_hold_handlers.cpp), the verbs on a span or a none hold.
+    // The selected span or none hold as a hold: the none hold as it stands, and a span's extent as
+    // an unnamed hold, which for a held span IS the hold that states it (shape rule 9's normal
+    // form) and for a derived one the hold that converts it. Nothing where neither is selected or
+    // the selected one is gone.
     [[nodiscard]] std::optional<common::core::ShapeHold> selectedSpanRowHold() const;
     // One press of a hold edge key (Alt+Left/Right the start, Alt+Shift+Left/Right the end) on the
-    // selected hold or derived span: the edge stepped to the next note onset or boundary that way,
-    // as one step of a held run replaying from its start (planMoveShapeHoldEdge).
+    // selected span or none hold: the edge stepped to the next note onset or boundary that way, as
+    // one step of a held run replaying from its start (planMoveShapeHoldEdge).
     void stepShapeHoldEdge(ShapeHoldEdge edge, bool later);
-    // Delete on a selected hold: removes it, the derivation taking its stretch back.
-    void deleteSelectedShapeHold(const common::core::ShapeHold& hold);
-    // Delete on a selected derived span: a none hold over an arpeggio, left selected; refused on a
-    // chord box, which a none hold keeps.
-    void deleteSelectedDerivedSpan();
-    // The unnamed hold the hold chord states, read off the selection: over a selected hold's or
-    // derived span's own extent, a time selection's, or the selected notes' from their first onset
-    // to their last ring's end. Nothing where the selection covers nothing.
-    [[nodiscard]] std::optional<common::core::ShapeHold> holdShapeTarget() const;
+    // The extent a hold choice acts on, read off the selection: a selected span's or none hold's
+    // own, a time selection's, or the selected notes' from their first onset to their last ring's
+    // end. Nothing where the selection covers nothing.
+    [[nodiscard]] std::optional<ShapeHoldExtent> selectedHoldExtent() const;
+    // THE one write of every hold choice — a picker row, and Delete's step down one level: the
+    // extent carved into the chart's holds with a hold stating `grip` over it, or with no grip
+    // every hold carved out of it, judged by the hold gate and written as one entry under `verb`,
+    // or the gate's refusal reported over the extent.
+    void commitHoldChoice(
+        MarkerVerb verb, const ShapeHoldExtent& extent,
+        const std::optional<common::core::HoldGrip>& grip);
     // A refused hold verb: its log record under the verb's label, and the refusal flash on the
     // notes struck inside the target's extent.
     void refuseShapeHoldVerb(
-        MarkerVerb verb, std::string_view reason, const common::core::ShapeHold& target);
-    // A one-press hold verb's end: the holds it leaves judged by the hold gate and applied, the
-    // selection landing where the verb says, or the gate's refusal reported over `target`.
-    void commitShapeHolds(
-        const common::core::Chart& chart, MarkerVerb verb,
-        const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& target,
-        ChartEditLanding landing);
+        MarkerVerb verb, std::string_view reason, const ShapeHoldExtent& target);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();
@@ -909,7 +904,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::AuthorFretHandPositionAtCursor action);
     void performActionImpl(EditorAction::ClearFretHandEnd action);
     void performActionImpl(EditorAction::PruneFretHandPositions action);
-    void performActionImpl(EditorAction::HoldShape action);
+    void performActionImpl(EditorAction::ChooseHold action);
+    void performActionImpl(const EditorAction::SetHold& action);
+    void performActionImpl(const EditorAction::SelectSpanRowMark& action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
     void performActionImpl(const EditorAction::InsertTempoAnchor& action);
@@ -1120,6 +1117,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reportNotice(const std::string& title, const std::string& message);
     void requestChartHarmonicNodePicker(ChartHarmonicNodePicker picker);
     void requestChartBendPicker(ChartBendPicker picker);
+    // Asks the attached view for the hold picker, dropped like the harmonic question with no view.
+    void requestChartHoldPicker(ChartHoldPicker picker);
     // THE REFUSAL REPORT: each reason goes to the log beside the subject it refused, and the
     // refused elements flash red. A whole plan refused names and flashes its subject — what the
     // verb planned over; a NoChange is an honest no-op and reports nothing. Per-note refusals name
@@ -1664,36 +1663,46 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const AutomationLaneRow& row, const common::core::GridPosition& position);
 
     // The rows the keyboard reaches by SELECTING a marker rather than arming the caret: the ruler's
-    // section, tempo and time-signature rows, the two span rows and the position row above the
-    // strings, and the tone row below them. On a gapless row a marker holds from its start to the
-    // next marker's start, and the first marker also owns whatever precedes it. The span rows, the
-    // chart's shape holds and its derived spans, have gaps: each marker holds only its own
-    // half-open [start, close).
+    // section, tempo and time-signature rows, the span and none-hold rows and the position row
+    // above the strings, top down in that order, and the tone row below them. On a gapless row a
+    // marker holds from its start to the next marker's start, and the first marker also owns
+    // whatever precedes it. The span and none-hold rows have gaps: each marker holds only its own
+    // half-open [start, close). They are two rows because a none hold keeps the chord boxes struck
+    // inside it, so the two can hold one column (g_span_rows orders them); an unnamed hold IS its
+    // span, so it is no row of its own.
     enum class MarkerRow : std::uint8_t
     {
         Section,
         Tempo,
         TimeSignature,
-        ShapeHold,
-        DerivedSpan,
+        Span,
+        NoneHold,
         FretHandPosition,
         Tone,
     };
 
+    // THE order of the span and none-hold rows, top down: the none hold sits nearer the strings,
+    // so wherever the two hold one column the walk up from the strings, the hold jump and a press
+    // landing on both all reach the none hold first — the authored statement there — and the chord
+    // inside it after. The stack lists the rows in this order and the other two read it.
+    static constexpr std::array<MarkerRow, 2> g_span_rows{MarkerRow::Span, MarkerRow::NoneHold};
+
     // The starts of a marker row's markers, ascending: the song's sections, the tempo map's
     // non-terminal anchors (the terminal anchor draws no chip), its time-signature downbeats, the
-    // chart's shape holds, its derived spans, its fret-hand positions, and the tone track's
-    // region starts.
+    // chart's spans, its none holds, its fret-hand positions, and the tone track's region starts.
     [[nodiscard]] std::vector<common::core::GridPosition> markerStarts(MarkerRow row) const;
 
-    // Where the row's marker at `index` stops holding a column: a span row's marker at its close,
-    // and nothing on a gapless row. The index must be in range of the row's markerStarts.
+    // The none holds the tab lane hatches, in the order it draws them, which is the none-hold
+    // row's: a row index IS a hatched hold's index. Empty without a tab projection. The reference
+    // is the projection's, so it dies with the next chart revision's refresh: read it, never keep
+    // it.
+    [[nodiscard]] const std::vector<common::core::NoneHoldViewState>& noneHoldMarks() const;
+
+    // Where the row's marker at `index` stops holding a column: a none hold at its end and a span
+    // at its close, and nothing on a gapless row. The index must be in range of the row's
+    // markerStarts.
     [[nodiscard]] std::optional<common::core::GridPosition> markerClose(
         MarkerRow row, std::size_t index) const;
-
-    // The indices into the notes layer's spans (ChartResolutions::shapes) of the derived spans, the
-    // ones no unnamed hold states, in place order: the derived-span row's markers.
-    [[nodiscard]] std::vector<std::size_t> derivedSpanShapes() const;
 
     // The index of the marker holding a position on a gapless row: the last one starting at or
     // before it, or the first when the position precedes them all. The starts must not be empty.
@@ -1730,6 +1739,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // select a chip click names by position. Returns whether one stood there and is now selected.
     bool selectMarkerStartingAt(MarkerRow row, const common::core::GridPosition& start);
 
+    // Selects the row's marker at `index`, and nothing for an index naming none, then publishes:
+    // the select a lane press names by the projection index its mark was drawn from, which is the
+    // marker's index on the rows read off the projection.
+    void selectMarkerAt(MarkerRow row, std::size_t index);
+
     // A marker selected with the pointer seeks nothing, so the cursor may stand outside its span;
     // this moves the cursor to the selected marker's start in that case and leaves it alone
     // otherwise, so what a step off the marker lands on is found at the marker.
@@ -1764,6 +1778,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Releases a marker selection naming a marker that is gone (a delete, a merge, an undo took
     // it), exactly as Delete leaves nothing behind. Asked after every marker commit and every undo.
     void releaseMarkerSelectionNamingNothing();
+
+    // Whether the selection is a marker's whose row holds no marker at its identity: the one test
+    // the release and a hold verb's landing (landMarkerSelection) both ask.
+    [[nodiscard]] bool markerSelectionNamesNothing() const;
 
     // What the marker funnel did with a produced model.
     enum class MarkerCommit : std::uint8_t
@@ -1958,8 +1976,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // lists before reconciling.
     [[nodiscard]] std::vector<FocusRow> rowsFromFocus(int string_count);
 
-    // The row a jump names.
-    [[nodiscard]] static FocusRow focusRowFor(FocusRowJump jump);
+    // The rows a jump names: one, or for the hold jump the span and none-hold rows, between which
+    // the stack's own order decides.
+    [[nodiscard]] static std::vector<FocusRow> focusRowsFor(FocusRowJump jump);
 
     // The vertical walk. Plain steps one row; reach steps to the nearest row of the adjacent
     // group. Past either end the press is inert, and from no row at all it arms in place on the

@@ -97,6 +97,13 @@ struct EditorTheme
     juce::Colour lane_overlay{0xb3ffffff};
 
     /*!
+    \brief The hatched rails of a tab-lane none hold, a stretch the charter ruled holds no arpeggio
+    shape: a neutral grey, so the hold reads by its pattern rather than by a hue a span's ink could
+    share.
+    */
+    juce::Colour none_hold_rail{0xff8a909a};
+
+    /*!
     \brief Invalid-state ink: a provisional value that cannot apply (the pending fret entry's
     red text).
 

@@ -10,6 +10,7 @@ supplies only bounds, timeline mapping, and state.
 
 #pragma once
 
+#include <cstddef>
 #include <juce_graphics/juce_graphics.h>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
@@ -19,6 +20,7 @@ supplies only bounds, timeline mapping, and state.
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -643,6 +645,40 @@ The parting is a screen pixel, never a model time: the drawn extent stays the sp
 */
 [[nodiscard]] float tabSpanStopX(float end_x, std::optional<float> next_start_x);
 
+/*!
+\brief Returns the column where one span's rails stop as \ref paintTabLaneFurniture draws them:
+its musical close where the host reveals the span, else its drawn extent, held short of the next
+span's start (\ref tabSpanStopX).
+
+Exported so a host that hit-tests or outlines the rails reads the very column the furniture pass
+stops at. The parting keeps every span's rails clear of the next span's start, so the rails of two
+spans never share a column.
+
+\param metrics Metrics from makeTabLaneMetrics for the lane the span rides.
+\param tab Seconds-resolved tab projection holding the span.
+\param shape_index Index of the span in \p tab's shapes; it must be in range.
+\param revealed True where the host reveals this span (\ref TabSpanRevealed).
+\return The column the span's rails stop at, in the metrics' bounds space.
+*/
+[[nodiscard]] float tabShapeStopX(
+    const TabLaneMetrics& metrics, const common::core::ChartViewState& tab, std::size_t shape_index,
+    bool revealed);
+
+/*!
+\brief Returns the two rails of a span-row mark, the narrow bars along the lane's top and bottom
+edges: a span's, which \ref paintTabLaneFurniture fills, or a none hold's, which the editor hatches.
+
+The one geometry of the rails, so a host's hit test and outline cover exactly the drawn ink.
+
+\param metrics Metrics from makeTabLaneMetrics for the lane the mark rides.
+\param start_seconds The mark's start.
+\param end_x The column the rails stop at (\ref tabShapeStopX for a span).
+\return The top rail, then the bottom rail, in the metrics' bounds space; both empty where the
+        rails stop at or before the mark's start.
+*/
+[[nodiscard]] std::pair<juce::Rectangle<float>, juce::Rectangle<float>> tabShapeRailBounds(
+    const TabLaneMetrics& metrics, double start_seconds, float end_x);
+
 /*! \brief One hand-shape span's label chip, placed against its span. */
 struct TabSpanChip
 {
@@ -664,6 +700,12 @@ struct TabSpanChip
 
     /*! \brief True for an arpeggio span, whose chip wears the arpeggio ink; false for a chord. */
     bool arpeggio{false};
+
+    /*!
+    \brief True for a hold's span, whose chip draws solid; false for a derived span, whose chip
+    draws as a ghost (\ref common::core::ShapeViewState::held).
+    */
+    bool held{false};
 
     /*!
     \brief The chord name of the span's grip template, or empty for a span without a template,
@@ -689,7 +731,8 @@ narrower than the blank chip. The chip stands \ref chipHeight tall; where that e
 \ref TabSpanChip::stop_x, narrowing to the room left before it and drawing nothing when that leaves
 it under a pixel. A label prints only where the room holds the chip's whole labelled width and the
 ceiling leaves the chip its own height; otherwise the label is dropped entire, never clipped or
-shrunk, and the chip draws blank.
+shrunk, and the chip draws blank. A derived span's chip, ground and label alike, composites at
+\ref g_ghost_opacity, as its rails do (\ref TabSpanChip::held).
 
 \param g Graphics context to draw into.
 \param font The chip label font (\ref chipLabelFont).
@@ -700,12 +743,24 @@ void drawTabSpanChip(
     juce::Graphics& g, const TabLaneFont& font, TabShapeInks inks, const TabSpanChip& chip);
 
 /*!
+\brief Returns the box \ref drawTabSpanChip fills for a chip, so a host's hit test and selection
+outline cover exactly the drawn chip.
+\param font The chip label font (\ref chipLabelFont).
+\param chip The chip and the column it stops at.
+\return The chip's box, in the coordinates of \ref TabSpanChip::base_left; empty where the chip
+        draws nothing.
+*/
+[[nodiscard]] juce::Rectangle<float> tabSpanChipBounds(
+    const TabLaneFont& font, const TabSpanChip& chip);
+
+/*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
 
 String lines, sustain tails with their slide and bend lines, arpeggio posture brackets, note heads
-with technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
-Visibility is bounded by the graphics context's clip region widened by head slack, so hosts repaint
-partial regions (tile strips, dirty rectangles) correctly.
+with technique glyphs, then the floating labels (slide frets and bend amount chips) on top. A
+derived span's brackets composite at \ref g_ghost_opacity and a hold's draw solid. Visibility is
+bounded by the graphics context's clip region widened by head slack, so hosts repaint partial
+regions (tile strips, dirty rectangles) correctly.
 
 This is the lane's CONTENT — the marks that stand for chart events at their own instants. The
 span rails, the capo chip and the fret-hand chips are \ref paintTabLaneFurniture's, drawn by a
@@ -754,7 +809,9 @@ host that narrowed the clip for the content pass gets the matching furniture for
 
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
-\param tab Seconds-resolved tab projection supplying the spans, the capo and the placements.
+\param tab Seconds-resolved tab projection supplying the spans, the capo and the placements. A
+       derived span's rails composite at \ref g_ghost_opacity and a hold's draw solid
+       (\ref common::core::ShapeViewState::held).
 \param revealed_shape Per-span answer to whether that span's rails run to its musical close instead
        of to the drawn extent; empty reveals nothing.
 */

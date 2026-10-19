@@ -125,6 +125,20 @@ public:
     virtual void showChartBendPicker(ChartBendPicker picker) = 0;
 
     /*!
+    \brief Asks the view to offer the hold picker (`Ctrl+H`): what the selected extent becomes —
+    Shape, None or Auto — each row carrying its tooltip.
+
+    A one-shot request like the harmonic picker, offering only the choices that change the extent,
+    of which there are always at least two; with no view attached the question is dropped. The
+    view presents the rows as a popup at the selection with the first row preselected
+    (\ref ChartHoldPicker), and returns the chosen row's grip through
+    \ref IEditorController::onHoldChoiceRequested; dismissing chooses nothing and changes nothing.
+
+    \param picker The rows in the order to show them.
+    */
+    virtual void showChartHoldPicker(ChartHoldPicker picker) = 0;
+
+    /*!
     \brief Asks the view to flash the elements a chart edit refused: they glow red a couple of times
     and stay as they were.
 

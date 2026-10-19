@@ -833,6 +833,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::CaretJumpFretHandPositionRow,
          .value = 0x1516,
          .chords = {chord('p', command | shift)}},
+        {.id = EditorCommandId::CaretJumpHoldRow,
+         .value = 0x1517,
+         .chords = {chord('h', command | shift)}},
         {.id = EditorCommandId::CaretJumpToneRow,
          .value = 0x1514,
          .chords = {chord('t', command | shift)}},
@@ -902,7 +905,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::InsertRingPoint,
          .value = 0x171C,
          .chords = {chord(juce::KeyPress::insertKey, alt)}},
-        {.id = EditorCommandId::HoldShape, .value = 0x140B, .chords = {chord('h', command)}},
+        {.id = EditorCommandId::ChooseHold, .value = 0x140B, .chords = {chord('h', command)}},
         {.id = EditorCommandId::ChartPickSlideToggle,
          .value = 0x1709,
          .chords = {chord('x', shift)}},
@@ -1306,7 +1309,7 @@ TEST_CASE("Command registry classifies which commands act on the selection", "[u
     CHECK(acts(EditorCommandId::TypeDigit1));
     CHECK(acts(EditorCommandId::ChartLegatoToggle));
     CHECK(acts(EditorCommandId::RenameSelection));
-    CHECK(acts(EditorCommandId::HoldShape));
+    CHECK(acts(EditorCommandId::ChooseHold));
 
     CHECK_FALSE(acts(EditorCommandId::CaretStepLeft));
     CHECK_FALSE(acts(EditorCommandId::CaretJumpSectionRow));

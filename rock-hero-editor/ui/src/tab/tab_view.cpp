@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <iterator>
@@ -34,6 +35,69 @@ namespace
 [[nodiscard]] float overlayRingStroke(float head_size) noexcept
 {
     return std::max(1.0f, head_size / 15.0f) * 1.5f;
+}
+
+// Fills one rail with a slashed hatch (/////): each slash rises to the right across the rail's
+// height, a third of the rail's height wide every two thirds of it, anchored at the rail's start
+// so the pattern scrolls with its hold, and clipped to the rail so the band is the rail's own.
+// Only the slashes reaching the visible columns are built, so a long hold costs what shows.
+void fillHatchedRail(
+    juce::Graphics& g, const juce::Rectangle<float>& rail, const juce::Range<float> columns)
+{
+    const float from = std::max(rail.getX(), columns.getStart());
+    const float to = std::min(rail.getRight(), columns.getEnd());
+    if (rail.isEmpty() || !(from < to))
+    {
+        return;
+    }
+    const float height = rail.getHeight();
+    const float stroke = height * 2.0f / 3.0f;
+    const float period = height * 4.0f / 3.0f;
+    // A slash spans its stroke plus the rail's height across, so the one before the first visible
+    // column may still reach into it.
+    const auto first =
+        static_cast<int>(std::floor((from - (height + stroke) - rail.getX()) / period));
+    const auto end = static_cast<int>(std::ceil((to - rail.getX()) / period));
+    juce::Path slashes;
+    for (int slash = first; slash < end; ++slash)
+    {
+        const float left = rail.getX() + (static_cast<float>(slash) * period);
+        slashes.startNewSubPath(left, rail.getBottom());
+        slashes.lineTo(left + stroke, rail.getBottom());
+        slashes.lineTo(left + stroke + height, rail.getY());
+        slashes.lineTo(left + height, rail.getY());
+        slashes.closeSubPath();
+    }
+    juce::Path band;
+    band.addRectangle(rail);
+    const juce::Graphics::ScopedSaveState saved{g};
+    g.reduceClipRegion(band);
+    g.fillPath(slashes);
+}
+
+// The index of the one of `marks`, ascending by start, whose rails (`rails_of`) hold `point`. Marks
+// of one kind never overlap and each one's rails stop short of the next one's start, so only the
+// last one starting at or left of the point can hold it: one binary search, however long the song.
+template <typename Mark, typename RailsOf>
+[[nodiscard]] std::optional<std::size_t> markWhoseRailsHold(
+    const std::vector<Mark>& marks, const common::ui::TabLaneMetrics& metrics,
+    const juce::Point<float> point, const RailsOf& rails_of)
+{
+    const auto after =
+        std::ranges::upper_bound(marks, point.x, std::ranges::less{}, [&metrics](const Mark& mark) {
+            return metrics.x(mark.start_seconds);
+        });
+    if (after == marks.begin())
+    {
+        return std::nullopt;
+    }
+    const auto index = static_cast<std::size_t>(std::distance(marks.begin(), after)) - 1;
+    const auto [top_rail, bottom_rail] = rails_of(index);
+    if (top_rail.contains(point) || bottom_rail.contains(point))
+    {
+        return index;
+    }
+    return std::nullopt;
 }
 
 // A mark an overlay traces: its closed outline, and the size its ring and glow scale with.
@@ -111,6 +175,11 @@ void TabView::setContextMenuCallback(ContextMenuCallback callback)
 void TabView::setFretHandChipCallback(FretHandChipCallback callback)
 {
     m_fret_hand_chip_callback = std::move(callback);
+}
+
+void TabView::setSpanRowMarksCallback(SpanRowMarksCallback callback)
+{
+    m_span_row_marks_callback = std::move(callback);
 }
 
 // Adopts the core's published marker-plane availability.
@@ -348,7 +417,91 @@ void TabView::mouseDown(const juce::MouseEvent& event)
         }
     }
 
+    // A span's rails and a none hold's hatched rails, gaps included, are their markers in the lane,
+    // so a press on either selects under the same gate a chip press does, which answered first
+    // above. Both can hold the point — a chord box inside a none hold — so the press reports both
+    // and the controller picks.
+    if (m_marker_edits_enabled && m_span_row_marks_callback != nullptr)
+    {
+        const core::SpanRowMarks marks{
+            .span = spanAt(event.position),
+            .none_hold = noneHoldAt(event.position),
+        };
+        if (marks.span.has_value() || marks.none_hold.has_value())
+        {
+            m_span_row_marks_callback(marks);
+            return;
+        }
+    }
+
     m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
+}
+
+// Whether the span at `index` draws to its musical close (core::chartSpanRevealed), asked of the
+// lane's own reveal modifier and overlay: the one answer the furniture's paint, the rails' hit test
+// and the selected outline all read.
+bool TabView::shapeRevealed(const common::core::ChartViewState& tab, const std::size_t index) const
+{
+    return core::chartSpanRevealed(tab, index, m_ring_reveal, m_edit);
+}
+
+// The rails exactly as the furniture pass fills them: the same stop column, revealed or not, and
+// the same rectangles (common::ui::tabShapeRailBounds).
+TabView::Rails TabView::spanRails(const DrawableLane& lane, const std::size_t index) const
+{
+    return common::ui::tabShapeRailBounds(
+        lane.metrics,
+        lane.tab.shapes[index].start_seconds,
+        common::ui::tabShapeStopX(lane.metrics, lane.tab, index, shapeRevealed(lane.tab, index)));
+}
+
+// A none hold always fits its notes and its extent is stated, so there is no trim and nothing to
+// reveal: its rails run to its end, held short of the next none hold's start as a span's are of the
+// next span's, so two holds a sliver apart still read as two.
+TabView::Rails TabView::noneHoldRails(const DrawableLane& lane, const std::size_t index)
+{
+    const std::vector<common::core::NoneHoldViewState>& holds = lane.tab.none_holds;
+    const std::optional<float> next_start_x =
+        index + 1 < holds.size() ? std::optional{lane.metrics.x(holds[index + 1].start_seconds)}
+                                 : std::nullopt;
+    return common::ui::tabShapeRailBounds(
+        lane.metrics,
+        holds[index].start_seconds,
+        common::ui::tabSpanStopX(lane.metrics.x(holds[index].end_seconds), next_start_x));
+}
+
+std::optional<std::size_t> TabView::spanAt(const juce::Point<float> local_point) const
+{
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
+    {
+        return std::nullopt;
+    }
+    // Bound once more, so the rails lambda reads no optional the presence test cannot reach.
+    const DrawableLane& drawable = *lane;
+    return markWhoseRailsHold(
+        drawable.tab.shapes,
+        drawable.metrics,
+        local_point,
+        [this, &drawable](const std::size_t index) { return spanRails(drawable, index); });
+}
+
+std::optional<std::size_t> TabView::noneHoldAt(const juce::Point<float> local_point) const
+{
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
+    {
+        return std::nullopt;
+    }
+    // Bound once more, so the rails lambda reads no optional the presence test cannot reach.
+    const DrawableLane& drawable = *lane;
+    return markWhoseRailsHold(
+        drawable.tab.none_holds,
+        drawable.metrics,
+        local_point,
+        [&drawable](const std::size_t index) { return noneHoldRails(drawable, index); });
 }
 
 // The column a placement's chip is drawn at: the pin's for the placement the panel pins (its own
@@ -546,7 +699,7 @@ void TabView::paint(juce::Graphics& g)
     // rule 6 trimmed for display. What the lane hands the paint core is the answer rather than a
     // span, and the core reads whichever of the span's two ends that answer names.
     const auto revealed_shape = [this, &tab](std::size_t index) {
-        return core::chartSpanRevealed(tab.shapes[index], m_ring_reveal, tab.notes, m_edit);
+        return shapeRevealed(tab, index);
     };
 
     // THE STRING LEGEND'S PANEL IS AN EXCLUSION PLUS A TINT, and this is where the whole of that
@@ -932,8 +1085,22 @@ void TabView::paint(juce::Graphics& g)
     // panel rather than under it. A span running under the panel is still in force there and a
     // rail cut out of the column would say it had ended; the same goes for a placement whose chip
     // lands in the column. It is ONE pass called once per paint; only where it sits in the
-    // composition distinguishes it from the lane content.
+    // composition distinguishes it from the lane content. The none holds' hatched rails go down
+    // first, in the same layer, so the spans inside a none hold draw over them.
+    paintNoneHolds(g, *lane);
     common::ui::paintTabLaneFurniture(g, metrics, tab, revealed_shape);
+
+    // THE SELECTED SPAN OR NONE HOLD wears the accent outline on both its rails, traced on the very
+    // rectangles drawn (selectedSpanRowRails). Editor furniture, so it stays out of the game-shared
+    // paint core.
+    if (const std::optional<Rails> selected_rails = selectedSpanRowRails(*lane);
+        selected_rails.has_value())
+    {
+        const auto& [top_rail, bottom_rail] = *selected_rails;
+        g.setColour(accent);
+        g.drawRect(top_rail, overlayRingStroke(top_rail.getHeight()));
+        g.drawRect(bottom_rail, overlayRingStroke(bottom_rail.getHeight()));
+    }
 
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
     // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
@@ -1232,6 +1399,66 @@ std::optional<juce::Rectangle<float>> TabView::selectedNoteHeadBounds() const
     }
     // The selection publishes in chart order, so its first index is the earliest member.
     return noteHeadBounds(m_edit.selected_notes.front());
+}
+
+// The selected span's or none hold's two rails as one box, the glyph a verb on it keeps on screen.
+std::optional<juce::Rectangle<float>> TabView::selectedSpanRowBounds() const
+{
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
+    {
+        return std::nullopt;
+    }
+    return selectedSpanRowRails(*lane).transform(
+        [](const Rails& rails) { return rails.first.getUnion(rails.second); });
+}
+
+// At most one of the two indices is published: the selection holds one marker.
+std::optional<TabView::Rails> TabView::selectedSpanRowRails(const DrawableLane& lane) const
+{
+    const std::optional<std::size_t>& span = m_edit.selected_span;
+    const std::optional<std::size_t>& none_hold = m_edit.selected_none_hold;
+    Rails rails;
+    if (span.has_value() && *span < lane.tab.shapes.size())
+    {
+        rails = spanRails(lane, *span);
+    }
+    else if (none_hold.has_value() && *none_hold < lane.tab.none_holds.size())
+    {
+        rails = noneHoldRails(lane, *none_hold);
+    }
+    if (rails.first.isEmpty())
+    {
+        return std::nullopt;
+    }
+    return rails;
+}
+
+// Drawn under the paint core's furniture, so a fret-hand chip standing on the top rail covers the
+// hatch as it covers a span's rails, and a span inside the hold draws over them. Holds never
+// overlap, so their ends ascend with their starts and the ones reaching the clip are one run: from
+// the first ending inside it to the last starting inside it, found without a pass over the song.
+void TabView::paintNoneHolds(juce::Graphics& g, const DrawableLane& lane)
+{
+    const juce::Rectangle<int> clip = g.getClipBounds();
+    const juce::Range<float> columns{
+        static_cast<float>(clip.getX()), static_cast<float>(clip.getRight())
+    };
+    const std::vector<common::core::NoneHoldViewState>& holds = lane.tab.none_holds;
+    const auto first = std::ranges::partition_point(
+        holds, [&lane, &columns](const common::core::NoneHoldViewState& hold) {
+            return lane.metrics.x(hold.end_seconds) < columns.getStart();
+        });
+    g.setColour(editorTheme().none_hold_rail);
+    for (auto index = static_cast<std::size_t>(std::distance(holds.begin(), first));
+         index < holds.size() && lane.metrics.x(holds[index].start_seconds) < columns.getEnd();
+         ++index)
+    {
+        const auto [top_rail, bottom_rail] = noneHoldRails(lane, index);
+        fillHatchedRail(g, top_rail, columns);
+        fillHatchedRail(g, bottom_rail, columns);
+    }
 }
 
 // One note's head by projection index: the head a slot at its onset would wear.

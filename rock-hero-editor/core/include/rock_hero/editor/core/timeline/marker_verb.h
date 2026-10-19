@@ -76,6 +76,12 @@ enum class MarkerVerb : std::uint8_t
     /*! \brief Removes every stored fret-hand position the derivation does not need. */
     PruneHandPositions,
 
+    /*!
+    \brief Asks what the selection's extent becomes through the hold picker; the label names the
+    command, and its refusals are logged under it. Each choice is written under its own verb.
+    */
+    ChooseHold,
+
     /*! \brief States that the hand holds one shape over the selection's extent. */
     HoldShape,
 
@@ -88,8 +94,17 @@ enum class MarkerVerb : std::uint8_t
     /*! \brief Deletes a shape hold, giving its stretch back to the derivation. */
     DeleteHold,
 
-    /*! \brief Denies a derived arpeggio by stating a none hold over it. */
-    DeleteArpeggio,
+    /*!
+    \brief States a none hold over a span, merged with any none hold it meets: the arpeggios fronted
+    inside it are hidden, and a chord the notes derive there still stands.
+    */
+    AddNoneHold,
+
+    /*!
+    \brief Clears every hold from an extent (the hold picker's Auto), so the notes decide the spans
+    there again.
+    */
+    ClearHolds,
 };
 
 /*!

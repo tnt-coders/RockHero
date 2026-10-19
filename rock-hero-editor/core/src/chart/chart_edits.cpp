@@ -390,39 +390,43 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
     };
 }
 
-// Each hold keeps what lies outside the new one: its part before the new start and its part after
-// the new end, either of which is the whole hold where the new one does not reach it.
+// Each hold keeps what lies outside the extent: its part before the extent's start and its part
+// after its end, either of which is the whole hold where the extent does not reach it.
 std::vector<common::core::ShapeHold> carvedShapeHolds(
-    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& carved_in)
+    const std::vector<common::core::ShapeHold>& holds, const ShapeHoldExtent& extent,
+    const std::optional<common::core::HoldGrip>& grip)
 {
     std::vector<common::core::ShapeHold> carved;
     carved.reserve(holds.size() + 2);
     for (const common::core::ShapeHold& hold : holds)
     {
-        if (hold.start < carved_in.start)
+        if (hold.start < extent.start)
         {
             carved.push_back(
                 common::core::ShapeHold{
                     .start = hold.start,
-                    .end = std::min(hold.end, carved_in.start),
+                    .end = std::min(hold.end, extent.start),
                     .grip = hold.grip,
                 });
         }
-        if (carved_in.end < hold.end)
+        if (extent.end < hold.end)
         {
             carved.push_back(
                 common::core::ShapeHold{
-                    .start = std::max(hold.start, carved_in.end),
+                    .start = std::max(hold.start, extent.end),
                     .end = hold.end,
                     .grip = hold.grip,
                 });
         }
     }
-    carved.insert(
-        std::ranges::upper_bound(
-            carved, carved_in.start, std::ranges::less{}, &common::core::ShapeHold::start),
-        carved_in);
-    return carved;
+    if (grip.has_value())
+    {
+        carved.insert(
+            std::ranges::upper_bound(
+                carved, extent.start, std::ranges::less{}, &common::core::ShapeHold::start),
+            common::core::ShapeHold{.start = extent.start, .end = extent.end, .grip = *grip});
+    }
+    return common::core::mergedNoneHolds(carved);
 }
 
 // One pass keeping the nearest stop beyond `from`: an end stops at either boundary of a ring, a
@@ -452,10 +456,9 @@ std::optional<common::core::GridPosition> steppedShapeHoldEdge(
     return stepped;
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
-    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
-    const common::core::GridPosition& value, const std::string_view label)
+std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShapeHolds(
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& moved,
+    const ShapeHoldEdge edge, const common::core::GridPosition& value)
 {
     common::core::ShapeHold edged = moved;
     (edge == ShapeHoldEdge::Start ? edged.start : edged.end) = value;
@@ -471,7 +474,9 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
             ChartPlanInvalid{common::core::formatShapeHoldToken(moved) + " would hold nothing"}
         };
     }
-    std::vector<common::core::ShapeHold> others = base.shape_holds;
+    // Holds never overlap, so a value names at most one of them, and a derived span's extent as an
+    // unnamed hold names none: no unnamed hold states it, or the span would be held.
+    std::vector<common::core::ShapeHold> others = holds;
     std::erase_if(others, [&moved](const common::core::ShapeHold& hold) { return hold == moved; });
     for (const common::core::ShapeHold& other : others)
     {
@@ -482,7 +487,19 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
             }};
         }
     }
-    return finalizeShapeHoldPlan(base, tempo_map, carvedShapeHolds(others, edged), label);
+    return carvedShapeHolds(
+        others, ShapeHoldExtent{.start = edged.start, .end = edged.end}, edged.grip);
+}
+
+std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
+    const common::core::GridPosition& value, const std::string_view label)
+{
+    return movedShapeHolds(base.shape_holds, moved, edge, value)
+        .and_then([&base, &tempo_map, label](const std::vector<common::core::ShapeHold>& holds) {
+            return finalizeShapeHoldPlan(base, tempo_map, holds, label);
+        });
 }
 
 common::core::ShapeHold shapeHoldOverSpan(

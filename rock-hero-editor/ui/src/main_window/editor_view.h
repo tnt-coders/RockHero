@@ -164,6 +164,9 @@ public:
     /*! \copydoc core::IEditorView::showChartBendPicker */
     void showChartBendPicker(core::ChartBendPicker picker) override;
 
+    /*! \copydoc core::IEditorView::showChartHoldPicker */
+    void showChartHoldPicker(core::ChartHoldPicker picker) override;
+
     /*! \copydoc core::IEditorView::flashChartRefusal */
     void flashChartRefusal(core::ChartRefusalFlash flash) override;
 
@@ -504,6 +507,9 @@ private:
 
     // TimelineRuler::Listener implementation.
     void onTimeSignatureSelected(int measure) override;
+
+    // TimelineRuler::Listener implementation.
+    void onSpanSelected(std::size_t index) override;
 
     // TimelineRuler::Listener implementation.
     void onSongSectionInsertPromptRequested(common::core::GridPosition position) override;

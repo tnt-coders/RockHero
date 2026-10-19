@@ -964,13 +964,38 @@ struct EditorAction
     };
 
     /*!
-    \brief `Ctrl+H`: state that the hand holds one shape over what the selection covers, as an
-    unnamed shape hold carved into the chart's holds.
+    \brief `Ctrl+H`: ask what the selection's extent becomes — Shape, an unnamed hold; None, a none
+    hold; Auto, no hold, so the notes decide the spans — through the view, among the choices that
+    change something, of which there are always at least two.
 
     Carries nothing: the subject is the selection, read at the press.
     */
-    struct HoldShape
+    struct ChooseHold
     {
+    };
+
+    /*!
+    \brief The hold picker's answer: what the selection's extent becomes. A row is already a
+    deliberate choice, so it applies at once.
+    */
+    struct SetHold
+    {
+        /*! \brief The grip the hold over the extent states, or empty for Auto: no hold. */
+        std::optional<common::core::HoldGrip> grip{};
+    };
+
+    /*!
+    \brief Select the span or the none hold a press lands on: a press on their tab-lane rails or on
+    a span's ruler chip.
+
+    Carries what lies under the pointer, by tab-projection index for the reason the fret-hand chip
+    is: both surfaces draw from that projection and carry no musical position of their own. Where a
+    span and a none hold both lie there, the controller's row order picks between them.
+    */
+    struct SelectSpanRowMark
+    {
+        /*! \brief The marks under the press; an index naming nothing selects nothing. */
+        SpanRowMarks marks{};
     };
 
     /*!
@@ -1108,7 +1133,8 @@ struct EditorAction
         RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
         ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature, SetTimeSignature,
         SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd,
-        PruneFretHandPositions, HoldShape, StepToRowObject, JumpToFocusRow>;
+        PruneFretHandPositions, ChooseHold, SetHold, SelectSpanRowMark, StepToRowObject,
+        JumpToFocusRow>;
 };
 
 /*!

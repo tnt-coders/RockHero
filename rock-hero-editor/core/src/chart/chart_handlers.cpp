@@ -207,9 +207,9 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
         edit.selected_keyframes =
             selectedKeyframeIndices(notes, m_tab_view_state->notes, chartSelection());
     }
-    // The position row's markers are the lane's chips and the hold row's the chart's holds, so a
-    // selected marker's index is the chip's or the hold's; a derived span's is its index among the
-    // projection's spans, which are the notes layer's in order.
+    // The lane's rows are the projection's own marks in order — the position row's markers its
+    // chips, the span row's its spans, the none-hold row's its hatched holds — so a selected
+    // marker's index is the mark's.
     if (const std::optional<SelectedMarker> marker = selectedMarker(); marker.has_value())
     {
         switch (marker->row)
@@ -219,14 +219,14 @@ ChartEditViewState EditorController::Impl::resolvedChartEdit() const
                 edit.selected_fret_hand_position = marker->index;
                 break;
             }
-            case MarkerRow::ShapeHold:
+            case MarkerRow::Span:
             {
-                edit.selected_shape_hold = marker->index;
+                edit.selected_span = marker->index;
                 break;
             }
-            case MarkerRow::DerivedSpan:
+            case MarkerRow::NoneHold:
             {
-                edit.selected_derived_span = selectedDerivedSpanShape();
+                edit.selected_none_hold = marker->index;
                 break;
             }
             case MarkerRow::Section:
@@ -1262,21 +1262,27 @@ std::optional<EditorController::Impl::ChartEditLanding> EditorController::Impl::
 
 // Inside an edit the caret is a stale answer to what the charter acts on, so it demotes as every
 // selecting gesture demotes it; the selection is replaced in place, as chartSelectionMutable does,
-// and the audible tone re-derived for the same reason.
+// and the audible tone re-derived for the same reason. A marker the written chart does not hold — a
+// span a hold verb named where the notes derive none — lands as no selection, as landChartSelection
+// keeps no key naming nothing.
 void EditorController::Impl::landMarkerSelection(const MarkerSelection& marker)
 {
     dissolveChartCaretInPlace();
     m_selection = std::visit([](const auto& kind) -> EditorSelection { return kind; }, marker);
+    if (markerSelectionNamesNothing())
+    {
+        m_selection = std::monostate{};
+    }
     syncAudibleTone();
 }
 
 EditFocus EditorController::Impl::chartEditFocus() const
 {
-    if (const auto* const hold = std::get_if<ShapeHoldSelection>(&m_selection))
+    if (const auto* const hold = std::get_if<NoneHoldSelection>(&m_selection))
     {
         return MarkerEditFocus{.marker = *hold, .start = hold->start};
     }
-    if (const auto* const span = std::get_if<DerivedSpanSelection>(&m_selection))
+    if (const auto* const span = std::get_if<SpanSelection>(&m_selection))
     {
         return MarkerEditFocus{.marker = *span, .start = span->start};
     }
@@ -1637,10 +1643,12 @@ std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowSt
     push_marker_row(MarkerRow::Section);
     push_marker_row(MarkerRow::Tempo);
     push_marker_row(MarkerRow::TimeSignature);
-    // The span rows stand over the strings, the holds above the derived spans: a none hold may
-    // enclose a derived chord box, which the walk reaches first on its way up from the strings.
-    push_marker_row(MarkerRow::ShapeHold);
-    push_marker_row(MarkerRow::DerivedSpan);
+    // The span and none-hold rows stand over the strings in their one order, the none holds nearer
+    // them (g_span_rows).
+    for (const MarkerRow row : g_span_rows)
+    {
+        push_marker_row(row);
+    }
     // The position row sits over the strings, where the lane draws the fret-hand chips on top.
     push_marker_row(MarkerRow::FretHandPosition);
     // Strings draw with string 1 at the visual bottom, so the stack runs from the top string down.
@@ -1996,33 +2004,58 @@ common::core::GridPosition EditorController::Impl::focusColumn() const
     return pausedCursorPosition(common::core::g_tick_quantum_note_value);
 }
 
-EditorController::Impl::FocusRow EditorController::Impl::focusRowFor(const FocusRowJump jump)
+std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowsFor(
+    const FocusRowJump jump)
 {
     switch (jump)
     {
         case FocusRowJump::Section:
-            return MarkerFocusRow{.row = MarkerRow::Section};
+        {
+            return {MarkerFocusRow{.row = MarkerRow::Section}};
+        }
         case FocusRowJump::Tempo:
-            return MarkerFocusRow{.row = MarkerRow::Tempo};
+        {
+            return {MarkerFocusRow{.row = MarkerRow::Tempo}};
+        }
         case FocusRowJump::TimeSignature:
-            return MarkerFocusRow{.row = MarkerRow::TimeSignature};
+        {
+            return {MarkerFocusRow{.row = MarkerRow::TimeSignature}};
+        }
+        case FocusRowJump::Hold:
+        {
+            std::vector<FocusRow> rows;
+            rows.reserve(g_span_rows.size());
+            for (const MarkerRow row : g_span_rows)
+            {
+                rows.emplace_back(MarkerFocusRow{.row = row});
+            }
+            return rows;
+        }
         case FocusRowJump::FretHandPosition:
-            return MarkerFocusRow{.row = MarkerRow::FretHandPosition};
+        {
+            return {MarkerFocusRow{.row = MarkerRow::FretHandPosition}};
+        }
         case FocusRowJump::Tone:
-            return MarkerFocusRow{.row = MarkerRow::Tone};
+        {
+            return {MarkerFocusRow{.row = MarkerRow::Tone}};
+        }
         case FocusRowJump::AddAutomationLane:
-            return AddLaneFocusRow{};
+        {
+            return {AddLaneFocusRow{}};
+        }
     }
     std::unreachable();
 }
 
 // A jump (Ctrl+Shift+letter) lands exactly as the walk does, through the same landing, on the row
-// its letter names — and only if the stack lists that row. Stack membership is the one silence
-// rule: a song with no sections lists no section row (a loaded arrangement always has a region and
-// an active tone, so the tone and "+" rows are always listed), and then the press selects nothing
-// and leaves an armed caret armed. It is not entirely inert: the column rule has already brought
-// the cursor inside a marker selected elsewhere, as it does before every walk step, which is why
-// the publish below is unconditional.
+// its letter names — and only if the stack lists that row. Where the letter names two rows (the
+// hold jump's span and none-hold rows), the one the stack lists nearer the strings lands: the row
+// the walk up from them meets first, in the stack's own order (g_span_rows). Stack membership is
+// the one silence rule: a song with no sections lists no section row (a loaded arrangement always
+// has a region and an active tone, so the tone and "+" rows are always listed), and then the press
+// selects nothing and leaves an armed caret armed. It is not entirely inert: the column rule has
+// already brought the cursor inside a marker selected elsewhere, as it does before every walk
+// step, which is why the publish below is unconditional.
 // The keep-the-row landing (prepareLandingRow) is not for this: a jump changes rows.
 void EditorController::Impl::performActionImpl(const EditorAction::JumpToFocusRow& action)
 {
@@ -2032,10 +2065,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpToFocusRo
         return;
     }
     const std::vector<FocusRow> stack = rowsFromFocus(tab->stringCount());
-    const FocusRow target = focusRowFor(action.row);
-    if (std::ranges::find(stack, target) != stack.end())
+    const std::vector<FocusRow> targets = focusRowsFor(action.row);
+    const auto listed = std::views::reverse(stack);
+    if (const auto target = std::ranges::find_if(
+            listed,
+            [&targets](const FocusRow& row) { return std::ranges::contains(targets, row); });
+        target != listed.end())
     {
-        landOnRow(target, std::nullopt);
+        landOnRow(*target, std::nullopt);
     }
     updateView();
 }
@@ -2280,7 +2317,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     }
     if (selectsSpanRow(m_selection))
     {
-        // A hold's or derived span's start, stepped by the notes rather than the grid.
+        // A span's or none hold's start, stepped by the notes rather than the grid.
         stepShapeHoldEdge(ShapeHoldEdge::Start, direction == ChartStepDirection::Right);
         return;
     }
@@ -2572,15 +2609,29 @@ void EditorController::Impl::deleteSelectedMarker()
         return;
     }
     const common::core::GridPosition start = before[*marker->index];
-    // A derived span is not removed but denied, by the none hold left selected in its place, so the
-    // walk back along the row is not this delete's.
-    if (row == MarkerRow::DerivedSpan)
-    {
-        deleteSelectedDerivedSpan();
-        return;
-    }
 
-    if (const SongSectionSelection* const section = selectedSongSection())
+    if (selectsSpanRow(m_selection))
+    {
+        // Delete steps a span or a none hold down one level, written as the hold choice below it.
+        // A derived span, which nothing stored states, gains a none hold over it, left selected, so
+        // the walk back along the row is not this delete's. A hold — a held span's, or a none hold
+        // — is carved out, so the derivation returns over its stretch.
+        const bool derived =
+            row == MarkerRow::Span && !chartResolutions().shapes.at(*marker->index).hold_stated;
+        if (const std::optional<ShapeHoldExtent> extent = selectedHoldExtent(); extent.has_value())
+        {
+            commitHoldChoice(
+                derived ? MarkerVerb::AddNoneHold : MarkerVerb::DeleteHold,
+                *extent,
+                derived ? std::optional<common::core::HoldGrip>{common::core::NoneGrip{}}
+                        : std::nullopt);
+        }
+        if (derived)
+        {
+            return;
+        }
+    }
+    else if (const SongSectionSelection* const section = selectedSongSection())
     {
         const SongSectionSelection selected = *section;
         deleteSelectedSongSection(selected);
@@ -2600,11 +2651,6 @@ void EditorController::Impl::deleteSelectedMarker()
         const FretHandPositionSelection selected = *placement;
         deleteSelectedFretHandPosition(selected);
     }
-    else if (const common::core::ShapeHold* const hold = selectedShapeHold(); hold != nullptr)
-    {
-        const common::core::ShapeHold selected = *hold;
-        deleteSelectedShapeHold(selected);
-    }
     else if (std::string region_id = selectedToneRegionId(); !region_id.empty())
     {
         onToneRegionDeleteRequested(std::move(region_id));
@@ -2614,7 +2660,8 @@ void EditorController::Impl::deleteSelectedMarker()
     if (std::ranges::contains(after, start))
     {
         // Nothing was deleted (no verb on this row, or a refusal), or the marker stands on: a
-        // deleted hand position the derivation puts back at the same place.
+        // deleted hand position the derivation puts back at the same place, or a span that
+        // outlived its hold.
         return;
     }
     if (const std::optional<common::core::GridPosition> previous =
@@ -3336,7 +3383,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
     const int direction = action.direction;
-    // On a selected hold or derived span the same keys step its end, by the notes.
+    // On a selected span or none hold the same keys step its end, by the notes.
     if (selectsSpanRow(m_selection))
     {
         if (direction != 0)

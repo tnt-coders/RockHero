@@ -473,6 +473,7 @@ constexpr float g_span_chip_headroom{30.0f};
                 .stop_x = stop_x,
                 .max_height = max_height,
                 .arpeggio = arpeggio,
+                .held = true,
                 .name = name,
             });
     }
@@ -1018,6 +1019,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .close_seconds = 6.0,
             .arpeggio = false,
             .strings = {},
+            .held = true,
         },
         common::core::ShapeViewState{
             .start_seconds = 10.0,
@@ -1037,6 +1039,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             // its own start. Absent would mean a span drawing no bracket at all, which only a
             // never-sounding landing successor ever is.
             .bracket_seconds = 10.0,
+            .held = true,
         },
     };
     // Authored positions, so their chips draw solid (a derived one is a ghost).
@@ -1211,6 +1214,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
                     },
                 },
             .bracket_seconds = 10.0,
+            .held = true,
         },
     };
     indexVisibleRanges(state);
@@ -1569,6 +1573,7 @@ TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-pai
             .close_seconds = 10.0,
             .arpeggio = false,
             .strings = {},
+            .held = true,
         },
         common::core::ShapeViewState{
             .start_seconds = 10.0,
@@ -1576,6 +1581,7 @@ TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-pai
             .close_seconds = 14.0,
             .arpeggio = true,
             .strings = {},
+            .held = true,
         },
     };
     indexVisibleRanges(state);
@@ -1603,6 +1609,116 @@ TEST_CASE("Tab paint core parts abutting spans' rails by a pixel", "[ui][tab-pai
         CHECK(image.getPixelAt(199, rail_y).getARGB() == 0);
         CHECK(image.getPixelAt(200, rail_y) == juce::Colour{metrics.shape_inks.arpeggio});
     }
+}
+
+// The exported rails ARE the drawn rails: each rectangle's edge pixels carry the ink and the pixels
+// just past them are empty, at the stop column the furniture pass uses — the drawn extent, or the
+// musical close where the host reveals the span — held short of the next span by tabSpanStopX.
+TEST_CASE("Tab shape rail bounds are the rails the furniture fills", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.shapes = {
+        common::core::ShapeViewState{
+            .start_seconds = 2.0,
+            .drawn_end_seconds = 6.0,
+            .close_seconds = 8.0,
+            .arpeggio = false,
+            .strings = {},
+            .held = true,
+        },
+        common::core::ShapeViewState{
+            .start_seconds = 10.0,
+            .drawn_end_seconds = 14.0,
+            .close_seconds = 14.0,
+            .arpeggio = false,
+            .strings = {},
+            .held = true,
+        },
+    };
+    indexVisibleRanges(state);
+
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        },
+        common::core::displayedStringCount(state.stringCount(), 0),
+        state.stringCount(),
+        testing::fixtureStringColors(),
+        testing::fixtureTabShapeInks());
+    const juce::Colour ink{metrics.shape_inks.chord};
+
+    for (const bool revealed : {false, true})
+    {
+        const float stop_x = tabShapeStopX(metrics, state, 0, revealed);
+        CHECK(
+            stop_x ==
+            Catch::Approx(tabSpanStopX(
+                metrics.x(revealed ? 8.0 : 6.0), metrics.x(state.shapes[1].start_seconds))));
+
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        {
+            juce::Graphics graphics{image};
+            paintTabLaneFurniture(
+                graphics, metrics, state, [revealed](std::size_t) { return revealed; });
+        }
+
+        const auto [top_rail, bottom_rail] =
+            tabShapeRailBounds(metrics, state.shapes.front().start_seconds, stop_x);
+        for (const juce::Rectangle<float>& rail : {top_rail, bottom_rail})
+        {
+            const juce::Rectangle<int> pixels = rail.getSmallestIntegerContainer();
+            REQUIRE_FALSE(pixels.isEmpty());
+            const int middle_y = pixels.getCentreY();
+            CHECK(image.getPixelAt(pixels.getX(), pixels.getY()) == ink);
+            CHECK(image.getPixelAt(pixels.getRight() - 1, pixels.getBottom() - 1) == ink);
+            CHECK(image.getPixelAt(pixels.getX() - 1, middle_y).getARGB() == 0);
+            CHECK(image.getPixelAt(pixels.getRight(), middle_y).getARGB() == 0);
+            const int centre_x = pixels.getCentreX();
+            if (pixels.getY() > 0)
+            {
+                CHECK(image.getPixelAt(centre_x, pixels.getY() - 1).getARGB() == 0);
+            }
+            if (pixels.getBottom() < 240)
+            {
+                CHECK(image.getPixelAt(centre_x, pixels.getBottom()).getARGB() == 0);
+            }
+        }
+    }
+}
+
+// The exported chip box is the drawn chip: a blank chip on y = 30 at x = 20 is a one-figure
+// fret-hand chip wide and a chip tall, narrowed to its stop column, and nothing under a pixel.
+TEST_CASE("Tab span chip bounds are the box the chip fills", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const TabLaneMetrics metrics = spanChipLaneMetrics();
+    const auto chip_at = [&metrics](const float stop_x) {
+        return tabSpanChipBounds(
+            metrics.chip_font,
+            TabSpanChip{
+                .base_left = {20.0f, 30.0f},
+                .stop_x = stop_x,
+                .max_height = g_span_chip_headroom,
+                .arpeggio = false,
+                .name = juce::String{"Am7"},
+            });
+    };
+
+    const float width = oneFigureFhpChip(metrics).getWidth();
+    // Room a few pixels past the blank chip, which the name cannot fill whole, so it stays blank.
+    const juce::Rectangle<float> full = chip_at(20.0f + width + 4.0f);
+    CHECK(full.getX() == Catch::Approx(20.0f));
+    CHECK(full.getBottom() == Catch::Approx(30.0f));
+    CHECK(full.getWidth() == Catch::Approx(width));
+    CHECK(full.getHeight() == Catch::Approx(spanChipHeight(metrics)));
+
+    CHECK(chip_at(24.0f).getWidth() == Catch::Approx(4.0f));
+    CHECK(chip_at(20.5f).isEmpty());
 }
 
 // A fret-hand harmonic's head names its node, not its fret.
@@ -4291,6 +4407,58 @@ TEST_CASE("Tab paint core takes the string legend's column out of the lane", "[u
     // shipped translucent setting the column is a real blend — neither the raw canvas (asserted
     // above) nor the unmixed row band. Raise the knob to 1 and this line flips to equality.
     CHECK(composed.getPixelAt(panel_from, line_row) != ground);
+}
+
+// The rails tell what the chart stores: a held span's draw in its full ink, a derived span's at the
+// derived fret-hand chip's weight.
+TEST_CASE(
+    "Tab paint core fades a derived span's rails and draws a held span's solid", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.shapes = {
+        common::core::ShapeViewState{
+            .start_seconds = 2.0,
+            .drawn_end_seconds = 6.0,
+            .close_seconds = 6.0,
+            .arpeggio = false,
+            .strings = {},
+            .held = false,
+        },
+        common::core::ShapeViewState{
+            .start_seconds = 10.0,
+            .drawn_end_seconds = 14.0,
+            .close_seconds = 14.0,
+            .arpeggio = false,
+            .strings = {},
+            .held = true,
+        },
+    };
+    indexVisibleRanges(state);
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        },
+        common::core::displayedStringCount(state.stringCount(), 0),
+        state.stringCount(),
+        testing::fixtureStringColors(),
+        testing::fixtureTabShapeInks());
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    {
+        juce::Graphics graphics{image};
+        paintTabLaneFurniture(graphics, metrics, state, [](std::size_t) { return false; });
+    }
+
+    // One second is 20 pixels: the derived span's rails stand at x = 40 to 120, the held one's at
+    // 200 to 280.
+    const juce::Colour ink{metrics.shape_inks.chord};
+    const juce::Colour derived = image.getPixelAt(80, 0);
+    CHECK(derived.getAlpha() > 0);
+    CHECK(derived.getAlpha() < 0xff);
+    CHECK(image.getPixelAt(240, 0) == ink);
 }
 
 } // namespace rock_hero::common::ui

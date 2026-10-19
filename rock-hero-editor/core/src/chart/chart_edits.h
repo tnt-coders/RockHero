@@ -267,16 +267,34 @@ positions' coverage of the spans the holds give is the one other rule the result
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ShapeHold>& candidate, std::string_view label);
 
+/*! \brief The stretch a hold verb acts on, `[start, end)`. */
+struct ShapeHoldExtent
+{
+    /*! \brief Where the stretch begins. */
+    common::core::GridPosition start{};
+
+    /*! \brief Where the stretch ends, exclusive. */
+    common::core::GridPosition end{};
+};
+
 /*!
-\brief The holds with a new hold carved in: it takes its range out of every hold it overlaps, so
-one it straddles is cropped at its edge, one it lies inside is split into the parts before and
-after it, and one it covers is gone. Every verb that authors a hold adds it through here.
+\brief The holds with an extent carved out and what it becomes stated there: THE one carve, which
+every verb that authors or clears a hold goes through.
+
+The extent comes out of every hold it overlaps, so one it straddles is cropped at its edge, one it
+lies inside is split into the parts before and after it, and one it covers is gone. A grip then
+states a new hold over exactly the extent; no grip leaves it to the derivation. The result is in
+the merged form the normalizer keeps (\ref common::core::mergedNoneHolds): a none hold carved in
+beside or over another none hold joins it.
+
 \param holds The holds, ascending and never overlapping.
-\param carved_in The new hold.
-\return The holds, ascending and never overlapping, `carved_in` among them.
+\param extent The stretch carved out.
+\param grip The grip the new hold over the extent states, or empty for no hold there at all.
+\return The holds, ascending and never overlapping.
 */
 [[nodiscard]] std::vector<common::core::ShapeHold> carvedShapeHolds(
-    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& carved_in);
+    const std::vector<common::core::ShapeHold>& holds, const ShapeHoldExtent& extent,
+    const std::optional<common::core::HoldGrip>& grip);
 
 /*! \brief Which edge of a shape hold an edge key moves. */
 enum class ShapeHoldEdge : std::uint8_t
@@ -303,23 +321,39 @@ an end to the adjacent note boundary, an onset or a ring's end, of any string.
     ShapeHoldEdge edge, const common::core::GridPosition& from, bool later);
 
 /*!
-\brief Plans a hold edge key's run: `moved` with its edge at `value`, carved into the other holds
-(\ref carvedShapeHolds) and judged by the hold gate (\ref finalizeShapeHoldPlan).
+\brief The holds a hold edge key's run leaves: `moved` with its edge at `value`, carved into the
+other holds (\ref carvedShapeHolds).
 
 An edge moved into a neighbouring hold pushes that hold's facing edge along with it, which is the
-carve cropping the hold it straddles. A neighbour pushed to nothing is refused, as is the moved hold
-left with no length. `moved` is the hold as the run began, so a run that steps back restores the
-neighbour it pushed: every press replays from the run's start chart.
+carve cropping the hold it straddles, and a none hold reaching another none hold merges with it. A
+neighbour pushed to nothing is refused, as is the moved hold left with no length. `moved` is the
+hold as the run began, so a run that steps back restores the neighbour it pushed: every press
+replays from the run's start chart.
+
+\param holds The holds the run began from.
+\param moved The hold being moved as the run began: one of `holds`, which the result replaces, or
+       a derived span's extent as an unnamed hold, which the result adds.
+\param edge The edge moved.
+\param value Where the run has moved that edge.
+\return The holds; NoChange where the edge stands where the run began, which leaves a derived span
+        unconverted, Invalid naming the rule broken.
+*/
+[[nodiscard]] std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShapeHolds(
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& moved,
+    ShapeHoldEdge edge, const common::core::GridPosition& value);
+
+/*!
+\brief Plans a hold edge key's run: the holds it leaves (\ref movedShapeHolds), judged by the hold
+gate (\ref finalizeShapeHoldPlan).
 
 \param base The chart the run began from.
 \param tempo_map Tempo map placing the notes and the holds.
-\param moved The hold being moved as the run began: an authored hold of `base`, which the plan
-       replaces, or a derived span's extent as an unnamed hold, which the plan adds.
+\param moved The hold being moved as the run began (\ref movedShapeHolds).
 \param edge The edge moved.
 \param value Where the run has moved that edge.
 \param label User-visible undo label.
-\return The plan; NoChange where the edge stands where the run began, which leaves a derived span
-        unconverted, Invalid naming the rule broken.
+\return The plan; NoChange where the edge stands where the run began, Invalid naming the rule
+        broken.
 */
 [[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,

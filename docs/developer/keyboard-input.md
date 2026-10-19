@@ -613,33 +613,39 @@ the rig, the lanes and the signal-chain panel with it, and why a caret RIDING a 
 automation point across a region boundary does the same. Arming still seeks NOTHING — the playhead
 does not move for a caret. Up/Down walk ONE stack of
 focus rows through `stepFocusRow`
-— the ruler's section, tempo and time-signature rows, the two span rows (the chart's shape holds,
-`MarkerRow::ShapeHold`, then the spans the walk derives where no unnamed hold states one,
-`MarkerRow::DerivedSpan`), the position row (every hand event, derived and authored alike: the chips
-the lane draws), the strings, the tone-region row, the visible lanes, the "+" row — and every
+— the ruler's section, tempo and time-signature rows, the span row (`MarkerRow::Span`, every span,
+derived and held alike: an unnamed hold IS the one span it states) and the none-hold row
+(`MarkerRow::NoneHold`, the projection's none holds, `noneHoldMarks`), the position row (every hand
+event, derived and authored alike: the chips the lane draws), the strings, the tone-region row, the
+visible lanes, the "+" row — and every
 landing goes through `landOnRow`, which arms a string or lane row and selects the marker holding the
 column on a marker row (or the "+" row), with `prepareLandingRow` as the one rule for which row a
 landing that keeps the marker's row arms on. The seven marker rows share one model in
 `rock-hero-editor/core/src/timeline/marker_row_handlers.cpp` — `markerStarts`, `markerHolderAt`
 (which marker holds a column, or none: on a gapless row the last marker starting at or before it,
 `markerHolderIndex`, so the first marker owns the lead-in; on a SPAN ROW the marker whose half-open
-`[start, close)` holds it, `markerClose` giving the close, so the span rows HAVE GAPS and
+`[start, close)` holds it, `markerClose` giving the close, so the two span-like rows HAVE GAPS and
 `focusRowStack` lists each only where a marker holds the focus column, `focusColumn()`),
 `adjacentMarkerStart` (the next or previous start strictly beyond the CURSOR, which is how `Tab` and
 `Shift+Tab` step every one of the seven rows, so from a cursor inside a marker past its start
 `Shift+Tab` lands on that marker's own start first rather than skipping to the one before),
 `selectedMarker` and its inverse `markerSelectionAt`, and `selectMarker`, the one select every
-pointer and keyboard path to a marker goes through. Two span rows rather than one because a none
-hold keeps the chord boxes struck inside it: a hold and a derived span can hold one column, so the
-walk down lands on the hold first and the box it encloses next, and neither row ever overlaps
-itself;
+pointer and keyboard path to a marker goes through (a lane press through `selectMarkerAt`, by the
+projection index the mark was drawn from). The none holds are a row of their own because a none
+hold keeps the chord boxes struck inside it: a none hold and a box can hold one column. One
+constant orders the two rows, `g_span_rows`, with the none-hold row nearer the strings, so the walk
+up from them meets the none hold first and the box it encloses next; the hold jump and a lane press
+landing on both read the same constant, and neither row ever overlaps itself;
 `Ctrl+Up/Down` pass the same step's `reach` flag, which along time is the measure jump
 (`docs/plans/completed/keyboard-focus-rows.md`).
 
 The `Ctrl+Shift`+letter row JUMPS (`onFocusRowJumpRequested(FocusRowJump)`, `JumpToFocusRow`, built
-2026-09-15) are the walk's direct route rather than a second grammar: `focusRowFor` maps the target
-enum to the row, and the jump lands through the same `landOnRow`, so the marker holding the cursor is
-selected and an armed caret demotes in place exactly as a step would leave it. Both callers list the
+2026-09-15) are the walk's direct route rather than a second grammar: `focusRowsFor` maps the target
+enum to its row — or for `Ctrl+Shift+H` (`CaretJumpHoldRow`, `0x1517`, "Jump to Hold",
+`FocusRowJump::Hold`) to the span and none-hold rows, of which the one the stack lists nearer the
+strings lands, so the none hold wins a column both hold by the walk's own order — and the jump
+lands through the same `landOnRow`, so the marker holding the cursor is selected and an armed caret
+demotes in place exactly as a step would leave it. Both callers list the
 rows through one non-const `rowsFromFocus`, which folds the column rule (`moveCursorIntoSelectedMarker`,
 so a marker selected far from the cursor is where the target row is read) and `focusRowStack` in that
 order, so neither can list before reconciling; the stack is listed at `focusColumn()`, the armed
@@ -647,23 +653,38 @@ caret's slot else the paused cursor at the tick, the column the landing then res
 at. **Stack membership is the silence rule**: a row the stack does not list — a song with no
 sections, a chart with no hand events, a column no span or hold holds — is not landed on at all, so
 the press does nothing and leaves an armed caret armed. The jump never calls `prepareLandingRow`,
-which is the rule for landings that KEEP the row. The span rows have no jump of their own.
+which is the rule for landings that KEEP the row.
 
-**The span rows' verbs** (`rock-hero-editor/core/src/chart/shape_hold_handlers.cpp`) act on a
-selected hold (`ShapeHoldSelection`) or derived span (`DerivedSpanSelection`). `Ctrl+H`
-(`HoldShape`, `0x140B`, "Hold Shape") reads the selection rather than the cursor, so it is an
-authoring command, not the marker plane's `Ctrl`+letter: an unnamed hold over a selected hold's or
-span's extent, a time selection's, or the selected notes' from the first onset to the last ring's
-end, refused on a bare caret. The selection-kind dispatches carry the rest: `Alt+Left/Right`
-(`MoveSelection`) step the start to the adjacent note onset and `Alt+Shift+Left/Right`
-(`AdjustChartSustain`, whose availability opens on `has_span_row_selection`) the end to the
-adjacent note boundary (`steppedShapeHoldEdge`), as one held run through `commitChartGestureStep`
-(`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on the first press (and staying a
-derived span, selected, when the run steps back to where it began) and an edge moved into a neighbouring hold pushing
-its facing edge; `Delete` removes a hold, states a none hold over a derived arpeggio and refuses a
-derived chord box. Every one carves its new hold into the chart's holds (`carvedShapeHolds`) and ends
-at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would rewrite; a
-refusal logs under the verb's label and flashes the notes struck inside the target.
+**The hold verbs** (`rock-hero-editor/core/src/chart/shape_hold_handlers.cpp`) act on a selected
+span (`SpanSelection`) or none hold (`NoneHoldSelection`), both read as one hold by
+`selectedSpanRowHold`: a span's extent as an unnamed hold, which for a held span is the stored hold
+itself (the normal form) and for a derived span the hold that converts it. `Ctrl+H`
+(`ChooseHold`, `0x140B`, "Hold...") reads the selection rather than the cursor, so it is an
+authoring command, not the marker plane's `Ctrl`+letter: over a selected span's or none hold's
+extent, a time selection's, or the selected notes' from the first onset to the last ring's end
+(`selectedHoldExtent`), it asks what the extent becomes through the hold picker
+(`ChartHoldPicker`, `IEditorView::showChartHoldPicker`, answered by `onHoldChoiceRequested`):
+Shape, an unnamed hold; None, a none hold; Auto, every hold carved out so the notes decide the
+spans. Each choice is planned as the carve it writes, and one that changes nothing is left out, so
+at least two always show, the first preselected; the rows and their tooltips come from the core's
+one table of choices (`holdChoiceRows`, published as `ChartHoldChoice`), drawn as custom menu rows
+the desktop tooltip window reads. Refused on a bare caret. The selection-kind dispatches carry the
+rest: `Alt+Left/Right` (`MoveSelection`) step the start to the adjacent note onset and
+`Alt+Shift+Left/Right` (`AdjustChartSustain`, whose availability opens on
+`has_span_row_selection`) the end to the adjacent note boundary (`steppedShapeHoldEdge`), as one
+held run through `commitChartGestureStep` (`ChartShapeHoldEdgeGesture`), a derived span becoming a
+hold on the first press (and staying a derived span, selected, when the run steps back to where it
+began) and an edge moved into a neighbouring hold pushing its facing edge; `Delete`
+(`deleteSelectedMarker`) steps a span or a none hold down one level, written as the hold choice
+below it — a held span's hold or a none hold is carved out (Auto over its extent, landing on the
+span the notes derive there), and a derived span, chord or arpeggio, gains a none hold over it
+(None over its extent), left selected, a chord standing on inside it. `Delete` on a time selection
+stays unbound, reserved for plan 52. Every picker row and every `Delete` writes through
+`commitHoldChoice`, and every hold verb through the one carve (`carvedShapeHolds`: the extent out
+of every hold it overlaps, a new hold stated over it or none, the none holds that meet merged), and
+ends at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would
+rewrite; a refusal logs under the verb's label and flashes the notes struck inside the target. A
+landing that names a span the notes no longer derive selects nothing (`landMarkerSelection`).
 
 **Two keys read the SELECTION rather than the cursor**, and both take the same projection shape as
 the marker chords above: the core publishes the verb, the view opens the prompt it names.

@@ -19,6 +19,7 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -333,6 +334,27 @@ std::vector<std::optional<int>> chartHeldStops(
     return held;
 }
 
+// Each none hold joins the run before it while that run's last hold is a none hold reaching it.
+std::vector<ShapeHold> mergedNoneHolds(const std::vector<ShapeHold>& holds)
+{
+    const auto is_none = [](const ShapeHold& hold) {
+        return std::holds_alternative<NoneGrip>(hold.grip);
+    };
+    std::vector<ShapeHold> merged;
+    merged.reserve(holds.size());
+    for (const ShapeHold& hold : holds)
+    {
+        if (!merged.empty() && is_none(merged.back()) && is_none(hold) &&
+            !(merged.back().end < hold.start))
+        {
+            merged.back().end = std::max(merged.back().end, hold.end);
+            continue;
+        }
+        merged.push_back(hold);
+    }
+    return merged;
+}
+
 namespace
 {
 
@@ -345,34 +367,53 @@ struct NormalSpans
     std::vector<ChartConversion> conversions;
 };
 
-// One derivation and one pass. The walk walls each hold at its published end and publishes no
-// empty hold span, so the spans it derives under the stated holds are the spans under the holds
-// it publishes: reading each hold's published end back is the whole of the normal form.
+// One derivation and one pass. The holds a re-address left no length go first, then the none holds
+// merge, on their edges alone: in that order, because an emptied hold standing between two none
+// holds would otherwise keep them apart, and the next pass would merge them. The walk then walls
+// each hold at its published end and publishes no empty hold span, so the spans it derives under
+// the merged holds are the spans under the holds it publishes: reading each hold's published end
+// back is the rest of the normal form.
 [[nodiscard]] NormalSpans normalSpans(
     const ChartConnections& connections, const HeadMargins& margins,
     const std::vector<ShapeHold>& stated, const TempoMap& tempo_map)
 {
-    // A re-address can round a hold onto no length, which the walk cannot place.
-    std::vector<ShapeHold> placed;
-    std::ranges::copy_if(stated, std::back_inserter(placed), [](const ShapeHold& hold) {
-        return hold.start < hold.end;
-    });
-    NormalSpans normal{
-        .shape_holds = {},
-        .derived = deriveChartShapes(connections, margins, placed, tempo_map),
-        .conversions = {},
+    NormalSpans normal;
+    const auto record = [&normal](const ChartRepair repair, const ShapeHold& hold) {
+        normal.conversions.push_back(
+            ChartConversion{.repair = repair, .where = formatShapeHoldToken(hold)});
     };
+    std::vector<ShapeHold> placed;
+    placed.reserve(stated.size());
     for (const ShapeHold& hold : stated)
     {
-        const Fraction end = shapeHoldPublishedEnd(normal.derived.shapes, tempo_map, hold);
-        // A hold the walk was never handed, or whose span closes at its own start, holds nothing.
-        if (!(hold.start < hold.end) || !(tempo_map.wholeNotePositionAt(hold.start) < end))
+        if (hold.start < hold.end)
         {
-            normal.conversions.push_back(
-                ChartConversion{
-                    .repair = ChartRepair::EmptyShapeHold,
-                    .where = formatShapeHoldToken(hold),
-                });
+            placed.push_back(hold);
+            continue;
+        }
+        record(ChartRepair::EmptyShapeHold, hold);
+    }
+    const std::vector<ShapeHold> merged = mergedNoneHolds(placed);
+    // A merged hold took in another wherever two or more placed holds start inside it: one that
+    // swallowed a hold lying wholly inside it as surely as one whose end grew. Placed holds ascend
+    // by start, so those starting inside it are one run.
+    for (const ShapeHold& hold : merged)
+    {
+        const auto first = std::ranges::lower_bound(placed, hold.start, {}, &ShapeHold::start);
+        const auto last = std::ranges::lower_bound(placed, hold.end, {}, &ShapeHold::start);
+        if (std::distance(first, last) > 1)
+        {
+            record(ChartRepair::MergedNoneHolds, hold);
+        }
+    }
+    normal.derived = deriveChartShapes(connections, margins, merged, tempo_map);
+    for (const ShapeHold& hold : merged)
+    {
+        const Fraction end = shapeHoldPublishedEnd(normal.derived.shapes, tempo_map, hold);
+        // A hold whose span closes at its own start holds nothing.
+        if (!(tempo_map.wholeNotePositionAt(hold.start) < end))
+        {
+            record(ChartRepair::EmptyShapeHold, hold);
             continue;
         }
         if (end == tempo_map.wholeNotePositionAt(hold.end))
@@ -388,11 +429,7 @@ struct NormalSpans
                 .end = tempo_map.gridPositionAtWholeNote(end),
                 .grip = hold.grip,
             });
-        normal.conversions.push_back(
-            ChartConversion{
-                .repair = ChartRepair::UnfitShapeHold,
-                .where = formatShapeHoldToken(normal.shape_holds.back()),
-            });
+        record(ChartRepair::UnfitShapeHold, normal.shape_holds.back());
     }
     return normal;
 }

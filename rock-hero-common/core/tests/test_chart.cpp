@@ -2737,6 +2737,7 @@ TEST_CASE("Chart document refuses an overlapping or empty shape hold", "[core][c
     const TempoMap tempo_map = makeTempoMap();
     for (const std::string_view refused :
          {R"({ "at": "0", "end": "1" }, { "at": "1/2", "end": "2" })",
+          R"({ "at": "0", "end": "2", "grip": "none" }, { "at": "1", "end": "3" })",
           R"({ "at": "1", "end": "1" })"})
     {
         CAPTURE(refused);
@@ -2744,6 +2745,40 @@ TEST_CASE("Chart document refuses an overlapping or empty shape hold", "[core][c
         REQUIRE_FALSE(result.has_value());
         CHECK(result.error().code == ChartErrorCode::InvalidShapeHold);
     }
+}
+
+// None holds that meet are one stretch with no arpeggio shape: a document stating two that abut
+// and two that overlap parses, and the load normalizer merges each pair into one hold, reporting
+// each merge like any other repair. The result is normal.
+TEST_CASE("Chart normalization merges none holds that abut or overlap", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    auto parsed = parseChartDocument(
+        holdsDocument(
+            R"({ "at": "0", "end": "1", "grip": "none" },)"
+            R"({ "at": "1", "end": "2", "grip": "none" },)"
+            R"({ "at": "3", "end": "5", "grip": "none" },)"
+            R"({ "at": "4", "end": "6", "grip": "none" })"),
+        tempo_map);
+    REQUIRE(parsed.has_value());
+    if (!parsed.has_value())
+    {
+        return;
+    }
+    Chart& chart = *parsed;
+    const std::vector<ChartConversion> conversions = normalizeChart(chart, tempo_map);
+    const auto none = [](const int from, const int to) {
+        return ShapeHold{
+            .start = GridPosition{.measure = from, .beat = 1},
+            .end = GridPosition{.measure = to, .beat = 1},
+            .grip = NoneGrip{},
+        };
+    };
+    CHECK(chart.shape_holds == std::vector{none(1, 3), none(4, 7)});
+    REQUIRE(conversions.size() == 2);
+    CHECK(conversions[0].repair == ChartRepair::MergedNoneHolds);
+    CHECK(conversions[1].repair == ChartRepair::MergedNoneHolds);
+    CHECK(normalizeChart(chart, tempo_map).empty());
 }
 
 // A hold its notes no longer bear out is a repair the load reports like any other: its end moves to

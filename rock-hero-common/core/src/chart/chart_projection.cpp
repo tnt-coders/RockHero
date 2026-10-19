@@ -12,6 +12,7 @@
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -661,7 +662,24 @@ ChartViewState makeChartViewState(
                     bracket.has_value()
                         ? std::optional<double>{tempo_map.secondsAtWholeNote(*bracket)}
                         : std::nullopt,
+                .held = shape.hold_stated,
             });
+    }
+
+    // A none hold forms no span of its own, so it is published beside the spans; a none hold always
+    // fits its notes, so its stated extent is the one it draws.
+    for (const ShapeHold& hold : chart.shape_holds)
+    {
+        if (std::holds_alternative<NoneGrip>(hold.grip))
+        {
+            state.none_holds.push_back(
+                NoneHoldViewState{
+                    .start = hold.start,
+                    .end = hold.end,
+                    .start_seconds = tempo_map.secondsAt(hold.start),
+                    .end_seconds = tempo_map.secondsAt(hold.end),
+                });
+        }
     }
 
     // The 2D lane's visible-range indexes, over the further of each event's two ends

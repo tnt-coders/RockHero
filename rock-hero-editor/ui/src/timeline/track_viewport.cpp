@@ -460,6 +460,12 @@ void TrackViewport::setSpans(std::vector<RulerSpan> spans)
     m_timeline_ruler.setSpans(std::move(spans));
 }
 
+// Forwards the selected span to the pinned ruler, which outlines its chip.
+void TrackViewport::setSelectedSpan(const std::optional<std::size_t> span)
+{
+    m_timeline_ruler.setSelectedSpan(span);
+}
+
 // Forwards the tab lane's span inks to the pinned ruler's span chips.
 void TrackViewport::setShapeInks(const common::ui::TabShapeInks shape_inks)
 {

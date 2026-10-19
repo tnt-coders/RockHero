@@ -214,15 +214,15 @@ enum class EditorCommandId : std::uint16_t
     PruneHandPositions = 0x140A,
 
     /*!
-    \brief State that the hand holds one shape over what the selection covers (`Ctrl+H`, Hold
-    Shape).
+    \brief Choose what the extent the selection covers becomes (`Ctrl+H`, Hold...): Shape, an
+    unnamed hold; None, a none hold; or Auto, no hold, so the notes decide the spans there.
 
-    Reads the selection, never the cursor: a selected hold or derived span, a time selection, or
-    selected notes from their first onset to their last ring's end. The core carves the new hold
-    into the chart's holds and refuses, with the refusal flash, where nothing is selected or a hold
-    would not fit its notes.
+    Reads the selection, never the cursor: a selected span or none hold, a time selection, or
+    selected notes from their first onset to their last ring's end. The hold picker offers the
+    choices that change the extent, each with a tooltip. The core refuses, with the refusal flash,
+    where a hold would not fit its notes.
     */
-    HoldShape = 0x140B,
+    ChooseHold = 0x140B,
 
     /*! \brief Step the caret one grid slot left (`Left`). */
     CaretStepLeft = 0x1501,
@@ -335,6 +335,16 @@ enum class EditorCommandId : std::uint16_t
     Silent on a chart with no hand events, where the row has nothing to hold the cursor.
     */
     CaretJumpFretHandPositionRow = 0x1516,
+
+    /*!
+    \brief Jump keyboard focus onto the hold holding the cursor (`Ctrl+Shift+H`, the select half of
+    `Ctrl+H`): the none hold there where one is, even over a chord standing inside it, else the
+    span there.
+
+    The none hold wins by the walk's own row order, the one the walk up from the strings meets
+    first. Silent where neither row holds the cursor.
+    */
+    CaretJumpHoldRow = 0x1517,
 
     /*! \brief Extend the time selection one grid slot left (`Shift+Left`). */
     TimeSelectionExtendLeft = 0x1601,

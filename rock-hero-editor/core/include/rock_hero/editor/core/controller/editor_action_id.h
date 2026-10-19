@@ -253,8 +253,19 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Remove every stored fret-hand position whose removal leaves the hand unchanged. */
     PruneFretHandPositions,
 
-    /*! \brief State one held shape over what the selection covers: an unnamed shape hold. */
-    HoldShape,
+    /*!
+    \brief Ask what the selected extent becomes — Shape, None or Auto — through the hold picker,
+    offering the choices that change something.
+    */
+    ChooseHold,
+
+    /*! \brief Apply the hold picker's chosen row over the selected extent. */
+    SetHold,
+
+    /*!
+    \brief Select a span or a none hold: a press on their tab-lane rails or on a span's ruler chip.
+    */
+    SelectSpanRowMark,
 
     /*! \brief Step to the next or previous object on the focused row (Tab, Shift+Tab). */
     StepToRowObject,

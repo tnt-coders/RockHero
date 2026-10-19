@@ -30,6 +30,7 @@ constexpr int g_section_key = 'm';
 constexpr int g_tempo_key = 'b';
 constexpr int g_time_signature_key = '/';
 constexpr int g_fret_hand_position_key = 'p';
+constexpr int g_hold_key = 'h';
 constexpr int g_tone_key = 't';
 constexpr int g_add_lane_key = 'a';
 
@@ -372,6 +373,10 @@ constexpr int g_add_lane_key = 'a';
         "Jump to Hand Position Row",
         "Navigation",
         {markerJumpChord(g_fret_hand_position_key)});
+    add(EditorCommandId::CaretJumpHoldRow,
+        "Jump to Hold",
+        "Navigation",
+        {markerJumpChord(g_hold_key)});
     add(EditorCommandId::CaretJumpToneRow,
         "Jump to Tone Row",
         "Navigation",
@@ -478,11 +483,13 @@ constexpr int g_add_lane_key = 'a';
         "Authoring",
         {chord(juce::KeyPress::insertKey, alt)});
     // Ctrl+H reads the SELECTION, so it is an authoring verb rather than a marker chord: the
-    // marker plane's Ctrl+letter authors at the cursor and never reads the selection.
-    add(EditorCommandId::HoldShape,
-        core::markerVerbLabel(core::MarkerVerb::HoldShape),
+    // marker plane's Ctrl+letter authors at the cursor and never reads the selection. It still
+    // takes the author half of the hold's letter pair, beside the jump's Ctrl+Shift+H. It always
+    // asks what the extent becomes, so its name is the verb's prompt row.
+    add(EditorCommandId::ChooseHold,
+        core::markerVerbPromptRow(core::MarkerVerb::ChooseHold),
         "Authoring",
-        {chord('h', command)});
+        {markerAuthorChord(g_hold_key)});
     // The `Shift` plane, stated once for the technique block. The LETTER is the index; `Shift` is
     // that letter's second slot. `Shift` is not a semantic operator in this map — it is a
     // disambiguator: the letter carries all the meaning, and `Shift` says only which claimant of

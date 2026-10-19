@@ -136,6 +136,12 @@ public:
         shown_bend_pickers.push_back(std::move(picker));
     }
 
+    // Records each hold picker request, in request order.
+    void showChartHoldPicker(ChartHoldPicker picker) override
+    {
+        shown_hold_pickers.push_back(std::move(picker));
+    }
+
     // Records each refusal flash, in request order.
     void flashChartRefusal(ChartRefusalFlash flash) override
     {
@@ -231,6 +237,7 @@ public:
     std::vector<ShownNotice> shown_notices{};
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
+    std::vector<ChartHoldPicker> shown_hold_pickers{};
     std::vector<ChartRefusalFlash> refusal_flashes{};
     std::vector<RulerChipKey> ruler_chip_refusal_flashes{};
     std::vector<int> renumber_flashes{};

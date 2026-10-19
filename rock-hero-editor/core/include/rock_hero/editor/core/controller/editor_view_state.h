@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/input/input_device_identity.h>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -903,6 +904,35 @@ struct ChartBendPicker
 };
 
 /*!
+\brief One row of the hold picker (\ref IEditorView::showChartHoldPicker): what the selected
+extent becomes, with the words the view shows for it.
+*/
+struct ChartHoldChoice
+{
+    /*!
+    \brief The grip the hold over the extent states — an unnamed shape or none — or empty to clear
+    the holds there, so the notes decide the spans again.
+    */
+    std::optional<common::core::HoldGrip> grip{};
+
+    /*! \brief The row's label: "Shape", "None" or "Auto". */
+    std::string label;
+
+    /*! \brief The row's tooltip: what choosing it does, in a line. */
+    std::string tooltip;
+};
+
+/*!
+\brief The hold picker the controller asks the view to show: the choices that change the selected
+extent, never fewer than two.
+*/
+struct ChartHoldPicker
+{
+    /*! \brief The rows to offer, in the order to show them; the first opens selected. */
+    std::vector<ChartHoldChoice> choices{};
+};
+
+/*!
 \brief The elements a refused chart edit turned down, for the view to flash red.
 
 In the same projection indices the lane draws the selection by (\ref ChartEditViewState), and valid
@@ -951,16 +981,17 @@ struct ChartEditViewState
     std::optional<std::size_t> selected_fret_hand_position{};
 
     /*!
-    \brief Index of the selected shape hold in the chart's hold order; empty while no hold is
+    \brief Index of the selected span, derived or held, in the tab projection's span order: the
+    span whose rails the lane outlines and whose ruler chip is outlined. Empty while no span is
     selected or the selected one is gone.
     */
-    std::optional<std::size_t> selected_shape_hold{};
+    std::optional<std::size_t> selected_span{};
 
     /*!
-    \brief Index of the selected derived span in the tab projection's span order; empty while
-    no derived span is selected or the selected one is gone.
+    \brief Index of the selected none hold in the tab projection's none holds, whose hatched rails
+    the lane outlines; empty while no none hold is selected or the selected one is gone.
     */
-    std::optional<std::size_t> selected_derived_span{};
+    std::optional<std::size_t> selected_none_hold{};
 
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};

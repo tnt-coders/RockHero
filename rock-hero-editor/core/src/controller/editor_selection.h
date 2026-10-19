@@ -79,27 +79,28 @@ struct FretHandPositionSelection
         const FretHandPositionSelection& lhs, const FretHandPositionSelection& rhs) = default;
 };
 
-// A selected shape hold the charter authored, identified by its start, which is unique because
-// holds never overlap. Its verbs are Ctrl+H, the edge keys (Alt+arrows its start, Alt+Shift+arrows
-// its end) and Delete. Single-select and cleared by any cursor move, like every marker selection.
-struct ShapeHoldSelection
-{
-    // Musical position the selected hold starts at.
-    common::core::GridPosition start{};
-
-    friend bool operator==(const ShapeHoldSelection& lhs, const ShapeHoldSelection& rhs) = default;
-};
-
-// A selected derived span: one the walk derived where no unnamed hold states it, identified by
-// its start, which is unique because spans never overlap. Never by a hold or a position standing at
-// the same place, which are other markers. Its verbs convert it to a hold.
-struct DerivedSpanSelection
+// A selected span, derived or stated by an unnamed hold alike, identified by its start, which is
+// unique because spans never overlap. Its verbs are Ctrl+H, the edge keys (Alt+arrows its start,
+// Alt+Shift+arrows its end) and Delete: on a held span they edit the hold that states it, Delete
+// removing it; on a derived one the edge keys convert it to a hold and Delete gives it a none
+// hold. Single-select and cleared by any cursor move, like every marker selection.
+struct SpanSelection
 {
     // Musical position the selected span starts at.
     common::core::GridPosition start{};
 
-    friend bool operator==(const DerivedSpanSelection& lhs, const DerivedSpanSelection& rhs) =
-        default;
+    friend bool operator==(const SpanSelection& lhs, const SpanSelection& rhs) = default;
+};
+
+// A selected none hold, identified by its start, which is unique because holds never overlap. Its
+// own kind rather than a span's because it forms no span and keeps the chord boxes struck inside
+// it, so it can share a column with one. Its verbs are the span's.
+struct NoneHoldSelection
+{
+    // Musical position the selected hold starts at.
+    common::core::GridPosition start{};
+
+    friend bool operator==(const NoneHoldSelection& lhs, const NoneHoldSelection& rhs) = default;
 };
 
 // A grid-locked time span across every surface (the Shift+arrow / Shift+click time selection).
@@ -163,12 +164,12 @@ struct AddAutomationLaneRowSelection
 // The selection kinds that name a timeline marker, one per marker row: the one list of marker
 // kinds, shared by the selection walk, the move funnel and an undo's marker focus.
 using MarkerSelection = std::variant<
-    SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ShapeHoldSelection,
-    DerivedSpanSelection, FretHandPositionSelection, ToneRegionSelection>;
+    SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, SpanSelection,
+    NoneHoldSelection, FretHandPositionSelection, ToneRegionSelection>;
 
 // Exactly one selection exists editor-wide (the interaction model): chart notes, a tone region, a
-// song section, a tempo or time-signature chip, a shape hold, a derived span, a fret-hand position,
-// an automation point, the "+" row, and a time span are alternatives of one sum type, so selecting
+// song section, a tempo or time-signature chip, a span, a none hold, a fret-hand position, an
+// automation point, the "+" row, and a time span are alternatives of one sum type, so selecting
 // on any surface structurally replaces the selection on every other — two live selections are
 // unrepresentable and Delete never has to choose between surfaces. std::monostate is "nothing
 // selected"; a held-but-empty ChartSelection means the same thing. Selection kinds differ in
@@ -178,15 +179,14 @@ using MarkerSelection = std::variant<
 // passive, and any object gesture evicts the range in turn.
 using EditorSelection = std::variant<
     std::monostate, ChartSelection, ToneRegionSelection, SongSectionSelection, TempoAnchorSelection,
-    TimeSignatureSelection, ShapeHoldSelection, DerivedSpanSelection, FretHandPositionSelection,
+    TimeSignatureSelection, SpanSelection, NoneHoldSelection, FretHandPositionSelection,
     AutomationPointSelection, AddAutomationLaneRowSelection, TimeSelection>;
 
-// Whether the selection is a span row's marker, an authored shape hold or a derived span: what the
-// hold verbs act on.
+// Whether the selection is a span or a none hold: what the hold verbs act on.
 [[nodiscard]] inline bool selectsSpanRow(const EditorSelection& selection)
 {
-    return std::holds_alternative<ShapeHoldSelection>(selection) ||
-           std::holds_alternative<DerivedSpanSelection>(selection);
+    return std::holds_alternative<SpanSelection>(selection) ||
+           std::holds_alternative<NoneHoldSelection>(selection);
 }
 
 } // namespace rock_hero::editor::core

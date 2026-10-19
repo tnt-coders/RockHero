@@ -198,30 +198,31 @@ TEST_CASE(
 // ignored.
 TEST_CASE("Chart span reveal answers on the lane, selection and caret grounds", "[core][chart]")
 {
-    const common::core::ShapeViewState span = makeSpan();
-    const std::vector<common::core::NoteViewState> notes = makeNotes();
+    common::core::ChartViewState tab;
+    tab.shapes = {makeSpan()};
+    tab.notes = makeNotes();
     ChartEditViewState edit;
 
     SECTION("no ground leaves the span at its drawn extent")
     {
-        CHECK_FALSE(chartSpanRevealed(span, false, notes, edit));
+        CHECK_FALSE(chartSpanRevealed(tab, 0, false, edit));
     }
 
     SECTION("the lane reveal reveals the span")
     {
-        CHECK(chartSpanRevealed(span, true, notes, edit));
+        CHECK(chartSpanRevealed(tab, 0, true, edit));
     }
 
     SECTION("a selected note inside the span reveals it")
     {
         edit.selected_notes = {2};
-        CHECK(chartSpanRevealed(span, false, notes, edit));
+        CHECK(chartSpanRevealed(tab, 0, false, edit));
     }
 
     SECTION("the caret inside the span reveals it on any string")
     {
         edit.caret = ChartCaretViewState{.seconds = 5.5, .string = 1};
-        CHECK(chartSpanRevealed(span, false, notes, edit));
+        CHECK(chartSpanRevealed(tab, 0, false, edit));
     }
 
     // The caret is a position, not a member, so the close is inside it; the close is reached by
@@ -229,16 +230,39 @@ TEST_CASE("Chart span reveal answers on the lane, selection and caret grounds", 
     SECTION("the caret at the close or a rounding slip past it reveals the span")
     {
         edit.caret = ChartCaretViewState{.seconds = 6.0, .string = 1};
-        CHECK(chartSpanRevealed(span, false, notes, edit));
+        CHECK(chartSpanRevealed(tab, 0, false, edit));
         edit.caret = ChartCaretViewState{.seconds = 6.0 + 1.0e-12, .string = 1};
-        CHECK(chartSpanRevealed(span, false, notes, edit));
+        CHECK(chartSpanRevealed(tab, 0, false, edit));
     }
 
     SECTION("the caret past the close reveals nothing")
     {
         edit.caret = ChartCaretViewState{.seconds = 7.0, .string = 1};
-        CHECK_FALSE(chartSpanRevealed(span, false, notes, edit));
+        CHECK_FALSE(chartSpanRevealed(tab, 0, false, edit));
     }
+}
+
+// THE FOURTH GROUND: a span selected in its own right reveals to its close, and the answer is per
+// span, so its neighbour stays at its drawn extent.
+TEST_CASE("Chart span reveal answers on the span's own selection", "[core][chart]")
+{
+    common::core::ChartViewState tab;
+    tab.shapes = {
+        makeSpan(),
+        common::core::ShapeViewState{
+            .start_seconds = 7.0,
+            .drawn_end_seconds = 8.0,
+            .close_seconds = 9.0,
+            .arpeggio = false,
+            .strings = {},
+        },
+    };
+    tab.notes = makeNotes();
+    ChartEditViewState edit;
+    edit.selected_span = 0;
+
+    CHECK(chartSpanRevealed(tab, 0, false, edit));
+    CHECK_FALSE(chartSpanRevealed(tab, 1, false, edit));
 }
 
 // A caret ON A HEAD is on that head's note, not on the ring ending under it: where a ring ends on

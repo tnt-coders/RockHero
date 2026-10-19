@@ -6767,6 +6767,41 @@ TEST_CASE("The hold normalizer drops a hold left no length", "[core][chart]")
     CHECK(normal.conversions[0].where == "shape hold 1:3 to 1:3");
 }
 
+// A re-address that rounds an unnamed hold onto no length between two none holds leaves the two
+// meeting: the emptied hold goes first, so they merge in the same pass, and a second pass changes
+// nothing.
+TEST_CASE("The hold normalizer merges none holds an emptied hold kept apart", "[core][chart]")
+{
+    const auto none = [](const GridPosition start, const GridPosition end) {
+        return ShapeHold{.start = start, .end = end, .grip = NoneGrip{}};
+    };
+    const ShapeHoldNormalization normal = normalizedOnce(
+        {},
+        {none(gridAt(1, 1), gridAt(2, 1)),
+         holdOver(gridAt(2, 1), gridAt(2, 1)),
+         none(gridAt(2, 1), gridAt(3, 1))});
+    CHECK(normal.resolved.shape_holds == std::vector{none(gridAt(1, 1), gridAt(3, 1))});
+    REQUIRE(normal.conversions.size() == 2);
+    CHECK(normal.conversions[0].repair == ChartRepair::EmptyShapeHold);
+    CHECK(normal.conversions[1].repair == ChartRepair::MergedNoneHolds);
+    CHECK(normal.conversions[1].where == "shape hold 1:1 to 3:1");
+}
+
+// A none hold lying inside another merges into it, which leaves the outer hold's edges as they
+// were: the merge is still a rewrite, so it is reported.
+TEST_CASE("The hold normalizer reports a none hold merged into one around it", "[core][chart]")
+{
+    const auto none = [](const GridPosition start, const GridPosition end) {
+        return ShapeHold{.start = start, .end = end, .grip = NoneGrip{}};
+    };
+    const ShapeHoldNormalization normal =
+        normalizedOnce({}, {none(gridAt(1, 1), gridAt(4, 1)), none(gridAt(2, 1), gridAt(3, 1))});
+    CHECK(normal.resolved.shape_holds == std::vector{none(gridAt(1, 1), gridAt(4, 1))});
+    REQUIRE(normal.conversions.size() == 1);
+    CHECK(normal.conversions[0].repair == ChartRepair::MergedNoneHolds);
+    CHECK(normal.conversions[0].where == "shape hold 1:1 to 4:1");
+}
+
 // The notes layer completed from the normalizer's own derivation is the one a plain derivation
 // under the normalized holds gives, and records those holds.
 TEST_CASE("The normalized notes layer is the layer under the normalized holds", "[core][chart]")

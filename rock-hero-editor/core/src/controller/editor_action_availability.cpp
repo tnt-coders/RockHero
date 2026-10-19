@@ -94,7 +94,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ReleaseTempoAnchorDrag:
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
-        case EditorAction::Id::HoldShape:
+        case EditorAction::Id::ChooseHold:
+        case EditorAction::Id::SetHold:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
         {
@@ -122,6 +123,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::SelectSpanRowMark:
         {
             return false;
         }
@@ -225,8 +227,10 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SelectTempoAnchor:
             case EditorAction::Id::SelectTimeSignature:
             case EditorAction::Id::SelectFretHandPosition:
+            case EditorAction::Id::SelectSpanRowMark:
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
-            case EditorAction::Id::HoldShape:
+            case EditorAction::Id::ChooseHold:
+            case EditorAction::Id::SetHold:
             case EditorAction::Id::ClearFretHandEnd:
             case EditorAction::Id::PruneFretHandPositions:
             {
@@ -396,8 +400,10 @@ using Verdict = std::optional<ActionUnavailableReason>;
         // The fret-hand positions and the shape holds are the chart's own, so their marker verbs
         // need a chart; paused-only like every other marker verb.
         case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::SelectSpanRowMark:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
-        case EditorAction::Id::HoldShape:
+        case EditorAction::Id::ChooseHold:
+        case EditorAction::Id::SetHold:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
         {
@@ -431,7 +437,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
         {
             return require(conditions.has_chart, Reason::NoChart);
         }
-        // The duration keys move a selected hold's or derived span's end too, so either selection
+        // The duration keys move a selected span's or none hold's end too, so either selection
         // opens them; with neither, the refusal names the chart selection they mostly serve.
         case EditorAction::Id::AdjustChartSustain:
         {
@@ -565,8 +571,10 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
         case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::SelectSpanRowMark:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
-        case EditorAction::Id::HoldShape:
+        case EditorAction::Id::ChooseHold:
+        case EditorAction::Id::SetHold:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
         {

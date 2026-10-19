@@ -223,8 +223,8 @@ before the selection repair (a recorded focus can name a silent point the undo d
   never where the charter stood: undoing a ring cut rewrites the note the caret stood on a
   keyframe of, and only the record says it was the keyframe. In the chart (`ChartEditFocus`), one
   object arms the caret on it (on the recorded stop); several are selected with the passive cursor
-  at the first; none leaves the caret on the recorded slot, selecting nothing. A selected shape
-  hold or derived span is recorded as the marker it is (`MarkerEditFocus`), so undoing a hold verb
+  at the first; none leaves the caret on the recorded slot, selecting nothing. A selected span
+  or none hold is recorded as the marker it is (`MarkerEditFocus`), so undoing a hold verb
   re-selects the span or hold it acted on, as every marker entry does.
 - **Markers** (`MarkerModelEdit::focus`, which asks the landing snapshot's
   `focusReplacing(replaced)`): the marker the transition added, moved or rewrote is selected with

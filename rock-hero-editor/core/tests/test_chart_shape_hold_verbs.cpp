@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -172,16 +173,61 @@ struct HoldEditor
         }
     }
 
-    // The selected hold's index in the chart's holds, or nothing.
+    // The published selection's span, or nothing, read as the lane reads it.
+    [[nodiscard]] const common::core::ShapeViewState* publishedSpan() const
+    {
+        const std::optional<std::size_t> index = state().chart_edit.selected_span;
+        const std::shared_ptr<const common::core::ChartViewState>& tab = state().tab;
+        if (!index.has_value() || tab == nullptr || *index >= tab->shapes.size())
+        {
+            return nullptr;
+        }
+        return &tab->shapes[*index];
+    }
+
+    // The index in the chart's holds of the hold the selection names: a selected none hold, or the
+    // unnamed hold stating a selected held span, which starts where its span does. Nothing where
+    // neither is selected.
     [[nodiscard]] std::optional<std::size_t> selectedHold() const
     {
-        return state().chart_edit.selected_shape_hold;
+        const std::vector<ShapeHold> standing = holds();
+        const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
+        const auto index_of = [&standing](const auto& names) -> std::optional<std::size_t> {
+            for (std::size_t index = 0; index < standing.size(); ++index)
+            {
+                if (names(standing[index]))
+                {
+                    return index;
+                }
+            }
+            return std::nullopt;
+        };
+        if (const std::optional<std::size_t> none = state().chart_edit.selected_none_hold;
+            none.has_value())
+        {
+            const GridPosition start = state().tab->none_holds.at(*none).start;
+            return index_of([&start](const ShapeHold& hold) { return hold.start == start; });
+        }
+        const common::core::ShapeViewState* const span = publishedSpan();
+        if (span == nullptr || !span->held)
+        {
+            return std::nullopt;
+        }
+        const double start_seconds = span->start_seconds;
+        return index_of([&tempo_map, start_seconds](const ShapeHold& hold) {
+            return tempo_map.secondsAt(hold.start) == Catch::Approx(start_seconds);
+        });
     }
 
     // The selected derived span's index in the projection's spans, or nothing.
     [[nodiscard]] std::optional<std::size_t> selectedSpan() const
     {
-        return state().chart_edit.selected_derived_span;
+        const common::core::ShapeViewState* const span = publishedSpan();
+        if (span == nullptr || span->held)
+        {
+            return std::nullopt;
+        }
+        return state().chart_edit.selected_span;
     }
 
     // The chart's holds as they now stand.
@@ -246,10 +292,36 @@ struct HoldEditor
         step(ChartStepDirection::Right);
     }
 
-    // Ctrl+H.
+    // Ctrl+H, answering the picker it opens with `grip`, or empty for Auto.
+    void chooseHold(const std::optional<common::core::HoldGrip>& grip)
+    {
+        const std::size_t asked = view.shown_hold_pickers.size();
+        controller.onHoldRequested();
+        if (view.shown_hold_pickers.size() > asked)
+        {
+            controller.onHoldChoiceRequested(grip);
+        }
+    }
+
+    // Ctrl+H, choosing Shape.
     void holdShape()
     {
-        controller.onHoldShapeRequested();
+        chooseHold(common::core::UnnamedGrip{});
+    }
+
+    // The labels of the last hold picker Ctrl+H opened, in the order it shows them.
+    [[nodiscard]] std::vector<std::string> offeredHoldChoices() const
+    {
+        REQUIRE_FALSE(view.shown_hold_pickers.empty());
+        std::vector<std::string> labels;
+        if (!view.shown_hold_pickers.empty())
+        {
+            for (const ChartHoldChoice& choice : view.shown_hold_pickers.back().choices)
+            {
+                labels.push_back(choice.label);
+            }
+        }
+        return labels;
     }
 
     // Alt+Right or Alt+Left: the start key.
@@ -269,6 +341,12 @@ struct HoldEditor
     void deleteSelection()
     {
         controller.onSelectionDeleteRequested();
+    }
+
+    // A press on the lane's rails or a ruler chip landing on these marks.
+    void press(const std::optional<std::size_t> span, const std::optional<std::size_t> none_hold)
+    {
+        controller.onSpanRowMarksPressed(SpanRowMarks{.span = span, .none_hold = none_hold});
     }
 };
 
@@ -293,11 +371,9 @@ struct HoldEditor
 
 } // namespace
 
-// The hold row lists the chart's holds and the span row the spans the walk derives where no unnamed
-// hold states one, each only where a marker holds the column. Down from the signature row lands on
-// the hold, or on the derived span, and past them on the position row.
-TEST_CASE(
-    "The walk reaches the hold and span rows only where they hold the column", "[core][holds]")
+// The span row lists every span, derived and held alike, each only where it holds the column. Down
+// from the signature row lands on the span there, and past it on the position row.
+TEST_CASE("The walk reaches the span row only where a span holds the column", "[core][holds]")
 {
     // An arpeggio over measure 1, a chord box at 3:1, and an unnamed hold over the box.
     HoldEditor editor{chartOf(
@@ -318,9 +394,10 @@ TEST_CASE(
         CHECK(editor.state().chart_edit.selected_fret_hand_position.has_value());
     }
 
-    SECTION("inside a hold the walk selects the hold, never its span")
+    SECTION("inside a held span the walk selects the span, its hold the one the verbs edit")
     {
         editor.walkDownAt(4.25, 1);
+        CHECK(editor.state().chart_edit.selected_span == std::optional<std::size_t>{1});
         CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
         CHECK_FALSE(editor.selectedSpan().has_value());
         CHECK(editor.state().selection_present);
@@ -342,20 +419,47 @@ TEST_CASE(
     }
 }
 
-// A none hold keeps the chord box struck inside it, so both rows hold that column: the walk down
-// lands on the none hold first and on the box next.
-TEST_CASE("The walk reaches a none hold and then the box it encloses", "[core][holds]")
+// A none hold keeps the chord box struck inside it, so the span row and the none-hold row both
+// hold that column, the none hold nearer the strings: the walk down from the ruler lands on the
+// box first and on the none hold next, and the walk up from the strings meets them the other way
+// round, the hold before the chord inside it, as a lane press does.
+TEST_CASE("The walk reaches a none hold and the box it encloses", "[core][holds]")
 {
     HoldEditor editor{chartOf({chordAt(at(1, 2), 3, 5)}, {noneHold(at(1, 1), at(2, 1))})};
     REQUIRE(editor.spanCount() == 1);
 
-    editor.walkDownAt(0.6, 1);
-    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
-    CHECK_FALSE(editor.selectedSpan().has_value());
+    SECTION("down from the ruler")
+    {
+        editor.walkDownAt(0.6, 1);
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+        CHECK_FALSE(editor.selectedHold().has_value());
 
-    editor.step(ChartStepDirection::Down);
-    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
-    CHECK_FALSE(editor.selectedHold().has_value());
+        editor.step(ChartStepDirection::Down);
+        CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+        CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+        CHECK_FALSE(editor.state().chart_edit.selected_span.has_value());
+    }
+
+    SECTION("up from a note")
+    {
+        editor.armAt(0.5);
+        REQUIRE_FALSE(editor.state().chart_edit.selected_notes.empty());
+        for (int press = 0;
+             press < 8 && !editor.state().chart_edit.selected_fret_hand_position.has_value();
+             ++press)
+        {
+            editor.step(ChartStepDirection::Up);
+        }
+        REQUIRE(editor.state().chart_edit.selected_fret_hand_position.has_value());
+
+        editor.step(ChartStepDirection::Up);
+        CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+        CHECK_FALSE(editor.state().chart_edit.selected_span.has_value());
+
+        editor.step(ChartStepDirection::Up);
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+        CHECK_FALSE(editor.state().chart_edit.selected_none_hold.has_value());
+    }
 }
 
 // Tab on the span row steps from span to span across the gap, selecting each with the cursor on
@@ -662,9 +766,9 @@ TEST_CASE("The start key pushes the previous hold", "[core][holds]")
     CHECK(editor.holds() == twoHeldHalves().shape_holds);
 }
 
-// Delete on a hold removes it and the derivation takes its stretch back, the walk back along the
-// row selecting the hold before it; undo restores the hold and selects it.
-TEST_CASE("Delete removes a selected hold", "[core][holds]")
+// Delete on a held span removes its hold and the derivation takes its stretch back, the span it
+// leaves derived there staying selected; undo restores the hold and selects its span.
+TEST_CASE("Delete removes a selected span's hold", "[core][holds]")
 {
     HoldEditor editor{twoHeldHalves()};
     editor.walkDownAt(4.25, 1);
@@ -677,10 +781,26 @@ TEST_CASE("Delete removes a selected hold", "[core][holds]")
     CHECK(editor.entries() == entries + 1);
     CHECK(editor.lastLabel() == "Delete Hold");
     CHECK(editor.spanCount() == 2);
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
 
     editor.controller.onUndoRequested();
     CHECK(editor.holds() == twoHeldHalves().shape_holds);
     CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+}
+
+// A hold over silence states the one span its notes never would, so deleting it leaves no span at
+// its start and none before it: nothing is left selected, rather than a span that is not there.
+TEST_CASE("Delete on a hold over silence leaves nothing selected", "[core][holds]")
+{
+    HoldEditor editor{chartOf({}, {unnamedHold(at(5, 1), at(6, 1))})};
+    REQUIRE(editor.spanCount() == 1);
+    editor.press(0, std::nullopt);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    editor.deleteSelection();
+    CHECK(editor.holds().empty());
+    CHECK(editor.spanCount() == 0);
+    CHECK_FALSE(editor.state().selection_present);
 }
 
 // The second hold's start is where the first hold's span closes, so removing it would leave the
@@ -702,9 +822,10 @@ TEST_CASE("Delete refuses a hold whose removal unfits its neighbour", "[core][ho
     CHECK(contents.find("shape hold 3:1 to 3:3 does not fit its notes") != std::string::npos);
 }
 
-// Delete on a derived arpeggio states a none hold over it, which publishes no arpeggio and is left
-// selected; on a derived chord box it is refused, since a none hold keeps the box.
-TEST_CASE("Delete denies a derived arpeggio and refuses a chord box", "[core][holds]")
+// Delete on a derived span adds a none hold over it, left selected, whatever the span's class: an
+// arpeggio inside it is hidden, and a chord box the notes derive there still stands. A second
+// Delete removes the none hold and the derivation returns.
+TEST_CASE("Delete adds a none hold over a derived arpeggio or chord box", "[core][holds]")
 {
     HoldEditor editor{chartOf({arpeggioIn(1), chordAt(at(3, 1), 3, 5)})};
     REQUIRE(editor.spanCount() == 2);
@@ -719,12 +840,14 @@ TEST_CASE("Delete denies a derived arpeggio and refuses a chord box", "[core][ho
         CHECK(editor.holds() == std::vector{noneHold(at(1, 1), at(1, 4))});
         CHECK(editor.spanCount() == 1);
         CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
-        CHECK(editor.lastLabel() == "Delete Arpeggio");
+        CHECK(editor.lastLabel() == "Add None Hold");
 
-        // The none hold is a hold like any other: Delete removes it and the arpeggio returns.
+        // The none hold is a hold like any other: Delete removes it, and the arpeggio returns
+        // selected, one level down.
         editor.deleteSelection();
         CHECK(editor.holds().empty());
         CHECK(editor.spanCount() == 2);
+        CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
 
         editor.controller.onUndoRequested();
         editor.controller.onUndoRequested();
@@ -736,13 +859,270 @@ TEST_CASE("Delete denies a derived arpeggio and refuses a chord box", "[core][ho
     {
         editor.walkDownAt(4.25, 1);
         REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{1});
-        const std::size_t flashes = editor.view.refusal_flashes.size();
+        editor.deleteSelection();
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{noneHold(at(3, 1), at(3, 2))});
+        CHECK(editor.spanCount() == 2);
+        CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+        CHECK(editor.entries() == entries + 1);
+        CHECK(editor.lastLabel() == "Add None Hold");
+
         editor.deleteSelection();
         CHECK(editor.holds().empty());
-        CHECK(editor.entries() == entries);
-        CHECK(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.spanCount() == 2);
+    }
+}
+
+// Delete steps an authored chord down one level per press: first to the chord the notes derive,
+// then to a none hold over it with the chord still standing, then back to the derivation.
+TEST_CASE(
+    "Delete steps an authored chord down to its derived chord, then a none hold", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(3, 1), 3, 5)}, {unnamedHold(at(3, 1), at(3, 2))})};
+    editor.walkDownAt(4.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    editor.deleteSelection();
+    INFO(editor.holdsText());
+    CHECK(editor.holds().empty());
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+
+    editor.deleteSelection();
+    CHECK(editor.holds() == std::vector{noneHold(at(3, 1), at(3, 2))});
+    CHECK(editor.spanCount() == 1);
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    editor.deleteSelection();
+    CHECK(editor.holds().empty());
+    CHECK(editor.spanCount() == 1);
+}
+
+// None holds that meet are one: Delete on an arpeggio beside a none hold grows that hold over it
+// and selects the grown hold, and Delete on it gives the whole stretch back to the derivation.
+TEST_CASE(
+    "Delete beside a none hold grows it, and deleting it restores the stretch", "[core][holds]")
+{
+    HoldEditor editor{chartOf({arpeggioIn(1), arpeggioIn(2)}, {noneHold(at(1, 1), at(2, 1))})};
+    REQUIRE(editor.spanCount() == 1);
+    editor.walkDownAt(2.75, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+
+    editor.deleteSelection();
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{noneHold(at(1, 1), at(2, 4))});
+    CHECK(editor.spanCount() == 0);
+    CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+
+    editor.deleteSelection();
+    CHECK(editor.holds().empty());
+    CHECK(editor.spanCount() == 2);
+}
+
+// A chord standing inside a none hold has nothing to add: the none hold over it merges back into
+// the one already there, so Delete on it changes nothing and records nothing.
+TEST_CASE("Delete on a chord inside a none hold changes nothing", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(1, 2), 3, 5)}, {noneHold(at(1, 1), at(2, 1))})};
+    editor.walkDownAt(0.6, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+
+    editor.deleteSelection();
+    CHECK(editor.holds() == std::vector{noneHold(at(1, 1), at(2, 1))});
+    CHECK(editor.entries() == entries);
+}
+
+// A press on a span's rails or chip selects that span, held or derived, by its index in the
+// projection, and a press on a none hold's hatch selects the hold by its index among the none
+// holds; neither seeks, and an index naming nothing selects nothing.
+TEST_CASE("A span press and a none-hold press select what they name", "[core][holds]")
+{
+    // A derived arpeggio over measure 1, a held box at 3:1, and a none hold over measure 5.
+    HoldEditor editor{chartOf(
+        {arpeggioIn(1), chordAt(at(3, 1), 3, 5)},
+        {unnamedHold(at(3, 1), at(3, 2)), noneHold(at(5, 1), at(6, 1))})};
+    REQUIRE(editor.spanCount() == 2);
+    editor.park(12.5);
+
+    editor.press(0, std::nullopt);
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    CHECK_FALSE(editor.selectedHold().has_value());
+
+    editor.press(1, std::nullopt);
+    CHECK(editor.state().chart_edit.selected_span == std::optional<std::size_t>{1});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    editor.press(std::nullopt, 0);
+    CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+    CHECK_FALSE(editor.state().chart_edit.selected_span.has_value());
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{1});
+    CHECK(editor.transport.position().seconds == Catch::Approx(12.5));
+
+    editor.press(2, std::nullopt);
+    CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+}
+
+// A press landing on a none hold and the chord standing inside it selects the none hold, the one
+// the walk up from the strings meets first, as the hold jump does.
+TEST_CASE("A press on a none hold and the chord inside it selects the hold", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(1, 2), 3, 5)}, {noneHold(at(1, 1), at(2, 1))})};
+    REQUIRE(editor.spanCount() == 1);
+
+    editor.press(0, 0);
+    CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+    CHECK_FALSE(editor.state().chart_edit.selected_span.has_value());
+}
+
+// Ctrl+H on a none hold states an unnamed hold over it, restoring the shape the Delete denied, and
+// leaves the span it states selected.
+TEST_CASE("Ctrl+H on a none hold restores the arpeggio", "[core][holds]")
+{
+    HoldEditor editor{chartOf({arpeggioIn(1)}, {noneHold(at(1, 1), at(1, 4))})};
+    REQUIRE(editor.spanCount() == 0);
+    editor.press(std::nullopt, 0);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    editor.holdShape();
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 4))});
+    CHECK(editor.spanCount() == 1);
+    CHECK(editor.state().chart_edit.selected_span == std::optional<std::size_t>{0});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+}
+
+// A lane press over a chord standing inside a none hold selects the hold, so the chord's ruler chip
+// is its pointer path: the chip's press selects the span by its index, the hold left untouched.
+TEST_CASE("A span press selects a chord standing inside a none hold", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(1, 2), 3, 5)}, {noneHold(at(1, 1), at(2, 1))})};
+    REQUIRE(editor.spanCount() == 1);
+
+    editor.press(0, std::nullopt);
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    CHECK_FALSE(editor.state().chart_edit.selected_none_hold.has_value());
+    CHECK(editor.holds() == std::vector{noneHold(at(1, 1), at(2, 1))});
+}
+
+// Ctrl+Shift+H selects the hold holding the cursor, the row the walk up from the strings meets
+// first: the none hold over a chord standing in it, else the span there, and nothing in an empty
+// stretch.
+TEST_CASE("The hold jump selects the none hold before the chord inside it", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {chordAt(at(1, 2), 3, 5), chordAt(at(3, 1), 3, 5)}, {noneHold(at(1, 1), at(2, 1))})};
+    REQUIRE(editor.spanCount() == 2);
+    const auto jump = [&editor](const double seconds) {
+        editor.park(seconds);
+        editor.controller.onFocusRowJumpRequested(FocusRowJump::Hold);
+    };
+
+    SECTION("inside a none hold over a chord")
+    {
+        jump(0.6);
+        CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+        CHECK_FALSE(editor.state().chart_edit.selected_span.has_value());
+    }
+
+    SECTION("on a bare span")
+    {
+        jump(4.25);
         CHECK(editor.selectedSpan() == std::optional<std::size_t>{1});
     }
+
+    SECTION("in an empty stretch")
+    {
+        jump(6.5);
+        CHECK_FALSE(editor.state().chart_edit.selected_none_hold.has_value());
+        CHECK_FALSE(editor.state().chart_edit.selected_span.has_value());
+        CHECK_FALSE(editor.state().selection_present);
+    }
+}
+
+// The hold picker offers only the choices that change the extent, each with its tooltip: Auto is
+// left out where no hold touches it, Shape where an unnamed hold already states it, and None
+// where a none hold already covers it.
+TEST_CASE("The hold picker leaves out the choices that would change nothing", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {arpeggioIn(1), chordAt(at(3, 1), 3, 5)},
+        {unnamedHold(at(3, 1), at(3, 2)), noneHold(at(5, 1), at(6, 1))})};
+
+    SECTION("a derived span")
+    {
+        editor.walkDownAt(0.75, 1);
+        editor.controller.onHoldRequested();
+        CHECK(editor.offeredHoldChoices() == std::vector<std::string>{"Shape", "None"});
+        const ChartHoldPicker& picker = editor.view.shown_hold_pickers.back();
+        CHECK(picker.choices[0].tooltip == "Hold one shape over the whole range");
+        CHECK(picker.choices[1].tooltip == "Hide arpeggios here; chords still stand");
+    }
+
+    SECTION("a held span")
+    {
+        editor.walkDownAt(4.25, 1);
+        editor.controller.onHoldRequested();
+        CHECK(editor.offeredHoldChoices() == std::vector<std::string>{"None", "Auto"});
+        CHECK(
+            editor.view.shown_hold_pickers.back().choices[1].tooltip ==
+            "Clear holds here and let the notes decide the spans");
+    }
+
+    SECTION("a none hold")
+    {
+        editor.press(std::nullopt, 0);
+        editor.controller.onHoldRequested();
+        CHECK(editor.offeredHoldChoices() == std::vector<std::string>{"Shape", "Auto"});
+    }
+
+    SECTION("a time selection over silence")
+    {
+        editor.selectTime(6.0, 4);
+        editor.controller.onHoldRequested();
+        CHECK(editor.offeredHoldChoices() == std::vector<std::string>{"Shape", "None"});
+    }
+}
+
+// None over a time selection holding a chord box: the none hold covers the whole selection and the
+// box the notes derive inside it still stands, the none hold left selected.
+TEST_CASE("Ctrl+H None over a time selection keeps the chord inside it", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(3, 1), 3, 5)})};
+    editor.selectTime(4.0, 4);
+    editor.chooseHold(common::core::NoneGrip{});
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{noneHold(at(3, 1), at(4, 1))});
+    CHECK(editor.spanCount() == 1);
+    CHECK(editor.state().chart_edit.selected_none_hold == std::optional<std::size_t>{0});
+    CHECK(editor.lastLabel() == "Add None Hold");
+}
+
+// Auto over the middle of a merged none hold carves only that stretch out: the hold keeps its
+// pieces on either side, and the arpeggio in the middle is derived fresh.
+TEST_CASE("Ctrl+H Auto over the middle of a none hold leaves its two ends", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {arpeggioIn(1), arpeggioIn(2), arpeggioIn(3)}, {noneHold(at(1, 1), at(4, 1))})};
+    REQUIRE(editor.spanCount() == 0);
+    editor.selectTime(2.0, 4);
+    editor.chooseHold(std::nullopt);
+    INFO(editor.holdsText());
+    CHECK(
+        editor.holds() == std::vector{noneHold(at(1, 1), at(2, 1)), noneHold(at(3, 1), at(4, 1))});
+    CHECK(editor.spanCount() == 1);
+    CHECK(editor.lastLabel() == "Clear Holds");
+}
+
+// Auto over a held span takes its hold away, and the span the notes derive there stays selected.
+TEST_CASE("Ctrl+H Auto over a held span gives it back to the derivation", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(3, 1), 3, 5)}, {unnamedHold(at(3, 1), at(3, 2))})};
+    editor.walkDownAt(4.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+    editor.chooseHold(std::nullopt);
+    CHECK(editor.holds().empty());
+    CHECK(editor.spanCount() == 1);
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
 }
 
 } // namespace rock_hero::editor::core

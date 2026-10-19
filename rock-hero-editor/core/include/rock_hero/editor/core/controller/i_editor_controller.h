@@ -405,9 +405,9 @@ public:
     adjacent line of that same lattice, Up/Down step its value (one real state on a discrete lane,
     else 0.01), clamped strictly between its neighbors and inside the active region's window. With
     no selection but an armed caret on an empty lane slot, the arrow creates an on-curve point with
-    the step baked in — one keystroke, one undo entry. A shape hold or a derived span: Left/Right
-    step its start to the adjacent note onset, a derived span becoming a hold, and the start pushes
-    a hold it moves into, as one held run.
+    the step baked in — one keystroke, one undo entry. A span or a none hold: Left/Right step its
+    start to the adjacent note onset, a derived span becoming a hold, and the start pushes a hold
+    it moves into, as one held run.
 
     \param direction Move direction.
     */
@@ -418,7 +418,9 @@ public:
 
     Exactly one selection exists across every surface (chart notes, a marker, an automation point,
     a time span), so this dispatches on the selection's kind and never has to choose between
-    surfaces. A no-op when nothing is selected.
+    surfaces. A no-op when nothing is selected. On a span or a none hold it steps down one level: a
+    held span's hold or a none hold is removed, so the derivation returns over its stretch, and a
+    derived span gains a none hold over it, merged with any it meets and left selected.
     */
     virtual void onSelectionDeleteRequested() = 0;
 
@@ -476,8 +478,8 @@ public:
     so a ring left between lines snaps back onto them. Growth stops at exact adjacency with the next
     onset on the note's OWN string, a ring a step would empty holds where it is, and a run of
     presses is ONE gesture, replayed from the rings it started at onto one undo entry. On a selected
-    shape hold or derived span the same keys step its end to the adjacent note boundary instead, as
-    the move keys step its start.
+    span or none hold the same keys step its end to the adjacent note boundary instead, as the move
+    keys step its start.
 
     \param direction +1 to grow, -1 to shrink.
     */
@@ -706,16 +708,44 @@ public:
     virtual void onFretHandPositionsPruneRequested() = 0;
 
     /*!
-    \brief Handles the hold chord (`Ctrl+H`): state that the hand holds one shape over what the
-    selection covers.
+    \brief Handles the hold chord (`Ctrl+H`): ask what the extent the selection covers becomes.
 
-    The hold runs over a selected hold or derived span's own extent, a time selection's, or a note
-    selection's from its first onset to its last ring's end, and is carved into the chart's holds:
-    a hold it straddles is cropped and one it lies inside is split. Refused, with the refusal flash
-    and a log line, when nothing is selected or any hold would not fit its notes. One undo entry,
-    leaving the new hold selected. Inert while playing and with no chart.
+    The extent is a selected span's or none hold's own, a time selection's, or a note selection's
+    from its first onset to its last ring's end. The choices are Shape, an unnamed hold over it;
+    None, a none hold over it, merged with any none hold it meets; and Auto, every hold carved out
+    of it so the notes decide the spans there. A choice that would change nothing is not offered,
+    and at most one of the three can, so the hold picker always opens
+    (\ref IEditorView::showChartHoldPicker); asking commits nothing. Refused with a log line when
+    nothing is selected. Inert while playing and with no chart.
     */
-    virtual void onHoldShapeRequested() = 0;
+    virtual void onHoldRequested() = 0;
+
+    /*!
+    \brief Handles the hold picker's answer: what the selection's extent becomes.
+
+    The choice is carved into the chart's holds over the extent — a hold it straddles is cropped,
+    one it lies inside is split, and a none hold it meets merges with a none hold it states — as
+    one undo entry, leaving selected the hold it states or, for Auto, the span the notes derive at
+    the extent's start. Refused, with the refusal flash, when a hold would not fit its notes.
+
+    \param grip The grip the hold over the extent states, or empty for Auto: no hold there.
+    */
+    virtual void onHoldChoiceRequested(std::optional<common::core::HoldGrip> grip) = 0;
+
+    /*!
+    \brief Handles a press on a span or a none hold: on their rails in the tab lane, or on a span's
+    chip on the ruler.
+
+    The view reports every mark under the pointer and the controller picks: where a none hold and
+    a span both lie there, the none hold, the one the walk up from the strings meets first, so a
+    chord inside a none hold is selected by its ruler chip. Derived and held spans alike: the verbs
+    then edit a held span's hold or convert a derived span. Seeks nothing, as a fret-hand chip click
+    does; like every marker selection it is cleared by any cursor move. An index naming nothing
+    selects nothing.
+
+    \param marks The span and the none hold under the press, by tab-projection index.
+    */
+    virtual void onSpanRowMarksPressed(const SpanRowMarks& marks) = 0;
 
     /*!
     \brief Handles a request to insert a song-structure section at the marker.

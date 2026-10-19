@@ -319,9 +319,17 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::PruneFretHandPositions;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::HoldShape>)
+    else if constexpr (std::is_same_v<A, EditorAction::ChooseHold>)
     {
-        return EditorAction::Id::HoldShape;
+        return EditorAction::Id::ChooseHold;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SetHold>)
+    {
+        return EditorAction::Id::SetHold;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SelectSpanRowMark>)
+    {
+        return EditorAction::Id::SelectSpanRowMark;
     }
     else if constexpr (std::is_same_v<A, EditorAction::StepToRowObject>)
     {

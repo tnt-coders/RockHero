@@ -20,6 +20,7 @@
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -87,6 +88,12 @@ public:
     using FretHandChipCallback = std::function<void(std::size_t)>;
 
     /*!
+    \brief Sink receiving a press on span-row rails: the span and the none hold whose rails hold
+    the point, by their indices in the projection.
+    */
+    using SpanRowMarksCallback = std::function<void(const core::SpanRowMarks&)>;
+
+    /*!
     \brief Creates an empty lane that draws in the given colors.
     \param string_colors The string colors every lane surface derives from.
     \param shape_inks The inks the lane's span rails are painted with.
@@ -135,6 +142,21 @@ public:
     \param callback Callback receiving the pressed placement's index; empty leaves chips inert.
     */
     void setFretHandChipCallback(FretHandChipCallback callback);
+
+    /*!
+    \brief Installs the sink a press on a span's or a none hold's rails reaches.
+
+    The rails are hit-tested on the rectangles the paint draws (common::ui::tabShapeRailBounds): a
+    span's stopping where the furniture pass stops them, a none hold's whole, the gaps between its
+    slashes included, so a press lands on exactly what is drawn. The press reports every mark whose
+    rails hold the point and leaves the choice between a none hold and a chord inside it to the
+    controller. It goes to this sink and never reaches the chart pointer path; a fret-hand chip
+    drawn over a rail answers first. Inert while the marker plane is closed, as a fret-hand chip
+    is.
+
+    \param callback Callback receiving the marks under the press; empty leaves the rails inert.
+    */
+    void setSpanRowMarksCallback(SpanRowMarksCallback callback);
 
     /*!
     \brief Publishes whether the marker plane is open for selection and editing.
@@ -312,6 +334,17 @@ public:
     [[nodiscard]] std::optional<juce::Rectangle<float>> selectedNoteHeadBounds() const;
 
     /*!
+    \brief The selected span's or none hold's two rails as one box, in this component's
+    coordinates.
+
+    The glyph a verb on it keeps on screen: the union of the rails as drawn, to the column they
+    stop at. Empty with neither selected or rails too short to draw.
+
+    \return The rails' bounds, or empty.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> selectedSpanRowBounds() const;
+
+    /*!
     \brief The head of one note by projection index, in this component's coordinates.
 
     The anchor for a popup about that note — the harmonic node picker opens on the head whose
@@ -413,6 +446,37 @@ private:
     // wantsNotationAt has already refused the press over.
     [[nodiscard]] std::optional<std::size_t> fretHandChipAt(juce::Point<float> local_point) const;
 
+    // A span-row mark's two rails, top then bottom (common::ui::tabShapeRailBounds).
+    using Rails = std::pair<juce::Rectangle<float>, juce::Rectangle<float>>;
+
+    // The index of the span whose top or bottom rail holds a lane-local point; nothing off every
+    // rail.
+    [[nodiscard]] std::optional<std::size_t> spanAt(juce::Point<float> local_point) const;
+
+    // The index of the none hold whose top or bottom rail, gaps included, holds a lane-local
+    // point; nothing off every rail.
+    [[nodiscard]] std::optional<std::size_t> noneHoldAt(juce::Point<float> local_point) const;
+
+    // The rails of the span at `index` as the furniture pass fills them, stopping where it stops
+    // them. `index` must be inside the lane's spans.
+    [[nodiscard]] Rails spanRails(const DrawableLane& lane, std::size_t index) const;
+
+    // The rails of the none hold at `index`, the hatch's extent. `index` must be inside the lane's
+    // none holds.
+    [[nodiscard]] static Rails noneHoldRails(const DrawableLane& lane, std::size_t index);
+
+    // The selected span's or none hold's rails, the one answer the outline and
+    // selectedSpanRowBounds read; nothing with neither selected or rails too short to draw.
+    [[nodiscard]] std::optional<Rails> selectedSpanRowRails(const DrawableLane& lane) const;
+
+    // Hatches the rails of the none holds reaching the clip, beneath the furniture.
+    static void paintNoneHolds(juce::Graphics& g, const DrawableLane& lane);
+
+    // Whether the span at `index` draws to its musical close: the one reveal answer the paint, the
+    // rails' hit test and the selected outline share. `index` must be inside `tab`'s spans.
+    [[nodiscard]] bool shapeRevealed(
+        const common::core::ChartViewState& tab, std::size_t index) const;
+
     // The column the placement at `index` has its chip drawn at: the pin's while the panel pins it,
     // else its own column. `index` must be inside the lane's placements.
     [[nodiscard]] float fretHandChipX(
@@ -464,6 +528,9 @@ private:
 
     // Selects the placement a chip press names; empty leaves chips inert.
     FretHandChipCallback m_fret_hand_chip_callback{};
+
+    // Reports the span-row marks a rail press lands on; empty leaves the rails inert.
+    SpanRowMarksCallback m_span_row_marks_callback{};
 
     // The published marker-plane availability; chips are markers only while it is open.
     bool m_marker_edits_enabled{false};

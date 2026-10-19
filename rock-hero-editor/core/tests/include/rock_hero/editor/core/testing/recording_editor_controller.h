@@ -433,10 +433,23 @@ public:
         fret_hand_positions_prune_count += 1;
     }
 
-    /*! \copydoc IEditorController::onHoldShapeRequested */
-    void onHoldShapeRequested() override
+    /*! \copydoc IEditorController::onHoldRequested */
+    void onHoldRequested() override
     {
-        hold_shape_count += 1;
+        hold_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onHoldChoiceRequested */
+    void onHoldChoiceRequested(std::optional<common::core::HoldGrip> grip) override
+    {
+        last_hold_choice = std::move(grip);
+        hold_choice_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onSpanRowMarksPressed */
+    void onSpanRowMarksPressed(const SpanRowMarks& marks) override
+    {
+        last_span_row_marks = marks;
     }
 
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
@@ -1037,8 +1050,17 @@ public:
     /*! \brief Number of onFretHandPositionsPruneRequested() intents received. */
     int fret_hand_positions_prune_count{0};
 
-    /*! \brief Number of onHoldShapeRequested() intents received. */
-    int hold_shape_count{0};
+    /*! \brief Number of onHoldRequested() intents received. */
+    int hold_count{0};
+
+    /*! \brief Last grip reported through onHoldChoiceRequested(), empty for Auto. */
+    std::optional<common::core::HoldGrip> last_hold_choice{};
+
+    /*! \brief Number of onHoldChoiceRequested() intents received. */
+    int hold_choice_count{0};
+
+    /*! \brief Last marks reported through onSpanRowMarksPressed(). */
+    std::optional<SpanRowMarks> last_span_row_marks{};
 
     /*! \brief Last position reported through onSongSectionInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_song_section_position{};

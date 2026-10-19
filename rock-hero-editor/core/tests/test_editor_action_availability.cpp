@@ -277,6 +277,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ChooseChartHarmonic, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SelectFretHandPosition, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SelectSpanRowMark, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AuthorFretHandPositionAtCursor, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ClearFretHandEnd, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::PruneFretHandPositions, conditions));
@@ -288,6 +289,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
 
     // The fret-hand positions are the chart's own, so their marker verbs open with it.
     CHECK(isActionAvailable(ActionId::SelectFretHandPosition, conditions));
+    CHECK(isActionAvailable(ActionId::SelectSpanRowMark, conditions));
     CHECK(isActionAvailable(ActionId::AuthorFretHandPositionAtCursor, conditions));
     CHECK(isActionAvailable(ActionId::ClearFretHandEnd, conditions));
     CHECK(isActionAvailable(ActionId::PruneFretHandPositions, conditions));

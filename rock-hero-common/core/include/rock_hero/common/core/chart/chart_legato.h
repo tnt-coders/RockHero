@@ -541,25 +541,43 @@ struct ShapeHoldNormalization
 };
 
 /*!
+\brief The holds with every run of none holds that abut or overlap merged into one (shape rule 9):
+THE statement of that part of the normal form, asked by the normalizer and by every verb that
+authors a hold, so no verb restates it.
+
+Merging compares hold edges alone and never reads a span, so it runs before the walk, which then
+derives once under the merged holds: the normal form stays one derivation and one pass. Unnamed
+holds never merge: each one is a span.
+
+\param holds The holds, ascending by start; none holds may abut or overlap one another.
+\return The holds with each such run replaced by one none hold from its first start to its furthest
+        end, ascending and never overlapping.
+*/
+[[nodiscard]] std::vector<ShapeHold> mergedNoneHolds(const std::vector<ShapeHold>& holds);
+
+/*!
 \brief Brings a chart's shape holds to their normal form (shape rule 9) and derives the notes layer
 under them: THE one hold normalizer, run after every edit that is not a hold verb — a note edit (the
 editor's plan gate), a tempo or meter edit (the timeline funnel) and a load (\ref normalizeChart).
 
-The walk is the one authority on a hold, so the normal form is what it publishes: every hold's end
-is written back where the walk published it (\ref shapeHoldPublishedEnd), one rule that is both the
+The walk is the one authority on a hold, so the normal form is what it publishes. Before it runs, a
+hold a re-address rounded onto no length is dropped, and then the none holds that abut or overlap
+are merged into one (\ref mergedNoneHolds), reading their edges alone. Every hold's end is then
+written back where the walk published it (\ref shapeHoldPublishedEnd), one rule that is both the
 crop, back to a hand conflict an edit put inside, and the extension, on past an end where nothing
-closed; and a hold the walk leaves nothing — one a re-address rounded onto no length, or whose span
-closes at its start — is dropped. Neither can make two holds overlap, since every span closes at the
-next hold's start. The walk walls each hold at its published end and publishes no empty hold span,
-so the spans derived under the stated holds are the spans under the normalized ones: one derivation
-and one pass reading it are the normal form, and normalizing the result again changes nothing. A
-none hold always fits, so only its length can drop it.
+closed; and a hold whose span closes at its start is dropped. None of it can make two holds
+overlap, since every span closes at the next hold's start, nor bring two none holds to meet, since
+only an unnamed hold is cropped or dropped. The walk walls each hold at its published end and
+publishes no empty hold span, so the spans derived under the merged holds are the spans under the
+normalized ones: one derivation and one pass reading it are the normal form, and normalizing the
+result again changes nothing. A none hold always fits, so only its length can drop it.
 
 The layer is completed from that one derivation, so the caller that judges the result whole
 (coverage, validation, the editor's memo) derives nothing twice.
 
 \param notes Note stream to resolve, sorted by (position, string) and valid.
-\param shape_holds The holds: ascending and never overlapping, possibly with a hold of no length.
+\param shape_holds The holds: ascending, never overlapping but for none holds overlapping one
+       another, possibly with a hold of no length.
 \param capo The tuning's capo fret; 0 for none.
 \param tempo_map Song tempo map placing the notes and the holds.
 \return The notes layer under the normalized holds, and one conversion per hold the normal form

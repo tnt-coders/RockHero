@@ -94,6 +94,12 @@ struct RulerSpan
     bool arpeggio{false};
 
     /*!
+    \brief True for a hold's span, whose chip draws solid; false for a derived span, whose chip
+    draws as a ghost (\ref common::core::ShapeViewState::held).
+    */
+    bool held{false};
+
+    /*!
     \brief Compares two spans by their stored values.
     \param lhs Left-hand span.
     \param rhs Right-hand span.
@@ -104,7 +110,8 @@ struct RulerSpan
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
         // floating members. The ordering query expresses exact equality warning-free.
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.arpeggio == rhs.arpeggio;
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.arpeggio == rhs.arpeggio &&
+               lhs.held == rhs.held;
     }
 };
 
@@ -176,6 +183,12 @@ public:
         \param measure Measure the clicked chip's signature change starts.
         */
         virtual void onTimeSignatureSelected(int measure) = 0;
+
+        /*!
+        \brief Called when the user clicks a span chip.
+        \param index The clicked chip's span, as its index in the tab projection's spans.
+        */
+        virtual void onSpanSelected(std::size_t index) = 0;
 
         /*!
         \brief Called when the ruler menu asks to add a section at the clicked slot.
@@ -375,6 +388,18 @@ public:
     void setSpans(std::vector<RulerSpan> spans);
 
     /*!
+    \brief Stores which span is selected, its chip drawn with the accent outline a selected section
+    chip wears.
+
+    Its own setter, because a selection places no chip: a changed selection repaints and moves
+    nothing. An unchanged selection returns early because every controller state push repeats it.
+
+    \param span Index of the selected span in the spans given (\ref setSpans), or empty when none
+    is selected.
+    */
+    void setSelectedSpan(std::optional<std::size_t> span);
+
+    /*!
     \brief Stores the inks the span chips are filled with, which are the tab lane's own, so a chip
     reads as one object with the rails it stands on.
     \param shape_inks The tab lane's span inks.
@@ -549,6 +574,16 @@ private:
         double press_seconds{0.0};
     };
 
+    // A span chip as placed: the chip the paint core draws and the span it names. Pinned while it
+    // stands at the left edge for a span whose start has scrolled off, so it is no witness that the
+    // span's start is on screen.
+    struct PlacedSpanChip
+    {
+        common::ui::TabSpanChip chip{};
+        std::size_t index{0};
+        bool pinned{false};
+    };
+
     // One chip row's cached geometry: the placed chips, and the visible marker columns its dotted
     // leaders drop from, which include markers whose chips were suppressed.
     struct ChipRow
@@ -568,6 +603,10 @@ private:
     // Rebuilds the span chips from the spans: each visible chip, its column and the column its
     // span's marks stop at, which bounds its width.
     void refreshSpanChips();
+
+    // The placed span chip under a point, the one drawn last where chips meet; null off every
+    // chip.
+    [[nodiscard]] const PlacedSpanChip* spanChipAt(juce::Point<float> point) const;
 
     // Maps this pinned ruler's local x coordinate to the content time under it, at the current
     // scroll offset; empty when the geometry cannot map it.
@@ -784,7 +823,11 @@ private:
     std::vector<RulerSpan> m_spans{};
 
     // The span chips the ruler shows, placed when the geometry rebuilds.
-    std::vector<common::ui::TabSpanChip> m_span_chips{};
+    std::vector<PlacedSpanChip> m_span_chips{};
+
+    // Index into m_spans of the selected span, whose chip wears the accent outline; empty with
+    // none selected.
+    std::optional<std::size_t> m_selected_span{};
 
     // The tab lane's span inks the span chips fill in, taken at construction and replaced by the
     // owning view whenever its theme changes.

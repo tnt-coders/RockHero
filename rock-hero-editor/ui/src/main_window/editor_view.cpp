@@ -303,10 +303,12 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SelectTempoAnchor:
             case core::EditorActionId::SelectTimeSignature:
             case core::EditorActionId::SelectFretHandPosition:
+            case core::EditorActionId::SelectSpanRowMark:
             case core::EditorActionId::AuthorFretHandPositionAtCursor:
             case core::EditorActionId::ClearFretHandEnd:
             case core::EditorActionId::PruneFretHandPositions:
-            case core::EditorActionId::HoldShape:
+            case core::EditorActionId::ChooseHold:
+            case core::EditorActionId::SetHold:
             {
                 return "Save your tone before continuing?";
             }
@@ -405,10 +407,12 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SelectTempoAnchor:
         case core::EditorActionId::SelectTimeSignature:
         case core::EditorActionId::SelectFretHandPosition:
+        case core::EditorActionId::SelectSpanRowMark:
         case core::EditorActionId::AuthorFretHandPositionAtCursor:
         case core::EditorActionId::ClearFretHandEnd:
         case core::EditorActionId::PruneFretHandPositions:
-        case core::EditorActionId::HoldShape:
+        case core::EditorActionId::ChooseHold:
+        case core::EditorActionId::SetHold:
         {
             return "Save changes before continuing?";
         }
@@ -427,6 +431,47 @@ constexpr int g_track_viewport_min_height{80};
         .minimum_string_count = state.tab_minimum_displayed_strings,
     };
 }
+
+// A popup menu row with a tooltip. JUCE's PopupMenu::Item carries none, but a custom item is a
+// component inside the menu window, and the desktop TooltipWindow the editor keeps alive asks the
+// component under the mouse for its tip like any other (TooltipWindow::getTipFor); the menu window
+// holds the modal state, so its own rows are never blocked by it. The row is drawn by the
+// look-and-feel's own item painter, so it reads as one with the menu's plain rows, highlight
+// included.
+class TooltipMenuRow final : public juce::PopupMenu::CustomComponent,
+                             public juce::SettableTooltipClient
+{
+public:
+    TooltipMenuRow(juce::String text, const juce::String& tooltip)
+        : m_text{std::move(text)}
+    {
+        setTooltip(tooltip);
+    }
+
+    void getIdealSize(int& ideal_width, int& ideal_height) override
+    {
+        getLookAndFeel().getIdealPopupMenuItemSize(m_text, false, -1, ideal_width, ideal_height);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        getLookAndFeel().drawPopupMenuItem(
+            g,
+            getLocalBounds(),
+            false,
+            true,
+            isItemHighlighted(),
+            false,
+            false,
+            m_text,
+            {},
+            nullptr,
+            nullptr);
+    }
+
+private:
+    juce::String m_text;
+};
 
 } // namespace
 
@@ -520,6 +565,8 @@ EditorView::EditorView(
         [this](juce::Point<int> position) { showChartDiscoveryMenu(position); });
     m_tab_view.setFretHandChipCallback(
         [this](const std::size_t index) { m_controller.onFretHandPositionSelected(index); });
+    m_tab_view.setSpanRowMarksCallback(
+        [this](const core::SpanRowMarks& marks) { m_controller.onSpanRowMarksPressed(marks); });
     m_tab_view.setPointerEventCallback(
         [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
             switch (phase)
@@ -931,10 +978,12 @@ void EditorView::setState(const core::EditorViewState& state)
                     .start_seconds = retimed(shape.start_seconds),
                     .end_seconds = retimed(shape.drawn_end_seconds),
                     .arpeggio = shape.arpeggio,
+                    .held = shape.held,
                 });
         }
     }
     m_track_viewport->setSpans(std::move(spans));
+    m_track_viewport->setSelectedSpan(m_state.chart_edit.selected_span);
     m_track_viewport->setSelectedTempoMapChips(
         m_state.selected_tempo_anchor, m_state.selected_time_signature_measure);
 
@@ -1458,6 +1507,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(navigate_menu, EditorCommandId::CaretJumpTempoRow);
     add(navigate_menu, EditorCommandId::CaretJumpTimeSignatureRow);
     add(navigate_menu, EditorCommandId::CaretJumpFretHandPositionRow);
+    add(navigate_menu, EditorCommandId::CaretJumpHoldRow);
     add(navigate_menu, EditorCommandId::CaretJumpToneRow);
     add(navigate_menu, EditorCommandId::CaretJumpAddLaneRow);
     navigate_menu.addSeparator();
@@ -1599,6 +1649,40 @@ void EditorView::flashRenumberedMeasures(const int from_measure)
 void EditorView::revealTimelineStart()
 {
     m_track_viewport->revealTimelineStart();
+}
+
+// The hold picker the hold chord asks for: the choices the core offers, each with its tooltip, in
+// the order it names, the first preselected. Anchored at the selection the extent is read from — a
+// span's or none hold's rails, else the earliest selected head — and on the lane for a time
+// selection, answered through onHoldChoiceRequested; dismissing chooses nothing.
+void EditorView::showChartHoldPicker(core::ChartHoldPicker picker)
+{
+    juce::PopupMenu menu;
+    for (std::size_t index = 0; index < picker.choices.size(); ++index)
+    {
+        const core::ChartHoldChoice& choice = picker.choices[index];
+        menu.addCustomItem(
+            static_cast<int>(index) + 1,
+            std::make_unique<TooltipMenuRow>(
+                juce::String{choice.label}, juce::String{choice.tooltip}),
+            nullptr,
+            juce::String{choice.label});
+    }
+    std::optional<juce::Rectangle<float>> anchor = m_tab_view.selectedSpanRowBounds();
+    if (!anchor.has_value())
+    {
+        anchor = m_tab_view.selectedNoteHeadBounds();
+    }
+    showChartQuestion(
+        std::move(menu),
+        0,
+        anchor,
+        [this, owned_choices = std::move(picker.choices)](const std::size_t row) {
+            if (row < owned_choices.size())
+            {
+                m_controller.onHoldChoiceRequested(owned_choices[row].grip);
+            }
+        });
 }
 
 // The bend picker the bend verb asks for: every amount from rest to three whole steps, spelled as
@@ -2010,7 +2094,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::InsertTempoAnchor:
         case EditorCommandId::InsertTimeSignature:
         case EditorCommandId::InsertFretHandPosition:
-        case EditorCommandId::HoldShape:
+        case EditorCommandId::ChooseHold:
         case EditorCommandId::RestateSelection:
         case EditorCommandId::RenameSelection:
         case EditorCommandId::OpenFileMenu:
@@ -2036,6 +2120,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CaretJumpTempoRow:
         case EditorCommandId::CaretJumpTimeSignatureRow:
         case EditorCommandId::CaretJumpFretHandPositionRow:
+        case EditorCommandId::CaretJumpHoldRow:
         case EditorCommandId::CaretJumpToneRow:
         case EditorCommandId::CaretJumpAddLaneRow:
         case EditorCommandId::TimeSelectionExtendLeft:
@@ -2185,6 +2270,15 @@ bool EditorView::selectionGlyphVisible(const double seconds) const
         {
             glyph =
                 m_track_viewport->getLocalArea(&m_tab_view, head->getSmallestIntegerContainer());
+        }
+    }
+    if (!glyph.has_value())
+    {
+        if (const std::optional<juce::Rectangle<float>> rails = m_tab_view.selectedSpanRowBounds();
+            rails.has_value())
+        {
+            glyph =
+                m_track_viewport->getLocalArea(&m_tab_view, rails->getSmallestIntegerContainer());
         }
     }
     if (!glyph.has_value())
@@ -2359,9 +2453,9 @@ bool EditorView::performCommand(const InvocationInfo& info)
             m_controller.onFretHandPositionChordRequested();
             return true;
         }
-        case EditorCommandId::HoldShape:
+        case EditorCommandId::ChooseHold:
         {
-            m_controller.onHoldShapeRequested();
+            m_controller.onHoldRequested();
             return true;
         }
         case EditorCommandId::RestateSelection:
@@ -2696,6 +2790,11 @@ bool EditorView::performCommand(const InvocationInfo& info)
         case EditorCommandId::CaretJumpFretHandPositionRow:
         {
             m_controller.onFocusRowJumpRequested(core::FocusRowJump::FretHandPosition);
+            return true;
+        }
+        case EditorCommandId::CaretJumpHoldRow:
+        {
+            m_controller.onFocusRowJumpRequested(core::FocusRowJump::Hold);
             return true;
         }
         case EditorCommandId::CaretJumpToneRow:
@@ -3979,6 +4078,13 @@ void EditorView::onTempoAnchorDragReleased()
 void EditorView::onTimeSignatureSelected(const int measure)
 {
     m_controller.onTimeSignatureSelected(measure);
+}
+
+// A span chip click reaches the one controller entry a rail press reaches, naming the span alone.
+void EditorView::onSpanSelected(const std::size_t index)
+{
+    m_controller.onSpanRowMarksPressed(
+        core::SpanRowMarks{.span = index, .none_hold = std::nullopt});
 }
 
 // Prompts for a name and asks the controller to add a section at a position — the cursor's slot

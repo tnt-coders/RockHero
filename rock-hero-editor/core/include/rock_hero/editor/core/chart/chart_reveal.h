@@ -8,7 +8,7 @@ draws — which the lane holds and the controller resolves afresh for a pointer 
 resolver). A NOTE draws to its ring end — every keyframe at its true instant, its reveal-only marks
 with it — on three grounds: the modifier, the note being SELECTED, and the CARET standing on it
 (\ref chartPresence). A SPAN's furniture reads to its musical close on the same three, read for a
-span (\ref chartSpanRevealed).
+span, and on a fourth of its own: the span being selected (\ref chartSpanRevealed).
 
 THE LAST TWO ARE THE EDIT'S FOCUS, and focus does one thing the modifier does not: a focused ring
 ending on the next head of its own string sets that head STEPPED BACK, drawn faint and beneath the
@@ -48,6 +48,7 @@ and a second spelling is how the drawn picture and the reachable one come apart.
 
 #pragma once
 
+#include <cstddef>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -92,28 +93,29 @@ pass over the projection.
 /*!
 \brief Answers whether this span's furniture runs to its musical close rather than its drawn extent.
 
-THREE GROUNDS, and any one is enough. The LANE REVEAL is the modifier held over the whole lane, so
+FOUR GROUNDS, and any one is enough. The LANE REVEAL is the modifier held over the whole lane, so
 every visible span reads to its close while it is down, exactly as every visible note reads to its
-real ring. A span COVERING A SELECTED NOTE reveals with it, because the selection is the thing under
-scrutiny and the span a selected note stands in is part of what is being scrutinised — the same
-argument that draws a selected note's own ring. And the CARET anywhere inside the span's tenure
-reveals it, its STRING ignored, because a span is lane furniture rather than one string's ring.
-Spans are not selectable in their own right.
+real ring. The span ITSELF BEING SELECTED reveals it, as a selected note draws its own ring. A span
+COVERING A SELECTED NOTE reveals with it, because the selection is the thing under scrutiny and the
+span a selected note stands in is part of what is being scrutinised — the same argument that draws
+a selected note's own ring. And the CARET anywhere inside the span's tenure reveals it, its STRING
+ignored, because a span is lane furniture rather than one string's ring.
 
 The selection arm judges a selected note's ONSET start-included, close-EXCLUDED: an onset AT the
 close is the event that ended the statement, or the one that opened the successor span, and neither
 is a member of this span. The close is pulled in by the rounding tolerance so an onset landing on
 it is outside whichever way the last bit of the two arithmetic paths falls.
 
-\param span The span whose furniture is being drawn.
+\param tab The projection whose span is being drawn.
+\param span_index Index of the span in \p tab's spans, the order
+       \ref ChartEditViewState::selected_span indexes; it must be in range.
 \param lane_reveal True while the whole-lane reveal modifier is held.
-\param notes The projection's notes, in the order the selection indexes.
 \param edit The published overlay: the selection resolved against the projection, and the caret.
 
 \return True when this span's furniture runs to \ref common::core::ShapeViewState::close_seconds.
 */
 [[nodiscard]] bool chartSpanRevealed(
-    const common::core::ShapeViewState& span, bool lane_reveal,
-    const std::vector<common::core::NoteViewState>& notes, const ChartEditViewState& edit) noexcept;
+    const common::core::ChartViewState& tab, std::size_t span_index, bool lane_reveal,
+    const ChartEditViewState& edit) noexcept;
 
 } // namespace rock_hero::editor::core

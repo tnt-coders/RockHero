@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
@@ -21,11 +22,10 @@
 namespace rock_hero::editor::core
 {
 
-// The marker rows: the ruler's section, tempo and time-signature rows, the shape-hold and
-// derived-span rows, the position row and the tone row, which the keyboard reaches by selecting a
-// marker. Every row answers the same questions — where its markers start, which one holds a
-// position, which one the selection names — so the walk, a chip click and Tab share one model of
-// all seven.
+// The marker rows: the ruler's section, tempo and time-signature rows, the span and none-hold rows,
+// the position row and the tone row, which the keyboard reaches by selecting a marker. Every row
+// answers the same questions — where its markers start, which one holds a position, which one the
+// selection names — so the walk, a chip click and Tab share one model of all seven.
 
 std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     const MarkerRow row) const
@@ -62,27 +62,23 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
             }
             break;
         }
-        case MarkerRow::ShapeHold:
+        case MarkerRow::NoneHold:
         {
-            if (const common::core::Arrangement* const arrangement = session().currentArrangement();
-                arrangement != nullptr && arrangement->chart.has_value())
+            for (const common::core::NoneHoldViewState& hold : noneHoldMarks())
             {
-                for (const common::core::ShapeHold& hold : arrangement->chart->shape_holds)
-                {
-                    starts.push_back(hold.start);
-                }
+                starts.push_back(hold.start);
             }
             break;
         }
-        case MarkerRow::DerivedSpan:
+        case MarkerRow::Span:
         {
-            // Read off the memoized notes layer at the exact musical place, never off the
-            // projection's seconds.
+            // Every span, derived and held alike: the projection's spans are the notes layer's in
+            // order, so a row index IS a span's index. Read off the memoized notes layer at the
+            // exact musical place, never off the projection's seconds.
             const common::core::TempoMap& tempo_map = session().song().tempo_map;
-            const std::vector<common::core::ChartShape>& shapes = chartResolutions().shapes;
-            for (const std::size_t shape : derivedSpanShapes())
+            for (const common::core::ChartShape& shape : chartResolutions().shapes)
             {
-                starts.push_back(tempo_map.gridPositionAtWholeNote(shapes[shape].place));
+                starts.push_back(tempo_map.gridPositionAtWholeNote(shape.place));
             }
             break;
         }
@@ -115,24 +111,30 @@ std::vector<common::core::GridPosition> EditorController::Impl::markerStarts(
     return starts;
 }
 
-// A hold's close is its stated end, which a hold verb never leaves unfit and the normalizer writes
-// back after every other edit; a derived span's is its musical close, read on its start's axis.
+// Read off the memoized projection, which publishes the chart's none holds once per revision.
+const std::vector<common::core::NoneHoldViewState>& EditorController::Impl::noneHoldMarks() const
+{
+    static const std::vector<common::core::NoneHoldViewState> g_no_tab;
+    const common::core::ChartViewState* const scene = currentTabProjection();
+    return scene != nullptr ? scene->none_holds : g_no_tab;
+}
+
+// A none hold's close is its stated end, which always fits its notes; a span's is its musical
+// close, read on its start's axis, which for a held span is its hold's stated end too.
 std::optional<common::core::GridPosition> EditorController::Impl::markerClose(
     const MarkerRow row, const std::size_t index) const
 {
     switch (row)
     {
-        case MarkerRow::ShapeHold:
+        case MarkerRow::NoneHold:
         {
-            // In range proves the chart markerStarts read the starts from: read through .value()
-            // and .at(), as markerSelectionAt reads the tone row, since a miss is a broken
-            // precondition.
-            return session().currentArrangement()->chart.value().shape_holds.at(index).end;
+            // Read through .at(), as markerSelectionAt reads the tone row: an index outside the
+            // row's markers is a broken precondition.
+            return noneHoldMarks().at(index).end;
         }
-        case MarkerRow::DerivedSpan:
+        case MarkerRow::Span:
         {
-            const common::core::ChartShape& span =
-                chartResolutions().shapes.at(derivedSpanShapes().at(index));
+            const common::core::ChartShape& span = chartResolutions().shapes.at(index);
             return session().song().tempo_map.gridPositionAtWholeNote(span.place + span.sustain);
         }
         case MarkerRow::Section:
@@ -145,20 +147,6 @@ std::optional<common::core::GridPosition> EditorController::Impl::markerClose(
         }
     }
     std::unreachable();
-}
-
-std::vector<std::size_t> EditorController::Impl::derivedSpanShapes() const
-{
-    const std::vector<common::core::ChartShape>& shapes = chartResolutions().shapes;
-    std::vector<std::size_t> derived;
-    for (std::size_t index = 0; index < shapes.size(); ++index)
-    {
-        if (!shapes[index].hold_stated)
-        {
-            derived.push_back(index);
-        }
-    }
-    return derived;
 }
 
 std::size_t EditorController::Impl::markerHolderIndex(
@@ -212,13 +200,13 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     {
         return marker(MarkerRow::TimeSignature, common::core::measureDownbeat(signature->measure));
     }
-    if (const auto* const hold = std::get_if<ShapeHoldSelection>(&m_selection))
+    if (const auto* const hold = std::get_if<NoneHoldSelection>(&m_selection))
     {
-        return marker(MarkerRow::ShapeHold, hold->start);
+        return marker(MarkerRow::NoneHold, hold->start);
     }
-    if (const auto* const span = std::get_if<DerivedSpanSelection>(&m_selection))
+    if (const auto* const span = std::get_if<SpanSelection>(&m_selection))
     {
-        return marker(MarkerRow::DerivedSpan, span->start);
+        return marker(MarkerRow::Span, span->start);
     }
     if (const auto* const placement = std::get_if<FretHandPositionSelection>(&m_selection))
     {
@@ -260,13 +248,13 @@ MarkerSelection EditorController::Impl::markerSelectionAt(
         {
             return TimeSignatureSelection{.measure = start.measure};
         }
-        case MarkerRow::ShapeHold:
+        case MarkerRow::NoneHold:
         {
-            return ShapeHoldSelection{.start = start};
+            return NoneHoldSelection{.start = start};
         }
-        case MarkerRow::DerivedSpan:
+        case MarkerRow::Span:
         {
-            return DerivedSpanSelection{.start = start};
+            return SpanSelection{.start = start};
         }
         case MarkerRow::FretHandPosition:
         {
@@ -392,11 +380,17 @@ void EditorController::Impl::followMovedMarker(const common::core::GridPosition 
 // previous marker, as a click would; this release only clears a selection naming nothing.)
 void EditorController::Impl::releaseMarkerSelectionNamingNothing()
 {
-    if (const std::optional<SelectedMarker> selected = selectedMarker();
-        selected.has_value() && !selected->index.has_value())
+    if (markerSelectionNamesNothing())
     {
         setSelection(std::monostate{});
     }
+}
+
+// A marker selection names nothing where its row holds no marker at its identity.
+bool EditorController::Impl::markerSelectionNamesNothing() const
+{
+    const std::optional<SelectedMarker> selected = selectedMarker();
+    return selected.has_value() && !selected->index.has_value();
 }
 
 void EditorController::Impl::finishMarkerCommit()
@@ -427,6 +421,15 @@ bool EditorController::Impl::selectMarkerStartingAt(
     }
     selectMarker(markerSelectionAt(row, *index));
     return true;
+}
+
+void EditorController::Impl::selectMarkerAt(const MarkerRow row, const std::size_t index)
+{
+    if (index < markerStarts(row).size())
+    {
+        selectMarker(markerSelectionAt(row, index));
+    }
+    updateView();
 }
 
 // A marker kind's identity is its start, so this is the one lookup every identity-to-index question

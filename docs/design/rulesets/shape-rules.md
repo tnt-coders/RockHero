@@ -26,8 +26,8 @@ are also called **the grip-tenure law**. The rules are implemented in
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
 - `deriveChartShapes` obeys the shape holds, and `normalizeShapeHolds` (`chart_legato.h`) compares
   each hold with the span the walk published for it (`shapeHoldPublishedEnd`), so a hold fits
-  exactly when the normal form keeps it as stated (rule 9); `validateShapeHolds` (`chart_rules.h`)
-  checks the hold stream's structure.
+  exactly when the normal form keeps it as stated (rule 9), after merging the none holds that meet
+  (`mergedNoneHolds`); `validateShapeHolds` (`chart_rules.h`) checks the hold stream's structure.
 
 Whether a tail rests is tail rule 4 (\ref design_rulesets_tails), which reads no span.
 
@@ -348,9 +348,10 @@ takes the next one.
    - **The close stays reachable.** The view state publishes both instants,
      `ShapeViewState::drawn_end_seconds`, which draws everywhere, and
      `ShapeViewState::close_seconds`. The editor's 2D lane draws a span to its close while the
-     reveal modifier is held, while the selection holds a note the span covers, or while the caret
-     stands inside its tenure (`chartSpanRevealed`). Where no trim was owed the two instants
-     coincide and the reveal moves nothing. The 3D board draws the trimmed extent alone.
+     reveal modifier is held, while the span is itself selected, while the selection holds a note
+     the span covers, or while the caret stands inside its tenure (`chartSpanRevealed`). Where no
+     trim was owed the two instants coincide and the reveal moves nothing. The 3D board draws the
+     trimmed extent alone.
 7. **A right-hand onset states no grip.** A finger resting on a fret makes no sound and no onset,
    so a hand holding a six-string shape and picking four of it streams exactly like a hand holding
    four. The derivation notates what the fretting hand sounds and nothing else: a tap or a pick
@@ -399,7 +400,10 @@ takes the next one.
 9. **A shape hold states where the hand holds one shape.** The charter authors it over
    `[start, end)`, both edges stated, and holds never overlap, though one may begin where the last
    ends. Its grip is unnamed — the hand holds one shape there, read from the notes inside — or
-   none: no arpeggio shape is held there, though a chord struck inside still grips its own.
+   none: no arpeggio shape is held there, so the arpeggio spans fronted inside it are hidden,
+   though a chord struck inside still grips its own and stands. None holds that meet are one
+   stretch: two that abut or overlap merge into one, comparing their edges alone
+   (`mergedNoneHolds`). A none hold is never cropped around a chord.
    - **The walk is the one authority.** A hold changes only the edges. Everything inside is the
      span walk's own judgement by rules 1 to 5 and hand-position rule 6: grip statements and
      plants, membership and founding, the landing instant, the class and the posture. Inside an

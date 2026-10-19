@@ -544,8 +544,14 @@ public:
     /*! \copydoc IEditorController::onFretHandPositionsPruneRequested */
     void onFretHandPositionsPruneRequested() override;
 
-    /*! \copydoc IEditorController::onHoldShapeRequested */
-    void onHoldShapeRequested() override;
+    /*! \copydoc IEditorController::onHoldRequested */
+    void onHoldRequested() override;
+
+    /*! \copydoc IEditorController::onHoldChoiceRequested */
+    void onHoldChoiceRequested(std::optional<common::core::HoldGrip> grip) override;
+
+    /*! \copydoc IEditorController::onSpanRowMarksPressed */
+    void onSpanRowMarksPressed(const SpanRowMarks& marks) override;
 
     /*! \copydoc IEditorController::onSongSectionInsertRequested */
     void onSongSectionInsertRequested(

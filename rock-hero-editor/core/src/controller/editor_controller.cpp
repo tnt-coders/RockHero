@@ -359,9 +359,17 @@ namespace
         {
             return "PruneFretHandPositions";
         }
-        case EditorAction::Id::HoldShape:
+        case EditorAction::Id::ChooseHold:
         {
-            return "HoldShape";
+            return "ChooseHold";
+        }
+        case EditorAction::Id::SetHold:
+        {
+            return "SetHold";
+        }
+        case EditorAction::Id::SelectSpanRowMark:
+        {
+            return "SelectSpanRowMark";
         }
         case EditorAction::Id::InsertSongSection:
         {
@@ -1046,9 +1054,19 @@ void EditorController::onFretHandPositionsPruneRequested()
     m_impl->runAction(EditorAction::PruneFretHandPositions{});
 }
 
-void EditorController::onHoldShapeRequested()
+void EditorController::onHoldRequested()
 {
-    m_impl->runAction(EditorAction::HoldShape{});
+    m_impl->runAction(EditorAction::ChooseHold{});
+}
+
+void EditorController::onHoldChoiceRequested(std::optional<common::core::HoldGrip> grip)
+{
+    m_impl->runAction(EditorAction::SetHold{.grip = std::move(grip)});
+}
+
+void EditorController::onSpanRowMarksPressed(const SpanRowMarks& marks)
+{
+    m_impl->runAction(EditorAction::SelectSpanRowMark{.marks = marks});
 }
 
 void EditorController::onSongSectionInsertRequested(
@@ -3195,8 +3213,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.selection_present =
         !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_keyframes.empty() ||
         state.chart_edit.selected_fret_hand_position.has_value() ||
-        state.chart_edit.selected_shape_hold.has_value() ||
-        state.chart_edit.selected_derived_span.has_value() ||
+        state.chart_edit.selected_span.has_value() ||
+        state.chart_edit.selected_none_hold.has_value() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         state.selected_tempo_anchor.has_value() ||
         state.selected_time_signature_measure.has_value() ||
@@ -3290,6 +3308,15 @@ void EditorController::Impl::requestChartHarmonicNodePicker(ChartHarmonicNodePic
     if (m_view != nullptr)
     {
         m_view->showChartHarmonicNodePicker(std::move(picker));
+    }
+}
+
+// Asks the attached view for the hold picker, dropped like the harmonic question with no view.
+void EditorController::Impl::requestChartHoldPicker(ChartHoldPicker picker)
+{
+    if (m_view != nullptr)
+    {
+        m_view->showChartHoldPicker(std::move(picker));
     }
 }
 

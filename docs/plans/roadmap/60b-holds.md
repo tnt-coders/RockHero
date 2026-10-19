@@ -2,10 +2,11 @@
 
 ## Status
 
-**Sub-plan of `docs/plans/roadmap/60-the-hand.md`. REWRITTEN 2026-10-16; NOT STARTED.** The first
-60b design (grip-template holds, no required end) was built and then set aside: it lives on branch
-`plan-60b-grip-holds` (tip `d9195548`) with its plan and decision log, and serves here only as a
-parts bin. Its faults: `Ctrl+H` over a time selection authored holds running far past the
+**Sub-plan of `docs/plans/roadmap/60-the-hand.md`. REWRITTEN 2026-10-16; steps 0 to 4 built, step
+5 (the marks, and the verb and row rulings of 2026-10-18) built and awaiting the user's sighting.**
+The first 60b design (grip-template holds, no required end) was built and then set aside: it lives
+on branch `plan-60b-grip-holds` (tip `d9195548`) with its plan and decision log, and serves here
+only as a parts bin. Its faults: `Ctrl+H` over a time selection authored holds running far past the
 selection, a hold over a derived span did not equal that span, and 604 corpus spans could never be
 given a hold. This plan replaces it with the simplest model that is rock solid. Grips (templates,
 fingers, the picker, the export gate) move to `docs/plans/roadmap/60c-grips.md`, which starts after
@@ -18,13 +19,16 @@ required and exact (`end > start`), and `grip` is one of:
 
 - **unnamed** — "the hand holds one shape here". Inside it the derivation forms exactly one span,
   `[start, end)`; its class and posture are read from its notes by the existing span rules.
-- **`none`** — "no arpeggio shape here". No arpeggio span is derived inside it; chord boxes still
-  are.
+- **`none`** — "no arpeggio shape here". The arpeggio spans fronted inside it are hidden; chord
+  boxes are proven by the notes, so they still form inside it and stand. A `none` hold is never
+  cropped around a chord (ruled 2026-10-18).
 
-`60c` adds a third alternative, a named template. Holds never overlap. Outside holds, span
-derivation is exactly what it is on `master` today. At a hold's end the derivation resumes as it
-does after any derived span closes with rings still sounding (shape rule 4's hand-off), including
-a slide landing exactly at the end.
+`60c` adds a third alternative, a named template. Holds never overlap, and `none` holds that meet
+are one stretch: two that abut or overlap merge into one, judged on their edges alone
+(`mergedNoneHolds`). Every hold, `none` included, is a wall at both edges, and spans derive fresh in
+every gap between holds. Outside holds, span derivation is exactly what it is on `master` today. At
+a hold's end the derivation resumes as it does after any derived span closes with rings still
+sounding (shape rule 4's hand-off), including a slide landing exactly at the end.
 
 ## 2. Validity: the walk is the one authority
 
@@ -78,9 +82,14 @@ normalizer, run once wherever the edit lands (the plan gate, the timeline funnel
 logged once per rewrite, writes back each hold's published extent: that one rule is both the crop
 (a conflict inside) and the extension (an end where nothing breaks). A hold whose span closes at
 its own start is dropped. No rewrite can make two holds overlap, since every span closes at the
-next hold's start (touching is legal: holds are half-open). Because the walk walls each hold at its
-published end, the normalizer is one derivation and one pass reading it, and the notes layer it
-returns is that same derivation; normalizing the result again changes nothing.
+next hold's start (touching is legal: holds are half-open). Before the walk derives anything, a
+hold a re-address rounded onto no length is dropped, and then `none` holds that abut or overlap are
+merged, on their edges alone; in that order, since an emptied hold between two `none` holds would
+otherwise keep them apart until a second pass. Each merge is logged like the other repairs, a
+`none` hold swallowed whole by another included, so a load that merges marks the document dirty.
+Because merging reads no span and the walk walls each hold at its published end, the normalizer is
+one derivation and one pass reading it, and the notes layer it returns is that same derivation;
+normalizing the result again changes nothing.
 
 Inside an unsettled gesture (a held run of note or edge keys) the normalizer runs on each candidate
 replayed from the pre-gesture chart, never on that base, so every extend, crop and drop it makes
@@ -94,24 +103,37 @@ with the refusal flash.
 
 | Target | Keys | Result |
 |---|---|---|
-| Derived span | `Ctrl+H` | An unnamed hold exactly over the span; refused if invalid |
+| Span, `none` hold, time selection or note selection (from its first onset to its last tail end) | `Ctrl+H` ("Hold...") | The hold picker over the extent: **Shape** (an unnamed hold), **None** (a `none` hold, merged with any it meets) or **Auto** (every hold carved out, so the notes decide the spans there). A choice that would change nothing is left out, so at least two always show, each with a tooltip; a refused choice flashes |
 | Derived span | `Alt+Left` / `Alt+Right` | Moves the start one note onset, converting the span to a hold; refused if invalid |
 | Derived span | `Alt+Shift+Left` / `Alt+Shift+Right` | Moves the end one note boundary, converting the span; refused if invalid |
-| Derived arpeggio span | `Delete` | A `none` hold over the span; refused on a chord span |
+| Derived span, chord or arpeggio | `Delete` | A `none` hold over the span, merged with any it meets and left selected; a chord stands inside it. Over a chord already inside a `none` hold the merge changes nothing |
 | Authored hold | the same edge keys | Move its edges; refused if invalid |
-| Authored hold | `Delete` | Removes it |
-| Time selection | `Ctrl+H` | An unnamed hold exactly over the selection; refused if invalid |
-| Note selection | `Ctrl+H` | One unnamed hold from the first onset to the last tail end; refused if invalid |
+| Unnamed hold | `Delete` | Removes it, so the span derives again and stays selected: Delete steps down one level |
+| `none` hold | `Delete` | Removes it, so the derivation returns over its whole merged stretch |
+| Cursor | `Ctrl+Shift+H` ("Jump to Hold") | Selects the `none` hold holding the cursor, else the span there; nothing in an empty stretch |
 | Bare caret | `Ctrl+H` | Refused |
 
-**Overlap.** Every NEW hold, whatever verb authors it (a selection's `Ctrl+H`, or a derived span
-converted by `Ctrl+H`, an edge key or `Delete`, such as a chord box inside a `none` hold), carves
-its range out of every authored hold it overlaps: one it straddles is cropped to the new hold's
-start or end; one it lies inside is split into the parts before and after it; one it covers
-entirely is gone, since a selection's `Ctrl+H` is the charter's statement over its whole range.
-Each surviving part must be valid, or the verb is refused. `Ctrl+H` on a selected hold states an
-unnamed hold over it, so on a `none` hold it restores the shape a `Delete` denied (ruled
-2026-10-18).
+**Overlap.** Every new hold, whatever verb authors it, and Auto's empty stretch, go through the one
+carve (`carvedShapeHolds`): the extent comes out of every hold it overlaps — one it straddles is
+cropped to its start or end, one it lies inside is split into the parts before and after it, one it
+covers entirely is gone, since a selection's `Ctrl+H` is the charter's statement over its whole
+range — and a `none` hold carved in beside or over another merges with it. So Auto over the middle
+of a merged `none` hold leaves its two outer pieces. Each surviving part must be valid, or the verb
+is refused. Shape on a `none` hold restores the shape a `Delete` denied (ruled 2026-10-18). When
+`60c` lands, its grip choices replace Shape in the same picker (ruled 2026-10-18).
+
+**One step down, one write.** `Delete` is the hold choice one level below what it is pressed on:
+Auto over a held span's hold or a `none` hold, None over a derived span, through the same commit
+as the picker's rows. The selection then walks back along the row as on every marker row where the
+marker is gone, and otherwise lands on what the carve left at the extent's start, or on nothing
+where the notes derive no span there. There is no `Ctrl+Delete`: `Ctrl+H` then None states the
+same `none` hold over a held span in one move.
+
+**Rows and clicks.** In the lane a press inside a `none` hold's extent selects the `none` hold,
+even where a chord box stands in it; a chord inside a `none` hold is selected by its ruler chip.
+The walk up from the strings meets the `none` hold before the span inside it, and `Ctrl+Shift+H`
+lands by that same row order. One constant states the order (`g_span_rows`): the lane reports
+every mark under a press and the controller picks by it, as the walk and the jump do.
 
 **Pushing.** An edge key that moves an edge into a neighbouring hold pushes that hold's facing
 edge along with it. Both holds must stay valid and the pushed one non-empty, or the press is
@@ -123,17 +145,19 @@ and only undo restores it. The branch's edge gesture (`f3aed178`, `ChartHoldEdge
 part to reuse.
 
 There is no `Alt+Delete` for holds: an end is required and is removed only with its hold. `Enter`
-and the grip picker belong to `60c`.
+and the named grips belong to `60c`. `Delete` on a time selection stays reserved for plan 52's
+deletion of the chart content in the range.
 
 ## 5. Marks and format
 
 - **2D:** authored holds solid, derived spans faded (the derived fret-hand chip's weight), `none`
-  holds as dashed neutral rails (a new `EditorTheme` role). No end tick: every end is stated.
-  Reuse the branch's `b660bf94` paint core and `248088ab`'s span selection.
+  holds as a slashed neutral hatch on the rails (`EditorTheme::none_hold_rail`), drawn beneath the
+  spans so a chord box inside one stands over the hatch. No end tick: every end is stated. Spans
+  and `none` holds share the one lane; the selected one wears the accent outline.
 - **Save format:** `holds[] {at, end, grip?}`; `grip` absent is unnamed, `"none"` is `none`
-  (`60c` adds template ids to the same field). The loader rejects overlapping or empty holds, then
-  the normalizer runs; a rewrite it makes at load is logged and marks the document dirty, so it is
-  visible and saved.
+  (`60c` adds template ids to the same field). The loader rejects empty holds and overlapping
+  holds but for `none` holds overlapping one another, then the normalizer runs, merging those; a
+  rewrite it makes at load is logged and marks the document dirty, so it is visible and saved.
 - The ruleset gains the hold clause (shape rules, plus a pointer from hand-position rule 6); the
   developer guide's file-format and editor-action pages are updated in the same change set.
 

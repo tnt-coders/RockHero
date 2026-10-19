@@ -10,7 +10,9 @@ core drew with, so hits resolve against exactly the pixels on screen.
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 
 namespace rock_hero::editor::core
@@ -77,6 +79,34 @@ struct ChartPointerEvent
     int clicks{1};
 };
 
+/*!
+\brief The span-row marks a press lands on, by their indices in the tab projection: the span and the
+none hold whose drawn rails hold the point in the lane, or the span whose ruler chip it hits.
+
+The view reports what lies under the pointer and the controller decides which one the press
+selects (\ref IEditorController::onSpanRowMarksPressed): a none hold keeps the chord boxes struck
+inside it, so a span and a none hold can both hold the point.
+*/
+struct SpanRowMarks
+{
+    /*! \brief Index of the span in the projection's spans; empty where no span is under it. */
+    std::optional<std::size_t> span{};
+
+    /*!
+    \brief Index of the none hold in the projection's none holds; empty where no none hold is under
+    it.
+    */
+    std::optional<std::size_t> none_hold{};
+
+    /*!
+    \brief Compares two presses by the marks they land on.
+    \param lhs Left-hand marks.
+    \param rhs Right-hand marks.
+    \return True when both name the same span and the same none hold.
+    */
+    friend bool operator==(const SpanRowMarks& lhs, const SpanRowMarks& rhs) = default;
+};
+
 /*! \brief Direction of an arrow-key step in the tablature lane. */
 enum class ChartStepDirection : std::uint8_t
 {
@@ -118,12 +148,12 @@ enum class ChartCaretJump : std::uint8_t
 /*!
 \brief A row the keyboard jumps onto by selection (the `Ctrl+Shift`+letter family).
 
-Each value names one of the rows the focus-row walk reaches by selecting rather than by arming a
-caret: the ruler's three marker rows, the position row above the strings, the tone row, and the "+"
-row beneath the lanes. A jump lands exactly as the walk does — it selects the marker holding the
-cursor and demotes the caret in place — and where the row has nothing to hold the cursor (a song
-with no sections, a chart with no fret-hand positions) it selects nothing, silently. The string and
-lane rows need no jump: the arrows return to the row the caret was last armed on.
+Each value names rows the focus-row walk reaches by selecting rather than by arming a caret: the
+ruler's three marker rows, the span and none-hold rows and the position row above the strings, the
+tone row, and the "+" row beneath the lanes. A jump lands exactly as the walk does — it selects the
+marker holding the cursor and demotes the caret in place — and where the row has nothing to hold the
+cursor (a song with no sections, a chart with no fret-hand positions) it selects nothing, silently.
+The string and lane rows need no jump: the arrows return to the row the caret was last armed on.
 */
 enum class FocusRowJump : std::uint8_t
 {
@@ -135,6 +165,12 @@ enum class FocusRowJump : std::uint8_t
 
     /*! \brief The ruler's time-signature row — `Ctrl+Shift+/`. */
     TimeSignature,
+
+    /*!
+    \brief The span-row marker holding the cursor — `Ctrl+Shift+H`: the none hold there where one
+    is, else the span there, by the order the walk up from the strings meets them.
+    */
+    Hold,
 
     /*! \brief The position row, the chart's fret-hand positions — `Ctrl+Shift+P`. */
     FretHandPosition,

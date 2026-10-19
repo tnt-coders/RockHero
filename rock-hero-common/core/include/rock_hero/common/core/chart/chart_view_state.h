@@ -1050,6 +1050,15 @@ struct ShapeViewState
     std::optional<double> bracket_seconds{};
 
     /*!
+    \brief True where an unnamed hold states the span (\ref ChartShape::hold_stated); false where
+    the walk derived it.
+
+    The 2D lane draws a derived span's rails, brackets and chip faded and a hold's solid. The 3D
+    board does not read it.
+    */
+    bool held{false};
+
+    /*!
     \brief Compares two shape view states by their stored fields.
     \param lhs Left-hand shape.
     \param rhs Right-hand shape.
@@ -1061,7 +1070,44 @@ struct ShapeViewState
                std::is_eq(lhs.drawn_end_seconds <=> rhs.drawn_end_seconds) &&
                std::is_eq(lhs.close_seconds <=> rhs.close_seconds) &&
                lhs.arpeggio == rhs.arpeggio && lhs.strings == rhs.strings &&
-               lhs.bracket_seconds == rhs.bracket_seconds;
+               lhs.bracket_seconds == rhs.bracket_seconds && lhs.held == rhs.held;
+    }
+};
+
+/*!
+\brief One hold whose grip is \ref NoneGrip, resolved to timeline seconds: a stretch where no
+arpeggio span forms, though chord boxes still do.
+
+Drawn by the editor's 2D lane alone, as hatched rails beneath the spans inside it.
+*/
+struct NoneHoldViewState
+{
+    /*!
+    \brief Where the hold starts, on the grid: its identity in the chart, which holds never
+    overlapping keeps unique, so the editor's selection names the hold its rails draw.
+    */
+    GridPosition start{};
+
+    /*! \brief Where the hold ends, exclusive, on the grid: where it stops holding a column. */
+    GridPosition end{};
+
+    /*! \brief Absolute start of the hold. */
+    double start_seconds{0.0};
+
+    /*! \brief Absolute end of the hold, exclusive. */
+    double end_seconds{0.0};
+
+    /*!
+    \brief Compares two none holds by their stored fields.
+    \param lhs Left-hand hold.
+    \param rhs Right-hand hold.
+    \return True when both holds store equal values.
+    */
+    friend bool operator==(const NoneHoldViewState& lhs, const NoneHoldViewState& rhs)
+    {
+        return lhs.start == rhs.start && lhs.end == rhs.end &&
+               std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds);
     }
 };
 
@@ -1354,6 +1400,12 @@ struct ChartViewState
     culled away.
     */
     std::vector<double> shape_close_prefix_max;
+
+    /*!
+    \brief The none holds, in \ref Chart::shape_holds order. Holds never overlap, so both their
+    starts and their ends ascend, and the ones a window shows are one contiguous run.
+    */
+    std::vector<NoneHoldViewState> none_holds;
 
     /*!
     \brief Fret-hand positions in ascending arrival order: one per hand event, derived and authored

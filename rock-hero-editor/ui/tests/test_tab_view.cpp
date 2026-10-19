@@ -10,8 +10,10 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/testing/view_state_fixtures.h>
@@ -130,6 +132,7 @@ void setFixtureState(TabView& view)
             .close_seconds = 20.0,
             .arpeggio = false,
             .strings = {},
+            .held = true,
         },
     };
     // A WIDE placement, which spells out its inclusive range ("10-16") and so draws a chip wider
@@ -208,6 +211,46 @@ const juce::Colour g_canvas_ink{0xff203040};
         view.paint(graphics);
     }
     return image;
+}
+
+// Two spans with a gap between, and nothing else: [6s, 9s) drawn and closing at 10s, then
+// [14s, 18s). Over a 20-second window 200 pixels wide the first's rails run from x = 60 to 90, or
+// to 100 revealed, and the second's from 140 to 180, all clear of the legend panel.
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTwoSpanTabState()
+{
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.shapes = {
+        common::core::ShapeViewState{
+            .start_seconds = 6.0,
+            .drawn_end_seconds = 9.0,
+            .close_seconds = 10.0,
+            .arpeggio = false,
+            .strings = {},
+        },
+        common::core::ShapeViewState{
+            .start_seconds = 14.0,
+            .drawn_end_seconds = 18.0,
+            .close_seconds = 18.0,
+            .arpeggio = false,
+            .strings = {},
+        },
+    };
+    state.shape_close_prefix_max = common::core::makeSustainPrefixMax(
+        state.shapes | std::views::transform(&common::core::ShapeViewState::close_seconds));
+    return std::make_shared<const common::core::ChartViewState>(std::move(state));
+}
+
+// A 200x120 lane over a 20-second window showing the two-span chart.
+void showTwoSpans(TabView& view)
+{
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeTwoSpanTabState(), 0);
 }
 
 } // namespace
@@ -2355,6 +2398,173 @@ TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")
 
     CHECK(worstPixelDeltaInColumns(plain, pending, chip.getX(), chip.getRight()) > 0);
     CHECK(worstPixelDeltaInColumns(plain, pending, 40, chip.getX() - 20) == 0);
+}
+
+// A span's rails are its marker in the lane: a press on the top rail or the bottom rail names the
+// span to the span-row sink and never reaches the chart, while a press between the rails, in the
+// gap past a span's drawn end, or anywhere while the marker plane is closed goes to the chart.
+TEST_CASE("TabView reports a press on a span's rails as the span", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    showTwoSpans(view);
+    int pointer_events = 0;
+    view.setPointerEventCallback(
+        [&pointer_events](core::ChartPointerPhase, const core::ChartPointerEvent&) {
+            ++pointer_events;
+        });
+    std::optional<core::SpanRowMarks> pressed;
+    view.setSpanRowMarksCallback([&pressed](const core::SpanRowMarks& marks) { pressed = marks; });
+    view.setMarkerEditsEnabled(true);
+    const auto span = [](const std::size_t index) {
+        return std::optional{core::SpanRowMarks{.span = index, .none_hold = std::nullopt}};
+    };
+
+    view.mouseDown(testing::makeMouseDownEvent(view, 75.0f, 1.0f));
+    CHECK(pressed == span(0));
+    pressed.reset();
+    view.mouseDown(testing::makeMouseDownEvent(view, 75.0f, 118.0f));
+    CHECK(pressed == span(0));
+    view.mouseDown(testing::makeMouseDownEvent(view, 160.0f, 1.0f));
+    CHECK(pressed == span(1));
+    CHECK(pointer_events == 0);
+
+    pressed.reset();
+    view.mouseDown(testing::makeMouseDownEvent(view, 75.0f, 60.0f));
+    view.mouseDown(testing::makeMouseDownEvent(view, 120.0f, 1.0f));
+    CHECK_FALSE(pressed.has_value());
+    CHECK(pointer_events == 2);
+
+    view.setMarkerEditsEnabled(false);
+    view.mouseDown(testing::makeMouseDownEvent(view, 75.0f, 1.0f));
+    CHECK_FALSE(pressed.has_value());
+    CHECK(pointer_events == 3);
+}
+
+// The selected span's rails wear the accent outline and run to its musical close, its neighbour
+// unchanged; selectedSpanRowBounds is the two rails as drawn, top edge to bottom edge.
+TEST_CASE("TabView outlines the selected span's rails", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    showTwoSpans(view);
+    CHECK_FALSE(view.selectedSpanRowBounds().has_value());
+    const juce::Image plain = renderOverCanvas(view);
+
+    view.setEditState(core::ChartEditViewState{.selected_span = 0});
+    const juce::Image selected = renderOverCanvas(view);
+
+    // The outline traces both rails' outer rows in the accent, out past the drawn end to the
+    // close; the second span's columns agree.
+    for (const int x : {75, 95})
+    {
+        CHECK(selected.getPixelAt(x, 0) == editorTheme().accent);
+        CHECK(selected.getPixelAt(x, 119) == editorTheme().accent);
+    }
+    CHECK(worstPixelDeltaInColumns(plain, selected, 130, 199) == 0);
+
+    const std::optional<juce::Rectangle<float>> bounds = view.selectedSpanRowBounds();
+    REQUIRE(bounds.has_value());
+    if (bounds.has_value())
+    {
+        CHECK(bounds->getX() == Catch::Approx(60.0f));
+        CHECK(bounds->getRight() == Catch::Approx(100.0f));
+        CHECK(bounds->getY() == Catch::Approx(0.0f));
+        CHECK(bounds->getBottom() == Catch::Approx(120.0f));
+    }
+}
+
+// A none hold draws its rails as a slashed hatch in its own neutral ink, and its rails are its
+// marker in the lane: a press on a slash or a gap between slashes names the hold, and one over a
+// chord box standing inside it names both, for the controller to pick. The selected hold's rails
+// wear the accent outline.
+TEST_CASE("TabView hatches a none hold's rails and reports a press on them", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    // A none hold over [6s, 12s) and a held chord box over [8s, 10s) inside it: over a 20-second
+    // window 200 pixels wide the hatch runs from x = 60 to 120 and the box's rails from 80 to 100.
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.shapes = {
+        common::core::ShapeViewState{
+            .start_seconds = 8.0,
+            .drawn_end_seconds = 10.0,
+            .close_seconds = 10.0,
+            .arpeggio = false,
+            .strings = {},
+            .held = true,
+        },
+    };
+    state.shape_close_prefix_max = common::core::makeSustainPrefixMax(
+        state.shapes | std::views::transform(&common::core::ShapeViewState::close_seconds));
+    state.none_holds = {
+        common::core::NoneHoldViewState{.start_seconds = 6.0, .end_seconds = 12.0},
+    };
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
+    int pointer_events = 0;
+    view.setPointerEventCallback(
+        [&pointer_events](core::ChartPointerPhase, const core::ChartPointerEvent&) {
+            ++pointer_events;
+        });
+    std::optional<core::SpanRowMarks> pressed;
+    view.setSpanRowMarksCallback([&pressed](const core::SpanRowMarks& marks) { pressed = marks; });
+    view.setMarkerEditsEnabled(true);
+
+    // Each 3-pixel rail carries slashes 2 pixels wide every 4, rising to the right from the hold's
+    // start: in a rail's middle row column 62 is inked and column 64 a gap, and the slash leans,
+    // inking column 61 a row lower and column 63 a row higher.
+    const juce::Image plain = renderOverCanvas(view);
+    const juce::Colour hatch = editorTheme().none_hold_rail;
+    for (const int middle_row : {1, 118})
+    {
+        CHECK(plain.getPixelAt(62, middle_row) == hatch);
+        CHECK(plain.getPixelAt(64, middle_row) == g_canvas_ink);
+        CHECK(plain.getPixelAt(61, middle_row + 1) == hatch);
+        CHECK(plain.getPixelAt(63, middle_row - 1) == hatch);
+    }
+    // Nothing before the hold's start: the hatch is clipped to the rail.
+    CHECK(plain.getPixelAt(59, 1) == g_canvas_ink);
+
+    // Every column of the hatch holds the hold, a gap as much as a slash.
+    for (const float x : {61.0f, 64.0f, 66.0f, 70.0f, 110.0f})
+    {
+        pressed.reset();
+        view.mouseDown(testing::makeMouseDownEvent(view, x, 1.0f));
+        CHECK(pressed == std::optional{core::SpanRowMarks{.span = std::nullopt, .none_hold = 0}});
+    }
+    // Over the chord box standing inside the hold the press names both.
+    pressed.reset();
+    view.mouseDown(testing::makeMouseDownEvent(view, 90.0f, 1.0f));
+    CHECK(pressed == std::optional{core::SpanRowMarks{.span = 0, .none_hold = 0}});
+    pressed.reset();
+    view.mouseDown(testing::makeMouseDownEvent(view, 130.0f, 1.0f));
+    CHECK_FALSE(pressed.has_value());
+    CHECK(pointer_events == 1);
+
+    view.setEditState(core::ChartEditViewState{.selected_none_hold = 0});
+    const juce::Image selected = renderOverCanvas(view);
+    CHECK(selected.getPixelAt(66, 0) == editorTheme().accent);
+    CHECK(selected.getPixelAt(66, 119) == editorTheme().accent);
+    const std::optional<juce::Rectangle<float>> bounds = view.selectedSpanRowBounds();
+    REQUIRE(bounds.has_value());
+    if (bounds.has_value())
+    {
+        CHECK(bounds->getX() == Catch::Approx(60.0f));
+        CHECK(bounds->getRight() == Catch::Approx(120.0f));
+    }
 }
 
 } // namespace rock_hero::editor::ui
