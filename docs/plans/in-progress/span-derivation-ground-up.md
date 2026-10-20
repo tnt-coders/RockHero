@@ -48,29 +48,30 @@ is bookkeeping about that tenure.
    never that tenure is waived. "Held through the slide" is END-INCLUSIVE at the landing
    instant: a member's ring dying exactly AT the landing belonged to the predecessor (the seam
    ownership), and the survivors ringing strictly past open the successor.
-7. NOTHING ELSE opens a span: a span exists on its own onsets alone. Founding is asked only where
-   the fretting hand states a stop, and counts only statements made since the coverage frontier,
-   so strings that ring on past a break found nothing (ring-out opens nothing) — not under a lone
-   fretting-hand strike, a pedal or drone under a melody line brackets nothing, and a slot of bare
-   taps or natural-harmonic nodes over them opens nothing.
+7. A SPAN OPENS AT A STATEMENT AND RUNS FORWARD FROM IT. Where no span stands, a fretting-hand
+   statement opens one at its own instant, a lone note as much as a chord; a landing and a hold's
+   start open the two others. The span is PUBLISHED only once its own members — the stops stated
+   at or after its front — meet a threshold at some instant: two stated at one slot, or three
+   sounding at one instant. One that never does is dropped unseen when it closes. Carried members
+   count toward neither, so a span exists on its own onsets alone: a pedal or drone under a melody
+   line brackets nothing, and a slot of bare taps or natural-harmonic nodes over rings opens
+   nothing. Nothing is dated back: there is no frontier, no floor and no statement-began column.
 
-   **WHAT SOUNDS UNDER A BRACKET'S OPENING IS WHAT IT PRINTS.** The dated front is where the
-   bracket draws. Once a span is founded and its front dated, every ring struck before that front
-   and still sounding there is a CARRIED MEMBER, fretted and open alike: it joins the grip,
-   stating what its strike stated, and bounds the span like any member, and as a member the
-   founding stroke did not strike it makes the span sound in parts. It never founds — it only
-   fills in what the hand was demonstrably holding under the opening — and it joins only where it
-   outlives the front by the minimum sustain distance there; a shorter tail reads as released
-   before the span and stays a plain tail. ITS DEATH IS A SPLIT, NOT A CLOSE: the piece up to the
-   death is published with it in the grip, sounding in parts, and the span runs on from the death
-   with the members still standing, fronted there, each piece classed on its own members — the
-   remainder a box if its own members were struck whole. Inside an unnamed hold the death is
-   suppressed like any quit; at the hold's end it closes the hold's span there and the remainder
-   runs on as derived. A fretting-hand restrike of a carried member inside the span makes it the
-   span's own, and its death is then a quit. The coverage frontier floors the dating and gates the
-   founding and never enters the reach. A natural harmonic's ring states no grip and joins
-   nothing, and a ring still sounding at the founding folds into no span on a string that slot
-   sounds otherwise.
+   **WHAT SOUNDS UNDER A BRACKET'S OPENING IS WHAT IT PRINTS.** Every ring already sounding at the
+   front that outlives it by the minimum sustain distance there is a CARRIED MEMBER, fretted and
+   open alike: it joins the grip, stating what its strike stated, and bounds the span like any
+   member, and as a member the hand did not strike into this span it makes the span sound in
+   parts. It never founds — it only fills in what the hand was demonstrably holding under the
+   opening. A shorter tail reads as released before the span and stays a plain tail. ITS DEATH IS
+   A SPLIT, NOT A CLOSE: the piece up to the death is published with it in the grip, sounding in
+   parts, and the span runs on from the death with the members still standing, fronted there, each
+   piece classed on its own members — the remainder a box if its own members were struck whole.
+   Inside an unnamed hold the death is suppressed like any quit; at the hold's end it closes the
+   hold's span there and the remainder runs on as derived where it holds a stop of its own, a
+   hold's span being the one that may hold only carried rings. A fretting-hand restrike of a
+   carried member inside the span makes it the span's own, and its death is then a quit. A natural
+   harmonic's ring states no grip and joins nothing, and a ring the opening slot strikes or sounds
+   on its string is that slot's business, never a carry.
 
    THE LANDING IS THE ONE OTHER SEAM A MEMBER CROSSES, and the one place the HAND still decides. A
    landing is the grip itself moving under fingers that slid and never lifted, so the survivors
@@ -97,13 +98,15 @@ is bookkeeping about that tenure.
      the import's contradiction cut of co-terminating let-ring rings at grip changes as what keeps
      this from fragmenting passages.
    - A CONTRADICTION — a statement naming a different stop on a string the grip states or the hand
-     audibly holds (Law A): the hand's SOUNDING stop and the span's SOUNDED stops witness (same-stop
-     is re-articulation's question), and a right-hand onset contradicts only through THE TAP'S FLOOR
+     audibly holds (the foreign-ring break): the hand's SOUNDING stop and the span's SOUNDED stops
+     witness (a same-stop restrike is a restatement, which renews a grip of two or more stops and
+     ends a span stating one), and a right-hand onset contradicts only through THE TAP'S FLOOR
      (a right-hand onset states no grip, ruled 2026-09-29). The seam ownership stands: a ring dying
      where a new grip begins belongs to its own span; onsets at a seam belong to the opener.
    - THE STATEMENT-CHARACTER SPLITS: a span's statements keep ONE character — whole or in parts —
-     and the walk splits where the character turns, so the class is a fact of the span's founding
-     rather than a retroactive verdict on everything it ever contained. Two directions.
+     and the walk splits where the character turns, so the class is a fact of how the span's
+     members arrived rather than a retroactive verdict on everything it ever contained. Two
+     directions.
 
      THE ABSORPTION RULE governs both directions below, because it is what DECOUPLES the two laws
      a whole-grip stroke used to state at once. THE BOX LAW is display and UNCONDITIONAL:
@@ -128,15 +131,15 @@ is bookkeeping about that tenure.
      chord strummed is two statements, not a dyad quietly growing into a figure that later
      texture brackets whole).
 
-     Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
-     own stops, not all — is the statement coming apart, so the chord span closes there and
-     the parts found their own span through the ordinary slot open only over what they STRIKE,
-     the chord's rings now lying behind the frontier; where the parts do found one, the chord's
-     rings still sounding at its front join it as carried members. The bracket covers exactly
-     the ground that sounds in parts. Where the partial is the stroke's own next slot
-     and the stroke is still sounding under it there is no split at all — the stroke is
-     absorbed, the span flows, the class turns in place, and the box a strum earned survives
-     literally, as a box drawn inside the bracket. This direction cuts everywhere else. A stroke
+     Chord -> parts: a stroke sounding PART of what a never-in-parts published span STATED — some
+     of its own stops, not all — is the statement coming apart, so the chord span closes there and
+     the parts open their own span at that strike, the chord's rings still sounding carried into
+     it. The bracket covers exactly the ground that sounds in parts. Where the partial is the
+     stroke's own next slot and every member it does not restate is still sounding under it there
+     is no split at all — the stroke is absorbed, the span flows, the class turns in place, and the
+     box a strum earned survives literally, as a box drawn inside the bracket. A member whose ring
+     ends at the parts leaves the stroke standing alone: the quit arm closes its span there, as the
+     chord it was. This direction cuts everywhere else. A stroke
      touching only strings the span never stated is NOT this direction: it states nothing about
      the span's own stops coming apart, so it is the statement still assembling — growth. Below
      the slot-open thresholds the partial founds nothing and the notes ride bare.
@@ -259,11 +262,9 @@ event-algebra, edge-first, deletion-first).
   columns — `covers`, the fretting hand's own reach, written only by a member strike and capped at a
   travel's landing, THE ONLY input to the span's reach and close, and `sounds`, renewed by any
   sounding onset of either hand, THE ONLY input to renewal and continuity, so the tap chains a
-  statement through without ever moving a close; `stated_since`, when the current stop's statement
-  began (re-articulation: a same-stop restrike whose predecessor's ring reaches it inherits where
-  another member of the figure sounds at the restrike); and `foreign_until`, the end of the string's
-  last FOREIGN sound — the latest instant it audibly sounded a stop other than its current grip's,
-  which, with a slid string's landing re-asked from the channel, is the dating clamp's whole state.
+  statement through without ever moving a close; and `foreign_until`, the end of the string's last
+  FOREIGN sound — the latest instant it audibly sounded a stop other than its current grip's,
+  which, with a slid string's landing re-asked from the channel, is the join break's whole state.
   A displacement is the special case whose foreign end is the displacing strike, and a foreign ring
   dead into silence bounds at its own end, so nothing resets it. Splitting the reach in two is what
   lets the table outlive spans, and it is why a ring can contradict a grip that no longer records
@@ -287,18 +288,15 @@ event-algebra, edge-first, deletion-first).
   stop → break; any posture member's evidence out unrenewed → break; a stop the grip lacks →
   grow in place; else continue. No founding modes, no bearing filter, no overlap arithmetic, no
   merge choreography.
-- THE SLOT OPEN: `own >= 2 || total >= 3`, rules 4 and 5 as one disjunction. THE LANDING OPEN is
-  its own one-line law, not a case of the slot law: read literally the disjunction would refuse the
-  gated 2-note slide, since a landing has own = 0. Rule 6 opens at two survivors because a
-  landing's members were already ESTABLISHED members of the span that just closed — the 3-minimum
-  gates members ARRIVING staggered, and nothing arrives at a landing; `total` counts only
-  statements made since `covered`. The front: one floor `max(covered, foreign-sound end over
-  stated strings, end of every fretting-hand sound on an unstated string that does not join as a
-  carried member)`, and members date it from the earliest onset at or after the floor — `covered`
-  is this dating floor and the founding gate, never a reach input, and the asymmetry is the one
-  thing separating the front from the reach. The floor holds through growth
-  as an invariant: a strike on a string whose foreign sound ended past the standing front is a
-  contradiction, never a join (Law A at the join). All SOUNDED members bound (a
+- THE OPEN: any fretting-hand statement with no span standing opens a span at its own instant,
+  the rings sounding there carried in; THE LANDING OPEN hands every survivor over to a span at the
+  landing. PUBLICATION is the thresholds — `own stated here >= 2 || own sounding >= 3`, rules 4
+  and 5 as one disjunction — asked of a span's own members as they accumulate (`OpenSpan::founded`),
+  and a landing successor is published as its predecessor was where two survivors carried the grip
+  over, since those were already ESTABLISHED members of the span that just closed. There is no
+  front computation: the front is the open. The JOIN BREAK keeps it honest as an invariant: a strike
+  on a string whose foreign sound ended past the standing front is a contradiction, never a join,
+  and the statement opens its own span with the survivors carried. All SOUNDED members bound (a
   claim lends no ring: it neither bounds the reach nor feeds the quit arm, so a span of claims alone
   runs no distance — LAW II is what governs hand-alone spans); the reach is one minimum over
   sounded-member `covers`. THE INVARIANT:
@@ -335,8 +333,9 @@ a measurement, and only the figure states what the law is supposed to do.
   mid-travel silence; a broken-grip slide frees its survivors; a held-but-never-restruck landed
   span is emitted with its name seam; a glide into a restrike is dropped by tenure, not by a
   display margin.
-- The junction and dating figures (Laws A/B, the reel fixtures): the clamp is the hand table's
-  foreign-sound end, and the displacement junction is its special case.
+- The junction figures (the reel fixtures): a strike displacing a sounding stop breaks the span
+  and opens its own, with what still sounds carried; the figure after it has too few own statements
+  to be published where the rings it needs were struck before the break.
 - Same-grip restrike chains derive as one span.
 - Growth: one span through additions; the strummed-pair-plus-late-stop figure is a CONTINUATION,
   which inverts the older growth-keeps-splitting reading and is re-examined at span-marker time.
@@ -370,8 +369,8 @@ span — the derivation does not guess that the finger stayed. The second arm, `
 reads the verdict rather than re-asking: a strike's answer is recorded once, at the strike, in
 `StringHand::stated_beneath`, because the strike itself replaces the evidence it was judged
 against — gated on the same `sounding_before` witness the displacement reads, so a dead source
-exempts nothing. The pair reaches the verdicts, the statement-began column and the foreign-sound
-floor. The character split's arithmetic counts a stated string
+exempts nothing. The pair reaches the verdicts and the foreign-sound record. The character
+split's arithmetic counts a stated string
 as touched only where the strike RESTATES the span's own stop and is no pull-off landing — a
 provable no-op before the law, and what keeps the ornament from reading as the statement coming
 apart, neither when it arrives nor at its release. The whole-grip test reads GRIP STATEMENTS

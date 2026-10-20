@@ -38,7 +38,7 @@ empty.
 Derived, never authored — the stops an onset's struck members hold (\ref ChartStop: a fret
 pressed, the open string, or a harmonic node touched), plus the stops a right-hand onset says the
 fretting hand is holding under it (\ref deriveChartShapes), and every ring still sounding where the
-span is founded, struck before it or not, fretted or open: it is part of the sounding shape. A
+span opens and outliving it, fretted or open: it is part of the sounding shape. A
 natural harmonic's ring states no grip and never joins. A stop carries no provenance here on
 purpose:
 the posture is what the hand holds, so two spans holding an identical grip stay one deduplicated
@@ -87,27 +87,16 @@ renders as a chord box or an arpeggio bracket is a further derivation from the n
 struct ChartShape
 {
     /*!
-    \brief Musical start of the span — its FRONT, which is not always where the walk noticed it.
+    \brief Musical start of the span — its FRONT, the instant it opened.
 
-    THE DATING RULE: a span dates from its EARLIEST MEMBER ONSET NOT COVERED by a preceding span. An
-    accumulation's members arrive one at a time, and the statement began where the first of them was
-    struck — so the rails run from there and the later members arrive inside it, rather than the
-    mark starting at whichever arrival happened to reach the threshold. A member's onset stands in
-    for the beginning of the STATEMENT it makes: a restrike of a stop still held began its
-    statement earlier where another member of the figure sounds at the restrike (re-articulation)
-    — though no span dates behind the coverage frontier, since a beginning an emitted span already
-    fronted is spent up to that span's close, so a restrike of a stop the closed span held dates
-    the next span from where the last one ended — and a slid finger's began at the landing. A
-    WHOLE-GRIP STROKE standing alone reads none of that — it is a span boundary (the absorption
-    rule), and the box it founds dates from the stroke itself, never from a lone note before it
-    that happened to hold one of its stops.
-
-    The second half is what keeps spans from overlapping: a ring whose onset lies inside a span
-    already emitted is CARRIED, and a carry never backdates. That is one comparison with two
-    consequences, and \ref deriveChartShapes spends it once — a carry that dates a span is a
-    founding member and BOUNDS it, while one crossing in from covered ground is a tail that joins
-    nothing. Landings and death survivors are covered by construction, which is why a successor
-    starts exactly where its predecessor ended.
+    A span opens at a fretting-hand statement made while no span stands, at a landing, or at a
+    shape hold's start, and runs forward from there (shape rule 1); nothing is dated back. An
+    accumulation's members arrive one at a time, so its front is the first of them — the span
+    opened there and the later members grew it — and the rails run from it whether or not the span
+    was yet publishable. A ring already sounding at the front is CARRIED: it prints, bounds and
+    splits, and dates nothing. A restrike of a lone statement at its ring's end opens the figure
+    anew at the restrike, so a lone note before a chord is its own gesture. Landings and death
+    remainders open exactly where their predecessor ended, so spans never overlap.
 
     A place on the whole-note axis, because every reader measures from it: a span's close, its
     statements' reach and the instants it covers are all this place plus a whole-note distance.
@@ -135,14 +124,12 @@ struct ChartShape
     THE POSTURE TRUTH CRITERION, which this field is what enforces: **no span claims a stop the hand
     abandoned while it ran.** A span's posture is a per-span set that only ever GROWS (growth IS
     accumulation), so the two ways it could come to lie are by outliving a member and by admitting
-    one the front predates — and the extent law below and Law A together forbid both. The first
-    member whose statement stops bounds the whole span — the trailing edge — and the dating floor
-    bounds the front by the end of each stated string's last FOREIGN sound (Law A's clamp, the
-    leading edge), an invariant growth keeps by refusing: a strike on a string that audibly sounded
-    another stop since the front breaks the span rather than joining it, since the bracket would
-    otherwise print the new fret back over that sound. So every fret a bracket prints was held for
-    every instant the bracket covers. A long accumulation bracket is therefore true BY CONSTRUCTION,
-    not by measurement.
+    one the front predates — and the extent law below and the join break together forbid both. The
+    first member whose statement stops bounds the whole span — the trailing edge — and a strike on
+    a string that audibly sounded another stop since the front breaks the span rather than joining
+    it (the join break, the leading edge), since the bracket would otherwise print the new fret
+    back over that sound. So every fret a bracket prints was held for every instant the bracket
+    covers. A long accumulation bracket is therefore true BY CONSTRUCTION, not by measurement.
 
     THE INVARIANT (shape rule 3): **every span is strictly positive**, since every member sounds. A
     span runs as long as every sounding member goes on stating its stop (THE CONTINUITY LAW, shape
@@ -201,7 +188,8 @@ struct ChartShape
     SOUNDS is the shape's members arriving SEPARATELY, so the span is an arpeggio for its whole
     length — the span is one statement, and its class is HOW that statement's members arrive. A
     derived grip of fewer than three members never sounds in parts: its partial sounding breaks it
-    instead, like any box's.
+    instead, like any box's. A span an unnamed shape hold states (\ref hold_stated) sounds in parts
+    at any member count, the hold keeping it whole across the break (shape rule 9).
 
     Asked of every slot inside the span that sounds anything, ITS OWN START INCLUDED. The start is
     not a second case: a span whose opening slot strikes fewer strings than its shape sounds is a
@@ -263,13 +251,12 @@ struct ChartShape
 
     Every span an EVENT states — a strum, or a shape hold opening its own span — carries its own
     FRONT here (\ref place), because that is the statement's own extent and the rails run from it.
-    An ACCUMULATION is no exception and needs no clause: its front is where its earliest uncovered
-    member's statement began — that member's onset, or the landing a glide brought it to — so the
-    bracket starts there and the later members' heads arrive under it. A LANDING SUCCESSOR, a hold
-    opening at a landing included, carries its first INTERIOR sounding instead: the whole grip slid
-    in, so its landing states nothing the predecessor's mark did not, and THE INK FOLLOWS THE
-    SOUND. One that never sounds interiorly carries nothing and draws no mark at all — the rails
-    and the chord name changing there are its whole statement.
+    An ACCUMULATION is no exception and needs no clause: its front is the statement it opened at,
+    so the bracket starts there and the later members' heads arrive under it. A LANDING SUCCESSOR,
+    a hold opening at a landing included, carries its first INTERIOR sounding instead: the whole
+    grip slid in, so its landing states nothing the predecessor's mark did not, and THE INK FOLLOWS
+    THE SOUND. One that never sounds interiorly carries nothing and draws no mark at all — the
+    rails and the chord name changing there are its whole statement.
 
     ONE field with one write rule, which is what makes those cases one law rather than a branch on
     \ref landing_opened: the seed happens where a span opens and the fill happens at the first
@@ -322,13 +309,13 @@ the EVIDENCE — what each string is doing — in one per-string table that outl
 span it publishes carries its musical close, never a display value: shape rule 6's margin lives
 wholly at the projection.
 
-A hold changes only the edges (shape rule 9). Inside an unnamed hold the span the notes found is
-the hold's, fronted at its start, and only a hand conflict breaks it; it closes at the first hand
-conflict inside, or at the first instant at or after the hold's end where the walk would close a
-span standing there, and never short of that end. A hold whose notes found nothing stands its
-span at its end over the stops the strings state into that end and still reach it, possibly none,
-and that span closes by the same rule. A hold's span is always published, except one closing at
-its own start, which holds nothing. Every other edge is a wall: a span standing across it closes
+A hold changes only the edges (shape rule 9). Inside an unnamed hold the walk keeps one span, the
+hold's: it opens at the hold's start over the rings carried into it, every fretting-hand strike
+inside grows it, and only a hand conflict breaks it; it closes at the first hand conflict inside,
+or at the first instant at or after the hold's end where the walk would close a span standing
+there, and never short of that end. A hold's span is always published, an empty grip over silence
+included, except one closing at its own start, which holds nothing. Every other edge is a wall: a
+span standing across it closes
 there, and no span dates its front behind it; a hold's end is a wall only while its span reaches
 it, since the hold's wall is its published end. A none hold publishes no arpeggio span inside it.
 Handed no holds, the walk derives from the notes alone.
@@ -401,8 +388,8 @@ struct StatedStop
     the channel never left the onset's stop, and the travel's arrival where a glide landed on it.
 
     Mid-travel it names where the statement being travelled into will begin, the only honest answer
-    while the finger is on no stop at all. The span walk dates a slid string's grip by it, with no
-    second record of the landing kept anywhere, exactly as the same re-ask caps that string's
+    while the finger is on no stop at all. The span walk reads a slid string's landing by it, with
+    no second record of the landing kept anywhere, exactly as the same re-ask caps that string's
     coverage there.
     */
     Fraction stated_from{};
@@ -471,10 +458,11 @@ THE ONE AUTHORITY for the founding law's arithmetic (shape rule 1), shared by th
 and the importer's let-ring fragment donation: stops stated at one instant are a grip at two, and
 sound alone founds a span only once three members ring together.
 
-It counts and nothing else. Which stops count is each caller's question — the derivation counts
-what a slot states and what still rings from inside the frontier; the importer, which runs before
-any ring is decided, counts a figure's largest stroke and its whole membership, and so asks only
-whether the figure could EVER found a span.
+It counts and nothing else. Which stops count is each caller's question — the derivation asks it of
+a span's OWN members as they accumulate, the stops stated at a slot and the own members sounding
+there, never a carried ring; the importer, which runs before any ring is decided, counts a figure's
+largest stroke and its whole membership, and so asks only whether the figure could EVER found a
+span.
 
 \param stated_together Stops stated at one instant.
 \param sounding_together Every member sounding at that instant, \p stated_together included.
@@ -500,8 +488,9 @@ chartResolutions can answer the class before the bracket re-read that consumes i
 \param connections The resolved connections: the stored stream, sorted by (position, string), whose
        positions and attacks are all that is read, and its places.
 \param shape A span derived from those connections.
-\param posture The posture `shape` holds: a span of fewer than three members is never an arpeggio,
-       a right-hand onset inside it included.
+\param posture The posture `shape` holds: a derived span of fewer than three members is never an
+       arpeggio, a right-hand onset inside it included, while a span an unnamed shape hold states
+       (\ref ChartShape::hold_stated) is one at any member count.
 \return True where the span renders arpeggio-style.
 */
 [[nodiscard]] bool chartShapeIsArpeggio(

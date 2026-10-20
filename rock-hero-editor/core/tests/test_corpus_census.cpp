@@ -588,26 +588,6 @@ struct DerivationCounters
     long long successor_spans_landing{0};
     long long successor_spans_landing_box{0};
 
-    // THE ONE-COUNT OPENING LAW's population, AS FAR AS PUBLISHED DATA REACHES (review #2,
-    // narrowed by review #5): a span whose FRONT slot sounds nothing with the fretting hand. A
-    // ring crossing that slot is a member like any other, so a slot stating a LONE record reaches
-    // the opening threshold on the carry alone.
-    //
-    // NAMED FOR THE FRONT, not for the opening, because the front is the only slot a reader can
-    // find. THE DATING RULE backdates a span to its earliest UNCOVERED member onset, and a member
-    // that backdates is always a ringing fretting-hand onset — so a span opened at a strike-less
-    // slot that folded in an uncovered ring is DATED at that ring's own strike and reads as struck
-    // here. The row therefore counts the half of the strike-less openings whose carried members
-    // were all COVERED (or that carried none at all), and cannot see the other half.
-    //
-    // That leaves the R-B ruling only half priced, and the missing half is not recoverable from
-    // what the walk publishes: the opening slot is the walk's own, it is not a field on
-    // \ref common::core::ChartShape, and every reconstruction of it here would be this rig
-    // re-deriving the opening law it exists to measure — the substitution the `landing_opened`
-    // header forbids. Measuring it needs the walk to publish the slot it opened at.
-    long long strikeless_front_spans{0};
-    long long strikeless_front_lone_record{0};
-
     // THE OPENING TEST NAMES NO MODE: it is one disjunction (`own >= 2 || total >= 3`), so there
     // is no founding classification for this rig to split spans by, and reconstructing one here
     // would be inventing a concept the model does not have. The ONE honest opening-cause key is
@@ -1011,20 +991,19 @@ void countDerivation(
             // ring reached here would attribute a landing to any successor an unrelated string
             // happens to arrive under.
             //
-            // The predecessor is the span emitted just before this one: spans never overlap (the
-            // dating rule) and a successor starts exactly where its predecessor ended, so nothing
-            // can stand between them.
-            const std::vector<std::optional<ChartStop>>* const predecessor =
-                shape_index > 0 && shapes[shape_index - 1].posture < postures.size()
-                    ? &postures[shapes[shape_index - 1].posture].stops
-                    : nullptr;
+            // The members that carried the statement over are the successor's OWN: a landing's
+            // survivors are the stops its posture holds, and the span they closed may itself be
+            // unpublished (a lone glide's span never meets a threshold), so the successor's posture
+            // is the one place both halves of the hand-off can be read.
+            const std::vector<std::optional<ChartStop>>* const landed =
+                shape.posture < postures.size() ? &postures[shape.posture].stops : nullptr;
             bool landing_here = false;
             for (std::size_t string_index = 0;
-                 predecessor != nullptr && string_index < predecessor->size() && !landing_here;
+                 landed != nullptr && string_index < landed->size() && !landing_here;
                  ++string_index)
             {
                 // Bound once so the presence test provably covers the string it admits.
-                const std::optional<ChartStop>& member = (*predecessor)[string_index];
+                const std::optional<ChartStop>& member = (*landed)[string_index];
                 if (!member.has_value())
                 {
                     continue;
@@ -1076,24 +1055,6 @@ void countDerivation(
                     continue;
                 }
                 struck_at_start.push_back(note);
-            }
-
-            // THE STRIKE-LESS FRONT (review #2, narrowed by review #5), counted only where an
-            // EVENT opened the span: a front slot whose records all state the fretting hand's
-            // stops WITHOUT sounding them — held fingers, and taps whose pitch the other hand's
-            // stop decides. A slot stating a LONE record reaches the opening threshold only with a
-            // ring carried in beside it.
-            //
-            // The front is not always the opening slot, and this is the half of the population
-            // where it IS: a span opened at a strike-less slot backdates onto its carried member's
-            // strike whenever that member was uncovered, and reads as struck here. The row is
-            // named for the front for exactly that reason, and the field's own comment carries
-            // what that leaves unmeasured.
-            if (!successor && struck_at_start.empty())
-            {
-                ++out.strikeless_front_spans;
-                out.strikeless_front_lone_record +=
-                    index.slot_last[slot] - index.slot_first[slot] == std::size_t{1} ? 1 : 0;
             }
         }
 
@@ -2580,18 +2541,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                  "   this rig inventing a concept the model does not have. The one honest\n"
                  "   opening-cause key, `landing_opened`, is censused in section [5].)\n";
     row("spans (context)", census.derivation.spans);
-    std::cout
-        << "  --- THE ONE-COUNT OPENING LAW's population (review #2), HALF-MEASURED ---\n"
-           "  (a FRONT slot nothing sounds at, opened by an EVENT: held fingers, and taps\n"
-           "   whose pitch the other hand's stop decides. A LONE record there reaches the\n"
-           "   opening threshold only on a ring carried in beside it.\n"
-           "   The DATING RULE hides the rest: a strike-less opening that folded in an\n"
-           "   UNCOVERED ring is dated at that ring's own strike, so it reads as struck. The\n"
-           "   R-B ruling is priced by these rows only for the covered-carry half; the other\n"
-           "   half stays UNMEASURED until the walk publishes the slot it opened at.)\n";
-    row("spans DATED at a strike-less slot", census.derivation.strikeless_front_spans);
-    row("  ... whose front states a LONE record", census.derivation.strikeless_front_lone_record);
-    std::cout << "  --- the dating rule's invariant (the ruled promise is ZERO) ---\n";
+    std::cout << "  --- forward founding's invariant (the ruled promise is ZERO) ---\n";
     row("spans starting inside a preceding span", census.derivation.overlapping_spans);
     std::cout
         << "  --- THE FHP CONVERGENCE (ZERO: a span's grip is a hold the positions keep) ---\n"
@@ -2874,18 +2824,17 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22338.0,
+                .expected = 22256.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
-                // a chord box, because something is picked apart inside them. A span classes by
-                // its own strokes alone: a ring struck before it — an open drone included — is a
-                // tail under it and classes nothing, so what is counted here is the spans whose
-                // own members sound apart. A derived span of fewer than three members never
-                // sounds in parts: a partial sounding breaks it instead (shape rules 3 and 5).
+                // a chord box, because something is picked apart inside them: the hand's own
+                // strokes sounded the grip in parts, or a ring struck before the span's front was
+                // carried in as a member (shape rules 1 and 5). A derived span of fewer than
+                // three members never sounds in parts: a partial sounding breaks it instead.
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1055.0,
+                .expected = 980.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2898,7 +2847,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // rule 1); a chimed one is a tail and is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 194.0,
+                .expected = 187.0,
             },
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking
@@ -2910,7 +2859,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2771.0,
+                .expected = 2719.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
@@ -2923,20 +2872,19 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 1225.0,
+                .expected = 1251.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
                 // side can attribute, how many land in a grip that is then STRUMMED WHOLE (a box)
                 // rather than picked apart (a bracket). A LANDING IS NOT A SOUNDING, so a
-                // successor classifies by the ordinary triggers like any other span, and a ring
-                // it did not strike — an open drone included — classifies nothing, so a successor
+                // successor classifies by the ordinary triggers like any other span, and one
                 // nothing sounds inside is a chord span. A corpus dominated by chord slides into
                 // chord stabs therefore reads overwhelmingly BOX, which is what this row says in
                 // numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 1139.0,
+                .expected = 1129.0,
             },
             CrossCheck{
                 // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a
@@ -2946,22 +2894,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .label = "held stops a pull-off derives",
                 .rig = static_cast<double>(census.derived_held_stops),
                 .expected = 226.0,
-            },
-            CrossCheck{
-                // THE ONE-COUNT OPENING LAW's population (review #2), HALF-MEASURED (review #5):
-                // spans DATED at a slot that sounds nothing with the fretting hand. That is the
-                // covered-carry half — a strike-less opening that folded in an UNCOVERED ring
-                // backdates onto that ring's own strike and is invisible from published data — so
-                // the row is a FLOOR on the ruling's price and never the price itself, and a
-                // movement here says nothing about the half nothing publishes. A span is dated at
-                // its dating floor wherever a member statement is already in force there, and a
-                // floor need not be an onset: the one span it counts is It's Only Smiles bar 86,
-                // dated at the instant string 3's fretted 4 died under a lone tap, with strings 2
-                // and 4 holding their 4s. The other half stays unmeasured until the walk publishes
-                // the slot it opened at.
-                .label = "spans DATED at a strike-less slot (floor)",
-                .rig = static_cast<double>(census.derivation.strikeless_front_spans),
-                .expected = 1.0,
             },
             CrossCheck{
                 // THE FHP CONVERGENCE INSTRUMENT'S PRECONDITION: a span no fret-hand window
@@ -3028,17 +2960,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // than once.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included. A span whose front moves onto its slid member's landing is
-                // no longer crossed by that landing's shift: Weathered m4, m48 and m84 front at
-                // string 1's landing (shape rule 1's floor), so none of the three is counted.
+                // width alone included.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 144.0,
+                .expected = 151.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 144.0,
+                .expected = 151.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
@@ -3052,12 +2982,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 17641.0,
+                .expected = 17640.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
                 .rig = static_cast<double>(census.derivation.fhp_placements_unfretted),
-                .expected = 2223.0,
+                .expected = 2214.0,
             },
             CrossCheck{
                 // THE POSITION ROW'S IDENTITY: the row selects a hand event by its front, so the

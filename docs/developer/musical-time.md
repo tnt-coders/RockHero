@@ -180,9 +180,13 @@ surface **draws**.
   — growth is accumulation in place, so nothing turns on how a span was born — and no travel flag
   either, because the tail law never hides a ring that STATES something and so needs no span-level
   exemption for a travelling member. The charter's SHAPE HOLDS (shape rule 9) move only the edges:
-  inside an unnamed hold the walk keeps one span, fronted at the hold's start, which only a hand
-  conflict breaks, and from the hold's end on the span closes wherever the walk would close one
-  standing there. `shapeHoldPublishedEnd` reads where the walk closed the span a hold states, a
+  inside an unnamed hold the walk keeps one span, the hold's, which opens at the hold's start over
+  the rings carried into it and is published whatever the thresholds say, grows by every
+  fretting-hand strike inside, breaks only on a hand conflict, and from the hold's end on closes
+  wherever the walk would close one standing there. Every span opens the same way, at a statement,
+  a landing or a hold's start, and runs forward from it: a derived one is published only once its
+  own members meet rule 1's thresholds.
+  `shapeHoldPublishedEnd` reads where the walk closed the span a hold states, a
   hold fits where that is its stated end, and a `none` hold publishes no arpeggio span inside it. After every edit that is not a hold verb, one normalizer writes each
   hold's published end back (`normalizeShapeHolds`, in `chart_legato.h` beside `chartResolutions`,
   returning the notes layer completed from its own last derivation, so its caller derives nothing

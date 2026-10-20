@@ -30,8 +30,10 @@ namespace
 // keeps the EVIDENCE — what each string is doing — in one per-string table that outlives every
 // span, and derives spans as the maximal stretches over which one grip is continuously evidenced.
 // Keeping that evidence inside each span's own records instead would kill it with the span, so
-// every question that outlives a span (the foreign ring, the dating clamp, the landing hand-off)
-// would grow a mechanism of its own; this table is the one object that answers them all.
+// every question that outlives a span (the foreign ring, the join break, the landing hand-off)
+// would grow a mechanism of its own; this table is the one object that answers them all. A span
+// opens at a statement and runs forward from it: nothing is ever dated back, so the walk never
+// asks what the hand was doing before the instant it stands at.
 //
 // The law this file implements is the shape rules (docs/design/rulesets/shape-rules.md), whose
 // rules 1 to 4 are the grip-tenure law.
@@ -42,9 +44,10 @@ namespace
 // because a landing's members were already established members of the span that just closed.
 constexpr std::size_t g_span_member_threshold = 2;
 
-// The accumulation minimum: sound alone may found a span only at three overlapping members (shape
-// rule 1). It gates FOUNDING by sound alone and nothing else — growing a standing span has no
-// minimum, and a landing opens at the statement threshold above.
+// The accumulation minimum: sound alone founds a span only at three of its own members sounding at
+// one instant (shape rule 1). It gates FOUNDING by sound alone and nothing else — a span opens and
+// grows below it and is simply never published — and a landing opens at the statement threshold
+// above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
 
 // The fewest members a derived span sounds in parts with (shape rules 3 and 5): a grip of one or
@@ -163,8 +166,7 @@ namespace
 // exactly on the displacing strike, so the junction instant is the only one at which the two
 // coexist — read strictly, the junction is invisible), while MEMBERSHIP and the fold-in read
 // STRICTLY (a ring ending at a slot crosses no slot; the inclusive reading births zero-length
-// spans). A span stood at its shape hold's end reads its members end-inclusively all the same: its
-// ground lies behind that instant, fronted at the hold's start.
+// spans).
 struct StringHand
 {
     // The last fretting-hand sounding note on this string — the record the channel reader is
@@ -175,37 +177,23 @@ struct StringHand
     Fraction covers{};
     Fraction sounds{};
 
-    // WHEN THE CURRENT STOP'S STATEMENT BEGAN — the dating rule's whole state, and the one thing a
-    // span's front is measured from. RE-ARTICULATION: a same-stop restrike whose predecessor's ring
-    // reaches it, with another member of the figure sounding at the restrike, is one statement said
-    // twice, not a new one, so it INHERITS the beginning rather than starting its own —
-    // transitively, since the value it inherits may itself be inherited, and a chain of restrikes
-    // is still one statement with one beginning. Recorded unclamped: the dating floor clamps it
-    // where a span is fronted, since a beginning an emitted span already fronted is spent up to
-    // that span's close. Written only by a fretting-hand strike, because only the fretting hand
-    // states a stop; the LANDING half needs no record at all, since \ref StatedStop::stated_from
-    // re-asks the channel for it exactly as \ref covers_at re-asks the stop. Zero where the hand
-    // has never sounded the string. Read through \ref stated_since_at, never bare — a bare read
-    // misses the landing.
-    Fraction stated_since{};
-
     // The end of the last FOREIGN sound on this string — the latest instant it audibly sounded a
     // stop other than the one its current grip states, as the string's strikes record it. The
-    // dating clamp's state (Law A): a span may not date its front across an instant at which one of
-    // its stated strings audibly held another stop, because the fronted bracket asserts its whole
-    // grip from its start. A displacement is the special case whose foreign end IS the displacing
+    // join break's state (shape rule 3): a span opened at an instant asserts its whole grip from
+    // that instant, so a string whose foreign sound ended after the span's front cannot join it and
+    // breaks it instead. A displacement is the special case whose foreign end IS the displacing
     // strike (the same-string clamp puts them on one instant); a foreign ring that died into
-    // silence bounds just as hard at its own end (the sighted gap figures), so nothing resets this
-    // — the bound records what the string audibly did, not how the grip was established. Zero
-    // where the string never sounded a foreign stop. A glide's departure ends at its landing,
-    // which the channel already knows, so it is no record here: read through \ref
-    // foreign_until_at, never bare — a bare read misses the landing.
+    // silence bounds just as hard at its own end, so nothing resets this — the bound records what
+    // the string audibly did, not how the grip was established. Zero where the string never
+    // sounded a foreign stop. A glide's departure ends at its landing, which the channel already
+    // knows, so it is no record here: read through \ref foreign_until_at, never bare — a bare read
+    // misses the landing.
     Fraction foreign_until{};
 
     // The stop `finger`'s strike STATED beneath the fret it sounds (\ref gripStatement), empty
     // where it stated the fret it sounds. Decided once, at the strike, against what was down then —
-    // so the slide-out riding back onto it, the dating and a later carry all read the verdict
-    // rather than re-ask a question whose evidence the strike itself replaced.
+    // so the slide-out riding back onto it and a later carry read the verdict rather than re-ask a
+    // question whose evidence the strike itself replaced.
     std::optional<ChartStop> stated_beneath;
 };
 
@@ -247,9 +235,9 @@ struct OpenSpan
     std::vector<std::optional<ChartStop>> stops;
 
     // Where this span's opening mark draws, published to \ref ChartShape::bracket_place. Every
-    // span an event states seeds it with its front, where its first member's statement began — a
-    // strike or a glide's landing alike; a landing successor seeds nothing and the first sounding
-    // inside it fills the slot (shape rule 4).
+    // span an event states seeds it with its front — the statement it opened at, or a shape hold's
+    // start; a landing successor seeds nothing and the first sounding inside it fills the slot
+    // (shape rule 4).
     std::optional<Fraction> bracket_place{};
 
     // The last instant an EVENT stated this span's shape; empty only on a landing successor
@@ -260,6 +248,14 @@ struct OpenSpan
     // The hand's OWN strokes have sounded this grip in parts. Read through \ref inParts beside
     // the carried members, which make the figure sound in parts too.
     bool struck_in_parts{false};
+
+    // Whether this span is a span at all (shape rule 1): its own members met a threshold — two
+    // stops stated at one slot, or three own members sounding at one instant — or a shape hold or
+    // a landing states it. A span opens at its first statement and runs forward from there, so the
+    // thresholds are asked of it as its own members accumulate; one that never meets them is
+    // dropped at emit, unseen, its ground and rings left to whatever opens next. Carried members
+    // count toward nothing here: a span exists on its own onsets.
+    bool founded{false};
 
     // True on the span a landing opened and nowhere else (shape rule 4) — the one span no event
     // states at its own start. Published: the census keys landing-born spans on it, and the display
@@ -280,10 +276,33 @@ struct OpenSpan
 };
 
 // Whether the span sounds in parts (shape rule 5): its own strokes did, or a member was carried in
-// rather than struck, which is a member its founding stroke did not strike.
+// rather than struck, which is a member the hand did not strike into this span.
 [[nodiscard]] bool inParts(const OpenSpan& span)
 {
     return span.struck_in_parts || std::ranges::any_of(span.carried, std::identity{});
+}
+
+// How many stops the span holds of its own — struck or landed rather than carried in (shape rule
+// 1): the grip the hand stated, which is what renews and what founds.
+[[nodiscard]] std::size_t ownStopCount(const OpenSpan& span)
+{
+    std::size_t count = 0;
+    for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
+    {
+        if (span.stops[string_index].has_value() && !span.carried[string_index])
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+// Whether the span holds a stop of its own. False only on a shape hold's span before the first
+// fretting-hand strike inside the hold, which opens at the hold's start over the rings carried
+// into it alone (shape rule 9).
+[[nodiscard]] bool holdsOwnStop(const OpenSpan& span)
+{
+    return ownStopCount(span) > 0;
 }
 
 // A shape hold on the walk's whole-note axis.
@@ -393,15 +412,9 @@ ChartShapes deriveChartShapes(
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
 
-    // THE FRONTIER: how far every emitted span reaches, and the one seam in the walk. It is a
-    // dating floor and nothing more: a span's front never dates behind it (the floor at the open),
-    // while a ring struck behind it and still sounding is a member of whatever founds over it
-    // (shape rule 1). The reach never reads it — ground a statement held is ground it held.
-    Fraction covered{};
-
     // THE HOLDS (shape rule 9), on this axis. Every edge is a wall but an unnamed hold's end to its
-    // own span: a span standing across one breaks there, and the latest one passed is a dating
-    // floor beside the frontier.
+    // own span: a span standing across one breaks there, and an unnamed hold's start opens its
+    // span.
     std::vector<HoldExtent> holds;
     holds.reserve(shape_holds.size());
     for (const ShapeHold& hold : shape_holds)
@@ -413,7 +426,6 @@ ChartShapes deriveChartShapes(
                 .grip = hold.grip,
             });
     }
-    Fraction last_wall{};
     // Nothing sounds past the song's end, so a hold's span reaches no further.
     const Fraction song_end = tempo_map.wholeNotePositionAt(terminalGridPosition(tempo_map));
     // Whether a span fronted at `front` lies inside a none hold, which publishes no arpeggio span.
@@ -423,8 +435,6 @@ ChartShapes deriveChartShapes(
         return after != holds.begin() && front < std::prev(after)->end &&
                !statesShape(*std::prev(after));
     };
-    // The unnamed hold the walk is inside whose notes have not yet founded its span.
-    std::optional<std::size_t> unfounded_hold;
     // The stated end of the unnamed hold whose span closed short of it. A hold's wall is its
     // published end, so the stated end walls nothing once the walk has closed the span before it.
     std::optional<Fraction> closed_hold_end;
@@ -465,33 +475,11 @@ ChartShapes deriveChartShapes(
         return sounds_at(string_index, now) ? covers_at(string_index, now) : std::nullopt;
     };
 
-    // When the statement of the stop this string holds as of `now` BEGAN — the hand's own column
-    // (\ref StringHand::stated_since) re-asked at the channel, exactly as \ref covers_at re-asks
-    // the stop. The two halves of one question: a strike's statement begins where the strike does
-    // unless re-articulation hands it an earlier beginning, and a TRAVEL's statement begins at
-    // its landing, which the channel already knows — so the landing needs no write anywhere and a
-    // lone glide under no span dates as honestly as one inside a shape. Zero where the hand has
-    // never sounded the string.
-    const auto stated_since_at =
-        [&channel_at, &onset_place, &hand](const std::size_t string_index, const Fraction now) {
-            const std::optional<std::size_t>& finger = hand[string_index].finger;
-            if (!finger.has_value())
-            {
-                return Fraction{};
-            }
-            const StatedStop stated = channel_at(*finger, now);
-            // A finger that has LANDED somewhere new began its statement there, and one still on
-            // the stop it was struck at began it wherever the hand's column says — which may be
-            // long before this note, since the column is what a chain of restrikes carries.
-            return stated.stated_from == Fraction{} ? hand[string_index].stated_since
-                                                    : onset_place[*finger] + stated.stated_from;
-        };
-
     // The end of this string's last FOREIGN sound as of `now` — the hand's own record
-    // (\ref StringHand::foreign_until) re-asked at the channel, the third half the landing hands on
-    // beside \ref stated_since_at and \ref coverage_at. A slid string sounded its departure stop
-    // until the landing, so a finger that has LANDED somewhere new ended its foreign sound there:
-    // re-ask the channel, so the landing needs no record.
+    // (\ref StringHand::foreign_until) re-asked at the channel, the second half the landing hands
+    // on beside \ref coverage_at. A slid string sounded its departure stop until the landing, so a
+    // finger that has LANDED somewhere new ended its foreign sound there: re-ask the channel, so
+    // the landing needs no record.
     const auto foreign_until_at =
         [&channel_at, &onset_place, &hand](const std::size_t string_index, const Fraction now) {
             const Fraction recorded = hand[string_index].foreign_until;
@@ -537,7 +525,7 @@ ChartShapes deriveChartShapes(
     // its own front. Read through \ref coverage_at, since a landing the walk passed caps the
     // reach. Mid-travel states no grip and joins no posture, and a natural's ring carries no grip
     // either: the finger lifted at the strike, so the chime ringing on is no member of anything
-    // founded under it (\ref nodeGrip, the same clause the struck path reads).
+    // opened under it (\ref nodeGrip, the same clause the struck path reads).
     const auto carried_stop = [&coverage_at, &covers_at](
                                   const std::size_t string_index,
                                   const Fraction now) -> std::optional<ChartStop> {
@@ -590,10 +578,14 @@ ChartShapes deriveChartShapes(
 
     // Whether the span's statement is still standing at `now` — the continuity law over SOUNDS
     // (shape rule 3's quit arm), with its per-string renewal: a member string whose sound ends
-    // exactly here and is re-sounded by this slot was REPLACED, not silenced. Judged per stop: a
-    // string still sounding keeps the span's stop in force only while its finger states that stop,
-    // rides above it, or is gliding (the span covers the glide, shape rule 4). Inside its shape
-    // hold a span stands whatever its members do: a quit is notation there (shape rule 9).
+    // exactly here and is re-sounded by this slot was REPLACED, not silenced. Renewal is a grip's:
+    // a span stating one stop of its own has no grip to renew — the rings carried into it are no
+    // statement of the hand's — so it ends at that member's ring end however the slot re-sounds
+    // it, and the restrike opens the figure anew (shape rule 1). Judged per
+    // stop: a string still sounding keeps the span's stop in force only while its finger states
+    // that stop, rides above it, or is gliding (the span covers the glide, shape rule 4). Inside
+    // its shape hold a span stands whatever its members do: a quit is notation there (shape rule
+    // 9).
     const auto in_force = [&hand, &covers_at](
                               const OpenSpan& span,
                               const Fraction now,
@@ -602,13 +594,7 @@ ChartShapes deriveChartShapes(
         {
             return true;
         }
-        // A statement of nothing stands nowhere: the empty span of a hold whose notes stated no
-        // pressed stop closes where its hold ends.
-        if (std::ranges::none_of(
-                span.stops, [](const std::optional<ChartStop>& stop) { return stop.has_value(); }))
-        {
-            return false;
-        }
+        const bool renews = ownStopCount(span) >= g_span_member_threshold;
         for (std::size_t string_index = 0; string_index < span.stops.size(); ++string_index)
         {
             // Bound once so the presence test and every read are provably the same object.
@@ -629,6 +615,13 @@ ChartShapes deriveChartShapes(
                 return false;
             }
             if (now != sounds || !sounding[string_index].has_value())
+            {
+                return false;
+            }
+            // A carried member re-sounded at its ring end is the hand striking INTO the span —
+            // growth that makes the member the span's own — not a stop of the grip renewing, so
+            // the grip test is asked of the span's own stops only.
+            if (!renews && !span.carried[string_index])
             {
                 return false;
             }
@@ -663,23 +656,37 @@ ChartShapes deriveChartShapes(
         return members_reach;
     };
 
-    // The one act that publishes a span (shape rule 3: the close is the breaking event's onset or
-    // where the statement ran out, whichever is earlier). Shape rule 4's tenure drop lives here,
-    // before anything is pushed, which is what lets publication ride the push.
-    const auto emit = [&](const std::optional<Fraction> close_place,
-                          const std::optional<Fraction>
-                              closing_onset_place) {
+    // One slot reading, reused by every slot so each buffer is allocated once; the walk's one
+    // record of what the instant it stands at sounds.
+    SlotReading slot{
+        .place = Fraction{},
+        .strikes = std::vector<std::optional<ChartStop>>(string_count),
+        .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
+        .sounding = std::vector<std::optional<Fraction>>(string_count),
+        .tap_floors = std::vector<std::optional<int>>(string_count),
+        .struck = 0,
+    };
+
+    // The one act that publishes a span (shape rule 3: the close is the closing event's instant or
+    // where the statement ran out, whichever is earlier), given the instant that closed it, or
+    // nothing at the stream's end. Shape rule 4's tenure drop lives here, before anything is
+    // pushed, which is what lets publication ride the push.
+    const auto emit = [&](const std::optional<Fraction> close_place) {
         if (!open.has_value())
         {
             return;
         }
         const Fraction reach = span_reach(*open);
         const Fraction end = close_place.has_value() ? std::min(reach, *close_place) : reach;
-        // The head belongs to the close only where the EVENT actually cut a live statement. A
-        // statement that had already run out — the reach strictly before the event's onset — was
-        // reach-closed, and its rails owe no distance to a head that arrived after it ended.
-        const std::optional<Fraction> head =
-            close_place.has_value() && !(reach < *close_place) ? closing_onset_place : std::nullopt;
+        // The closing head is the fretting-hand strike standing at the close, whichever path closed
+        // the span there — a break, a wall, a landing or a carried member's death at that slot —
+        // and only where the statement was still live: one that had already run out, its reach
+        // strictly before the close, owes its rails no distance to a head that arrived after it
+        // ended. A slot of held fingers or bare taps states no new grip and is no head.
+        const std::optional<Fraction> head = close_place.has_value() && !(reach < *close_place) &&
+                                                     *close_place == slot.place && slot.struck > 0
+                                                 ? close_place
+                                                 : std::nullopt;
         // SHAPE RULE 4's emit test for the one onset-less span: a landing span is emitted if an
         // event ever stated it, or its tenure STRICTLY EXCEEDS the distinguishability quantum kept
         // before the closing head — the chord name never flickers for a sliver. A close with no
@@ -701,6 +708,14 @@ ChartShapes deriveChartShapes(
                 open.reset();
                 return;
             }
+        }
+        // A span whose own members never met a threshold was never a span (shape rule 1): it
+        // opened at a statement, ran, and is dropped unseen, its rings left for whatever opens
+        // next.
+        if (!open->founded)
+        {
+            open.reset();
+            return;
         }
         // Bound once so the presence test and the reads are provably the same object.
         if (const std::optional<HoldTenure>& tenure = open->hold;
@@ -729,7 +744,6 @@ ChartShapes deriveChartShapes(
             .bracket_place = open->bracket_place,
             .hold_stated = open->hold.has_value(),
         };
-        covered = std::max(covered, end);
         // Built once and handed to the table; the row copies it only on a first sighting.
         ChartPosture posture{.stops = std::move(open->stops)};
         // A none hold publishes no arpeggio span inside it (shape rule 9). The walk runs on
@@ -763,16 +777,65 @@ ChartShapes deriveChartShapes(
     //
     // Inside a shape hold the boundary is the span's first hand conflict no slot states (shape rule
     // 9), which closes the span whether or not a landing hands it over.
-    // One slot reading, reused by every slot so each buffer is allocated once. Declared here
-    // because the split below asks whether the slot standing at a boundary restrikes the member
-    // dying there.
-    SlotReading slot{
-        .place = Fraction{},
-        .strikes = std::vector<std::optional<ChartStop>>(string_count),
-        .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
-        .sounding = std::vector<std::optional<Fraction>>(string_count),
-        .tap_floors = std::vector<std::optional<int>>(string_count),
-        .struck = 0,
+
+    // Whether the ring on a string the grip does not state joins a span fronted at `front` as a
+    // CARRIED member, and with what stop (shape rule 1): struck before the front and still sounding
+    // there, outliving it by the minimum sustain distance there — a shorter tail draws nothing into
+    // the span and reads as released before it — and folding in on no string this slot strikes with
+    // the fretting hand (a strike there is the span's own statement of that string, or a node
+    // proving the finger left) nor, while still sounding, on one any onset sounds (the supersession
+    // rule).
+    const auto joins_at = [&](const std::size_t string_index,
+                              const Fraction front) -> std::optional<ChartStop> {
+        if (slot.strike_notes[string_index].has_value())
+        {
+            return std::nullopt;
+        }
+        const std::optional<std::size_t>& finger = hand[string_index].finger;
+        if (!finger.has_value() || !(onset_place[*finger] < front))
+        {
+            return std::nullopt;
+        }
+        const std::optional<ChartStop> at_front = carried_stop(string_index, front);
+        if (!at_front.has_value())
+        {
+            return std::nullopt;
+        }
+        const Fraction reach = coverage_at(string_index, front);
+        if (!(minimumSustainDistance(tempo_map, front) < reach - front) ||
+            (slot.place < reach && slot.sounding[string_index].has_value()))
+        {
+            return std::nullopt;
+        }
+        return at_front;
+    };
+
+    // THE CARRIED MEMBERS (shape rule 1): what sounds under a bracket's opening is what it prints.
+    // Every ring that joins at `front` (\c joins_at) fills a string of `stops` the grip does not
+    // state, whenever it was struck, stating what its strike stated, and bounds the span like any
+    // member — its death inside the span is the split. Its coverage is read from the front, the
+    // instant it joins, so a landing it passed later still caps it (shape rule 4). Returns which
+    // strings were carried, for \ref OpenSpan::carried. One routine for the two spans that open
+    // over rings — a statement's and a shape hold's (shape rule 9).
+    const auto carry_into = [&](std::vector<std::optional<ChartStop>>& stops,
+                                const Fraction front) {
+        std::vector<bool> carried_in(string_count, false);
+        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        {
+            if (stops[string_index].has_value())
+            {
+                continue;
+            }
+            const std::optional<ChartStop> at_front = joins_at(string_index, front);
+            if (!at_front.has_value())
+            {
+                continue;
+            }
+            stops[string_index] = carried_statement(string_index, *at_front);
+            carried_in[string_index] = true;
+            hand[string_index].covers = coverage_at(string_index, front);
+        }
+        return carried_in;
     };
 
     // THE SPLIT (shape rule 1): where the member whose coverage ends at `boundary` was CARRIED into
@@ -787,7 +850,10 @@ ChartShapes deriveChartShapes(
     // inside its shape hold a span's quits are suppressed, a carried member's included (shape rule
     // 9). None of those is a split. At the hold's own end a carried member's death is one: the
     // hold's span closes there, as the hold states, and the remainder runs on as it derives
-    // unheld, so a hold placed exactly over a piece changes nothing else.
+    // unheld, so a hold placed exactly over a piece changes nothing else — only where the remainder
+    // holds a stop of its own, since a span exists on its own onsets alone and a hold's span, which
+    // exists on the hold, may hold nothing but the rings carried into it. Then the death is the
+    // close, and the rings still sounding are tails.
     const auto split_at_carried_death = [&](const Fraction boundary, const Fraction now) {
         // Bound once so the presence test and the read are provably the same object.
         if (const std::optional<HoldTenure>& tenure = open->hold;
@@ -838,6 +904,7 @@ ChartShapes deriveChartShapes(
             .last_stated_place =
                 stated.has_value() && boundary < *stated ? stated : std::optional<Fraction>{},
             .struck_in_parts = open->struck_in_parts,
+            .founded = open->founded,
             .landing_opened = false,
             .hold = std::nullopt,
             .carried = open->carried,
@@ -850,8 +917,11 @@ ChartShapes deriveChartShapes(
                 remainder.carried[string_index] = false;
             }
         }
-        emit(boundary, std::nullopt);
-        open = std::move(remainder);
+        emit(boundary);
+        if (holdsOwnStop(remainder))
+        {
+            open = std::move(remainder);
+        }
         return true;
     };
 
@@ -904,11 +974,13 @@ ChartShapes deriveChartShapes(
                     // while its neighbours slide, which is right — that finger stayed put.
                     continue;
                 }
-                if (!(boundary < hand[string_index].sounds))
+                if (!(boundary < ring_end_of(*finger)))
                 {
                     // "Held through" is end-inclusive at the landing: a ring dying exactly here
-                    // belonged to the closing span (the seam ownership), and only members ringing
-                    // STRICTLY past the boundary survive into the landed grip.
+                    // belonged to the closing span (the seam ownership), and only members whose
+                    // own ring runs STRICTLY past the boundary survive into the landed grip.
+                    // Membership reads the finger's ring, never the sound a tap keeps alive over
+                    // it.
                     continue;
                 }
                 if (!open->stops[string_index].has_value())
@@ -929,8 +1001,11 @@ ChartShapes deriveChartShapes(
                                       onset_place[*finger] + stated.stated_from == boundary &&
                                       boundary < ring_end_of(*finger));
             }
-            const bool opens_successor = arrived && survivors >= g_span_member_threshold;
-            if (!opens_successor)
+            // A landing begins a statement exactly as a strike does, so one survivor opens a span
+            // at the landing that growth may yet found; the successor is a span at once only where
+            // its predecessor was and the statement threshold's two survivors carried the grip
+            // over (shape rule 4).
+            if (!arrived || survivors == 0)
             {
                 // A boundary no landing hands over at is the SLOT PATH's business, not this
                 // pass's: a death may still be renewed by the slot standing at it (the per-string
@@ -941,17 +1016,19 @@ ChartShapes deriveChartShapes(
                 // grip still standing, as the derivation judges it.
                 if (held && boundary < now)
                 {
-                    emit(boundary, std::nullopt);
+                    emit(boundary);
                 }
                 return;
             }
-            emit(boundary, std::nullopt);
+            const bool founded = open->founded && survivors >= g_span_member_threshold;
+            emit(boundary);
             OpenSpan successor{
                 .front_place = boundary,
                 .stops = std::move(landed),
                 .bracket_place = std::nullopt,
                 .last_stated_place = std::nullopt,
                 .struck_in_parts = false,
+                .founded = founded,
                 .landing_opened = true,
                 .hold = std::nullopt,
                 .carried = std::vector<bool>(string_count),
@@ -969,13 +1046,6 @@ ChartShapes deriveChartShapes(
             }
             open = std::move(successor);
         }
-    };
-
-    // Whether a notation split breaks a span (shape rule 9): inside its shape hold a span breaks on
-    // a hand conflict alone, and from the hold's end on it breaks wherever the walk would break a
-    // span standing there.
-    const auto notation_breaks = [](const OpenSpan& span, const Fraction now) {
-        return !insideHold(span, now);
     };
 
     // A span inside its shape hold watches for the hand conflicts no slot states (shape rule 9): a
@@ -1083,60 +1153,7 @@ ChartShapes deriveChartShapes(
             }
             ++onset_end;
         }
-        // The head a span closing here keeps its distance from: only a fretting-hand strike states
-        // the new grip, and a slot of held fingers or bare taps states none.
-        const std::optional<Fraction> closing_head =
-            slot.struck > 0 ? std::optional<Fraction>{slot.place} : std::nullopt;
-
         // ---- 2. LANDINGS RESOLVE FIRST -------------------------------------------------------
-        // A hold whose notes never founded its span stands that span here at its end, before the
-        // landings, so the walk closes it like any span standing here (shape rule 9). Its grip is
-        // what each string states INTO the end and still reaches it, end-inclusively: the span's
-        // ground lies behind this instant, so a ring ending exactly here is in it, and a glide
-        // landing here or later is its departure stop, which the span covers to the landing
-        // (shape rule 4). Each statement is read from the last landing before the end, the channel
-        // asked again from there (\ref statedStopFrom).
-        if (const std::optional<std::size_t>& unfounded = unfounded_hold;
-            unfounded.has_value() && holds[*unfounded].end == slot.place)
-        {
-            const Fraction front = holds[*unfounded].start;
-            std::vector<std::optional<ChartStop>> grip(string_count);
-            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-            {
-                const std::optional<std::size_t>& finger = hand[string_index].finger;
-                if (!finger.has_value())
-                {
-                    continue;
-                }
-                const Fraction onset = onset_place[*finger];
-                Fraction from = onset;
-                for (std::optional<FretTravel> next = channel_at(*finger, from).travel;
-                     next.has_value() && onset + next->arrival < slot.place;
-                     next = channel_at(*finger, from).travel)
-                {
-                    from = onset + next->arrival;
-                }
-                const Fraction reach = coverage_at(string_index, from);
-                const std::optional<ChartStop> stop = covers_at(string_index, from);
-                if (reach < slot.place || !stop.has_value() || nodeGrip(*stop))
-                {
-                    continue;
-                }
-                grip[string_index] = carried_statement(string_index, *stop);
-                hand[string_index].covers = reach;
-            }
-            open = OpenSpan{
-                .front_place = front,
-                .stops = std::move(grip),
-                .bracket_place = std::nullopt,
-                .last_stated_place = std::nullopt,
-                .struck_in_parts = false,
-                .landing_opened = false,
-                .hold = HoldTenure{.end = slot.place, .conflict = std::nullopt},
-                .carried = std::vector<bool>(string_count),
-            };
-            unfounded_hold.reset();
-        }
         // A held span's conflict before this instant is one of them.
         settle_landings(slot.place);
 
@@ -1146,10 +1163,10 @@ ChartShapes deriveChartShapes(
         // wrote them, so an onset AT the end renews nothing inside and the span closes here like
         // any walled span — while the slot is still read against the grip that stood to the end
         // (the hold-under law), as it would be unheld. An end whose span already closed short of it
-        // is no edge at all. Every other edge is a WALL: a span standing across it breaks here,
-        // judged at a slot against its own grip like any broken span. A span a landing opened
-        // exactly here stands, and an unnamed hold starting here states it (shape rule 4's
-        // hand-off).
+        // is no edge at all. Every other edge is a WALL: a span standing across it breaks here, on
+        // the fretting hand's head here where it strikes, and the slot is then judged with no span
+        // standing, like any slot after a break. A span a landing opened exactly here stands, and
+        // an unnamed hold starting here states it (shape rule 4's hand-off).
         bool walled = false;
         std::optional<std::size_t> opened_hold;
         for (; edge < edge_count && edge_place(edge) == slot.place; ++edge)
@@ -1173,28 +1190,59 @@ ChartShapes deriveChartShapes(
                 opened_hold = hold_index;
             }
         }
-        const bool walled_off = walled && open.has_value() && open->front_place < slot.place;
-        if (walled)
+        // The grip a span walled here was still holding, kept as this slot's hand-under evidence
+        // (step 3): a wall is notation and lifts no finger, so a stroke at a hold's edge reads
+        // exactly as the break it would make unheld — against the grip standing into the slot, and
+        // against nothing where the walled span's statement had already run out.
+        std::vector<std::optional<ChartStop>> walled_grip(string_count);
+        bool walled_off = false;
+        if (walled && open.has_value() && open->front_place < slot.place)
         {
-            last_wall = slot.place;
+            if (in_force(*open, slot.place, slot.sounding))
+            {
+                walled_grip = open->stops;
+            }
+            walled_off = true;
+            emit(slot.place);
         }
+        // THE HOLD'S SPAN opens at the hold's start (shape rule 9): the hold is the charter's
+        // statement that one grip is held there, so the span is published whatever it comes to
+        // hold, an empty grip over silence included. It opens over the rings carried into the
+        // start exactly as a statement's span does (shape rule 1), every fretting-hand strike
+        // inside grows it, and it closes by the end rule above.
         // Bound once so the presence test and the read are provably the same object.
         if (const std::optional<std::size_t>& opened = opened_hold; opened.has_value())
         {
-            unfounded_hold = opened;
-            if (open.has_value() && !walled_off)
+            const HoldTenure tenure{.end = holds[*opened].end, .conflict = std::nullopt};
+            if (open.has_value())
             {
-                open->hold = HoldTenure{.end = holds[*opened].end, .conflict = std::nullopt};
-                unfounded_hold.reset();
+                open->hold = tenure;
+                open->founded = true;
+            }
+            else
+            {
+                std::vector<std::optional<ChartStop>> stops(string_count);
+                std::vector<bool> carried_in = carry_into(stops, slot.place);
+                open = OpenSpan{
+                    .front_place = slot.place,
+                    .stops = std::move(stops),
+                    .bracket_place = slot.place,
+                    .last_stated_place = std::nullopt,
+                    .struck_in_parts = false,
+                    .founded = true,
+                    .landing_opened = false,
+                    .hold = tenure,
+                    .carried = std::move(carried_in),
+                };
             }
         }
-        // An instant no note sounds at is a hold's edge alone: a wall, or an instant a span's
-        // statement no longer stands at, its shape hold's end included.
+        // An instant no note sounds at is a hold's edge alone: a wall, handled above, or an instant
+        // a span's statement no longer stands at.
         if (index == onset_end)
         {
-            if (open.has_value() && (walled_off || !in_force(*open, slot.place, slot.sounding)))
+            if (open.has_value() && !in_force(*open, slot.place, slot.sounding))
             {
-                emit(slot.place, std::nullopt);
+                emit(slot.place);
             }
             watch_conflicts(slot.place);
             continue;
@@ -1205,40 +1253,31 @@ ChartShapes deriveChartShapes(
         // member whose sound ends exactly here and is re-sounded was replaced, not silenced).
         const bool standing = open.has_value() && in_force(*open, slot.place, slot.sounding);
 
-        // THE GRIP ALREADY HELD, per string: the standing span's own entry, and nothing where no
-        // span stands. It is the only evidence \ref gripStatement is given for what this slot's
-        // notes state, because the law's premise is a finger ADDED ABOVE A GRIP THAT IS HELD — a
-        // stroke that FOUNDS a span states the frets it strikes, however its strings were ringing
-        // a moment before, so a chord box is never labelled with a fret nobody struck.
-        std::vector<std::optional<ChartStop>> gripped_before(string_count);
-        if (standing)
+        // THE GRIP HELD GOING IN, per string: the standing span's own entry — or the entry of the
+        // span a hold's edge walled at this very instant, which the hand still held as this slot's
+        // strikes came — and nothing where no span stood. It is the only evidence
+        // \ref gripStatement is given for what this slot's notes state, because the law's premise
+        // is a finger ADDED ABOVE A GRIP THAT IS HELD — a stroke that OPENS a span states the
+        // frets it strikes, however its strings were ringing a moment before, so a chord box is
+        // never labelled with a fret nobody struck. The tap's floor (below) reads the standing
+        // span's own grip instead: it asks what the span being judged holds, not what was held.
+        std::vector<std::optional<ChartStop>> gripped_before = walled_grip;
+        if (standing && !walled_off)
         {
             gripped_before = open->stops;
         }
 
-        // THE DISPLACEMENT WITNESS (Law A), against the PRE-instant hand and read end-INCLUSIVELY:
+        // THE DISPLACEMENT WITNESS, against the PRE-instant hand and read end-INCLUSIVELY:
         // a statement replacing a DIFFERENT sounding stop is the finger observably moving, whether
         // or not any span stands — the same-string clamp puts the displaced ring's end exactly on
         // the displacing strike, so this instant is the only one at which the two coexist. A
         // slide-out ring asserts no grip: by its end the finger is off the board (the GP import
-        // figure law's exemption, mirrored). Same stop is re-articulation's question and witnesses
+        // figure law's exemption, mirrored). A same-stop restrike is a restatement and witnesses
         // nothing. The witness feeds shape rule 3's foreign-ring break below; the FOREIGN-SOUND
-        // record beside it is the dating floor's state, written here — from the pre-instant table,
-        // before any verdict — so a span opening at this very slot reads a current bound.
-        //
-        // THE STATEMENT-BEGAN COLUMN for this instant rides the same pass, for the same reason: the
-        // dating below reads it before step 6 applies the slot to the hand, so it is a pre-instant
-        // verdict like every other. A string this slot does not strike keeps the beginning it
-        // already had (its statement did not change here); a strike begins its own statement unless
-        // RE-ARTICULATION hands it one — the predecessor's ring reaches this onset end-inclusively,
-        // the channel states EXACTLY this stop there (positive, so a mid-glide finger inherits
-        // nothing), the predecessor is not a slide-out asserting no grip at all, and another member
-        // of the figure sounds at the restrike. Inheritance is transitive by construction: what it
-        // inherits was itself read through \ref stated_since_at, so a chain of restrikes is one
-        // statement with one beginning.
+        // record beside it is the join break's state, written here — from the pre-instant table,
+        // before any verdict — so a span judged at this very slot reads a current bound.
         std::vector<bool> displaced_here(string_count, false);
         std::vector<bool> sounding_before(string_count, false);
-        std::vector<Fraction> stated_since_here(string_count);
         // THE HOLD-UNDER LAW. Whether a stop this slot states and a stop already down on the string
         // are ONE HAND rather than two. A pull-off proves a finger on its landing stop at the
         // RELEASE and at no earlier instant, so the derivation asserts nothing by itself; what it
@@ -1258,16 +1297,14 @@ ChartShapes deriveChartShapes(
         //
         // WHAT THE LAW REACHES (the one list; the deriveChartShapes \param is a pointer here). The
         // pair feeds every seam verdict — displacement and the grip contradiction — and, under
-        // THE FOLD, the statement-began column and the foreign-sound floor, so a span
-        // fronts where the held evidence began. \c grip_statement_of carries the same verdict
-        // into the grip column, so an ornament never rewrites the entry it rides above. A genuine
-        // foreign restrike still pushes the front (the 17:3.5 figure) because the floor's clamp
-        // below excludes only ground the law accounts for.
+        // THE FOLD, the foreign-sound record, so a planted spell never breaks the span a later
+        // strike on its string would join. \c grip_statement_of carries the same verdict into the
+        // grip column, so an ornament never rewrites the entry it rides above.
         //
         // An OPEN ring is held by no finger, so a source can ride it only as the standing grip's
         // own open entry. Outside the grip the open ring is foreign sound like any other (shape
-        // rule 3): a source struck over it displaces it and ends a foreign spell, so no span dates
-        // its front back across the open ring and prints the source's fret over it.
+        // rule 3): a source struck over it displaces it and ends a foreign spell, so no span prints
+        // the source's fret back over the open ring.
         const auto plants_under = [&saved_notes, &planted_stops, &slot, &gripped_before](
                                       const std::size_t string_index, const ChartStop& stop) {
             if (!pressedFret(stop.fret).has_value() && gripped_before[string_index] != stop)
@@ -1329,27 +1366,8 @@ ChartShapes deriveChartShapes(
             const std::optional<ChartStop>& struck = slot.strikes[string_index];
             return struck.has_value() && nodeGrip(*struck) ? std::nullopt : struck;
         };
-        // THE RE-ARTICULATION WITNESS: whether another member of the figure is SOUNDING at this
-        // slot beside `string_index` — a fretting-hand finger struck since the coverage frontier
-        // and before this slot, its sound reaching strictly past it. A tail is `[start, end)`, so a
-        // ring ending exactly here sounds nothing at the restrike.
-        const auto figure_sounds_beside =
-            [&hand, &onset_place, &covered, &slot](const std::size_t string_index) {
-                for (std::size_t other = 0; other < string_count; ++other)
-                {
-                    const std::optional<std::size_t>& finger = hand[other].finger;
-                    if (other != string_index && finger.has_value() &&
-                        covered <= onset_place[*finger] && onset_place[*finger] < slot.place &&
-                        slot.place < hand[other].sounds)
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            };
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
-            stated_since_here[string_index] = stated_since_at(string_index, slot.place);
             const std::optional<ChartStop>& stated_stop = slot.strikes[string_index];
             if (!stated_stop.has_value())
             {
@@ -1360,7 +1378,7 @@ ChartShapes deriveChartShapes(
             sounding_before[string_index] = sounded;
             const std::optional<ChartStop> held = held_at(string_index, slot.place);
             // A DISPLACEMENT is a strike naming a different stop on a string still AUDIBLY holding
-            // another — Law A's foreign-ring break, and it reads the sound, not the grip. That
+            // another — shape rule 3's foreign-ring break, read off the sound, not the grip. That
             // includes a hand-free ring: a fret or a node struck on a string still ringing OPEN
             // changes what that string sounds, and the bracket the standing span would otherwise
             // print states the new stop from a front before which the string audibly rang open.
@@ -1371,11 +1389,11 @@ ChartShapes deriveChartShapes(
             displaced_here[string_index] =
                 held.has_value() && differs_by_hand(string_index, *held, *stated_stop);
 
-            // THE FOREIGN-SOUND RECORD (Law A's state): a strike taking this string marks the
-            // end of whatever foreign stop it last sounded — the displacing strike's own instant
-            // under a displacement, the dead ring's own end after a gap of silence. The stop and
-            // its end are both the finger's own: a tap sounding on over it is the other hand's,
-            // and never keeps an old fretted stop sounding.
+            // THE FOREIGN-SOUND RECORD (the join break's state): a strike taking this string marks
+            // the end of whatever foreign stop it last sounded — the displacing strike's own
+            // instant under a displacement, the dead ring's own end after a gap of silence. The
+            // stop and its end are both the finger's own: a tap sounding on over it is the other
+            // hand's, and never keeps an old fretted stop sounding.
             const ChartStop& struck_stop = *stated_stop;
             if (finger.has_value() &&
                 slideOutFretOrNull(saved_notes[*finger], arrives_into[*finger]) == nullptr)
@@ -1385,38 +1403,12 @@ ChartShapes deriveChartShapes(
                 // THE FOLD (extending the hold-under law): a spell the hand provably never left is
                 // not foreign. A strike planting the last-held stop is the same hand adding a
                 // finger, and a strike the sounding finger plants is the same hand releasing one —
-                // neither marks a foreign spell, so the floor cannot push a front past ground the
-                // plant accounts for.
+                // neither marks a foreign spell, so neither can break the span a later strike on
+                // this string would otherwise join.
                 if (last_held.has_value() && differs_by_hand(string_index, *last_held, struck_stop))
                 {
                     hand[string_index].foreign_until = sounded_until;
                 }
-            }
-            // RE-ARTICULATION, judged on GRIP STATEMENTS like every identity question under the
-            // grip-statement law: a strike whose statement matches the statement the string's
-            // sounding finger holds inherits that statement's beginning WHERE ANOTHER MEMBER OF THE
-            // FIGURE IS SOUNDING at the restrike (\c figure_sounds_beside), and every other strike
-            // begins its own — a restrike with nothing else sounding is the figure's first
-            // articulation, and the lone note before it is its own gesture. THE FOLD's two arms ARE
-            // this equality — a source over the still-held
-            // stop states that stop (the ornament rides above), and the slide-out of such a source
-            // states the stop the source stated beneath itself — so one 5-7-5 figure is one
-            // statement of 5 with one beginning (the Torn intro fronting at its first note), while
-            // a source over any other ground states what it sounds and its release begins a
-            // statement of its own. The held side reads what the finger STATED over its audible
-            // stop for the same reason the grip column does: the sound is the ornament, the
-            // statement is the grip.
-            const std::optional<ChartStop> statement = grip_statement_of(string_index);
-            const std::optional<ChartStop> held_statement =
-                held.has_value() && hand[string_index].stated_beneath.has_value()
-                    ? hand[string_index].stated_beneath
-                    : held;
-            const bool statement_continues = statement.has_value() && held_statement.has_value() &&
-                                             *statement == *held_statement &&
-                                             figure_sounds_beside(string_index);
-            if (!statement_continues)
-            {
-                stated_since_here[string_index] = slot.place;
             }
         }
 
@@ -1427,7 +1419,7 @@ ChartShapes deriveChartShapes(
         //
         // A CONTRADICTION breaks the grip (shape rule 3): a statement naming a different stop on
         // a string whose stop the span SOUNDED, displacing a stop the hand still audibly holds
-        // anywhere (Law A's foreign-ring break: the grip provably moved even where the span never
+        // anywhere (the foreign-ring break: the grip provably moved even where the span never
         // stated that string). On a stated string it is a release, a hand conflict, or a higher
         // fret restated, another finger leaving the stop held; every other contradiction is
         // notation.
@@ -1456,14 +1448,14 @@ ChartShapes deriveChartShapes(
                 // what it sounds — a node strike, which states no grip, on its node.
                 const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 const ChartStop here_stop = statement.value_or(*stated_stop);
-                // LAW A AT THE JOIN: the founding's dating floor (front at or after every stated
-                // string's foreign-sound end) is an invariant, and growth cannot move the front to
-                // keep it, so a string whose foreign sound ended INSIDE the span — a natural
-                // harmonic's chime, an open ring dying under the shape, a free glide landing under
-                // it — breaks rather than joins. The displacement is this rule's special case, the
-                // ring still sounding at the strike; where the ring ended is no difference in what
-                // the hand did. Without it the fret would join and the bracket would print it over
-                // the chime's tail.
+                // THE JOIN BREAK: a span asserts its whole grip from its front, and growth cannot
+                // move the front, so a string whose foreign sound ended INSIDE the span — a
+                // natural harmonic's chime, an open ring dying under the shape, a free glide
+                // landing under it — breaks rather than joins; the statement then opens a span of
+                // its own with the survivors carried. The displacement is this rule's special
+                // case, the ring still sounding at the strike; where the ring ended is no
+                // difference in what the hand did. Without it the fret would join and the bracket
+                // would print it over the chime's tail.
                 notation_contradiction =
                     notation_contradiction || displaced_here[string_index] ||
                     (stated.has_value() && differs_by_hand(string_index, *stated, here_stop)) ||
@@ -1484,7 +1476,7 @@ ChartShapes deriveChartShapes(
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 const std::optional<int>& tap_floor = slot.tap_floors[string_index];
-                const std::optional<ChartStop>& gripped = gripped_before[string_index];
+                const std::optional<ChartStop>& gripped = open->stops[string_index];
                 if (tap_floor.has_value() && gripped.has_value() && gripped->fret > 0 &&
                     *tap_floor <= gripped->fret)
                 {
@@ -1494,8 +1486,8 @@ ChartShapes deriveChartShapes(
         }
 
         // THE STATEMENT-CHARACTER SPLITS: a span's statements keep ONE character — whole or in
-        // parts — and the walk splits where the character turns, so the class is a fact of the
-        // span's founding rather than a retroactive verdict on everything it ever contained.
+        // parts — and the walk splits where the character turns, so the class is a fact of how the
+        // span's members arrived rather than a verdict on everything it ever contained.
         //
         // Parts -> chord (the unison restatement): a stroke striking EVERY stop the span states is
         // the whole grip said in unison — a chord statement, WHERE IT STANDS ALONE (the absorption
@@ -1506,9 +1498,8 @@ ChartShapes deriveChartShapes(
         //
         // Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
         // own stops, not all — is the statement coming apart, so the chord span closes here and the
-        // parts found their own span through the ordinary slot open below, on what they strike
-        // and what still sounds: the chord's rings count toward that founding and join it, and the
-        // frontier dates it no earlier than this close (shape rule 1). A stroke on strings the span
+        // parts open their own span through the ordinary open below, on what they strike, with the
+        // chord's rings carried into it (shape rule 1). A stroke on strings the span
         // never stated is not this direction at all: it states nothing about the span's own stops
         // coming apart, so it is the statement still assembling — growth. This direction reads the
         // ARITHMETIC alone and never the absorption: a stroke absorbed by the parts that follow is
@@ -1594,21 +1585,27 @@ ChartShapes deriveChartShapes(
         };
         // Whether this slot's stroke says the WHOLE of a grip: every stop of it that SOUNDS here —
         // struck now, or under a finger the hand table already holds — is one this stroke STATES.
-        // ONE authority for the three sites that ask whether a stroke is a chord statement (the
-        // break arm, the founding class, and the dispose arm's in-place turn): written out at each
-        // site, the copies drift, and a divergent one makes a figure's class depend on whether its
-        // strings had ever sounded earlier in the chart. What a strike says is its GRIP STATEMENT
+        // ONE authority for the two sites that ask whether a stroke is a chord statement (the
+        // unison restatement and the turn to parts): written out at each, the copies drift, and a
+        // divergent one makes a figure's class depend on whether its strings had ever sounded
+        // earlier in the chart. What a strike says is its GRIP STATEMENT
         // (\c grip_statement_of), the identity every question here is judged on: a pull-off source
         // riding above the stop its grip holds says that stop, so its string is no member left
         // unsaid, while the touched count, which reads the SOUND, counts its ornament nowhere —
         // neither the statement coming apart nor a restatement (THE HOLD-UNDER LAW: the bracket
         // does not seam when the finger arrives, even with the rest of the grip restruck beside
         // it).
+        //
+        // Wholeness is the HAND's own verdict (shape rule 5), so it is measured against the span's
+        // own stops alone: a carried member is a ring the hand never struck into this span, and a
+        // chug restating the whole grip beside it is the chord struck whole, not the shape sounded
+        // in parts — the carried ring makes the piece sound in parts on its own (\ref inParts), and
+        // the remainder after its death is the box the hand played.
         const auto stroke_says_whole =
-            [&hand, &grip_statement_of](const std::vector<std::optional<ChartStop>>& stops) {
+            [&hand, &grip_statement_of, &open](const std::vector<std::optional<ChartStop>>& stops) {
                 for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
-                    if (!stops[string_index].has_value() ||
+                    if (!stops[string_index].has_value() || open->carried[string_index] ||
                         grip_statement_of(string_index) == stops[string_index])
                     {
                         continue;
@@ -1689,32 +1686,33 @@ ChartShapes deriveChartShapes(
                 return false;
             }
             // THE HOLD UNDERNEATH, and it is what makes the parts sound UNDER the stroke rather
-            // than after it: some member the parts do NOT restate is still sounding ITS OWN STOP
-            // strictly past them. Both halves are read off the stroke's own stored notes — the
-            // ring, and the channel at that instant — and a MID-TRAVEL channel holds nothing,
-            // because a finger between stops is a member of nothing. That is the same reading
-            // transit gets everywhere else in this file: a chord slide with transit picks is
-            // chord frames joined by slide lines, never an arpeggio bracket, so a stroke whose
-            // un-restated members are all in flight states its chord and is never absorbed.
+            // than after it: EVERY member the parts do NOT restate is still sounding ITS OWN STOP
+            // strictly past them, so the span flows through the parts instead of closing where a
+            // member quits — a stroke whose un-restated members end at the parts stood alone, and
+            // the quit arm closes its span there as the chord it was. Both halves are read off the
+            // stroke's own stored notes — the ring, and the channel at that instant — and a
+            // MID-TRAVEL channel holds nothing, because a finger between stops is a member of
+            // nothing. That is the same reading transit gets everywhere else in this file: a chord
+            // slide with transit picks is chord frames joined by slide lines, never an arpeggio
+            // bracket, so a stroke with an un-restated member in flight states its chord and is
+            // never absorbed.
+            bool holds_underneath = false;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                if (restated[string_index])
-                {
-                    continue;
-                }
                 // Bound once so the presence test and every read are provably one object.
                 const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
-                if (!striking.has_value() || !(next_place < ring_end_of(*striking)))
+                if (restated[string_index] || !striking.has_value())
                 {
                     continue;
                 }
-                const StatedStop held = channel_at(*striking, next_place);
-                if (held.stop.has_value())
+                if (!(next_place < ring_end_of(*striking)) ||
+                    !channel_at(*striking, next_place).stop.has_value())
                 {
-                    return true;
+                    return false;
                 }
+                holds_underneath = true;
             }
-            return false;
+            return holds_underneath;
         };
         const bool chord_statement_stands = !absorbed_by_the_next_slot();
 
@@ -1722,14 +1720,22 @@ ChartShapes deriveChartShapes(
         // growth by a string the span never stated, a stroke that does not state the whole grip
         // standing alone, or a partial slide, turns a never-in-parts span in place. A member
         // travelling turns nothing: a chord slide with transit picks is chord frames joined by
-        // slide lines, never an arpeggio bracket. A grip too small for parts never turns: its
-        // partial sounding breaks it below, like any box's.
+        // slide lines, never an arpeggio bracket. A derived grip too small for parts turns only to
+        // break: its partial sounding breaks it below, like any box's.
+        //
+        // Growth, the whole-grip comparison and the absorption are asked only of a span that
+        // already holds a stop of its own. A shape hold's span opens at the hold's start holding at
+        // most the rings carried into it (shape rule 9), so the first slot to strike inside it is
+        // its first statement, whole unless a partial slide divides it: parts sounding under it
+        // inside the hold turn the span themselves when they arrive, and parts at the hold's end
+        // lie outside the span, which is then the stroke whole. A carried member is no sounding the
+        // hand missed — it makes the figure sound in parts on its own (\ref inParts) without
+        // changing the hand's own verdict.
         bool turns_to_parts = false;
-        bool too_few_for_parts = false;
+        bool grows = false;
         if (standing)
         {
             grown = open->stops;
-            bool grows = false;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 if (const std::optional<ChartStop> statement = grip_statement_of(string_index);
@@ -1739,10 +1745,10 @@ ChartShapes deriveChartShapes(
                     grown[string_index] = statement;
                 }
             }
-            turns_to_parts =
-                slot.struck > 0 && !member_travelling &&
-                (grows || !(stroke_says_whole(grown) && chord_statement_stands) || partial_slide);
-            too_few_for_parts = tooFewForParts(grown);
+            turns_to_parts = slot.struck > 0 && !member_travelling &&
+                             ((holdsOwnStop(*open) &&
+                               (grows || !(stroke_says_whole(grown) && chord_statement_stands))) ||
+                              partial_slide);
         }
 
         bool unison_restatement = false;
@@ -1760,6 +1766,12 @@ ChartShapes deriveChartShapes(
                         strikes_beyond_grip || slot.strikes[string_index].has_value();
                     continue;
                 }
+                // The span's OWN statement: a carried member is no stop the hand stated here, so a
+                // superset of a lone own stop beside a carried ring is growth, not a new chord.
+                if (open->carried[string_index])
+                {
+                    continue;
+                }
                 ++stated_count;
                 // Touched means RESTATED (\c restates_stop) by a stroke of the span's own: a strike
                 // at a different fret on a stated string is the hold-under figure's ornament
@@ -1772,10 +1784,13 @@ ChartShapes deriveChartShapes(
                     ++touched_stated;
                 }
             }
+            // "Sounding in parts" here is the hand's own strokes' verdict (\c struck_in_parts): a
+            // whole stroke over a span the hand sounded in parts is a new chord statement, while
+            // the same stroke over a span a carried ring alone makes sound in parts is the chug.
             const bool restates_whole = stroke_says_whole(open->stops);
             unison_restatement = restates_whole && chord_statement_stands &&
                                  stated_count >= g_span_member_threshold &&
-                                 (inParts(*open) || strikes_beyond_grip);
+                                 (open->struck_in_parts || strikes_beyond_grip);
             // The chord->parts direction measures the stroke against the span's OWN statement, so
             // it fires only where the stroke touches a stated stop without restating them all —
             // sounding PART of what the span stated is the statement coming apart, while a stroke
@@ -1787,30 +1802,39 @@ ChartShapes deriveChartShapes(
             // direction whole: fingers travelling together carry the statement, the glide is not
             // the figure coming apart, and the close belongs to the landing (shape rule 4) — so a
             // restrike beside a travelling member rides, per member and not per slot (the mid-slide
-            // rule). And a span already IN PARTS wears the bracket that covers partial sounding, so
+            // rule). And a span already IN PARTS — by its own strokes or by a carried ring, the
+            // class that prints (\ref inParts) — wears the bracket that covers partial sounding, so
             // partials ride it unchanged.
             partial_sounding = !restates_whole && touched_stated > 0 && !inParts(*open) &&
                                open->last_stated_place.has_value() && !member_travelling;
             // THE PARTIAL-SLIDE SPLIT (the chord split mid sustain): a partial-slide slot touching
             // a never-in-parts span is the statement coming apart AT this slot — even where it
             // restates the whole grip, since part of that statement immediately leaves while the
-            // rest stays — so the box closes here and this slot founds the parts figure, dated at
-            // its own onset. It shares every guard the chord->parts direction carries, and the
+            // rest stays — so the box closes here and this slot opens the parts figure at its own
+            // onset. It shares every guard the chord->parts direction carries, and the
             // whole-grip slide never fires it.
             partial_sounding =
                 partial_sounding || (partial_slide && touched_stated > 0 && !inParts(*open) &&
                                      open->last_stated_place.has_value() && !member_travelling);
-            // A grip too small for parts is a box to the end: where it would turn, it breaks.
-            partial_sounding = partial_sounding || (turns_to_parts && too_few_for_parts);
+            // A derived grip too small for parts is a box to the end: where it would turn, it
+            // breaks — once it IS a span. Below the thresholds a span is still accumulating, and
+            // growth is how it comes to be one, so an unfounded pair turns like any grip. Inside a
+            // shape hold the break is notation and the span turns instead (shape rule 9).
+            partial_sounding =
+                partial_sounding || (turns_to_parts && open->founded && tooFewForParts(grown));
         }
 
         // ---- 4. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
         // The notation half of the break verdict: a contradiction no hand conflict makes, or the
         // statement changing character.
-        const bool notation_split =
-            notation_contradiction || unison_restatement || partial_sounding;
-        if (standing && !walled_off && !hand_conflict &&
-            !(notation_split && notation_breaks(*open, slot.place)))
+        // A string the span never held, struck while a member is mid-travel, truncates the
+        // travelling span there (shape rule 4): fingers travelling together carry the statement,
+        // and a glide is not the figure growing.
+        const bool notation_split = notation_contradiction || unison_restatement ||
+                                    partial_sounding || (grows && member_travelling);
+        // Inside its shape hold a span breaks on a hand conflict alone; every notation split is
+        // suppressed there (shape rule 9).
+        if (standing && !hand_conflict && !(notation_split && !insideHold(*open, slot.place)))
         {
             // GROWTH IS ACCUMULATION (shape rule 2): every struck stop the grip lacks joins in
             // place; the quit arm is what guarantees absorption only ever unions grips whose sounds
@@ -1831,18 +1855,47 @@ ChartShapes deriveChartShapes(
                     open->carried[string_index] = false;
                 }
             }
+            // THE THRESHOLDS (shape rule 1), asked of the span's OWN members as they accumulate:
+            // two stops stated at this slot, or three own members sounding at this instant — the
+            // ones stated here and the ones whose fretting-hand coverage reaches strictly past it
+            // (membership reads the reach column). A carried member counts toward neither: a span
+            // exists on its own onsets. Once met, the span is a span for good.
+            if (!open->founded)
+            {
+                std::size_t stated_here = 0;
+                std::size_t own_sounding = 0;
+                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+                {
+                    if (!open->stops[string_index].has_value() || open->carried[string_index])
+                    {
+                        continue;
+                    }
+                    if (grip_statement_of(string_index).has_value())
+                    {
+                        ++stated_here;
+                        ++own_sounding;
+                    }
+                    else if (
+                        hand[string_index].finger.has_value() &&
+                        slot.place < hand[string_index].covers
+                    )
+                    {
+                        ++own_sounding;
+                    }
+                }
+                open->founded = foundsSpan(stated_here, own_sounding);
+            }
             if (slot.struck > 0)
             {
                 open->last_stated_place = slot.place;
                 // Live only for the spans the character splits exclude — a landing successor's
-                // FIRST sounding, growth by strings the span never stated, and the ABSORBED
-                // whole-grip stroke the span flows through — whose class still turns in place, for
-                // every way a statement divides (the turn, above). The mid-slide protection — the
-                // span RIDES the transit, per member, and closes at the landing — is the
-                // span-shape half, and it stands above. A grip too small for parts never turns,
-                // even where a shape hold keeps it whole across the break it would make.
-                open->struck_in_parts =
-                    open->struck_in_parts || (turns_to_parts && !too_few_for_parts);
+                // FIRST sounding, growth by strings the span never stated, the ABSORBED whole-grip
+                // stroke the span flows through, and every turn a shape hold keeps the span whole
+                // across — whose class still turns in place, for every way a statement divides
+                // (the turn, above). The mid-slide protection — the span RIDES the transit, per
+                // member, and closes at the landing — is the span-shape half, and it stands above.
+                // A derived grip too small for parts never reaches here turned: it broke above.
+                open->struck_in_parts = open->struck_in_parts || turns_to_parts;
                 if (!open->bracket_place.has_value())
                 {
                     open->bracket_place = slot.place;
@@ -1853,249 +1906,54 @@ ChartShapes deriveChartShapes(
         {
             // The grip broke here (a hand conflict, a notation split, a wall, or the statement no
             // longer stands), closing on the fretting hand's head here where it strikes.
-            emit(slot.place, closing_head);
+            emit(slot.place);
 
-            // THE SLOT OPEN (shape rule 1's two thresholds, one disjunction): the slot's own stated
-            // members, plus the rings still sounding strictly past this instant on strings it does
-            // not state — read STRICTLY, the membership window.
+            // THE OPEN (shape rule 1): a fretting-hand statement with no span standing opens a span
+            // HERE, at its own instant, and the span runs forward from it; nothing is ever dated
+            // back. Its stops are this slot's GRIP STATEMENTS (\c grip_statement_of: an opening
+            // stroke states the frets it sounds, a pull-off source among them included, so a box
+            // prints what was struck; a node grip is no statement, so three co-struck naturals
+            // open nothing, and neither does a right-hand onset, shape rule 7), and the rings
+            // sounding here that outlive it join as CARRIED members (\c carry_into). It is a span
+            // only once its own members meet a threshold (\ref OpenSpan::founded): two stated here
+            // found it at once, while a lone statement opens a span that growth may yet found or
+            // that is dropped unseen.
             std::vector<std::optional<ChartStop>> stops(string_count);
-            std::size_t own = 0;
+            std::size_t stated = 0;
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                // Grip statements here too (\c grip_statement_of): a founding stroke states the
-                // frets it sounds, a pull-off source among them included, so the box prints what
-                // was struck. A harmonic chord founds nothing through this same rule: a node grip
-                // is no statement, so three co-struck naturals are no own stops.
                 const std::optional<ChartStop> statement = grip_statement_of(string_index);
                 if (statement.has_value())
                 {
                     stops[string_index] = statement;
-                    ++own;
+                    ++stated;
                 }
             }
-            std::size_t total = own;
-            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            if (stated > 0)
             {
-                if (stops[string_index].has_value())
-                {
-                    continue;
-                }
-                const std::optional<std::size_t>& finger = hand[string_index].finger;
-                if (!finger.has_value())
-                {
-                    continue;
-                }
-                // ONLY A STATEMENT SINCE THE FRONTIER founds and dates: a ring struck behind the
-                // last close belongs to the figure that closed, so it never makes a bracket exist
-                // where the fresh onsets alone would draw none. Whether it JOINS the span founded
-                // here is asked at the front, below (shape rule 1).
-                if (onset_place[*finger] < covered)
-                {
-                    continue;
-                }
-                const std::optional<ChartStop> carried = carried_stop(string_index, slot.place);
-                if (!carried.has_value())
-                {
-                    continue;
-                }
-                // A carry never folds in on a string ANY onset sounds at this slot: a same-stop
-                // restrike is a statement and joined through `own` above; a node struck over the
-                // ring states no grip of its own, yet proves the finger left it; and a tap on the
-                // string has floored it (shape rule 3). Each leaves the ring a tail. This one scope
-                // is the whole of the supersession rule.
-                if (slot.sounding[string_index].has_value())
-                {
-                    continue;
-                }
-                stops[string_index] = carried_statement(string_index, *carried);
-                // A carry brings its coverage AS OF NOW into the span it joins: the third moment
-                // \ref coverage_at names. Nothing was standing to restart this string at the
-                // landing it may have passed — the emit above closed whatever was — so without
-                // the re-read a lone glide would hand the span it joins a reach frozen at that
-                // landing, emitting a span over the glide's own travel. A string a STANDING
-                // span states is never re-read: its cap is live, and that cap is what closes the
-                // span at its member's landing (shape rule 4).
-                hand[string_index].covers = coverage_at(string_index, slot.place);
-                ++total;
-            }
-            // The founding is asked only where the fretting hand states a stop: a right-hand onset
-            // and a natural harmonic found nothing (shape rules 1 and 7), however many rings stand
-            // under them, so a slot of bare taps or nodes over a sounding shape opens no span.
-            if (own > 0 && foundsSpan(own, total))
-            {
-                // A whole-grip stroke standing alone is a span BOUNDARY (the absorption rule):
-                // the box it founds says the posture was struck whole HERE, so it fronts at its
-                // own stroke and reads no statement column. A span a PARTIAL-SLIDE slot founds is
-                // born in parts — the founding statement itself announces that its members sound
-                // separately, the glide leaving while the held strings stay — and so is a span an
-                // ABSORBED stroke founds, for the mirror reason: the parts that sound under its
-                // rings are what the figure turns out to be, so the bracket covers the stroke
-                // rather than a one-slot box standing in front of it. A grip too small for parts
-                // is never born in them: its stroke stands as a box.
+                // THE CLASS AT THE OPEN (shape rules 3 and 5): a stroke standing alone is the
+                // shape struck whole. A PARTIAL-SLIDE stroke is born in parts — the statement
+                // itself announces that its members sound separately, the glide leaving while the
+                // held strings stay — and so is a stroke ABSORBED by the parts sounding under its
+                // rings (the absorption rule): the parts are what the figure turns out to be, so
+                // the bracket covers the stroke rather than a one-slot box standing in front of
+                // it. A derived grip too small for parts is never born in them: its stroke stands
+                // as a box, and a partial sounding breaks it. The carried members make the figure
+                // sound in parts beside the hand's own verdict (\ref inParts).
                 const bool whole_stroke =
-                    slot.struck > 0 && stroke_says_whole(stops) &&
-                    (tooFewForParts(stops) || (!partial_slide && chord_statement_stands));
-                // Whether the ring on a string the grip does not state joins a span fronted at
-                // `front` as a CARRIED member, and with what stop (shape rule 1): struck before the
-                // front and still sounding there, outliving it by the minimum sustain distance
-                // there — a shorter tail draws nothing into the span and reads as released before
-                // it — and folding in on no string this slot strikes with the fretting hand (a
-                // strike there is the span's own statement of that string, or a node proving the
-                // finger left) nor, while still sounding, on one any onset sounds (the supersession
-                // rule).
-                const auto joins_at = [&](const std::size_t string_index,
-                                          const Fraction front) -> std::optional<ChartStop> {
-                    if (slot.strike_notes[string_index].has_value())
-                    {
-                        return std::nullopt;
-                    }
-                    const std::optional<std::size_t>& finger = hand[string_index].finger;
-                    if (!finger.has_value() || !(onset_place[*finger] < front))
-                    {
-                        return std::nullopt;
-                    }
-                    const std::optional<ChartStop> at_front = carried_stop(string_index, front);
-                    if (!at_front.has_value())
-                    {
-                        return std::nullopt;
-                    }
-                    const Fraction reach = coverage_at(string_index, front);
-                    if (!(minimumSustainDistance(tempo_map, front) < reach - front) ||
-                        (slot.place < reach && slot.sounding[string_index].has_value()))
-                    {
-                        return std::nullopt;
-                    }
-                    return at_front;
-                };
-                Fraction front_place = slot.place;
-                if (!whole_stroke)
-                {
-                    // THE FRONT: one floor — the coverage frontier, the last hold edge passed and
-                    // the foreign-sound ends of every stated string — CLAMPS the earliest member
-                    // STATEMENT. A member whose statement began behind the floor dates the span
-                    // from the floor itself, where that statement is already in force: an
-                    // inherited beginning an emitted span already fronted, or a string held through
-                    // another string's foreign sound. The front is the later of the floor and the
-                    // earliest member statement, so extending a member's statement backward never
-                    // moves a front later.
-                    //
-                    // Every dating string reads the ONE statement-began column, struck and ringing
-                    // since the frontier alike (a carried member, joining below, dates nothing): a
-                    // member's own onset is not the question — it is only a substitute for
-                    // the beginning of the statement that onset makes, and it answers wrongly in
-                    // both directions. A restrike of a stop already held began its statement
-                    // earlier (re-articulation), and a slid finger began its statement LATER than
-                    // the note it rides, at the landing. A whole stroke never reads this column:
-                    // re-articulation would date its box from a note before it that happened to
-                    // hold one of its stops with a ring abutting the stroke — a palm-muted stab
-                    // into the chord that restates it — and a box fronting before the stroke that
-                    // says it whole misstates what a box is.
-                    Fraction floor = std::max(covered, last_wall);
-                    for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                    {
-                        if (stops[string_index].has_value())
-                        {
-                            floor = std::max(floor, foreign_until_at(string_index, slot.place));
-                        }
-                    }
-                    for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                    {
-                        if (stops[string_index].has_value())
-                        {
-                            front_place = std::min(
-                                front_place, std::max(stated_since_here[string_index], floor));
-                        }
-                    }
-                    // THE NON-MEMBER FLOOR (shape rule 1: what sounds under a bracket's opening is
-                    // what it prints): a front never dates behind the end of a fretting-hand sound
-                    // on a string the grip does not state, unless that sound joins as a carried
-                    // member below. So a note struck inside the dated stretch that died before the
-                    // founding, a ring outliving the front by a sliver, and a ring the slot
-                    // supersedes all move the front past their end rather than sounding unprinted
-                    // under the bracket. A natural's chime states no grip and floors nothing. A
-                    // later front can turn a joiner into a sliver, so the floor is read until it
-                    // settles.
-                    for (bool moved = true; moved;)
-                    {
-                        moved = false;
-                        for (std::size_t string_index = 0; string_index < string_count;
-                             ++string_index)
-                        {
-                            if (stops[string_index].has_value())
-                            {
-                                continue;
-                            }
-                            const std::optional<std::size_t>& finger = hand[string_index].finger;
-                            if (!finger.has_value())
-                            {
-                                continue;
-                            }
-                            const Fraction end = std::min(ring_end_of(*finger), slot.place);
-                            if (!(front_place < end) ||
-                                joins_at(string_index, front_place).has_value())
-                            {
-                                continue;
-                            }
-                            const std::optional<ChartStop> sounded =
-                                covers_at(string_index, onset_place[*finger]);
-                            if (!sounded.has_value() || nodeGrip(*sounded))
-                            {
-                                continue;
-                            }
-                            front_place = end;
-                            moved = true;
-                        }
-                    }
-                }
-                // Inside an unnamed hold the span the notes found is the hold's, fronted at its
-                // stated start (shape rule 9).
-                std::optional<HoldTenure> hold;
-                if (const std::optional<std::size_t>& unfounded = unfounded_hold;
-                    unfounded.has_value())
-                {
-                    front_place = holds[*unfounded].start;
-                    hold = HoldTenure{.end = holds[*unfounded].end, .conflict = std::nullopt};
-                    unfounded_hold.reset();
-                }
-                // THE CARRIED MEMBERS (shape rule 1): what sounds under a bracket's opening is what
-                // it prints. Every ring that joins at the front (\c joins_at) is in the grip,
-                // whenever it was struck, stating what its strike stated, and bounds the span like
-                // any member — its death inside the span is the split. Its coverage is read from
-                // the front, the instant it joins, so a landing it passed later still caps it
-                // (shape rule 4).
-                std::vector<bool> carried_in(string_count, false);
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                {
-                    if (stops[string_index].has_value())
-                    {
-                        continue;
-                    }
-                    const std::optional<ChartStop> at_front = joins_at(string_index, front_place);
-                    if (!at_front.has_value())
-                    {
-                        continue;
-                    }
-                    stops[string_index] = carried_statement(string_index, *at_front);
-                    carried_in[string_index] = true;
-                    hand[string_index].covers = coverage_at(string_index, front_place);
-                }
-                // The opening mark draws at the front: the chord frame states the grip where its
-                // first member's statement began, and a glide's landing begins one exactly as a
-                // strike does, so a front dated to a landing takes the mark there too.
+                    tooFewForParts(stops) || (!partial_slide && chord_statement_stands);
+                std::vector<bool> carried_in = carry_into(stops, slot.place);
                 open = OpenSpan{
-                    .front_place = front_place,
+                    .front_place = slot.place,
                     .stops = std::move(stops),
-                    .bracket_place = front_place,
+                    .bracket_place = slot.place,
                     .last_stated_place = slot.place,
-                    .struck_in_parts = false,
+                    .struck_in_parts = !whole_stroke,
+                    .founded = foundsSpan(stated, stated),
                     .landing_opened = false,
-                    .hold = hold,
+                    .hold = std::nullopt,
                     .carried = std::move(carried_in),
                 };
-                // The hand's own strokes sound the grip in parts exactly when a stroke founded it
-                // and that stroke was not whole (above); a carried member makes the figure sound in
-                // parts beside that (\ref inParts, shape rule 5).
-                open->struck_in_parts = slot.struck > 0 && !whole_stroke;
             }
         }
 
@@ -2129,13 +1987,10 @@ ChartShapes deriveChartShapes(
             // that span, and everything downstream of the strike reads this verdict instead.
             string_hand.stated_beneath =
                 gripStatement(member, planted_stops[note_at], gripped_before[*string_index]);
-            // The statement this strike makes began where the pre-instant witness above said it
-            // began — its own onset, or the beginning it inherited under re-articulation.
-            string_hand.stated_since = stated_since_here[*string_index];
             string_hand.covers = coverage_at(*string_index, slot.place);
         }
-        // A span founded here over carried rings that died between its front and this instant
-        // splits at each death, now that every member's coverage is written (the split).
+        // Every member's coverage is now written, so a boundary this slot's strikes put at this
+        // very instant is judged here rather than at the next.
         settle_landings(slot.place);
         watch_conflicts(slot.place);
 
@@ -2151,7 +2006,7 @@ ChartShapes deriveChartShapes(
         horizon = std::max(horizon, ring_end_of(note));
     }
     settle_landings(horizon);
-    emit(std::nullopt, std::nullopt);
+    emit(std::nullopt);
 
     return derived;
 }
@@ -2164,8 +2019,13 @@ bool chartShapeIsArpeggio(
     {
         return true;
     }
-    // A grip too small for parts is a box under the other hand too (shape rule 5).
-    if (tooFewForParts(posture.stops))
+    // A grip with no member has nothing to arrive separately: a hold's span over silence is a box
+    // whatever the other hand sounds inside it. A derived grip too small for parts is a box under
+    // the other hand too (shape rule 5), while a span an unnamed shape hold states is an arpeggio
+    // at any member count: the hold itself says one shape is held there (shape rule 9).
+    const bool no_member = std::ranges::none_of(
+        posture.stops, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
+    if (no_member || (!shape.hold_stated && tooFewForParts(posture.stops)))
     {
         return false;
     }
