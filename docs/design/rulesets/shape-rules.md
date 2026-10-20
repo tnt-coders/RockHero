@@ -65,8 +65,10 @@ takes the next one.
      at one slot. Sound alone may accumulate one: three or more members sounding at one instant.
      Overlap is asked at that instant, never pairwise, so every member is sounding when the newest
      arrives and no bracket claims a conjunction that never held. A landed travel opens the one
-     span no onset states, at two survivors (rule 4). Nothing else opens a span: a string ringing
-     on past a break is a tail, and ring-out opens nothing. The accumulation minimum gates founding
+     span no onset states, at two survivors (rule 4). Nothing else opens a span: sound alone is
+     asked only where the fretting hand states a stop, so rings ringing on past a break found
+     nothing until a fretting-hand strike sounds beside them, a slot of bare taps or harmonic nodes
+     over them opens nothing (rule 7), and ring-out opens nothing. The accumulation minimum gates founding
      by sound alone and nothing else, so growing a standing span has no minimum. Both thresholds
      are named once, in `chart_shapes.cpp`, and asked through `foundsSpan`, which the importer's
      let-ring fragment donation shares.
@@ -76,17 +78,20 @@ takes the next one.
      states no grip: the finger lifts at the chime, so its node founds, grows and joins nothing,
      though its strike still sounds and can contradict (rule 3). A right-hand onset is no member
      (rule 7), and a ring caught mid-travel states no stop and joins nothing (rule 4).
-   - **A ring belongs to the span it was struck in.** A ring struck before the coverage frontier
-     founds nothing and never counts toward a founding, until it is restruck. One still sounding
-     where a span is founded is part of the sounding shape, fretted or open alike (an open string is
-     a member exactly as a fretted one is), so it joins that span's posture and bounds its reach like
-     any member. It never founds or prevents a span and dates no front; it completes the grip of a
-     span founded anyway, and as a member its founding stroke did not strike it makes the span born
-     in parts (rule 5). A natural harmonic's ring states no grip and joins nothing. A ring struck at or after the frontier is fresh evidence and folds in
-     like any other member, which is what lets an open-position arpeggio found a span from its
-     first open string. A ring also folds into no new span on a string the slot strikes at another
-     stop. The landing is the one other seam a member crosses (rule 4). A refused ring is a plain
-     tail whatever its stop, so it prints in no later bracket and classifies no span.
+   - **What sounds under a bracket's opening is what it prints.** A ring still sounding where a
+     span is founded is part of the sounding shape, fretted or open alike (an open string is a
+     member exactly as a fretted one is), whenever it was struck: it counts toward the founding,
+     joins the span's posture and bounds its reach like any member, and as a member the founding
+     stroke did not strike it makes the span born in parts (rule 5). The coverage frontier is a
+     dating floor and nothing more: a ring struck behind it dates no front earlier than the
+     frontier, so a span founded over rings a closed span left sounding dates from that close, and
+     its opening bracket lists exactly the stops sounding or struck there. This is what lets an
+     open-position arpeggio found a span from its first open string, and what founds a span again,
+     over the rings still standing, at the first strike after a break. A natural harmonic's ring
+     states no grip and joins nothing. A ring also folds into no new span on a string the slot
+     strikes at another stop. The landing is the one other seam a member crosses (rule 4). A
+     refused ring is a plain tail whatever its stop, so it prints in no later bracket and
+     classifies no span.
    - **The posture** is the stop each member string holds, deduplicated by stop vector across the
      chart. It carries no name and no fingering, because nothing authors either.
    - **The dating rule: a span dates from its front, the earliest member statement not covered by a
@@ -102,8 +107,9 @@ takes the next one.
      standing alone (rule 3) reads none of this: the span it founds dates from the stroke.
    - **The dating floor.** A front never dates behind the later of the coverage frontier and, on
      every stated string, the end of its last foreign sound: the last instant it audibly sounded a
-     stop other than the one its grip states, whether a displacing strike ended that sound or it
-     died into silence. A member statement that began behind the floor dates the span from the floor
+     stop other than the one its grip states under the fretting hand, whether a displacing strike
+     ended that sound or it died into silence. A right-hand stop is the other hand's and writes no
+     foreign sound; what it proves about the fretting finger is the tap's floor (rule 3). A member statement that began behind the floor dates the span from the floor
      itself, where it is already in force: a front is the later of the floor and the earliest member
      statement, so extending a member's statement backward never moves a front later. The floor is
      an invariant, not a founding step: growth cannot move a front, so a strike on a string whose
@@ -181,8 +187,8 @@ takes the next one.
        span never in parts that strikes nothing new is the chug chain, and continues it.
      - **Chord to parts.** A stroke restating some but not all of the stops a never-in-parts span
        has stated is the statement coming apart: the span closes there, and the parts found a span
-       only by the ordinary opening law over what they strike, the chord's rings now lying behind
-       the frontier. A stroke only on strings the span never stated is growth instead. Neither a
+       by the ordinary opening law over what they strike and what still sounds, dated from the
+       close (rule 1). A stroke only on strings the span never stated is growth instead. Neither a
        pull-off source riding above a stated stop nor its landing back on it counts as part.
      - **The partial slide.** A slot whose first held member to fall silent does so while a
        co-struck glide is in flight — strictly after it departs and strictly before it arrives —
@@ -271,8 +277,9 @@ takes the next one.
      reached its start. A lone re-pick or a full restatement of the landed grip rides the successor
      like any other restatement (rule 2).
    - **A landing reached after the grip broke opens nothing.** Where a contradiction ends a span
-     mid-glide, its survivors ring out as tails and the landed grip lives in their tails alone. One
-     span stands at a time, so nothing remembers a grip it has not arrived at.
+     mid-glide, the landing hands nothing over: the survivors are members of whatever the next
+     fretting-hand strike founds over them (rule 1), or tails where none does. One span stands at a
+     time, so nothing remembers a grip it has not arrived at.
    - **Staggered landings refuse themselves.** Members landing at different instants open nothing
      at the earliest landing unless two members state a stop there, because a finger mid-glide
      states none. Where a ring that is not travelling survives beside a landed one, the two hold a

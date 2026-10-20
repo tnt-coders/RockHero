@@ -142,9 +142,10 @@ member's stored ring is continuous, so a pressed-stop harmonic founding a span o
 that span for its own ring and for every later note holding the same grip. What `handFree`
 (`stop.fret == 0`, `rock-hero-common/core/src/chart/chart_shapes.cpp:235-241`) decides is the
 LANDING alone — a string no finger holds can be no survivor there. It no longer gates the slot
-open, where A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN refuses every spent ring alike, so a
-natural and a pressed-stop harmonic are treated the same when one of them rings under a later
-figure.
+open, where a ring still sounding at a founding is a member whenever it was struck (shape rule 1)
+and the grip, not the hand-free test, decides the harmonic case: a natural harmonic's ring states
+no grip and joins nothing, while a pressed-stop harmonic's ring states its pressed fret and joins
+a later figure like any carried ring.
 
 **What to verify that no existing figure covers: the one-string span.** Founding at one member makes
 this the FIRST span in the system whose posture is a single lane. Today founding always states at

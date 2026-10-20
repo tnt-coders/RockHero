@@ -1402,12 +1402,6 @@ against the tree on the date above.
   a span's stops comes from a path that set it. Prove it with an assert run over the corpus, then
   delete them.
 
-- **Three span tests lost the figure that discriminated them.** Under the strict founding law a
-  break followed by rings alone founds nothing, so the same-fret-versus-moved restatement over a
-  foreign ring, natural-versus-artificial harmonic at the slot open, and the abutting-spans
-  projection case now assert through equality or the close alone. Each wants a co-struck partner
-  at the breaking slot to put its original discrimination back under test.
-
 ## Found while sighting the section boundary on the highway (2026-09-24)
 
 - **The board has no mark for a section boundary.** The promoted downbeat bar (the attack line at

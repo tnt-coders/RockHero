@@ -48,20 +48,25 @@ is bookkeeping about that tenure.
    never that tenure is waived. "Held through the slide" is END-INCLUSIVE at the landing
    instant: a member's ring dying exactly AT the landing belonged to the predecessor (the seam
    ownership), and the survivors ringing strictly past open the successor.
-7. NOTHING ELSE opens a span. Strings that merely ring on past a break are tails (ring-out
-   opens nothing).
+7. NOTHING ELSE opens a span. Founding is asked only where the fretting hand states a stop, so
+   strings that ring on past a break found nothing on their own (ring-out opens nothing), and a
+   slot of bare taps or natural-harmonic nodes over them opens nothing: they are tails until a
+   fretting-hand strike founds a span over them.
 
-   **A RING BELONGS ONLY TO THE SPAN IT WAS STRUCK IN.** Every member's onset lies inside its
-   span. Once the span a ring was struck in has ended, it founds nothing and joins no grip —
-   fretted, open or chimed alike — and only a restrike puts it back into a statement. A bracket
-   announces a stop ONCE, in the span that struck it; from there the tail is what says the finger
-   is still down. At a SLOT OPEN the coverage frontier is the test: a ring struck STRICTLY BEFORE
-   it has its onset behind every span still to come and folds into nothing, while one struck at
-   or after it is fresh evidence and folds in like any other member. This is a question about the
-   ring's TENURE only — a node strike still states its node into the grip it is struck in (THE
-   NODE GRIP is untouched).
+   **WHAT SOUNDS UNDER A BRACKET'S OPENING IS WHAT IT PRINTS.** The dated front is where the
+   bracket draws, so a ring still sounding where a span is founded is a member of it WHENEVER IT
+   WAS STRUCK, fretted and open alike: it counts toward the founding, joins the grip and bounds
+   the reach like any member, and as a member the founding stroke did not strike it makes the
+   span born in parts. The coverage frontier is a DATING FLOOR and nothing more: a ring struck
+   behind it dates no front earlier than the frontier, so a span founded over rings a closed span
+   left sounding dates from that close, and its opening bracket lists exactly the stops sounding
+   or struck there. At the first fretting-hand strike after a break, the rings still standing and
+   the strike found a span dated from the break; a pedal or drone under a moving melody founds a
+   span per melody note, accepted as the same principle. A natural harmonic's ring states no grip
+   and joins nothing, and a ring folds into no new span on a string the slot strikes at another
+   stop.
 
-   THE LANDING IS THE ONE SEAM A MEMBER CROSSES, and the one place the HAND still decides. A
+   THE LANDING IS THE ONE OTHER SEAM A MEMBER CROSSES, and the one place the HAND still decides. A
    landing is the grip itself moving under fingers that slid and never lifted, so the survivors
    are the closing span's own FRETTED members: a ring that span never held was never its member,
    and a HAND-FREE ring — one the fretting hand presses nothing for, fret 0, covering the open
@@ -70,12 +75,12 @@ is bookkeeping about that tenure.
    the successor and counts toward no survivor threshold. The consequence is accepted by name: a
    one-string slide over a struck drone lands into no bracket.
 
-   A BRACKET STATES THE ONSETS INSIDE ITS SPAN, AND NOTHING ELSE: every ring refused at either
-   site is a plain tail, an open string's 0 included — it prints in no later bracket and
-   classifies nothing, so the posture is the grip alone. (Ruled 2026-09-24: the open string used
-   to ride on as TEXTURE, printed in later brackets because its 0 claims no finger, but a fretted
-   ring proves its finger as surely and both were announced by the span that struck them; at My
-   Sacrifice 44:4 the exception re-printed a split chord's open half and dropped its fretted half.)
+   THE POSTURE IS THE GRIP ALONE: every ring refused at either site is a plain tail, an open
+   string's 0 included — it prints in no later bracket and classifies nothing. (Ruled 2026-09-24:
+   the open string used to ride on as TEXTURE, a second kind of stop printed because its 0 claims
+   no finger, but a fretted ring proves its finger as surely, so there is one kind and every ring
+   sounding under the opening is a grip member; at My Sacrifice 44:4 the exception re-printed a
+   split chord's open half and dropped its fretted half.)
 
 ### When a span runs and ends
 
@@ -118,9 +123,10 @@ is bookkeeping about that tenure.
 
      Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
      own stops, not all — is the statement coming apart, so the chord span closes there and
-     the parts found their own span through the ordinary slot open, on what they STRIKE: the
-     chord's rings were struck behind the new frontier and join nothing. The bracket covers
-     exactly the ground that sounds in parts. Where the partial is the stroke's own next slot
+     the parts found their own span through the ordinary slot open, over what they STRIKE and
+     what STILL SOUNDS, dated from the close: the chord's rings still ringing there are members
+     like any carried ring. The bracket covers exactly the ground that sounds in parts. Where the
+     partial is the stroke's own next slot
      and the stroke is still sounding under it there is no split at all — the stroke is
      absorbed, the span flows, the class turns in place, and the box a strum earned survives
      literally, as a box drawn inside the bracket. This direction cuts everywhere else. A stroke
@@ -165,7 +171,8 @@ is bookkeeping about that tenure.
    statement ran out. Never a display value.
 10. A slide with the grip held: the span covers the glide and ends at the landing, where the
     successor opens (rule 6) — the two tile exactly. Grip broken mid-slide: the span ends at
-    the break, survivors ring out as tails, a landing reached after the break opens nothing.
+    the break and a landing reached after it opens nothing: the survivors are members of whatever
+    the next fretting-hand strike founds over them, or tails where none does.
 
 ### Tails and holds
 

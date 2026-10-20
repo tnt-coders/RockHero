@@ -379,11 +379,10 @@ ChartShapes deriveChartShapes(
     // THE HAND — the one evidence table (\ref StringHand).
     std::vector<StringHand> hand(string_count);
 
-    // THE FRONTIER: how far every emitted span reaches, and the one seam in the walk. Read twice,
-    // as one law: a span's front never dates behind it (the floor at the open), and a ring struck
-    // behind it founds nothing (A RING BELONGS TO THE SPAN IT WAS STRUCK IN), though one still
-    // sounding joins the posture of a span founded anyway. The reach never reads it — ground a
-    // statement held is ground it held.
+    // THE FRONTIER: how far every emitted span reaches, and the one seam in the walk. It is a
+    // dating floor and nothing more: a span's front never dates behind it (the floor at the open),
+    // while a ring struck behind it and still sounding is a member of whatever founds over it
+    // (shape rule 1). The reach never reads it — ground a statement held is ground it held.
     Fraction covered{};
 
     // THE HOLDS (shape rule 9), on this axis. Every edge is a wall but an unnamed hold's end to its
@@ -580,9 +579,7 @@ ChartShapes deriveChartShapes(
     // exactly here and is re-sounded by this slot was REPLACED, not silenced. Judged per stop: a
     // string still sounding keeps the span's stop in force only while its finger states that stop,
     // rides above it, or is gliding (the span covers the glide, shape rule 4). Inside its shape
-    // hold a span stands whatever its members do: a quit is notation there, and at the hold's own
-    // end the renewal does not apply, because the end is judged over the hold alone: an onset AT
-    // the end belongs to what follows and renews nothing inside (shape rule 9).
+    // hold a span stands whatever its members do: a quit is notation there (shape rule 9).
     const auto in_force = [&hand, &covers_at](
                               const OpenSpan& span,
                               const Fraction now,
@@ -617,7 +614,7 @@ ChartShapes deriveChartShapes(
                 }
                 return false;
             }
-            if (now != sounds || !sounding[string_index].has_value() || holdEndsAt(span, now))
+            if (now != sounds || !sounding[string_index].has_value())
             {
                 return false;
             }
@@ -1035,11 +1032,15 @@ ChartShapes deriveChartShapes(
         settle_landings(slot.place);
 
         // ---- 2b. THE HOLDS' EDGES (shape rule 9) ----------------------------------------------
-        // An unnamed hold's end hands its span to the walk's own breaks, and an end whose span
-        // already closed short of it is no edge at all. Every other edge is a WALL: a span standing
-        // across it breaks here, judged at a slot against its own grip like any broken span. A
-        // span a landing opened exactly here stands, and an unnamed hold starting here states it
-        // (shape rule 4's hand-off).
+        // An unnamed hold's end is judged over the hold alone: its span runs on past it only while
+        // every member's own statement reaches strictly past it, as the strikes before the end
+        // wrote them, so an onset AT the end renews nothing inside and the span closes here like
+        // any walled span — while the slot is still read against the grip that stood to the end
+        // (the hold-under law), as it would be unheld. An end whose span already closed short of it
+        // is no edge at all. Every other edge is a WALL: a span standing across it breaks here,
+        // judged at a slot against its own grip like any broken span. A span a landing opened
+        // exactly here stands, and an unnamed hold starting here states it (shape rule 4's
+        // hand-off).
         bool walled = false;
         std::optional<std::size_t> opened_hold;
         for (; edge < edge_count && edge_place(edge) == slot.place; ++edge)
@@ -1047,7 +1048,8 @@ ChartShapes deriveChartShapes(
             const std::size_t hold_index = edge / 2;
             const bool ends = edge % 2 == 1;
             const bool states_shape = statesShape(holds[hold_index]);
-            if (ends && states_shape && open.has_value() && holdEndsAt(*open, slot.place))
+            if (ends && states_shape && open.has_value() && holdEndsAt(*open, slot.place) &&
+                slot.place < span_reach(*open))
             {
                 continue;
             }
@@ -1395,11 +1397,9 @@ ChartShapes deriveChartShapes(
         //
         // Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
         // own stops, not all — is the statement coming apart, so the chord span closes here and the
-        // parts found their own span through the ordinary slot open below, on what they STRIKE:
-        // the chord's rings were struck behind the new frontier and found nothing (A RING BELONGS
-        // TO THE SPAN IT WAS STRUCK IN), so the parts span founds once three of them ring
-        // together and dates at the first, and a partial or two alone founds none. The bracket
-        // therefore covers exactly the ground that sounds in parts. A stroke on strings the span
+        // parts found their own span through the ordinary slot open below, on what they strike
+        // and what still sounds: the chord's rings count toward that founding and join it, and the
+        // frontier dates it no earlier than this close (shape rule 1). A stroke on strings the span
         // never stated is not this direction at all: it states nothing about the span's own stops
         // coming apart, so it is the statement still assembling — growth. This direction reads the
         // ARITHMETIC alone and never the absorption: a stroke absorbed by the parts that follow is
@@ -1759,16 +1759,6 @@ ChartShapes deriveChartShapes(
                 }
             }
             std::size_t total = own;
-            // Whether a member of the grip founding here STATES SINCE THE FRONTIER: struck at this
-            // slot, or a ring struck at or after the coverage frontier. Only these count toward a
-            // founding and date its front; a ring from before the frontier joins the grip and does
-            // neither (A RING BELONGS TO THE SPAN IT WAS STRUCK IN, shape rule 1).
-            const auto states_since_frontier =
-                [&slot, &hand, &onset_place, &covered](const std::size_t string_index) {
-                    const std::optional<std::size_t>& finger = hand[string_index].finger;
-                    return slot.strike_notes[string_index].has_value() || !finger.has_value() ||
-                           !(onset_place[*finger] < covered);
-                };
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
                 if (stops[string_index].has_value())
@@ -1785,43 +1775,35 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                // A carry never folds in on a string this slot STRIKES OTHERWISE: a node struck
-                // over the ring states no grip of its own, yet proves the finger left it, so the
-                // ring is a tail. This one scope is the whole of the supersession rule.
-                const std::optional<ChartStop>& stated_stop = slot.strikes[string_index];
-                if (stated_stop.has_value() && *stated_stop != *carried)
+                // A carry never folds in on a string ANY onset sounds at this slot: a same-stop
+                // restrike is a statement and joined through `own` above; a node struck over the
+                // ring states no grip of its own, yet proves the finger left it; and a tap on the
+                // string has floored it (shape rule 3). Each leaves the ring a tail. This one scope
+                // is the whole of the supersession rule.
+                if (slot.sounding[string_index].has_value())
                 {
                     continue;
                 }
                 // A ring still sounding here is part of the sounding shape, fretted or open
-                // alike, and joins the grip of a span founded here (shape rule 1), stating what
-                // its strike stated.
+                // alike, whenever it was struck: it counts toward a founding here and joins the
+                // grip of the span founded, stating what its strike stated (shape rule 1). The
+                // coverage frontier keeps the span's FRONT from dating behind it (the floor below),
+                // and nothing else; so what sounds under a bracket's opening is what it prints.
                 stops[string_index] = carried_statement(string_index, *carried);
-                // A RING BELONGS TO THE SPAN IT WAS STRUCK IN: a ring struck before the coverage
-                // frontier has its onset behind every span still to come — no front dates earlier
-                // than the frontier — so it founds no accumulation, until it is RESTRUCK, which is
-                // a statement and joins through `own` above. Without that, two rings under a
-                // moving melody would found a fresh bracket at every melody note, each restating
-                // the same two rings. A ring struck AT the frontier belongs to the figure arriving
-                // there (the seam ownership), hence strict: this is what lets the open-position
-                // arpeggio — E0, then A2, then D2 — still found at the D2 on its own carried rings,
-                // dated at the E0, nothing having closed since the E0 was struck.
-                if (!states_since_frontier(string_index))
-                {
-                    continue;
-                }
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
                 // landing it may have passed — the emit above closed whatever was — so without
                 // the re-read a lone glide would hand the span it joins a reach frozen at that
                 // landing, emitting a span over the glide's own travel. A string a STANDING
                 // span states is never re-read: its cap is live, and that cap is what closes the
-                // span at its member's landing (shape rule 4). A ring from before the frontier
-                // brings its coverage only where a span founds (below).
+                // span at its member's landing (shape rule 4).
                 hand[string_index].covers = coverage_at(string_index, slot.place);
                 ++total;
             }
-            if (foundsSpan(own, total))
+            // The founding is asked only where the fretting hand states a stop: a right-hand onset
+            // and a natural harmonic found nothing (shape rules 1 and 7), however many rings stand
+            // under them, so a slot of bare taps or nodes over a sounding shape opens no span.
+            if (own > 0 && foundsSpan(own, total))
             {
                 // A whole-grip stroke standing alone is a span BOUNDARY (the absorption rule):
                 // the box it founds says the posture was struck whole HERE, so it fronts at its
@@ -1860,27 +1842,18 @@ ChartShapes deriveChartShapes(
                     Fraction floor = std::max(covered, last_wall);
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        if (stops[string_index].has_value() && states_since_frontier(string_index))
+                        if (stops[string_index].has_value())
                         {
                             floor = std::max(floor, foreign_until_at(string_index, slot.place));
                         }
                     }
                     for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                     {
-                        if (stops[string_index].has_value() && states_since_frontier(string_index))
+                        if (stops[string_index].has_value())
                         {
                             front_place = std::min(
                                 front_place, std::max(stated_since_here[string_index], floor));
                         }
-                    }
-                }
-                // The rings from before the frontier bound the reach of the span founded here
-                // like every member: their coverage AS OF NOW, read only now that a span founds.
-                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-                {
-                    if (stops[string_index].has_value() && !states_since_frontier(string_index))
-                    {
-                        hand[string_index].covers = coverage_at(string_index, slot.place);
                     }
                 }
                 // Inside an unnamed hold the span the notes found is the hold's, fronted at its
@@ -1906,8 +1879,8 @@ ChartShapes deriveChartShapes(
                     .hold = hold,
                 };
                 // Born in parts exactly when a stroke founded it and that stroke was not whole
-                // (above): a member it did not strike, a ring from before the frontier included,
-                // is a member arriving separately (shape rule 5).
+                // (above): a member it did not strike, a carried ring included, is a member
+                // arriving separately (shape rule 5).
                 open->struck_in_parts = slot.struck > 0 && !whole_stroke;
             }
         }

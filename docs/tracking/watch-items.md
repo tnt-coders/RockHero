@@ -804,37 +804,6 @@ plant sits strictly below its own source, and a bare tap above the grip leaves t
 ring death. Remedy when it fires: keep each span's lowest tap floor per string and refuse, as a
 contradiction, a claim that reaches it.
 
-### A still-held older note joins no later bracket — trigger: a real figure whose bracket reads as understating the hand, or a passage that goes bare where it should bracket
-
-Ruled 2026-09-20 after sighting three options side by side: **a ring belongs only to the span it
-was struck in**, so every member's onset lies inside its span and the slide landing is the one way
-a member crosses a seam. A ring struck before the coverage frontier — fretted or open — founds no
-accumulation and joins no later span: it is a plain tail, an open string's 0 included since the
-2026-09-24 ruling retired the texture that printed a drone on in later brackets. It replaced a
-law that refused only hand-free rings, under which two ringing notes beneath a moving melody
-founded a fresh bracket at every melody note. The strict form won because it is the simplest rule
-that stops that, and the user sighted it as reading well.
-
-Two accepted costs, measured on the local corpus against the old law (about 83 arpeggio spans of
-22,400 gone; no box count moved):
-
-- **A bracket can understate the hand.** A chord arpeggiated across a seam gets a bracket listing
-  only the stops struck inside it, while notes struck a beat or a measure earlier ring on under
-  it. Every dropped stop was stated by an earlier span, almost always the abutting one.
-- **One fresh pick under two ringing notes founds nothing.** That figure is, in the hand, the same
-  as a pedal under a melody, so no derivation separates them; short stretches (rarely over a
-  beat) that used to bracket now go bare. A half-beat box can also appear inside an arpeggio
-  passage where the older rings were the only thing making it an arpeggio.
-
-**Trigger**: either cost reads wrong in a real chart rather than merely different. **Remedy**:
-first ask whether the authored-span verb (plan 60) is the right tool for that figure. If the
-derivation itself must change, the two alternatives are preserved side by side, switchable by
-environment variable, at commit `cb6620a0`: the old law (`ROCKHERO_SIGHT_OLD_FOUNDING`) and the
-middle option (neither variable) where an older fretted ring counts toward no founding but still
-joins, as a member, a span that fresh strikes found. Re-measure on the corpus before choosing;
-the middle option's own defect was folding a drone struck measures earlier into a quarter-beat
-chord and calling it an arpeggio.
-
 ### ~~An inert silent hold is INVISIBLE~~ — RETIRED 2026-08-27: there are no inert holds left
 
 The item was: with the `N` verb's dot deleted, a silently-held stop's only mark is the arpeggio
@@ -1436,7 +1405,19 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 
 ## Retired
 
-### ~~An arpeggio that opens on a single onset lights its whole box at that first note~~ — RETIRED 2026-10-04: the trigger fired
+### ~~A still-held older note joins no later bracket~~ — RETIRED 2026-10-19: the trigger fired
+
+Ruled 2026-09-20 after sighting three options: a ring belonged only to the span it was struck in,
+so a ring struck before the coverage frontier founded no accumulation and joined no later span.
+Its two accepted costs were a bracket that could understate the hand and one fresh pick under two
+ringing notes founding nothing, with the trigger "either cost reads wrong in a real chart".
+
+**Retired** when the first cost read wrong on a real figure: a span fronted at 77:2 over a fret-3
+ring that died at 77:4 left the 3 out of its grip, because the span was founded at 78:1 and dated
+back. The user ruled that the dated front is where the bracket draws, so what sounds under its
+opening is what it prints: a ring sounding where a span is founded is a member whenever it was
+struck, and the frontier is a dating floor and nothing more (shape rule 1). The second cost returns
+with it, deliberately — a pedal or drone under a melody line founds a span per melody note.
 
 Recorded 2026-10-02: the first lone note of an arpeggio popped the sides of the arpeggio box over
 it instead of its own fret, because the strike pops counted the arpeggio's opening mark as a box
