@@ -20,6 +20,7 @@
 // evidence base for the two divergence candidates the ruleset leaves open — a section-marker stop
 // and a region-end stop — and it stays a reading of the score rather than a second statement of
 // the import's rule.
+#include "chart/chart_edits.h"
 #include "project/gp_chart_builder.h"
 #include "project/gp_score.h"
 #include "project/gp_score_parser.h"
@@ -2083,11 +2084,8 @@ void countHeldSpans(
     for (std::size_t span = 0; span < resolutions.shapes.size(); ++span)
     {
         const ChartShape& shape = resolutions.shapes[span];
-        const common::core::ShapeHold hold{
-            .start = tempo_map.gridPositionAtWholeNote(shape.place),
-            .end = tempo_map.gridPositionAtWholeNote(shape.place + shape.sustain),
-            .grip = common::core::UnnamedGrip{},
-        };
+        const common::core::ShapeHold hold =
+            shapeHoldOverSpan(shape, tempo_map, common::core::UnnamedGrip{});
         const common::core::ChartShapes held = common::core::deriveChartShapes(
             connections, resolutions.margins, std::span{&hold, 1}, tempo_map);
         std::vector<ChartShape> expected = resolutions.shapes;

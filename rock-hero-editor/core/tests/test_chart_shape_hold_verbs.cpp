@@ -633,8 +633,8 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
 }
 
 // The start key steps a derived span's start one note onset, converting the span to a hold, and
-// the end key steps its end one note boundary; a step leaving a hold that does not fit its notes is
-// refused.
+// the end key steps its end one note boundary; a step is refused only where no boundary that way
+// leaves a hold that fits its notes.
 TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
 {
     HoldEditor editor{chartOf({arpeggioIn(1)})};
@@ -668,14 +668,18 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
         CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
     }
 
-    SECTION("the end key, refused where the end would fall inside the rings")
+    SECTION("the end key, refused where no earlier boundary lets the hold fit its notes")
     {
+        // Every boundary earlier than the span's close falls inside its rings, so the hold would
+        // run on past each of them: none fits, and the press is refused.
         const std::size_t flashes = editor.view.refusal_flashes.size();
         const LogCapture capture;
         editor.endKey(false);
         const std::string contents = capture.text();
         INFO(contents);
-        CHECK(contents.find("shape hold 1:1 to 1:3 does not fit its notes") != std::string::npos);
+        CHECK(
+            contents.find("no note boundary earlier where the hold fits its notes") !=
+            std::string::npos);
         CHECK(editor.holds().empty());
         CHECK(editor.entries() == entries);
         CHECK(editor.view.refusal_flashes.size() == flashes + 1);
@@ -683,9 +687,45 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
     }
 }
 
+// An edge key lands on the nearest boundary where the hold fits, skipping the boundaries the gate
+// refuses. A box whose statement a re-pick renews cannot end at a grace note's onset inside that
+// renewed ring, where nothing ends and the span runs on, so the end key stepping earlier passes it
+// to the boundary where the re-picked string's first ring ends, and the run stepping back passes it
+// again to land where it began.
+TEST_CASE("The end key skips boundaries where the hold would not fit", "[core][holds]")
+{
+    // Strings 1 and 2 struck at 1:1, string 1 for a beat and string 2 to 1:4; string 1 re-picked at
+    // 1:2 to 1:4; a grace note on string 4 at 1:3, an eighth long: one span, [1:1, 1:3+1/2).
+    HoldEditor editor{chartOf({
+        {makeTestNote(at(1, 1), 1, 5, Fraction{1, 4}),
+         makeTestNote(at(1, 1), 2, 7, Fraction{3, 4})},
+        {makeTestNote(at(1, 2), 1, 5, Fraction{1, 2})},
+        {makeTestNote(at(1, 3), 4, 3, Fraction{1, 8})},
+    })};
+    REQUIRE(editor.spanCount() == 1);
+    editor.walkDownAt(0.25, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    REQUIRE(editor.publishedSpan() != nullptr);
+    REQUIRE(editor.publishedSpan()->close_seconds == Catch::Approx(1.25));
+    const std::size_t entries = editor.entries();
+
+    editor.endKey(false);
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 2))});
+    CHECK(editor.selectedHold() == std::optional<std::size_t>{0});
+    CHECK(editor.entries() == entries + 1);
+
+    editor.endKey(true);
+    INFO(editor.holdsText());
+    CHECK(editor.holds().empty());
+    CHECK(editor.entries() == entries);
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+}
+
 // The end key moved into the next hold pushes that hold's start along with it, and a step back in
-// the same run restores it, the run being one undo entry; an edge that would push its neighbour to
-// nothing is refused. A step back in a later run moves the edge alone, leaving a gap.
+// the same run restores it, the run being one undo entry; a press whose every boundary would push
+// the neighbour to nothing is refused. A step back in a later run moves the edge alone, leaving a
+// gap.
 TEST_CASE("The end key pushes the next hold and a step back restores it", "[core][holds]")
 {
     HoldEditor editor{twoHeldHalves()};
@@ -707,14 +747,16 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
         CHECK(editor.entries() == entries);
     }
 
-    SECTION("a neighbour pushed to nothing refuses the press")
+    SECTION("a neighbour pushed to nothing at every later boundary refuses the press")
     {
+        // Every boundary later than 3:4 lies at or past the neighbour's end, so each would push it
+        // to nothing: no boundary fits, and the press is refused.
         const LogCapture capture;
         editor.endKey(true);
         const std::string contents = capture.text();
         INFO(contents);
         CHECK(
-            contents.find("the edge would push shape hold 3:3 to 4:2 to nothing") !=
+            contents.find("no note boundary later where the hold fits its notes") !=
             std::string::npos);
         CHECK(
             editor.holds() ==

@@ -3446,6 +3446,34 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     }
 }
 
+// The live chart on a press that starts a run; the run's entry reversed out of it, into `storage`,
+// while one is in progress. Null where the reversal fails, which is reported here.
+const common::core::Chart* EditorController::Impl::gestureBaseChart(
+    const bool continues, common::core::Chart& storage)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return nullptr;
+    }
+    const common::core::Chart& live_chart = *arrangement->chart;
+    const ChartNotesTopEntry* const burst =
+        continues && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
+    if (burst == nullptr)
+    {
+        return &live_chart;
+    }
+    std::expected<common::core::Chart, EditorUndoFailureCode> reversed =
+        chartWithPlanApplied(live_chart, burst->plan.reversed());
+    if (!reversed.has_value())
+    {
+        reportError("Could not apply chart edit: " + burst->plan.label);
+        return nullptr;
+    }
+    storage = std::move(*reversed);
+    return &storage;
+}
+
 // ONE step of a coalescing gesture, whichever verb's — the duration run, the move run, and whatever
 // joins them. The caller has already appended this press to the run's step list; this replays the
 // whole list over the state the run STARTED at and folds the answer into the single entry the run
@@ -3475,27 +3503,17 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
     {
         return false;
     }
-    const common::core::Chart& live_chart = *arrangement->chart;
     // A live gesture and the burst record are present together — the window proof demands the
     // record — so this pointer is exactly "a run is in progress". Bound once so every read below is
     // provably behind the check.
     ChartNotesTopEntry* const burst =
         continues && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
 
-    // A press that STARTS a run needs no reconstruction and takes the live chart itself.
     common::core::Chart reconstructed;
-    const common::core::Chart* pre_gesture = &live_chart;
-    if (burst != nullptr)
+    const common::core::Chart* const pre_gesture = gestureBaseChart(continues, reconstructed);
+    if (pre_gesture == nullptr)
     {
-        std::expected<common::core::Chart, EditorUndoFailureCode> reversed =
-            chartWithPlanApplied(live_chart, burst->plan.reversed());
-        if (!reversed.has_value())
-        {
-            reportError("Could not apply chart edit: " + burst->plan.label);
-            return false;
-        }
-        reconstructed = std::move(*reversed);
-        pre_gesture = &reconstructed;
+        return false;
     }
 
     std::optional<ChartEditLanding> select_exactly;

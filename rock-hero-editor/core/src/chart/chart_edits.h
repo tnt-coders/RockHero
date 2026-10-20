@@ -307,18 +307,43 @@ enum class ShapeHoldEdge : std::uint8_t
 };
 
 /*!
-\brief Where a hold edge key steps an edge standing at `from`: a start to the adjacent note onset,
-an end to the adjacent note boundary, an onset or a ring's end, of any string.
-\param notes The note stream, in slot order.
-\param tempo_map Tempo map placing the rings' ends.
-\param edge The edge stepped.
-\param from Where the edge stands.
-\param later True to step later, false earlier.
-\return The adjacent stop strictly beyond `from` that way; nothing where no note gives one.
+\brief One press of a hold edge key: where the edge landed and the plan that lands it.
 */
-[[nodiscard]] std::optional<common::core::GridPosition> steppedShapeHoldEdge(
-    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
-    ShapeHoldEdge edge, const common::core::GridPosition& from, bool later);
+struct SteppedShapeHoldEdge
+{
+    /*! \brief Where the edge stands after the press: the boundary it landed on, or `from`. */
+    common::core::GridPosition value;
+
+    /*!
+    \brief The plan landing the edge there; NoChange where it landed back where the run began,
+    Invalid where no boundary that way is accepted by the hold gate.
+    */
+    std::expected<JudgedChartPlan, ChartPlanRefusal> plan;
+};
+
+/*!
+\brief Plans one press of a hold edge key: the edge steps from `from` to the nearest note boundary
+in the key's direction where the hold FITS, skipping every boundary the hold gate refuses.
+
+A start steps from note onset to note onset, an end from note boundary to note boundary — an onset
+or a ring's end, of any string. Each candidate is judged by \ref planMoveShapeHoldEdge, so the fit
+is the gate's own predicate and nothing here restates it: the first accepted candidate is the step.
+A candidate that lands the edge back where the run began is the run undone, returned as NoChange.
+The press is refused only where no boundary that way is accepted.
+
+\param base The chart the run began from.
+\param tempo_map Tempo map placing the notes and the holds.
+\param moved The hold being moved as the run began (\ref movedShapeHolds).
+\param edge The edge stepped.
+\param from Where the run has moved that edge so far.
+\param later True to step later, false earlier.
+\param label User-visible undo label.
+\return Where the edge landed and the plan landing it.
+*/
+[[nodiscard]] SteppedShapeHoldEdge planSteppedShapeHoldEdge(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    const common::core::ShapeHold& moved, ShapeHoldEdge edge,
+    const common::core::GridPosition& from, bool later, std::string_view label);
 
 /*!
 \brief The holds a hold edge key's run leaves: `moved` with its edge at `value`, carved into the

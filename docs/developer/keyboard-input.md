@@ -671,10 +671,12 @@ one table of choices (`holdChoiceRows`, published as `ChartHoldChoice`), drawn a
 the desktop tooltip window reads. Refused on a bare caret. The selection-kind dispatches carry the
 rest: `Alt+Left/Right` (`MoveSelection`) step the start to the adjacent note onset and
 `Alt+Shift+Left/Right` (`AdjustChartSustain`, whose availability opens on
-`has_span_row_selection`) the end to the adjacent note boundary (`steppedShapeHoldEdge`), as one
-held run through `commitChartGestureStep` (`ChartShapeHoldEdgeGesture`), a derived span becoming a
-hold on the first press (and staying a derived span, selected, when the run steps back to where it
-began) and an edge moved into a neighbouring hold pushing its facing edge; `Delete`
+`has_span_row_selection`) the end to the nearest note boundary where the hold fits its notes,
+skipping the boundaries the gate refuses and refused only where none fits
+(`planSteppedShapeHoldEdge`, each candidate judged by `planMoveShapeHoldEdge`), as one held run
+through `commitChartGestureStep` (`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on
+the first press (and staying a derived span, selected, when the run steps back to where it began)
+and an edge moved into a neighbouring hold pushing its facing edge; `Delete`
 (`deleteSelectedMarker`) steps a span or a none hold down one level, written as the hold choice
 below it — a held span's hold or a none hold is carved out (Auto over its extent, landing on the
 span the notes derive there), and a derived span, chord or arpeggio, gains a none hold over it

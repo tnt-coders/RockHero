@@ -293,7 +293,6 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
     {
         return;
     }
-    const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const MarkerVerb verb =
         edge == ShapeHoldEdge::Start ? MarkerVerb::MoveHoldStart : MarkerVerb::MoveHoldEnd;
@@ -323,27 +322,37 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         return;
     }
     ChartShapeHoldEdgeGesture gesture = *run;
-    const std::optional<common::core::GridPosition> stepped =
-        steppedShapeHoldEdge(chart.notes, tempo_map, edge, gesture.value, later);
-    if (!stepped.has_value())
+    const std::string label = markerVerbLabel(verb);
+    // The step is found against the run's base, where every candidate is judged by the gate, and
+    // only then committed: the gesture the commit records must already stand at the boundary the
+    // edge landed on.
+    common::core::Chart reversed;
+    const common::core::Chart* const base = gestureBaseChart(continues, reversed);
+    if (base == nullptr)
     {
-        refuseShapeHoldVerb(
-            verb,
-            edge == ShapeHoldEdge::Start ? "no note onset to step the start to"
-                                         : "no note boundary to step the end to",
-            ShapeHoldExtent{.start = gesture.base.start, .end = gesture.base.end});
         return;
     }
-    gesture.value = *stepped;
+    SteppedShapeHoldEdge stepped = planSteppedShapeHoldEdge(
+        *base, tempo_map, gesture.base, gesture.edge, gesture.value, later, label);
+    if (!stepped.plan.has_value())
+    {
+        // NoChange is the run stepped back to where it began, which the commit retires.
+        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&stepped.plan.error()))
+        {
+            refuseShapeHoldVerb(
+                verb,
+                invalid->reason,
+                ShapeHoldExtent{.start = gesture.base.start, .end = gesture.base.end});
+            return;
+        }
+    }
+    gesture.value = stepped.value;
     const common::core::GridPosition landed =
         edge == ShapeHoldEdge::Start ? gesture.value : gesture.base.start;
-    const std::string label = markerVerbLabel(verb);
     const std::expected<bool, ChartPlanInvalid> moved = commitChartGestureStep(
         continues,
-        [&tempo_map, &gesture, &label](const common::core::Chart& pre_gesture) {
-            return planMoveShapeHoldEdge(
-                pre_gesture, tempo_map, gesture.base, gesture.edge, gesture.value, label);
-        },
+        // The plan the candidate was judged with, handed on rather than planned a second time.
+        [&stepped](const common::core::Chart& /*pre_gesture*/) { return std::move(stepped.plan); },
         gesture,
         // The hold the run leaves standing at its moved start, read off the same holds the plan
         // judges, so a none hold the run merged into a neighbour lands selected whole.

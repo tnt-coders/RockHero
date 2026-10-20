@@ -104,10 +104,10 @@ with the refusal flash.
 | Target | Keys | Result |
 |---|---|---|
 | Span, `none` hold, time selection or note selection (from its first onset to its last tail end) | `Ctrl+H` ("Hold...") | The hold picker over the extent: **Shape** (an unnamed hold), **None** (a `none` hold, merged with any it meets) or **Auto** (every hold carved out, so the notes decide the spans there). A choice that would change nothing is left out, so at least two always show, each with a tooltip; a refused choice flashes |
-| Derived span | `Alt+Left` / `Alt+Right` | Moves the start one note onset, converting the span to a hold; refused if invalid |
-| Derived span | `Alt+Shift+Left` / `Alt+Shift+Right` | Moves the end one note boundary, converting the span; refused if invalid |
+| Derived span | `Alt+Left` / `Alt+Right` | Moves the start to the nearest note onset that way where the hold fits, converting the span to a hold; refused where none fits |
+| Derived span | `Alt+Shift+Left` / `Alt+Shift+Right` | Moves the end to the nearest note boundary that way where the hold fits, converting the span; refused where none fits |
 | Derived span, chord or arpeggio | `Delete` | A `none` hold over the span, merged with any it meets and left selected; a chord stands inside it. Over a chord already inside a `none` hold the merge changes nothing |
-| Authored hold | the same edge keys | Move its edges; refused if invalid |
+| Authored hold | the same edge keys | Move its edges the same way; refused where no boundary that way fits |
 | Unnamed hold | `Delete` | Removes it, so the span derives again and stays selected: Delete steps down one level |
 | `none` hold | `Delete` | Removes it, so the derivation returns over its whole merged stretch |
 | Cursor | `Ctrl+Shift+H` ("Jump to Hold") | Selects the `none` hold holding the cursor, else the span there; nothing in an empty stretch |
@@ -135,9 +135,15 @@ The walk up from the strings meets the `none` hold before the span inside it, an
 lands by that same row order. One constant states the order (`g_span_rows`): the lane reports
 every mark under a press and the controller picks by it, as the walk and the jump do.
 
+**Stepping.** An edge key steps boundary by boundary in its direction and lands on the first where
+the moved hold and every hold it touches pass the gate; a boundary the gate refuses (a hold ending
+inside its rings, a neighbour pushed to nothing) is skipped, and the press is refused only where no
+boundary that way fits. The fit is the gate's own judgement, asked once per candidate, never
+restated.
+
 **Pushing.** An edge key that moves an edge into a neighbouring hold pushes that hold's facing
-edge along with it. Both holds must stay valid and the pushed one non-empty, or the press is
-refused: unlike a selection's `Ctrl+H`, a push is a nudge, and nudging a neighbour out of existence
+edge along with it. Both holds must stay valid and the pushed one non-empty, or that boundary is
+skipped: unlike a selection's `Ctrl+H`, a push is a nudge, and nudging a neighbour out of existence
 would be a surprise (ruled 2026-10-18). A held run of edge keys is one gesture that replays from its
 base on every press, so stepping back restores the pushed hold, and a run back where it began
 changes nothing, leaving a derived span derived; once the gesture settles, the result is written

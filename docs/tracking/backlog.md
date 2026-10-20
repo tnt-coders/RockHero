@@ -1626,11 +1626,11 @@ against the tree on the date above.
   from, then applies the replay to that copy and moves it in (`chartWithPlanApplied`), down from
   four note copies before 2026-10-18. The copy IS the atomicity; dropping it (a replan base kept
   across the run) waits for plan 64's gesture measurement to justify.
-- **The hold edge keys scan every note (accepted cost).** `steppedShapeHoldEdge`
-  (`chart_edits.cpp`) is O(N) with a tempo conversion per note. A binary search could serve the
-  Start edge only; the End edge's ring ends are unsorted and still need the scan, and an accepted
-  press walks every note anyway. Trigger: a profile shows `steppedShapeHoldEdge` in a held edge-key
-  run.
+- **The hold edge keys scan every note (accepted cost).** `planSteppedShapeHoldEdge`
+  (`chart_edits.cpp`) is O(N) with a tempo conversion per note, once per candidate boundary it
+  judges. A binary search could serve the Start edge only; the End edge's ring ends are unsorted
+  and still need the scan, and an accepted press walks every note anyway. Trigger: a profile shows
+  `planSteppedShapeHoldEdge` in a held edge-key run.
 - **"Placement" and "position" name one thing.** The record is `FretHandPosition` and the format
   key is `positions`, but the editor says placement: `findPlacement`, `defaultedPlacement` and
   `statedPlacement` (`fret_hand_handlers.cpp`), `FretHandPositionsSnapshot::placements`,

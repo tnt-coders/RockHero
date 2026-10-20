@@ -429,9 +429,12 @@ std::vector<common::core::ShapeHold> carvedShapeHolds(
     return common::core::mergedNoneHolds(carved);
 }
 
-// One pass keeping the nearest stop beyond `from`: an end stops at either boundary of a ring, a
-// start only where a note is struck.
-std::optional<common::core::GridPosition> steppedShapeHoldEdge(
+namespace
+{
+
+// The nearest note boundary strictly beyond `from` in the key's direction: an end stops at either
+// boundary of a ring, a start only where a note is struck. Nothing where no note gives one.
+[[nodiscard]] std::optional<common::core::GridPosition> adjacentShapeHoldEdge(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const ShapeHoldEdge edge, const common::core::GridPosition& from, const bool later)
 {
@@ -454,6 +457,38 @@ std::optional<common::core::GridPosition> steppedShapeHoldEdge(
         }
     }
     return stepped;
+}
+
+} // namespace
+
+// Boundary by boundary in the key's direction, each judged by the gate, until one is accepted or
+// lands the run back at its start; the refusal where none does names the direction, since the
+// boundaries the gate refused were each refused for their own reason.
+SteppedShapeHoldEdge planSteppedShapeHoldEdge(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
+    const common::core::GridPosition& from, const bool later, const std::string_view label)
+{
+    std::optional<common::core::GridPosition> candidate =
+        adjacentShapeHoldEdge(base.notes, tempo_map, edge, from, later);
+    while (candidate.has_value())
+    {
+        const common::core::GridPosition stop = *candidate;
+        std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
+            planMoveShapeHoldEdge(base, tempo_map, moved, edge, stop, label);
+        if (plan.has_value() || std::holds_alternative<ChartPlanNoChange>(plan.error()))
+        {
+            return SteppedShapeHoldEdge{.value = stop, .plan = std::move(plan)};
+        }
+        candidate = adjacentShapeHoldEdge(base.notes, tempo_map, edge, stop, later);
+    }
+    const std::string which = edge == ShapeHoldEdge::Start ? "onset" : "boundary";
+    return SteppedShapeHoldEdge{
+        .value = from,
+        .plan = std::unexpected{ChartPlanInvalid{
+            "no note " + which + (later ? " later" : " earlier") + " where the hold fits its notes"
+        }},
+    };
 }
 
 std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShapeHolds(

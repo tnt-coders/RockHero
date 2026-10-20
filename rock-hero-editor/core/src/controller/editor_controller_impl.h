@@ -425,6 +425,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::expected<bool, ChartPlanInvalid> commitChartGestureStep(
         bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
         const ChartGestureLanding& landing = {});
+    // The chart a gesture's steps replay from: the live chart on a press that starts a run, or the
+    // run's entry reversed out of it (held in `storage`) while one is in progress; null, reported,
+    // where that reversal fails. The one reading of a run's base, asked by the commit and by a verb
+    // that must judge candidates against the base before it commits.
+    [[nodiscard]] const common::core::Chart* gestureBaseChart(
+        bool continues, common::core::Chart& storage);
     // Ends a gesture whose replayed steps describe no edit at all: takes its entry back out of
     // the history (dropTop) and walks the chart to the stream that entry was applied to, so a run
     // that replays back to its start leaves neither a dead undo step nor a modified document
