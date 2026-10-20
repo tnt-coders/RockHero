@@ -597,73 +597,125 @@ std::vector<common::core::ShapeHold> carvedShapeHolds(
 namespace
 {
 
-// The nearest note boundary strictly beyond `from` in the key's direction: an end stops at either
-// boundary of a ring, a start only where a note is struck. Nothing where no note gives one.
-[[nodiscard]] std::optional<common::core::GridPosition> adjacentShapeHoldEdge(
-    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
-    const ShapeHoldEdge edge, const common::core::GridPosition& from, const bool later)
+// Whether `stop` lies strictly beyond `from` in the key's direction.
+[[nodiscard]] bool isBeyond(
+    const common::core::GridPosition& from, const common::core::GridPosition& stop,
+    const bool later)
 {
-    std::optional<common::core::GridPosition> stepped;
-    const auto consider = [&stepped, &from, later](const common::core::GridPosition& stop) {
-        const bool beyond = later ? from < stop : stop < from;
-        if (beyond && (!stepped.has_value() || (later ? stop < *stepped : *stepped < stop)))
+    return later ? from < stop : stop < from;
+}
+
+// The nearer of two stops in the key's direction — the earlier stepping later, the later stepping
+// earlier — or whichever exists; nothing where neither does.
+[[nodiscard]] std::optional<common::core::GridPosition> nearer(
+    const std::optional<common::core::GridPosition>& first,
+    const std::optional<common::core::GridPosition>& second, const bool later)
+{
+    if (!first.has_value())
+    {
+        return second;
+    }
+    if (!second.has_value())
+    {
+        return first;
+    }
+    return isBeyond(*second, *first, later) ? second : first;
+}
+
+// The nearest note boundary strictly beyond `from` in the key's direction: either end of any
+// note's ring, for both edges, since a ring crossing a start is a member the hold carries. Nothing
+// where no note gives one.
+[[nodiscard]] std::optional<common::core::GridPosition> adjacentShapeHoldNoteBoundary(
+    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
+    const common::core::GridPosition& from, const bool later)
+{
+    std::optional<common::core::GridPosition> boundary;
+    const auto consider = [&boundary, &from, later](const common::core::GridPosition& stop) {
+        if (isBeyond(from, stop, later))
         {
-            stepped = stop;
+            boundary = nearer(boundary, stop, later);
         }
     };
     for (const common::core::ChartNote& note : notes)
     {
         consider(note.position);
-        if (edge == ShapeHoldEdge::End)
-        {
-            consider(
-                common::core::advanceGridPositionByWholeNotes(
-                    tempo_map, note.position, note.sustain));
-        }
+        consider(
+            common::core::advanceGridPositionByWholeNotes(tempo_map, note.position, note.sustain));
     }
-    return stepped;
+    return boundary;
+}
+
+// The placement quantum's next grid line strictly beyond `from` in the key's direction.
+[[nodiscard]] std::optional<common::core::GridPosition> gridLineBeyond(
+    const common::core::TempoMap& tempo_map, const common::core::Fraction grid_note_value,
+    const common::core::GridPosition& from, const bool later)
+{
+    const common::core::GridPosition line =
+        adjacentTempoGridPosition(tempo_map, grid_note_value, from, later);
+    // Stepping earlier at the grid origin collapses onto `from`, which is not strictly beyond it
+    // and so is no line at all.
+    if (!isBeyond(from, line, later))
+    {
+        return std::nullopt;
+    }
+    return line;
 }
 
 } // namespace
 
-// Boundary by boundary in the key's direction, each judged by the gate, until one is accepted or
-// lands the run back at its start. Where none does, the press is refused with the NEAREST
-// boundary's own refusal — the step the key asked for, and the reason and the culprit that refused
-// it — since a message composed here would name only the direction and hide them. Only where no
-// boundary lies that way at all does the stepper refuse in its own words, lighting the moved hold:
-// nothing else is named.
+// Candidate by candidate in the key's direction, each judged by the gate, until one is accepted or
+// lands the run back at its start. After a judged note boundary both kinds are candidates again;
+// after a refused grid line only the next note boundary, because the hold's membership — and so the
+// gate's verdict — cannot change before it. The walk is therefore bounded by 2·(boundaries that
+// way)+1 gate runs whatever the quantum. Where none is accepted, the press is refused with the
+// NEAREST candidate's own refusal — the step the key asked for, and the reason and the culprit
+// that refused it — since a message composed here would name only the direction and hide them.
+// Only where no candidate lies that way at all does the stepper refuse in its own words, lighting
+// the moved hold: nothing else is named.
 SteppedShapeHoldEdge planSteppedShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
-    const common::core::GridPosition& from, const bool later, const std::string_view label)
+    const common::core::Fraction grid_note_value, const common::core::ShapeHold& moved,
+    const ShapeHoldEdge edge, const common::core::GridPosition& from, const bool later,
+    const std::string_view label)
 {
-    std::optional<common::core::GridPosition> candidate =
-        adjacentShapeHoldEdge(base.notes, tempo_map, edge, from, later);
+    std::optional<common::core::GridPosition> boundary =
+        adjacentShapeHoldNoteBoundary(base.notes, tempo_map, from, later);
+    std::optional<common::core::GridPosition> line =
+        gridLineBeyond(tempo_map, grid_note_value, from, later);
     std::optional<ChartPlanRefusal> nearest;
-    while (candidate.has_value())
+    while (const std::optional<common::core::GridPosition> stop = nearer(boundary, line, later))
     {
-        const common::core::GridPosition stop = *candidate;
         std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
-            planMoveShapeHoldEdge(base, tempo_map, moved, edge, stop, label);
+            planMoveShapeHoldEdge(base, tempo_map, moved, edge, *stop, label);
         if (plan.has_value() || std::holds_alternative<ChartPlanNoChange>(plan.error()))
         {
-            return SteppedShapeHoldEdge{.value = stop, .plan = std::move(plan)};
+            return SteppedShapeHoldEdge{.value = *stop, .plan = std::move(plan)};
         }
         if (!nearest.has_value())
         {
             nearest = std::move(plan.error());
         }
-        candidate = adjacentShapeHoldEdge(base.notes, tempo_map, edge, stop, later);
+        if (stop == boundary)
+        {
+            boundary = adjacentShapeHoldNoteBoundary(base.notes, tempo_map, *stop, later);
+            line = gridLineBeyond(tempo_map, grid_note_value, *stop, later);
+        }
+        else
+        {
+            // A refused grid line falls through to the boundary beyond: same membership, same
+            // verdict.
+            line = std::nullopt;
+        }
     }
     if (nearest.has_value())
     {
         return SteppedShapeHoldEdge{.value = from, .plan = std::unexpected{std::move(*nearest)}};
     }
-    const std::string which = edge == ShapeHoldEdge::Start ? "onset" : "boundary";
     return SteppedShapeHoldEdge{
         .value = from,
         .plan = std::unexpected{ChartPlanInvalid{
-            .reason = "no note " + which + (later ? " later" : " earlier"),
+            .reason =
+                std::string{"no note boundary or grid line"} + (later ? " later" : " earlier"),
             .lit = holdLight(base.notes, tempo_map, moved),
         }},
     };

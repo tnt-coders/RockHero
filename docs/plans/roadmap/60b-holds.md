@@ -104,10 +104,10 @@ with the refusal flash.
 | Target | Keys | Result |
 |---|---|---|
 | Span, `none` hold, time selection or note selection (from its first onset to its last tail end) | `Ctrl+H` ("Hold...") | The hold picker over the extent: **Shape** (an unnamed hold), **None** (a `none` hold, merged with any it meets) or **Auto** (every hold carved out, so the notes decide the spans there). A choice that would change nothing is left out, so at least two always show, each with a tooltip; a refused choice flashes |
-| Derived span | `Alt+Left` / `Alt+Right` | Moves the start to the nearest note onset that way where the hold fits, converting the span to a hold; refused where none fits |
-| Derived span | `Alt+Shift+Left` / `Alt+Shift+Right` | Moves the end to the nearest note boundary that way where the hold fits, converting the span; refused where none fits |
+| Derived span | `Alt+Left` / `Alt+Right` | Moves the start to the nearest note boundary or grid line that way where the hold fits, converting the span to a hold; refused where none fits |
+| Derived span | `Alt+Shift+Left` / `Alt+Shift+Right` | Moves the end to the nearest note boundary or grid line that way where the hold fits, converting the span; refused where none fits |
 | Derived span, chord or arpeggio | `Delete` | A `none` hold over the span, merged with any it meets and left selected; a chord stands inside it. Over a chord already inside a `none` hold the merge changes nothing |
-| Authored hold | the same edge keys | Move its edges the same way; refused where no boundary that way fits |
+| Authored hold | the same edge keys | Move its edges the same way; refused where no candidate that way fits |
 | Unnamed hold | `Delete` | Removes it, so the span derives again and stays selected: Delete steps down one level |
 | `none` hold | `Delete` | Removes it, so the derivation returns over its whole merged stretch |
 | Cursor | `Ctrl+Shift+H` ("Jump to Hold") | Selects the `none` hold holding the cursor, else the span there; nothing in an empty stretch |
@@ -135,11 +135,19 @@ The walk up from the strings meets the `none` hold before the span inside it, an
 lands by that same row order. One constant states the order (`g_span_rows`): the lane reports
 every mark under a press and the controller picks by it, as the walk and the jump do.
 
-**Stepping.** An edge key steps boundary by boundary in its direction and lands on the first where
-the moved hold and every hold it touches pass the gate; a boundary the gate refuses (a hold ending
-inside its rings, a neighbour pushed to nothing) is skipped, and the press is refused only where no
-boundary that way fits. The fit is the gate's own judgement, asked once per candidate, never
-restated.
+**Stepping.** An edge key's candidates are the note boundaries — an onset or a ring's end, any
+string — and the grid lines of the placement quantum (the grid with snap on, a tick with it off),
+nearer first. It steps candidate by candidate in its direction and lands on the first where the
+moved hold and every hold it touches pass the gate; a candidate the gate refuses (a hold ending
+inside its rings, a neighbour pushed to nothing) is skipped, so a refused grid line never blocks an
+accepted note boundary beyond it, and the press is refused only where no candidate that way fits.
+Both edges take both kinds, so a hold can be stretched over empty space a grid step at a time and
+a start is not held to onsets: a ring crossing a hold's start is a member the hold carries, which
+the walk already models (ruled 2026-10-20). After a judged note boundary both kinds are candidates
+again; a refused grid line falls through to the next note boundary, where the hold's membership,
+and so the gate's verdict — its own judgement, asked once per candidate, never restated — can
+first change. A press therefore runs at most 2·(boundaries that way)+1 gate judgements whatever
+the quantum.
 
 **Pushing.** An edge key that moves an edge into a neighbouring hold pushes that hold's facing
 edge along with it. Both holds must stay valid and the pushed one non-empty, or that boundary is

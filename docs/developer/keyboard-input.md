@@ -669,12 +669,13 @@ spans. Each choice is planned as the carve it writes, and one that changes nothi
 at least two always show, the first preselected; the rows and their tooltips come from the core's
 one table of choices (`holdChoiceRows`, published as `ChartHoldChoice`), drawn as custom menu rows
 the desktop tooltip window reads. Refused on a bare caret. The selection-kind dispatches carry the
-rest: `Alt+Left/Right` (`MoveSelection`) step the start to the adjacent note onset and
-`Alt+Shift+Left/Right` (`AdjustChartSustain`, whose availability opens on
-`has_span_row_selection`) the end to the nearest note boundary where the hold fits its notes,
-skipping the boundaries the gate refuses and refused only where none fits — with the NEAREST
-boundary's own refusal, its reason and its light, never a message about the direction; only where
-no boundary lies that way at all does the refusal say so and light the moved hold
+rest: `Alt+Left/Right` (`MoveSelection`) step the start and `Alt+Shift+Left/Right`
+(`AdjustChartSustain`, whose availability opens on `has_span_row_selection`) the end, each to the
+nearer of the next note boundary and the next grid line — the placement quantum's
+(`placementQuantum`): the grid with snap on, a tick with it off — where the hold fits its notes,
+skipping the candidates the gate refuses and refused only where none fits — with the NEAREST
+candidate's own refusal, its reason and its light, never a message about the direction; only where
+no candidate lies that way at all does the refusal say so and light the moved hold
 (`planSteppedShapeHoldEdge`, each candidate judged by `planMoveShapeHoldEdge`), as one held run
 through `commitChartGestureStep` (`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on
 the first press (and staying a derived span, selected, when the run steps back to where it began)

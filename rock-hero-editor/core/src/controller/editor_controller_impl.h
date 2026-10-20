@@ -787,8 +787,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the selected one is gone.
     [[nodiscard]] std::optional<common::core::ShapeHold> selectedSpanRowHold() const;
     // One press of a hold edge key (Alt+Left/Right the start, Alt+Shift+Left/Right the end) on the
-    // selected span or none hold: the edge stepped to the next note onset or boundary that way, as
-    // one step of a held run replaying from its start (planMoveShapeHoldEdge).
+    // selected span or none hold: the edge stepped to the nearer of the next note boundary and the
+    // next placement-quantum line that way where the hold fits, as one step of a held run
+    // replaying from its start (planSteppedShapeHoldEdge).
     void stepShapeHoldEdge(ShapeHoldEdge edge, bool later);
     // The extent a hold choice acts on, read off the selection: a selected span's or none hold's
     // own, a time selection's, or the selected notes' from their first onset to their last ring's

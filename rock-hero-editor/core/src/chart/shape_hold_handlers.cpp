@@ -313,7 +313,14 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         return;
     }
     SteppedShapeHoldEdge stepped = planSteppedShapeHoldEdge(
-        *base, tempo_map, gesture.base, gesture.edge, gesture.value, later, label);
+        *base,
+        tempo_map,
+        placementQuantum(),
+        gesture.base,
+        gesture.edge,
+        gesture.value,
+        later,
+        label);
     if (!stepped.plan.has_value())
     {
         // NoChange is the run stepped back to where it began, which the commit retires.

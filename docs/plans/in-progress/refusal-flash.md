@@ -46,9 +46,9 @@ missed stop of several would send the charter to fix one and meet the next (the 
 hold gate's one coverage refusal), the note a move would land on, the ring whose authored statement an edit would cut off (beside the
 head that cuts it, since one of the two is the edit's own product with no mark yet), the
 predecessor a head cannot join, the neighbour hold a push would empty, and the stretch between a
-hold's stated end and where its shape closes. A hold edge key refused at every boundary its way
-surfaces the NEAREST boundary's own refusal, reason and light, never a message of its own about
-the direction (`planSteppedShapeHoldEdge`; only with no boundary that way at all does it say so,
+hold's stated end and where its shape closes. A hold edge key refused at every candidate its way
+surfaces the NEAREST candidate's own refusal, reason and light, never a message of its own about
+the direction (`planSteppedShapeHoldEdge`; only with no candidate that way at all does it say so,
 lighting the moved hold). Where nothing does, the refusing site names the refused elements
 themselves; a site with nothing on screen to name (an empty slot, no chart) says
 so with an empty light. A hold is lit as the notes sounding inside it, struck in it or ringing into
@@ -211,8 +211,8 @@ besides S. "as notes" = a hold lit through the notes sounding in it. All files u
 | 5 | `finalizeShapeHoldPlan` (reader rule) | the rule's message | every changed hold, as notes | as notes | as notes |
 | 6 | `finalizeShapeHoldPlan` (normalizer drop) | H would hold nothing | H, as notes | as notes | — |
 | 7 | `finalizeShapeHoldPlan` (no fit) | H does not fit its notes: its shape closes at X | notes sounding between H's stated end and X | no | yes |
-| 8 | `planSteppedShapeHoldEdge` (nearest boundary) | that boundary's own refusal (rows 4–7, 10–11) | that row's light | per row | per row |
-| 9 | `planSteppedShapeHoldEdge` (no boundary) | no note onset/boundary later/earlier | the moved hold, as notes | as notes | — |
+| 8 | `planSteppedShapeHoldEdge` (nearest candidate) | that candidate's own refusal (rows 4–7, 10–11) | that row's light | per row | per row |
+| 9 | `planSteppedShapeHoldEdge` (no candidate) | no note boundary or grid line later/earlier | the moved hold, as notes | as notes | — |
 | 10 | `movedShapeHolds` (moved emptied) | H would hold nothing | the moved hold, as notes | as notes | — |
 | 11 | `movedShapeHolds` (neighbour emptied) | the edge would push H′ to nothing | H′, as notes | no | as notes |
 | 12 | split walk (junction split, `planCutRing`) | a scrape has no junction to split | the note + the junction keyframes asked (a cut's instant resolves to none) | yes | — |

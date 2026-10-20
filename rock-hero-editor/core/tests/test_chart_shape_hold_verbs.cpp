@@ -1,5 +1,6 @@
 #include "log_capture.h"
 
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
@@ -682,9 +683,9 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
     }
 }
 
-// The start key steps a derived span's start one note onset, converting the span to a hold, and
-// the end key steps its end one note boundary; a step is refused only where no boundary that way
-// leaves a hold that fits its notes.
+// The start key steps a derived span's start to the next candidate — here the 1:2 onset, a grid
+// line too — converting the span to a hold, and the end key steps its end likewise; a step is
+// refused only where no candidate that way leaves a hold that fits its notes.
 TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
 {
     HoldEditor editor{chartOf({arpeggioIn(1)})};
@@ -718,11 +719,11 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
         CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
     }
 
-    SECTION("the end key, refused where no earlier boundary lets the hold fit its notes")
+    SECTION("the end key, refused where no earlier candidate lets the hold fit its notes")
     {
-        // Every boundary earlier than the span's close falls inside its rings, so the hold would
+        // Every candidate earlier than the span's close falls inside its rings, so the hold would
         // run on past each of them: none fits, and the press is refused with the NEAREST
-        // boundary's own refusal — the hold stated to 1:3 closes at 1:4 — lighting the stretch it
+        // candidate's own refusal — the hold stated to 1:3 closes at 1:4 — lighting the stretch it
         // overruns, [1:3, 1:4), where the third note is struck and the first two still ring.
         const std::size_t flashes = editor.view.refusal_flashes.size();
         const LogCapture capture;
@@ -742,7 +743,7 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
     }
 }
 
-// An edge key lands on the nearest boundary where the hold fits, skipping the boundaries the gate
+// An edge key lands on the nearest candidate where the hold fits, skipping the candidates the gate
 // refuses. A box whose statement a re-pick renews cannot end at a grace note's onset inside that
 // renewed ring, where nothing ends and the span runs on, so the end key stepping earlier passes it
 // to the boundary where the re-picked string's first ring ends, and the run stepping back passes it
@@ -778,7 +779,7 @@ TEST_CASE("The end key skips boundaries where the hold would not fit", "[core][h
 }
 
 // The end key moved into the next hold pushes that hold's start along with it, and a step back in
-// the same run restores it, the run being one undo entry; a press whose every boundary would push
+// the same run restores it, the run being one undo entry; a press whose every candidate would push
 // the neighbour to nothing is refused. A step back in a later run moves the edge alone, leaving a
 // gap.
 TEST_CASE("The end key pushes the next hold and a step back restores it", "[core][holds]")
@@ -802,10 +803,17 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
         CHECK(editor.entries() == entries);
     }
 
-    SECTION("a neighbour pushed to nothing at every later boundary refuses the press")
+    SECTION("a neighbour pushed to nothing at every later candidate refuses the press")
     {
-        // Every boundary later than 3:4 lies at or past the neighbour's end, so each would push it
-        // to nothing: no boundary fits, and the press is refused with the nearest boundary's own
+        // The 4:1 grid line is the nearer candidate: the 3:4 chord ringing to 4:2 crosses it, a
+        // member the pushed neighbour carries, so the hold fits there.
+        editor.endKey(true);
+        CHECK(
+            editor.holds() ==
+            std::vector{unnamedHold(at(3, 1), at(4, 1)), unnamedHold(at(4, 1), at(4, 2))});
+
+        // Every candidate later than 4:1 lies at or past the neighbour's end, so each would push it
+        // to nothing: none fits, and the press is refused with the nearest candidate's own
         // refusal, which names the neighbour — as it stood when the run began, since every press
         // replays from the run's start chart — and lights its notes.
         const std::size_t flashes = editor.view.refusal_flashes.size();
@@ -820,7 +828,7 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
         CHECK_FALSE(editor.view.refusal_flashes.back().notes.empty());
         CHECK(
             editor.holds() ==
-            std::vector{unnamedHold(at(3, 1), at(3, 4)), unnamedHold(at(3, 4), at(4, 2))});
+            std::vector{unnamedHold(at(3, 1), at(4, 1)), unnamedHold(at(4, 1), at(4, 2))});
         CHECK(editor.entries() == entries + 1);
     }
 
@@ -846,7 +854,10 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
     }
 }
 
-// The start key moved into the previous hold pushes that hold's end back with it.
+// The start key moved into the previous hold pushes that hold's end back with it. A press whose
+// every candidate would push the neighbour to nothing is refused with the nearest one's refusal,
+// which names the neighbour as the run began and lights its notes: 3:1, where the neighbour
+// starts, is the nearest, and every grid line before it pushes the neighbour out as well.
 TEST_CASE("The start key pushes the previous hold", "[core][holds]")
 {
     HoldEditor editor{twoHeldHalves()};
@@ -860,13 +871,211 @@ TEST_CASE("The start key pushes the previous hold", "[core][holds]")
         std::vector{unnamedHold(at(3, 1), at(3, 2)), unnamedHold(at(3, 2), at(4, 2))});
     CHECK(editor.selectedHold() == std::optional<std::size_t>{1});
 
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    const LogCapture capture;
     editor.startKey(false);
     CHECK(
         editor.holds() ==
         std::vector{unnamedHold(at(3, 1), at(3, 2)), unnamedHold(at(3, 2), at(4, 2))});
+    const std::string contents = capture.text();
+    INFO(contents);
+    CHECK(
+        contents.find("the edge would push shape hold 3:1 to 3:3 to nothing") != std::string::npos);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 1, 2, 3});
 
     editor.controller.onUndoRequested();
     CHECK(editor.holds() == twoHeldHalves().shape_holds);
+}
+
+// Where no note lies before a span, its start steps back over the silence a grid line at a time,
+// each press accepted: the hold opens over an empty grip and the strike at 2:1 founds the one span,
+// which fronts at the hold's start. The run is one undo entry.
+TEST_CASE("The start key steps over silence by grid lines", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(2, 1), 5, 7)})};
+    editor.walkDownAt(2.25, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+
+    editor.startKey(false);
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 4), at(2, 2))});
+
+    editor.startKey(false);
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 3), at(2, 2))});
+    CHECK(editor.entries() == entries + 1);
+    REQUIRE(editor.spanCount() == 1);
+    REQUIRE(editor.publishedSpan() != nullptr);
+    CHECK(editor.publishedSpan()->held);
+    CHECK(editor.publishedSpan()->start_seconds == Catch::Approx(1.0));
+}
+
+// The 2:1 box's start steps back to 1:4, where the 1:3 note's ring ends on a grid line: the hold
+// opens over the silence after that ring, so the authored position at 1:3 still stands
+// and the derived window for the box's frets 5 and 7 fronts at the hold's start.
+TEST_CASE("The start key moves the derived window with the hold", "[core][holds]")
+{
+    common::core::Chart chart = chartOf(
+        {chordAt(at(1, 1), 5, 7),
+         {makeTestNote(at(1, 3), 3, 12, Fraction{1, 4})},
+         chordAt(at(2, 1), 5, 7)});
+    chart.fret_hand_positions = {
+        common::core::FretHandPosition{.position = at(1, 3), .fret = 10, .end_fret = std::nullopt}
+    };
+    HoldEditor editor{std::move(chart)};
+    editor.walkDownAt(2.25, 1);
+    REQUIRE(editor.selectedSpan().has_value());
+    const std::size_t entries = editor.entries();
+
+    editor.startKey(false);
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 4), at(2, 2))});
+    CHECK(editor.entries() == entries + 1);
+
+    REQUIRE(editor.state().tab != nullptr);
+    const std::vector<common::core::FhpViewState>& chips = editor.state().tab->fret_hand_positions;
+    const auto chip_at = [&chips](const GridPosition& place) -> const common::core::FhpViewState* {
+        for (const common::core::FhpViewState& chip : chips)
+        {
+            if (chip.position == place)
+            {
+                return &chip;
+            }
+        }
+        return nullptr;
+    };
+    const common::core::FhpViewState* const derived = chip_at(at(1, 4));
+    REQUIRE(derived != nullptr);
+    CHECK(derived->fret == 5);
+    CHECK(derived->authored == common::core::FhpAuthored::Nothing);
+    const common::core::FhpViewState* const authored = chip_at(at(1, 3));
+    REQUIRE(authored != nullptr);
+    CHECK(authored->authored == common::core::FhpAuthored::Fret);
+}
+
+// A start stepped into the ring of the figure before it lands on the grid line there, not only at
+// an onset: the 1:3 box on strings 3 and 4 ringing to 2:1 crosses the hold's start at 1:4, so it
+// is a member the hold carries, and the derived span before it closes where the hold begins.
+TEST_CASE("The start key steps into a ring the hold then carries", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {{makeTestNote(at(1, 3), 3, 7, Fraction{1, 2}),
+          makeTestNote(at(1, 3), 4, 7, Fraction{1, 2})},
+         chordAt(at(2, 1), 5, 7)})};
+    editor.walkDownAt(2.25, 1);
+    REQUIRE(editor.selectedSpan().has_value());
+
+    editor.startKey(false);
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 4), at(2, 2))});
+    REQUIRE(editor.state().tab != nullptr);
+    const std::vector<common::core::ShapeViewState>& spans = editor.state().tab->shapes;
+    REQUIRE(spans.size() == 2);
+    CHECK_FALSE(spans[0].held);
+    CHECK(spans[0].close_seconds == Catch::Approx(1.5));
+    CHECK(spans[1].held);
+    CHECK(spans[1].start_seconds == Catch::Approx(1.5));
+    CHECK(
+        std::ranges::any_of(spans[1].strings, [](const common::core::ShapeStringViewState& entry) {
+            return entry.string == 3;
+        }));
+}
+
+// String 1 states fret 7 at 1:3 and fret 6 at 2:1, a finger lifting: a hold opening at 1:4 or at
+// 1:3 carries the fret 7 into that release and is refused, so the start key passes both — the grid
+// line and the onset alike — and lands at 1:2, where the hold carries the 1:1 box's fret 5 and the
+// frets above it prove nothing.
+TEST_CASE("The start key skips candidates where the hand would release a stop", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {chordAt(at(1, 1), 5, 7, Fraction{1, 2}),
+         chordAt(at(1, 3), 7, 7, Fraction{1, 2}),
+         chordAt(at(2, 1), 6, 7, Fraction{1, 2})},
+        {unnamedHold(at(2, 1), at(2, 3))})};
+    editor.walkDownAt(2.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    editor.startKey(false);
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 2), at(2, 3))});
+}
+
+// The grid line the edge keys step to is the placement quantum's: the grid with snap on, and with
+// snap off the next tick, 1/960 of a beat.
+TEST_CASE("The edge keys step by the placement quantum", "[core][holds]")
+{
+    HoldEditor editor{chartOf({chordAt(at(2, 1), 5, 7)})};
+    editor.walkDownAt(2.25, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+
+    SECTION("with snap on, a beat")
+    {
+        editor.startKey(false);
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 4), at(2, 2))});
+    }
+
+    SECTION("with snap off, a tick")
+    {
+        turnGridSnapOff(editor.controller);
+        editor.startKey(false);
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 4, Fraction{959, 960}), at(2, 2))});
+    }
+
+    SECTION("with snap off, the end key a tick")
+    {
+        turnGridSnapOff(editor.controller);
+        editor.endKey(true);
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(2, 1), at(2, 2, Fraction{1, 960}))});
+    }
+}
+
+// A coarse grid never steps past a note boundary: with a whole-note grid the box's end, at 1:2,
+// steps to the 1:3 onset, nearer than the 2:1 grid line.
+TEST_CASE("A coarse grid never hides a note boundary", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {chordAt(at(1, 1), 5, 7), {makeTestNote(at(1, 3), 3, 7, Fraction{1, 4})}})};
+    editor.controller.onGridNoteValueChangeRequested(Fraction{1, 1});
+    editor.walkDownAt(0.25, 1);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    REQUIRE(editor.publishedSpan() != nullptr);
+    REQUIRE(editor.publishedSpan()->close_seconds == Catch::Approx(0.5));
+
+    editor.endKey(true);
+    INFO(editor.holdsText());
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 3))});
+}
+
+// A refused grid line never blocks an accepted note boundary beyond it: the box re-struck at 1:2
+// rings to 1:3 and a half, so a hold ending at the 1:3 grid line stops in the middle of that ring
+// and is refused, and the end key passes it to land where the ring ends. With snap off the first
+// tick past 1:2 is refused the same way and falls through to the same boundary.
+TEST_CASE("The end key skips a refused grid line to the boundary beyond", "[core][holds]")
+{
+    HoldEditor editor{chartOf(
+        {chordAt(at(1, 1), 5, 7), chordAt(at(1, 2), 5, 7, Fraction{3, 8})},
+        {unnamedHold(at(1, 1), at(1, 2))})};
+    editor.walkDownAt(0.25, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+
+    SECTION("with snap on")
+    {
+        editor.endKey(true);
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 3, Fraction{1, 2}))});
+    }
+
+    SECTION("with snap off")
+    {
+        turnGridSnapOff(editor.controller);
+        editor.endKey(true);
+        INFO(editor.holdsText());
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 3, Fraction{1, 2}))});
+    }
 }
 
 // Delete on a held span removes its hold and the derivation takes its stretch back, the span it

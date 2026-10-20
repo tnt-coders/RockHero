@@ -336,10 +336,10 @@ beside or over another none hold joins it.
 /*! \brief Which edge of a shape hold an edge key moves. */
 enum class ShapeHoldEdge : std::uint8_t
 {
-    /*! \brief The start, which the edge keys step from note onset to note onset. */
+    /*! \brief The start. */
     Start,
 
-    /*! \brief The end, which the edge keys step from note boundary to note boundary. */
+    /*! \brief The end. */
     End,
 };
 
@@ -348,33 +348,39 @@ enum class ShapeHoldEdge : std::uint8_t
 */
 struct SteppedShapeHoldEdge
 {
-    /*! \brief Where the edge stands after the press: the boundary it landed on, or `from`. */
+    /*! \brief Where the edge stands after the press: the candidate it landed on, or `from`. */
     common::core::GridPosition value;
 
     /*!
     \brief The plan landing the edge there; NoChange where it landed back where the run began,
-    Invalid where no boundary that way is accepted by the hold gate: the nearest boundary's own
-    refusal, or, where no boundary lies that way at all, one naming the direction and lighting
+    Invalid where no candidate that way is accepted by the hold gate: the nearest candidate's own
+    refusal, or, where no candidate lies that way at all, one naming the direction and lighting
     the moved hold.
     */
     std::expected<JudgedChartPlan, ChartPlanRefusal> plan;
 };
 
 /*!
-\brief Plans one press of a hold edge key: the edge steps from `from` to the nearest note boundary
-in the key's direction where the hold FITS, skipping every boundary the hold gate refuses.
+\brief Plans one press of a hold edge key: the edge steps from `from` to the nearest candidate in
+the key's direction where the hold FITS, skipping every candidate the hold gate refuses. A refused
+grid line falls through to the next note boundary, where the membership, and so the verdict, can
+first change.
 
-A start steps from note onset to note onset, an end from note boundary to note boundary — an onset
-or a ring's end, of any string. Each candidate is judged by \ref planMoveShapeHoldEdge, so the fit
-is the gate's own predicate and nothing here restates it: the first accepted candidate is the step.
-A candidate that lands the edge back where the run began is the run undone, returned as NoChange.
-The press is refused only where no boundary that way is accepted, and then with the NEAREST
-boundary's own refusal — the step the key asked for, its reason and what it lights — so a culprit
-the gate found is never hidden behind a message about the direction; only where no boundary lies
-that way at all does the refusal say so, lighting the moved hold.
+Both edges step to the nearer of the next note boundary — an onset or a ring's end, of any string —
+and the next grid line, so a start is not held to onsets: a ring crossing it is a member the hold
+carries. Each candidate is judged by \ref planMoveShapeHoldEdge, so the fit is the gate's own
+predicate and nothing here restates it: the first accepted candidate is the step, and a refused
+grid line never blocks an accepted note boundary beyond it. A candidate that lands the edge back
+where the run began is the run undone, returned as NoChange. The press is refused only where no
+candidate that way is accepted, and then with the NEAREST candidate's own refusal — the step the
+key asked for, its reason and what it lights — so a culprit the gate found is never hidden behind
+a message about the direction; only where no candidate lies that way at all does the refusal say
+so, lighting the moved hold.
 
 \param base The chart the run began from.
 \param tempo_map Tempo map placing the notes and the holds.
+\param grid_note_value The placement quantum whose lines are candidates: the grid with snap on, a
+       tick with it off.
 \param moved The hold being moved as the run began (\ref movedShapeHolds).
 \param edge The edge stepped.
 \param from Where the run has moved that edge so far.
@@ -384,8 +390,8 @@ that way at all does the refusal say so, lighting the moved hold.
 */
 [[nodiscard]] SteppedShapeHoldEdge planSteppedShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    const common::core::ShapeHold& moved, ShapeHoldEdge edge,
-    const common::core::GridPosition& from, bool later, std::string_view label);
+    common::core::Fraction grid_note_value, const common::core::ShapeHold& moved,
+    ShapeHoldEdge edge, const common::core::GridPosition& from, bool later, std::string_view label);
 
 /*!
 \brief The holds a hold edge key's run leaves: `moved` with its edge at `value`, carved into the
