@@ -420,7 +420,10 @@ takes the next one.
      any break the walk recognises, hand conflict or notation split; its statement no longer in
      force, a rest included; the next hold's start; or the song's end. From the end on the span
      reaches as its members do, never short of the end, so a ring a tap renews ends where the
-     fretting hand's ring ends (rule 3).
+     fretting hand's ring ends (rule 3). The end is judged over the hold alone, `[start, end)`: a
+     member whose statement ends exactly at the stated end closes the span there however the slot
+     at the end re-sounds it, because an onset at the end belongs to what follows and renews
+     nothing inside the hold.
    - **A hold fits its notes where its published extent equals its stated extent.** One ending
      where the walk closes nothing — in the middle of a sustain, nothing happening — does not fit.
      A hold exactly over a derived span fits and leaves every span as derived. One close rule

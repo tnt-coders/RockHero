@@ -6265,6 +6265,31 @@ TEST_CASE("A shape hold's end must be a break", "[core][chart]")
     }
 
     SECTION(
+        "a member restruck exactly at the end closes the span there: the end is judged over "
+        "the hold alone, and the restrike belongs to what follows")
+    {
+        // An arpeggio accumulates over 1:1 to 1:3; the fret-5 ring ends at 1:4, where it is
+        // re-picked. Without the hold the re-pick renews it and the span runs to 2:1 (rule 3).
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(gridAt(1, 1), 3, 9, Fraction{1}),
+            noteAt(gridAt(1, 2), 2, 7, Fraction{3, 4}),
+            noteAt(gridAt(1, 3), 1, 5, Fraction{1, 4}),
+            noteAt(gridAt(1, 4), 1, 5, Fraction{1, 4}),
+        });
+        const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+        REQUIRE(plain.shapes.size() == 1);
+        REQUIRE(plain.shapes[0].sustain == Fraction{1});
+
+        // Under a hold ending at 1:4 the re-pick is outside it, so the span closes there and the
+        // re-pick, a lone onset over rings struck behind the frontier, founds nothing (rule 1).
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(1, 4))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].hold_stated);
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{3, 4});
+        CHECK(held.fits[0]);
+    }
+
+    SECTION(
         "a tap renewing the rings at the end leaves the end where the fretting hand's rings end")
     {
         ChartNote low_tap = noteAt(gridAt(1, 2), 1, 12, Fraction{1, 4});

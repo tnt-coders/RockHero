@@ -580,7 +580,9 @@ ChartShapes deriveChartShapes(
     // exactly here and is re-sounded by this slot was REPLACED, not silenced. Judged per stop: a
     // string still sounding keeps the span's stop in force only while its finger states that stop,
     // rides above it, or is gliding (the span covers the glide, shape rule 4). Inside its shape
-    // hold a span stands whatever its members do: a quit is notation there (shape rule 9).
+    // hold a span stands whatever its members do: a quit is notation there, and at the hold's own
+    // end the renewal does not apply, because the end is judged over the hold alone: an onset AT
+    // the end belongs to what follows and renews nothing inside (shape rule 9).
     const auto in_force = [&hand, &covers_at](
                               const OpenSpan& span,
                               const Fraction now,
@@ -615,7 +617,7 @@ ChartShapes deriveChartShapes(
                 }
                 return false;
             }
-            if (now != sounds || !sounding[string_index].has_value())
+            if (now != sounds || !sounding[string_index].has_value() || holdEndsAt(span, now))
             {
                 return false;
             }

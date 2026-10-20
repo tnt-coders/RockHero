@@ -685,7 +685,7 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
 
 // The end key moved into the next hold pushes that hold's start along with it, and a step back in
 // the same run restores it, the run being one undo entry; an edge that would push its neighbour to
-// nothing is refused.
+// nothing is refused. A step back in a later run moves the edge alone, leaving a gap.
 TEST_CASE("The end key pushes the next hold and a step back restores it", "[core][holds]")
 {
     HoldEditor editor{twoHeldHalves()};
@@ -722,22 +722,23 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
         CHECK(editor.entries() == entries + 1);
     }
 
-    SECTION("once the run ends, only undo restores the pushed hold")
+    SECTION("once the run ends, a step back leaves the pushed hold where it is")
     {
         editor.controller.onRowObjectStepRequested(true, false);
         REQUIRE(editor.selectedHold() == std::optional<std::size_t>{1});
         editor.controller.onRowObjectStepRequested(false, false);
         REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
-        const LogCapture capture;
         editor.endKey(false);
-        const std::string contents = capture.text();
-        INFO(contents);
-        CHECK(contents.find("shape hold 3:1 to 3:3 does not fit its notes") != std::string::npos);
+        INFO(editor.holdsText());
+        CHECK(
+            editor.holds() ==
+            std::vector{unnamedHold(at(3, 1), at(3, 3)), unnamedHold(at(3, 4), at(4, 2))});
+        CHECK(editor.entries() == entries + 2);
+
+        editor.controller.onUndoRequested();
         CHECK(
             editor.holds() ==
             std::vector{unnamedHold(at(3, 1), at(3, 4)), unnamedHold(at(3, 4), at(4, 2))});
-        CHECK(editor.entries() == entries + 1);
-
         editor.controller.onUndoRequested();
         CHECK(editor.holds() == twoHeldHalves().shape_holds);
     }
@@ -804,17 +805,20 @@ TEST_CASE("Delete on a hold over silence leaves nothing selected", "[core][holds
 }
 
 // The second hold's start is where the first hold's span closes, so removing it would leave the
-// first ending where the same chord strums on and nothing closes: the delete is refused.
+// first ending in the middle of the chord's ring, where nothing closes: the delete is refused.
 TEST_CASE("Delete refuses a hold whose removal unfits its neighbour", "[core][holds]")
 {
     const LogCapture capture;
-    HoldEditor editor{twoHeldHalves()};
+    const std::vector<ShapeHold> holds{
+        unnamedHold(at(3, 1), at(3, 3)), unnamedHold(at(3, 3), at(4, 1))
+    };
+    HoldEditor editor{chartOf({chordAt(at(3, 1), 3, 5, Fraction{1})}, holds)};
     editor.walkDownAt(5.25, 1);
     REQUIRE(editor.selectedHold() == std::optional<std::size_t>{1});
     const std::size_t entries = editor.entries();
 
     editor.deleteSelection();
-    CHECK(editor.holds() == twoHeldHalves().shape_holds);
+    CHECK(editor.holds() == holds);
     CHECK(editor.entries() == entries);
     CHECK(editor.selectedHold() == std::optional<std::size_t>{1});
     const std::string contents = capture.text();

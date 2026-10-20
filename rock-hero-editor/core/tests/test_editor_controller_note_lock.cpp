@@ -324,10 +324,10 @@ TEST_CASE("Scale Tempo under the Note Lock re-engages it on its result", "[core]
     checkHeldFrom(scaled, editor);
 }
 
-// A locked tempo edit can round a hold's notes into a different close: a chord restating its grip a
-// tick after the last one's rings end rounds onto that end, and the restatement carries the span
-// on. The edit writes the hold's new end once, and the lock re-engages on what it wrote, so the
-// next locked edit starts from the rewrite rather than making it, and logging it, again.
+// A locked tempo edit can round two holds together: a none hold starting a tick after another ends
+// rounds onto that end, and the two that now meet are one stretch. The edit writes the merged hold
+// once, and the lock re-engages on what it wrote, so the next locked edit starts from the rewrite
+// rather than making it, and logging it, again.
 TEST_CASE("A locked tempo edit rewrites a shape hold once", "[core][tempo][note-lock]")
 {
     const testing::LogCapture capture;
@@ -346,21 +346,22 @@ TEST_CASE("A locked tempo edit rewrites a shape hold once", "[core][tempo][note-
     }
     common::core::Chart& chart = *song_chart;
     chart.fret_hand_positions.clear();
-    // One chord, then the same chord a tick after its rings end.
-    const common::core::GridPosition restated{
+    // Two none holds a tick apart.
+    const common::core::GridPosition resumed{
         .measure = 1, .beat = 2, .offset = common::core::Fraction{1, 960}
     };
-    chart.notes = {
-        makeTestNote(beatAt(1, 1), 1, 5, common::core::Fraction{1, 4}),
-        makeTestNote(beatAt(1, 1), 2, 7, common::core::Fraction{1, 4}),
-        makeTestNote(restated, 1, 5, common::core::Fraction{1, 4}),
-        makeTestNote(restated, 2, 7, common::core::Fraction{1, 4}),
+    chart.shape_holds = {
+        common::core::ShapeHold{
+            .start = beatAt(1, 1),
+            .end = beatAt(1, 2),
+            .grip = common::core::NoneGrip{},
+        },
+        common::core::ShapeHold{
+            .start = resumed,
+            .end = beatAt(1, 3),
+            .grip = common::core::NoneGrip{},
+        },
     };
-    chart.shape_holds = {common::core::ShapeHold{
-        .start = beatAt(1, 1),
-        .end = beatAt(1, 2),
-        .grip = common::core::UnnamedGrip{},
-    }};
     DenseNoteLockEditor editor{std::move(song)};
     const auto conversions_logged = [&capture] {
         const std::string text = capture.text();
@@ -378,18 +379,18 @@ TEST_CASE("A locked tempo edit rewrites a shape hold once", "[core][tempo][note-
         return held.has_value() ? held->shape_holds : std::vector<common::core::ShapeHold>{};
     };
 
-    // Half the tempo halves every place: the restatement's tick rounds onto the rings' end.
+    // Half the tempo halves every place: the second hold's start rounds onto the first's end.
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "80");
-    const std::vector<common::core::ShapeHold> extended{common::core::ShapeHold{
+    const std::vector<common::core::ShapeHold> merged{common::core::ShapeHold{
         .start = beatAt(1, 1),
         .end = beatAt(1, 2),
-        .grip = common::core::UnnamedGrip{},
+        .grip = common::core::NoneGrip{},
     }};
-    CHECK(holds() == extended);
+    CHECK(holds() == merged);
     CHECK(conversions_logged() == 1);
 
-    // A slower tempo still would round the restatement onto the end again from the content as it
-    // stood at lock-on; from the rewritten content there is nothing left to rewrite.
+    // A slower tempo still would round the two together again from the content as it stood at
+    // lock-on; from the rewritten content there is nothing left to rewrite.
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
     CHECK(conversions_logged() == 1);
     REQUIRE(holds().size() == 1);
