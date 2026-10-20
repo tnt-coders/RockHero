@@ -5,6 +5,10 @@ describe the import as it stands when this plan is written; re-read
 `rock-hero-editor/core/src/project/gp_chart_builder.cpp`, `docs/design/rulesets/gp-import-rules.md`
 and the corpus census before acting on any of it, and re-measure every number.
 
+**Priority (user, 2026-10-19):** let-ring import is the app's BIGGEST correctness pain point. Span
+derivation and hold authoring now read fairly correct, and what they derive from is the ring the
+import wrote. This plan is the first correctness work to pick up once the active plans allow it.
+
 ## Purpose
 
 The GP import figure law (`letRingFigureEnds`) decides how long every let-ring-marked note rings.
@@ -15,11 +19,47 @@ collects the places where the estimate reads wrong on sighting, and asks, for ea
 should say instead.
 
 Every proposed refinement is judged by one test: does it improve the estimate across the corpus?
-The evidence is sightings, counts and cross-voice context, never conformance to a player. Guitar
+The evidence is a hand-authored ground truth (next section), backed by sightings, counts and
+cross-voice context, never conformance to a player. Guitar
 Pro's manual (a let-ring note rings until a note on its own string or a rest) and alphaTab's player
 (`MidiFileGenerator`, `_getNoteDuration`: the same rule per voice, capped one bar from the note's
 own onset) serve only as a comparison that locates the disagreements. They are called "the
 reference" below.
+
+## Ground truth: the user authors the rings, the rule is fitted to them
+
+Sightings and counts locate where the law and the reference disagree. Neither one says which is
+right, and that is why the arms below are still open questions. The plan therefore starts with a
+ground truth. It runs before any arm is ruled, and every arm is measured against it.
+
+1. **Select.** The user picks a few songs whose let-ring usage covers the arms below: arpeggiated
+   chords split across voices (figure L), open-string drones (c), fretted rings that cross a
+   grip change (b), tied let-ring chains (d), and rests inside and after marked runs (a). A
+   picked run under let ring belongs in the set as well.
+2. **Import and author.** Import each song with the current law. In the editor, the user sets
+   every marked note's ring to what the player's hand actually does, using the recording and the
+   instrument as reference rather than the GP mark. Each song records the bar range the user
+   reviewed. Inside that range, an untouched ring counts as confirmed correct. Outside it, a
+   ring counts as nothing. This keeps the import from biasing the truth by default.
+3. **Store.** The authored packages and their reviewed ranges are kept under the corpus firewall:
+   in the local sightings folder beside `letring-import-sightings.md`, never in git.
+4. **Diff.** For each marked ring, compare the imported end with the authored one. Classify every
+   disagreement by direction (long or short) and by the event that ended the imported ring: the
+   figure anchor, the open-string phrase lift, the tie extension, the horizon cap, a same-string
+   restrike, or a rest the law sailed through. Measure the derived spans the same way, since
+   spans are where a wrong ring shows.
+5. **Fit a rule.** Score each candidate against the truth: the current law, the reference, each
+   arm's variant, and their combinations. The scores are exact-ring agreement (on the import's
+   1/3840 lattice), mean end error in beats, and span agreement. A candidate may read only what
+   the GP file states, because that is all the importer has. Fit on some songs and check on the
+   rest, so that the rule describes let ring in general rather than the chosen bars.
+6. **Corpus check.** Re-run the corpus census with the winning rule. Every change the rule makes
+   outside the authored songs is a new sighting to check by eye, not a confirmed improvement.
+
+The outcome may be that no rule built from GP data alone reaches the authored truth on some
+figure. That result is still a finding: it marks where let ring needs authoring, or the explicit
+let-ring notation the watch item "Imported let-ring after the figure law" holds in reserve,
+rather than a better import.
 
 ## What is already known to be right
 
