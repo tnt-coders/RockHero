@@ -1179,6 +1179,80 @@ TEST_CASE(
     }
 }
 
+// Shape rule 5's too-few rule is publication's: a dyad picked apart while its other note rings
+// sounds in parts from its stroke, and a third member arriving under it makes the whole figure one
+// arpeggio from that stroke. The Lead bar 37 figure: string 4 fret 5 and string 3 fret 10 struck on
+// 1:1, string 4 re-picked on 1:2 and 1:3, and the open string 2 on 1:2.5 under the 10.
+TEST_CASE("A dyad picked apart grows to the arpeggio it was the first stroke of", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 4, 5, Fraction{1, 4}),
+        noteAt(1, Fraction{}, 3, 10, Fraction{3, 4}),
+        noteAt(2, Fraction{}, 4, 5, Fraction{1, 4}),
+        noteAt(2, Fraction{1, 2}, 2, 0, Fraction{3, 8}),
+        noteAt(3, Fraction{}, 4, 5, Fraction{1, 4}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{});
+    CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+    CHECK(derived.shapes[0].sounds_in_parts);
+    CHECK(memberCount(derived, 0) == 3);
+    const std::vector<std::optional<ChartStop>>& grip = derivedStops(derived, 0);
+    CHECK(grip[1] == std::optional{fretStop(0)});
+    CHECK(grip[2] == std::optional{fretStop(10)});
+    CHECK(grip[3] == std::optional{fretStop(5)});
+    CHECK(arpeggiosFrom(notes) == std::vector<bool>{true});
+    everySpanIsPositive(derived);
+}
+
+// The same rule's other arm: a dyad picked apart that never grows to three is no arpeggio, so it
+// is published as the box its stroke stated, closing at the first re-pick, and the parts after it
+// publish nothing.
+TEST_CASE("A dyad picked apart that never grows is the box it was struck as", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 4, 5, Fraction{1, 4}),
+        noteAt(1, Fraction{}, 3, 10, Fraction{3, 8}),
+        noteAt(2, Fraction{}, 4, 5, Fraction{1, 4}),
+        noteAt(3, Fraction{}, 4, 5, Fraction{1, 4}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{});
+    CHECK(derived.shapes[0].sustain == Fraction{1, 4});
+    CHECK(derived.shapes[0].closing_onset_place == std::optional{Fraction{1, 4}});
+    // The opening stroke is the box's only statement; the re-pick at the turn is its head.
+    CHECK(derived.shapes[0].stated_extent == Fraction{});
+    CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+    CHECK(memberCount(derived, 0) == 2);
+    CHECK(arpeggiosFrom(notes) == std::vector<bool>{false});
+    everySpanIsPositive(derived);
+}
+
+// The too-few rule asks how the hand's own strokes sounded the grip, not whether a part fell
+// inside it: a dyad born in parts, its stroke absorbed by the re-pick under its rings, that closes
+// before that re-pick is still a grip of two, published as the box over its whole extent.
+TEST_CASE("A dyad born in parts that closes before its first part is a box", "[core][chart]")
+{
+    // String 3 fret 7 and the open string 2 struck on 1:1, string 3 ringing to 1:2 and string 2
+    // dying a sixteenth later, before its re-pick on 1:1.5 under string 3's ring.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 3, 7, Fraction{1, 4}),
+        noteAt(1, Fraction{}, 2, 0, Fraction{1, 16}),
+        noteAt(1, Fraction{1, 2}, 2, 0, Fraction{1, 8}),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes[0].place == Fraction{});
+    CHECK(derived.shapes[0].sustain == Fraction{1, 16});
+    CHECK_FALSE(derived.shapes[0].closing_onset_place.has_value());
+    CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+    CHECK(memberCount(derived, 0) == 2);
+    CHECK(arpeggiosFrom(notes) == std::vector<bool>{false});
+    everySpanIsPositive(derived);
+}
+
 TEST_CASE("Chart shape arrival brackets a span its members sound in parts", "[core][chart]")
 {
     // A three-string shape struck whole, then two of its three struck again a quarter later. What
@@ -7326,6 +7400,78 @@ TEST_CASE("A held span of fewer than three members is an arpeggio in parts", "[c
         REQUIRE(held.resolutions.shapes.size() == 1);
         CHECK_FALSE(held.resolutions.shapes[0].sounds_in_parts);
         CHECK(held.resolutions.arrivals == std::vector<bool>{false});
+    }
+}
+
+// A hold makes a grip of two an arpeggio only where it turns to parts inside the hold (shape rules
+// 5 and 9): a turn at or past the hold's end is judged as it would be unheld, so a dyad that never
+// grows is published as the box its stroke stated, closing at the turn.
+TEST_CASE("A hold keeps a dyad's arpeggio only for a turn inside it", "[core][chart]")
+{
+    // String 4 fret 5 and string 3 fret 10 struck on 1:1, string 4 dying into its re-pick on 1:2
+    // while string 3 rings to 1:3.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(1, 1), 4, 5, Fraction{1, 4}),
+        noteAt(gridAt(1, 1), 3, 10, Fraction{1, 2}),
+        noteAt(gridAt(1, 2), 4, 5, Fraction{1, 4}),
+    });
+
+    SECTION("a hold ending at the re-pick is the box, and the re-pick publishes nothing")
+    {
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].hold_stated);
+        CHECK(held.resolutions.shapes[0].place == Fraction{});
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
+        CHECK_FALSE(held.resolutions.shapes[0].sounds_in_parts);
+        CHECK(held.resolutions.arrivals == std::vector<bool>{false});
+        CHECK(held.fits[0]);
+    }
+
+    SECTION("a hold over the re-pick turns the dyad inside it, an arpeggio")
+    {
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(1, 3))});
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].hold_stated);
+        CHECK(held.resolutions.shapes[0].place == Fraction{});
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+        CHECK(held.resolutions.shapes[0].sounds_in_parts);
+        CHECK(held.resolutions.arrivals == std::vector<bool>{true});
+        CHECK(held.fits[0]);
+    }
+
+    SECTION("a whole restatement past the hold's end opens its own box")
+    {
+        // The dyad rings past an eighth-note hold and is restruck whole on 1:2, a stroke absorbed
+        // by string 4 re-picked under string 3's ring on 1:2.5. Past the hold the whole
+        // restatement of a grip too small for parts breaks the held span, a box closing on 1:2,
+        // and opens its own span born in parts; it never grows, so it is published as the box up
+        // to its first part.
+        const Held held = deriveUnder(
+            streamOf({
+                noteAt(gridAt(1, 1), 4, 5, Fraction{1, 4}),
+                noteAt(gridAt(1, 1), 3, 10, Fraction{1, 4}),
+                noteAt(gridAt(1, 2), 4, 5, Fraction{1, 4}),
+                noteAt(gridAt(1, 2), 3, 10, Fraction{1, 4}),
+                noteAt(gridAt(1, 2, Fraction{1, 2}), 4, 5, Fraction{1, 8}),
+            }),
+            {holdOver(gridAt(1, 1), gridAt(1, 1, Fraction{1, 2}))});
+        REQUIRE(held.resolutions.shapes.size() == 2);
+        const ChartShape& box = held.resolutions.shapes[0];
+        CHECK(box.hold_stated);
+        CHECK(box.place == Fraction{});
+        CHECK(box.sustain == Fraction{1, 4});
+        CHECK(box.stated_extent == Fraction{});
+        CHECK(box.closing_onset_place == std::optional{Fraction{1, 4}});
+        CHECK_FALSE(box.sounds_in_parts);
+        const ChartShape& restatement = held.resolutions.shapes[1];
+        CHECK_FALSE(restatement.hold_stated);
+        CHECK(restatement.place == Fraction{1, 4});
+        CHECK(restatement.sustain == Fraction{1, 8});
+        CHECK(restatement.stated_extent == Fraction{});
+        CHECK(restatement.closing_onset_place == std::optional{Fraction{3, 8}});
+        CHECK_FALSE(restatement.sounds_in_parts);
+        CHECK(held.resolutions.arrivals == std::vector<bool>{false, false});
     }
 }
 

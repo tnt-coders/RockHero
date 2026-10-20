@@ -1,3 +1,7 @@
+// The chart's shape spans — chord boxes and arpeggio brackets — derived from the notes by one walk
+// over the fretting hand's statements. The law this file implements is the shape rules,
+// docs/design/rulesets/shape-rules.md; every "shape rule N" below cites that document.
+
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -35,8 +39,7 @@ namespace
 // opens at a statement and runs forward from it: nothing is ever dated back, so the walk never
 // asks what the hand was doing before the instant it stands at.
 //
-// The law this file implements is the shape rules (docs/design/rulesets/shape-rules.md), whose
-// rules 1 to 4 are the grip-tenure law.
+// Shape rules 1 to 4 are the grip-tenure law.
 // =================================================================================================
 
 // The member statement threshold: two stops stated at one slot are a grip (shape rule 1). Chord
@@ -50,9 +53,10 @@ constexpr std::size_t g_span_member_threshold = 2;
 // above.
 constexpr std::size_t g_accumulation_member_minimum = 3;
 
-// The fewest members a derived span sounds in parts with (shape rules 3 and 5): a grip of one or
-// two stops never turns to parts, since a bracket over two strings states nothing its boxes do
-// not, so a partial sounding of it breaks it like any box.
+// The fewest members a derived span sounds in parts with (shape rule 5): a bracket over two
+// strings states nothing its boxes do not. Asked at PUBLICATION, since a grip picked apart may yet
+// grow to three: one that never does is published as the box it was struck as, closing where the
+// picking began.
 constexpr std::size_t g_parts_member_minimum = 3;
 
 // Whether a grip is too small to sound in parts (\ref g_parts_member_minimum).
@@ -224,6 +228,14 @@ struct HoldTenure
 // The span being held open. Slim on purpose: the EVIDENCE lives in the hand table, so what a span
 // carries is only its statement — which strings at which stops, and the handful of facts published
 // at emit that only the walk's own passage through the slots can know.
+// The slot a span's own strokes first sounded its grip in parts at, with the last instant an event
+// had stated the span before it (empty where the opening stroke was the only statement).
+struct SpanTurn
+{
+    Fraction place{};
+    std::optional<Fraction> stated_before{};
+};
+
 struct OpenSpan
 {
     Fraction front_place{};
@@ -248,6 +260,11 @@ struct OpenSpan
     // The hand's OWN strokes have sounded this grip in parts. Read through \ref inParts beside
     // the carried members, which make the figure sound in parts too.
     bool struck_in_parts{false};
+
+    // Where the hand's own strokes first sounded this grip in parts; empty while they never have.
+    // Publication's too-few rule closes a grip that never grew to three members at the turn
+    // (shape rule 5), stated through the instant before it.
+    std::optional<SpanTurn> turned{};
 
     // Whether this span is a span at all (shape rule 1): its own members met a threshold — two
     // stops stated at one slot, or three own members sounding at one instant — or a shape hold or
@@ -677,16 +694,39 @@ ChartShapes deriveChartShapes(
             return;
         }
         const Fraction reach = span_reach(*open);
-        const Fraction end = close_place.has_value() ? std::min(reach, *close_place) : reach;
+        Fraction end = close_place.has_value() ? std::min(reach, *close_place) : reach;
         // The closing head is the fretting-hand strike standing at the close, whichever path closed
         // the span there — a break, a wall, a landing or a carried member's death at that slot —
         // and only where the statement was still live: one that had already run out, its reach
         // strictly before the close, owes its rails no distance to a head that arrived after it
         // ended. A slot of held fingers or bare taps states no new grip and is no head.
-        const std::optional<Fraction> head = close_place.has_value() && !(reach < *close_place) &&
-                                                     *close_place == slot.place && slot.struck > 0
-                                                 ? close_place
-                                                 : std::nullopt;
+        std::optional<Fraction> head = close_place.has_value() && !(reach < *close_place) &&
+                                               *close_place == slot.place && slot.struck > 0
+                                           ? close_place
+                                           : std::nullopt;
+        // THE TOO-FEW RULE (shape rule 5), asked here because a grip picked apart may yet have
+        // grown to three: a span that never did is no arpeggio, so it is published as the box its
+        // stroke stated — closing at the strike that began picking it apart (its head), the parts
+        // after that unpublished, where such a strike fell inside it; whole to its close where the
+        // parts that absorbed its stroke never fell inside it. Inside its shape hold a span is an
+        // arpeggio at any member count (shape rule 9), so a grip sounding in parts from an instant
+        // inside the hold is exempt; past the hold's end the span runs on as it derives unheld,
+        // and a turn there is judged like any other.
+        // Bound once so the presence tests and the reads are provably the same objects.
+        const std::optional<SpanTurn>& turned = open->turned;
+        const std::optional<HoldTenure>& hold = open->hold;
+        const Fraction parts_from = turned.has_value() ? turned->place : open->front_place;
+        const bool held_in_parts =
+            hold.has_value() && open->struck_in_parts && parts_from < hold->end;
+        const bool too_few_in_parts =
+            open->struck_in_parts && !held_in_parts && tooFewForParts(open->stops);
+        std::optional<Fraction> last_stated = open->last_stated_place;
+        if (too_few_in_parts && turned.has_value() && turned->place < end)
+        {
+            end = turned->place;
+            head = end;
+            last_stated = turned->stated_before;
+        }
         // SHAPE RULE 4's emit test for the one onset-less span: a landing span is emitted if an
         // event ever stated it, or its tenure STRICTLY EXCEEDS the distinguishability quantum kept
         // before the closing head — the chord name never flickers for a sliver. A close with no
@@ -734,12 +774,12 @@ ChartShapes deriveChartShapes(
         ChartShape shape{
             .place = open->front_place,
             .sustain = end - open->front_place,
-            .stated_extent = std::min(open->last_stated_place.value_or(open->front_place), end) -
-                             open->front_place,
+            .stated_extent =
+                std::min(last_stated.value_or(open->front_place), end) - open->front_place,
             .closing_onset_place = head,
             // Indexed below, once the span is known to be published.
             .posture = 0,
-            .sounds_in_parts = inParts(*open),
+            .sounds_in_parts = inParts(*open) && !too_few_in_parts,
             .landing_opened = open->landing_opened,
             .bracket_place = open->bracket_place,
             .hold_stated = open->hold.has_value(),
@@ -904,6 +944,11 @@ ChartShapes deriveChartShapes(
             .last_stated_place =
                 stated.has_value() && boundary < *stated ? stated : std::optional<Fraction>{},
             .struck_in_parts = open->struck_in_parts,
+            // The remainder keeps the hand's in-parts verdict, so it is in parts from its front.
+            .turned =
+                open->struck_in_parts
+                    ? std::optional<SpanTurn>{{.place = boundary, .stated_before = std::nullopt}}
+                    : std::nullopt,
             .founded = open->founded,
             .landing_opened = false,
             .hold = std::nullopt,
@@ -1028,6 +1073,7 @@ ChartShapes deriveChartShapes(
                 .bracket_place = std::nullopt,
                 .last_stated_place = std::nullopt,
                 .struck_in_parts = false,
+                .turned = std::nullopt,
                 .founded = founded,
                 .landing_opened = true,
                 .hold = std::nullopt,
@@ -1229,6 +1275,7 @@ ChartShapes deriveChartShapes(
                     .bracket_place = slot.place,
                     .last_stated_place = std::nullopt,
                     .struck_in_parts = false,
+                    .turned = std::nullopt,
                     .founded = true,
                     .landing_opened = false,
                     .hold = tenure,
@@ -1720,8 +1767,8 @@ ChartShapes deriveChartShapes(
         // growth by a string the span never stated, a stroke that does not state the whole grip
         // standing alone, or a partial slide, turns a never-in-parts span in place. A member
         // travelling turns nothing: a chord slide with transit picks is chord frames joined by
-        // slide lines, never an arpeggio bracket. A derived grip too small for parts turns only to
-        // break: its partial sounding breaks it below, like any box's.
+        // slide lines, never an arpeggio bracket. A grip too small for parts turns like any other:
+        // whether it grew to three is publication's question (\ref OpenSpan::turned).
         //
         // Growth, the whole-grip comparison and the absorption are asked only of a span that
         // already holds a stop of its own. A shape hold's span opens at the hold's start holding at
@@ -1753,6 +1800,7 @@ ChartShapes deriveChartShapes(
 
         bool unison_restatement = false;
         bool partial_sounding = false;
+        bool small_grip_restated = false;
         if (standing && !hand_conflict && !notation_contradiction)
         {
             std::size_t stated_count = 0;
@@ -1816,12 +1864,13 @@ ChartShapes deriveChartShapes(
             partial_sounding =
                 partial_sounding || (partial_slide && touched_stated > 0 && !inParts(*open) &&
                                      open->last_stated_place.has_value() && !member_travelling);
-            // A derived grip too small for parts is a box to the end: where it would turn, it
-            // breaks — once it IS a span. Below the thresholds a span is still accumulating, and
-            // growth is how it comes to be one, so an unfounded pair turns like any grip. Inside a
-            // shape hold the break is notation and the span turns instead (shape rule 9).
-            partial_sounding =
-                partial_sounding || (turns_to_parts && open->founded && tooFewForParts(grown));
+            // A WHOLE stroke restating a grip too small for parts is a new statement of the box,
+            // never a turn of the one before it: where the parts under its rings absorb it, the
+            // chain breaks here and the stroke opens its own span, born in parts (shape rule 5). A
+            // partial stroke turns such a grip instead, since it may yet grow to three — which is
+            // publication's question (\ref OpenSpan::turned).
+            small_grip_restated =
+                turns_to_parts && restates_whole && open->founded && tooFewForParts(grown);
         }
 
         // ---- 4. DISPOSE: continue / grow / break-and-maybe-open ------------------------------
@@ -1831,7 +1880,8 @@ ChartShapes deriveChartShapes(
         // travelling span there (shape rule 4): fingers travelling together carry the statement,
         // and a glide is not the figure growing.
         const bool notation_split = notation_contradiction || unison_restatement ||
-                                    partial_sounding || (grows && member_travelling);
+                                    partial_sounding || small_grip_restated ||
+                                    (grows && member_travelling);
         // Inside its shape hold a span breaks on a hand conflict alone; every notation split is
         // suppressed there (shape rule 9).
         if (standing && !hand_conflict && !(notation_split && !insideHold(*open, slot.place)))
@@ -1887,15 +1937,21 @@ ChartShapes deriveChartShapes(
             }
             if (slot.struck > 0)
             {
-                open->last_stated_place = slot.place;
                 // Live only for the spans the character splits exclude — a landing successor's
                 // FIRST sounding, growth by strings the span never stated, the ABSORBED whole-grip
                 // stroke the span flows through, and every turn a shape hold keeps the span whole
                 // across — whose class still turns in place, for every way a statement divides
                 // (the turn, above). The mid-slide protection — the span RIDES the transit, per
                 // member, and closes at the landing — is the span-shape half, and it stands above.
-                // A derived grip too small for parts never reaches here turned: it broke above.
+                // The first slot sounding the grip in parts is recorded with the statement before
+                // it, which is where publication closes a grip that never grows to three.
                 open->struck_in_parts = open->struck_in_parts || turns_to_parts;
+                if (open->struck_in_parts && !open->turned.has_value())
+                {
+                    open->turned =
+                        SpanTurn{.place = slot.place, .stated_before = open->last_stated_place};
+                }
+                open->last_stated_place = slot.place;
                 if (!open->bracket_place.has_value())
                 {
                     open->bracket_place = slot.place;
@@ -1937,11 +1993,10 @@ ChartShapes deriveChartShapes(
                 // held strings stay — and so is a stroke ABSORBED by the parts sounding under its
                 // rings (the absorption rule): the parts are what the figure turns out to be, so
                 // the bracket covers the stroke rather than a one-slot box standing in front of
-                // it. A derived grip too small for parts is never born in them: its stroke stands
-                // as a box, and a partial sounding breaks it. The carried members make the figure
-                // sound in parts beside the hand's own verdict (\ref inParts).
-                const bool whole_stroke =
-                    tooFewForParts(stops) || (!partial_slide && chord_statement_stands);
+                // it — a two-stop stroke included, since the grip may yet grow to three (the
+                // too-few rule is publication's). The carried members make the figure sound in
+                // parts beside the hand's own verdict (\ref inParts).
+                const bool whole_stroke = !partial_slide && chord_statement_stands;
                 std::vector<bool> carried_in = carry_into(stops, slot.place);
                 open = OpenSpan{
                     .front_place = slot.place,
@@ -1949,6 +2004,7 @@ ChartShapes deriveChartShapes(
                     .bracket_place = slot.place,
                     .last_stated_place = slot.place,
                     .struck_in_parts = !whole_stroke,
+                    .turned = std::nullopt,
                     .founded = foundsSpan(stated, stated),
                     .landing_opened = false,
                     .hold = std::nullopt,

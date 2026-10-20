@@ -196,8 +196,13 @@ takes the next one.
        sounding turns its class in place. A member mid-travel blocks both splits and the class
        turn, because a glide is not the figure coming apart. A span already in parts rides its
        partials unchanged.
-     - **A published span too small for parts breaks where it would turn** (rule 5), as any box
-       breaks at a partial sounding, and what follows is judged by the opening law.
+     - **A span too small for parts turns at a partial stroke like any other, and publication
+       judges it** (rule 5): one that never grew to three members is published as the box its
+       stroke stated — closing at the strike that began picking it apart and stated through the
+       instant before it, the parts after that unpublished, where such a strike fell inside it;
+       whole to its close where the parts that absorbed its stroke never did. A WHOLE stroke restating such a
+       grip is a new statement of the box, never a turn of the one before: where the parts under
+       its rings absorb it, the chain breaks there and the stroke opens its own span, born in parts.
    - **The close is the earlier of the reach and the event that ended the span**: the closing
      event's own instant, or the span's reach where its statement simply ran out. It is stored as
      the musical close (`ChartShape::sustain`), with no display margin in it (rule 6). The reach is
@@ -324,10 +329,13 @@ takes the next one.
    - **A right-hand onset sounding within the span**, from its front up to its musical close, makes
      it an arpeggio: the fretting hand holds the shape while the other hand sounds above it. This is
      the one trigger `chartShapeArrivals` derives itself, because it asks about the span's extent.
-   - **A derived span of fewer than three members is never an arpeggio.** It is never born in
-     parts, never turns to parts and is no arpeggio under the other hand: a bracket over two
-     strings states nothing its boxes do not. Where a sounding would turn it, it breaks instead
-     (rule 3). **A span an unnamed hold states is an arpeggio whenever it sounds in parts, at any
+   - **A derived span of fewer than three members is never an arpeggio**: a bracket over two
+     strings states nothing its boxes do not. The rule is asked at publication, because a pair
+     picked apart may yet grow to three — a dyad struck and then picked while its other note
+     rings is born in parts like any absorbed stroke, and is the arpeggio from its stroke once a
+     third member joins. One that never grew is published as the box its stroke stated, closing
+     where the picking began, and its parts publish nothing (rule 3); it is no arpeggio under the
+     other hand either. **A span an unnamed hold states is an arpeggio whenever it sounds in parts, at any
      member count**, and a box only while every sounding of it is the shape struck whole, since a
      chord span strictly means notes struck together and ringing together: the hold itself says one
      shape is held there, so the bracket states what the boxes cannot. The held exception is
