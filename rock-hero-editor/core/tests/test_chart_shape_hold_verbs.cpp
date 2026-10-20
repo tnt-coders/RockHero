@@ -542,46 +542,64 @@ TEST_CASE("Ctrl+H over a time selection holds exactly the selection", "[core][ho
     }
 }
 
-// An authored position at 1:3 on fret 10 covers string 3's fret 12 struck there. A hold over
-// [1:1, 1:4) carries the 1:1 box's frets 5 and 7 through 1:3, where the position's window does not
-// cover them: the refusal names the position and every stop it misses, "frets 5 and 7 gripped from
-// 1:1", and lights them all — the chip and both notes of the box — not the selection as such.
-TEST_CASE("A hold an authored position would not cover lights the position", "[core][holds]")
+// A bar of the box at 1:1 (frets 5 and 7) and fret 12 on string 3 at 1:3, each a quarter, played
+// twice, with an authored position at each 12 on fret 10, which covers it. A position is downstream
+// of the notes and the holds, so an edit that leaves the 1:3 one uncovering lands, and the position
+// is dropped into the edit's own undo entry and logged with every stop it missed, while the 2:3 one
+// stays: a hold over [1:1, 1:4) carries the box through 1:3, and the 1:3 ring lengthened to 2:2
+// carries into the 2:1 box, fronting one span at 1:3 that grips the box's frets from there.
+TEST_CASE("An edit drops the authored position it leaves uncovering", "[core][holds]")
 {
     const LogCapture capture;
-    common::core::Chart chart =
-        chartOf({chordAt(at(1, 1), 5, 7), {makeTestNote(at(1, 3), 3, 12, Fraction{1, 4})}});
-    chart.fret_hand_positions = {
-        common::core::FretHandPosition{.position = at(1, 3), .fret = 10, .end_fret = std::nullopt}
+    const auto floor_ten = [](const GridPosition& place) {
+        return common::core::FretHandPosition{
+            .position = place, .fret = 10, .end_fret = std::nullopt
+        };
     };
-    HoldEditor editor{std::move(chart)};
+    common::core::Chart chart = chartOf(
+        {chordAt(at(1, 1), 5, 7),
+         {makeTestNote(at(1, 3), 3, 12, Fraction{1, 4})},
+         chordAt(at(2, 1), 5, 7),
+         {makeTestNote(at(2, 3), 3, 12, Fraction{1, 4})}});
+    chart.fret_hand_positions = {floor_ten(at(1, 3)), floor_ten(at(2, 3))};
+    HoldEditor editor{chart};
     const std::size_t entries = editor.entries();
     const std::size_t flashes = editor.view.refusal_flashes.size();
+    std::string dropped_line;
 
-    editor.selectTime(0.0, 3);
-    editor.holdShape();
-    CHECK(editor.holds().empty());
-    CHECK(editor.entries() == entries);
+    SECTION("a hold carrying the box through the position")
+    {
+        editor.selectTime(0.0, 3);
+        editor.holdShape();
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(1, 4))});
+        dropped_line = "dropped at hand position 1:3 (frets 5 and 7 gripped from 1:1)";
+    }
+
+    SECTION("a ring lengthened through the next downbeat")
+    {
+        // The 1:3 head on string 3 (makeGeometry: 20 px a second, string 3's lane at y = 140).
+        click(editor.controller, 20.0f, 140.0f);
+        REQUIRE(editor.state().chart_edit.selected_notes == std::vector<std::size_t>{2});
+        editor.controller.onChartSustainAdjustRequested(1);
+        editor.controller.onChartSustainAdjustRequested(1);
+        CHECK(editor.chart().notes[2].sustain == Fraction{3, 4});
+        // The run reports what it rewrote once it ends, which a caret move does.
+        editor.armAt(8.0);
+        dropped_line = "dropped at hand position 1:3 (frets 5 and 7 gripped from 1:3)";
+    }
+
+    CHECK(editor.chart().fret_hand_positions == std::vector{floor_ten(at(2, 3))});
+    CHECK(editor.entries() == entries + 1);
+    CHECK(editor.view.refusal_flashes.size() == flashes);
     const std::string contents = capture.text();
     INFO(contents);
-    CHECK(
-        contents.find("hand position 1:3 does not cover frets 5 and 7 gripped from 1:1") !=
-        std::string::npos);
+    CHECK(contents.find(dropped_line) != std::string::npos);
+    CHECK(contents.find("hand position 2:3") == std::string::npos);
 
-    REQUIRE(editor.state().tab != nullptr);
-    const std::vector<common::core::FhpViewState>& chips = editor.state().tab->fret_hand_positions;
-    std::optional<std::size_t> chip;
-    for (std::size_t index = 0; index < chips.size(); ++index)
-    {
-        if (chips[index].position == at(1, 3))
-        {
-            chip = index;
-        }
-    }
-    REQUIRE(chip.has_value());
-    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
-    CHECK(editor.view.refusal_flashes.back().fret_hand_position == chip);
-    CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 1});
+    editor.controller.onUndoRequested();
+    CHECK(editor.chart().fret_hand_positions == chart.fret_hand_positions);
+    CHECK(editor.chart().notes == chart.notes);
+    CHECK(editor.holds().empty());
 }
 
 // Ctrl+H over selected notes runs from the first onset to the last ring's end.

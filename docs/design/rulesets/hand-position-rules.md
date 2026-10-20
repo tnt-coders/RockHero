@@ -11,7 +11,8 @@ The rules are implemented in `rock-hero-common/core/src/chart/chart_fret_hand.cp
 `chart_fret_hand.h`: `fretHandDemands` gathers what the notes demand (rules 1, 2, 6, 12 and 13),
 `deriveFretHandEvents` walks those demands into windows (rules 3 and 5 to 11, the slide rule and the
 authored positions), and `deriveFretHandRides` adds the slide-out rides. The coverage rule is
-`validateFretHandCoverage` in `chart_rules.h`.
+`uncoveringFretHandPositions` in `chart_rules.h`, which `dropUncoveringFretHandPositions` and
+`validateFretHandCoverage` apply.
 
 Each rule was measured against a corpus of professionally authored hand positions before it was
 adopted; the measurements, and the rules tried and refused, are recorded in
@@ -109,9 +110,22 @@ always an event, fronting exactly where it stands, and no run crosses it.
 
 An authored position must cover every stop gripped at its place — every fretted onset struck there
 and every hold standing there: each at or above its fret, and at or below its end fret where one is
-stated. An edit that breaks this is refused. Notes after its place never make a position invalid;
-the derivation takes over where they do not fit. (`validateFretHandCoverage`, which reads the same
-`forEachGrippedStop` query the authored window does.)
+stated. Notes after its place never make a position invalid; the derivation takes over where they
+do not fit. (`uncoveringFretHandPositions`, which reads the same `forEachGrippedStop` query the
+authored window does.)
+
+The pipeline runs one way: written notes, then fret-hand positions, then rings, with the holds
+feeding the positions. An authored position is downstream of both the notes and the holds, so:
+
+- **A position is refused where it would not cover the stops gripped at its place.** Adding,
+  moving or retyping a position the notes and holds there contradict states something false, and
+  is refused with the rule's sentence, as a hold that does not fit its notes is refused
+  (`validateFretHandCoverage`).
+- **A note or hold edit that leaves a position uncovering drops it.** The position never refuses
+  an edit to either. After a note edit or a hold edit, as on load, the normalizer drops every
+  authored position that no longer covers the stops gripped at its place, inside the edit's own
+  undo step, and logs each drop with the position and every stop it missed
+  (`dropUncoveringFretHandPositions`).
 
 ## Slide-out rides
 

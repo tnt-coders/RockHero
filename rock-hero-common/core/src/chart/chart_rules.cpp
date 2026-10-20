@@ -161,6 +161,30 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
     return listed;
 }
 
+// Every stop a position misses, grouped by where it is gripped from, which the record's order
+// already keeps together: "frets 5 and 7 gripped from 1:1". Each group names its frets and its
+// place once.
+[[nodiscard]] std::string uncoveredStopsText(const UncoveringFretHandPosition& uncovering)
+{
+    std::vector<std::string> groups;
+    for (auto stop = uncovering.stops.begin(); stop != uncovering.stops.end();)
+    {
+        const auto past = std::ranges::find_if_not(
+            stop, uncovering.stops.end(), [&stop](const UncoveredStop& later) {
+                return later.gripped_from == stop->gripped_from;
+            });
+        std::vector<std::string> frets;
+        std::ranges::transform(stop, past, std::back_inserter(frets), [](const UncoveredStop& one) {
+            return std::to_string(one.fret);
+        });
+        groups.push_back(
+            std::string{frets.size() == 1 ? "fret " : "frets "} + listedInProse(frets) +
+            " gripped from " + formatGridPositionToken(stop->gripped_from));
+        stop = past;
+    }
+    return listedInProse(groups);
+}
+
 } // namespace
 
 void dropNotePath(ChartNote& note)
@@ -411,32 +435,42 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     return uncovering;
 }
 
-// The stops grouped by where they are gripped from, which the record's order already keeps
-// together: each group names its frets and its place once.
+// The position, then every stop it misses.
 ChartError fretHandCoverageError(
     const UncoveringFretHandPosition& uncovering, const std::vector<FretHandPosition>& positions)
 {
-    std::vector<std::string> groups;
-    for (auto stop = uncovering.stops.begin(); stop != uncovering.stops.end();)
-    {
-        const auto past = std::ranges::find_if_not(
-            stop, uncovering.stops.end(), [&stop](const UncoveredStop& later) {
-                return later.gripped_from == stop->gripped_from;
-            });
-        std::vector<std::string> frets;
-        std::ranges::transform(stop, past, std::back_inserter(frets), [](const UncoveredStop& one) {
-            return std::to_string(one.fret);
-        });
-        groups.push_back(
-            std::string{frets.size() == 1 ? "fret " : "frets "} + listedInProse(frets) +
-            " gripped from " + formatGridPositionToken(stop->gripped_from));
-        stop = past;
-    }
     return ChartError{
         .code = ChartErrorCode::InvalidFretHandPosition,
         .message = formatHandPositionToken(positions[uncovering.position].position) +
-                   " does not cover " + listedInProse(groups),
+                   " does not cover " + uncoveredStopsText(uncovering),
     };
+}
+
+// Reported before any erase, so each index still names its position; erased back to front for the
+// same reason.
+std::vector<ChartConversion> dropUncoveringFretHandPositions(
+    const ChartResolutions& notes_layer, std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map)
+{
+    const std::vector<UncoveringFretHandPosition> uncovering =
+        uncoveringFretHandPositions(notes_layer, positions, tempo_map);
+    std::vector<ChartConversion> conversions;
+    conversions.reserve(uncovering.size());
+    for (const UncoveringFretHandPosition& uncovered : uncovering)
+    {
+        conversions.push_back(
+            ChartConversion{
+                .repair = ChartRepair::UncoveringHandPosition,
+                .where = formatHandPositionToken(positions[uncovered.position].position) + " (" +
+                         uncoveredStopsText(uncovered) + ")",
+            });
+    }
+    for (const UncoveringFretHandPosition& uncovered : std::views::reverse(uncovering))
+    {
+        positions.erase(
+            std::next(positions.begin(), static_cast<std::ptrdiff_t>(uncovered.position)));
+    }
+    return conversions;
 }
 
 std::expected<void, ChartError> validateFretHandCoverage(
@@ -941,8 +975,7 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         std::make_move_iterator(settled.end()));
     // The shape holds against the notes as they will stand, then the hand-position coverage rule
     // last, against the spans those holds give and the fitted windows: derived after the sweep,
-    // which can retype a claim. One pass is complete: a position's demands come from the notes and
-    // the holds alone, so dropping one never changes another's verdict.
+    // which can retype a claim.
     ShapeHoldNormalization normal =
         normalizeShapeHolds(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     chart.shape_holds = normal.resolved.shape_holds;
@@ -950,22 +983,12 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
         conversions.end(),
         std::make_move_iterator(normal.conversions.begin()),
         std::make_move_iterator(normal.conversions.end()));
-    const ChartResolutions& resolved = normal.resolved;
-    const std::vector<UncoveringFretHandPosition> uncovering =
-        uncoveringFretHandPositions(resolved, chart.fret_hand_positions, tempo_map);
-    for (const UncoveringFretHandPosition& uncovered : uncovering)
-    {
-        record(
-            {ChartRepair::UncoveringHandPosition},
-            formatHandPositionToken(chart.fret_hand_positions[uncovered.position].position));
-    }
-    for (const UncoveringFretHandPosition& uncovered : std::views::reverse(uncovering))
-    {
-        chart.fret_hand_positions.erase(
-            std::next(
-                chart.fret_hand_positions.begin(),
-                static_cast<std::ptrdiff_t>(uncovered.position)));
-    }
+    std::vector<ChartConversion> dropped =
+        dropUncoveringFretHandPositions(normal.resolved, chart.fret_hand_positions, tempo_map);
+    conversions.insert(
+        conversions.end(),
+        std::make_move_iterator(dropped.begin()),
+        std::make_move_iterator(dropped.end()));
     return conversions;
 }
 

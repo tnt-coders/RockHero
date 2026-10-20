@@ -288,8 +288,9 @@ enum class ChartRepair : std::uint8_t
 
     /*!
     \brief An authored hand position that did not cover a fretted note gripped at its instant was
-    dropped (\ref uncoveringFretHandPositions). Nothing says whether the position or the note is
-    wrong, and the notes alone already derive a window; a converter cannot apply the rule itself.
+    dropped (\ref dropUncoveringFretHandPositions), on load or after a note or hold edit. The
+    position is downstream of the notes and the holds, and the notes alone already derive a window;
+    a converter cannot apply the rule itself.
     */
     UncoveringHandPosition,
 
@@ -643,8 +644,8 @@ with \ref normalizeSustainOverlaps (the one stream-level note rule), applies
 the stream as it will actually stand: \ref sweepUnjustifiedLegato, because a truncated tail can be
 the hold a neighbour's legato claim depended on, then the shape holds (\ref normalizeShapeHolds),
 and last the drop of every authored hand position that breaks the hand-position coverage rule
-(\ref uncoveringFretHandPositions), because its demands read the bounded rings, the spans the holds
-give, and the fitted windows.
+(\ref dropUncoveringFretHandPositions), because its demands read the bounded rings, the spans the
+holds give, and the fitted windows.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
@@ -795,7 +796,7 @@ struct UncoveredStop
 
 /*!
 \brief An authored position that breaks the hand-position coverage rule, with every demand it
-misses: a refusal names them all, so a charter never fixes one to meet the next.
+misses: a refusal or a drop names them all, so a charter never fixes one to meet the next.
 */
 struct UncoveringFretHandPosition
 {
@@ -859,12 +860,34 @@ not cover frets 5 and 7 gripped from 1:1", or across places "… does not cover 
     const UncoveringFretHandPosition& uncovering, const std::vector<FretHandPosition>& positions);
 
 /*!
+\brief Drops every authored position that breaks the hand-position coverage rule
+(\ref uncoveringFretHandPositions), reporting each with every stop it missed.
+
+The coverage half of the normal form. An authored position is downstream of the notes and the
+holds, so it never refuses an edit to either: \ref normalizeChart runs this last on every load, and
+the editor's note and hold gates after every edit they pass. One pass is complete: a position's
+demands come from the notes and the holds alone, so dropping one never changes another's verdict.
+
+\param notes_layer The notes layer of a stream whose every ring is already bounded by the next
+       strike on its string; its capo is the one the demands are read under.
+\param positions Authored positions, strictly ascending; every breaking one is erased, the rest
+       kept in order.
+\param tempo_map Song tempo map placing the notes and the positions.
+\return One \ref ChartRepair::UncoveringHandPosition conversion per dropped position, ascending,
+        placed at the position and naming every stop it missed with where it was gripped from:
+        "hand position 1:3 (frets 5 and 7 gripped from 1:1)". Empty when every position covers.
+*/
+[[nodiscard]] std::vector<ChartConversion> dropUncoveringFretHandPositions(
+    const ChartResolutions& notes_layer, std::vector<FretHandPosition>& positions,
+    const TempoMap& tempo_map);
+
+/*!
 \brief Validates the hand-position coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
 
-\ref validateChartRules asks it last, and the editor's note and placement commits ask it of the
-stream they edit against the other one, so an edit from either side is refused exactly where the
-writer would refuse the result. A load never meets it: \ref normalizeChart drops every breaking
-position first.
+\ref validateChartRules asks it last, and the editor's placement commit asks it of the positions it
+edits, so a position edit is refused exactly where the writer would refuse the result. Neither a
+load nor a note or hold edit meets it: each drops every breaking position first
+(\ref dropUncoveringFretHandPositions).
 
 \param notes_layer The notes layer of a stream whose every ring is already bounded by the next
        strike on its string; its capo is the one the demands are read under.

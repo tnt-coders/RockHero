@@ -296,30 +296,29 @@ never written. A fret-stating point inside an OPEN STRING's tail is refused by c
 **A refusal lights what it names; the reason goes to the log.** Where a key does nothing and the
 screen would not say why, what the refusal names glows in the theme's red, pulsing twice — the
 elements it turned down, or, where another authored thing stands in the way, that culprit instead.
-Every refusal decides its light where it refuses (`ChartPlanInvalid::lit`, a `ChartRefusalLight`
-of notes, keyframes and a fret-hand position's chip): the chip of an authored position that would
-not cover a stop beside every note gripping a stop it misses, the note a move would land on, the ring whose statement an edit would cut off,
-the predecessor a head cannot join, the neighbour hold a push would empty, the stretch a hold
-overruns (a hold lights the notes sounding inside it), else the refused elements themselves. The
-reason is logged beside the subject the verb planned over (the selection, or the operand a
-modifying key took from the caret; a hold verb's label), and only the named notes for a per-note
-verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` /
+Every refusal decides its light where it refuses (`ChartPlanInvalid::lit`, a `ChartRefusalLight` of
+notes, keyframes and a fret-hand position's chip): the note a move would land on, the ring whose
+statement an edit would cut off, the predecessor a head cannot join, the neighbour hold a push would
+empty, the stretch a hold overruns (a hold lights the notes sounding inside it), else the refused
+elements themselves. The reason is logged beside the subject the verb planned over (the selection,
+or the operand a modifying key took from the caret; a hold verb's label), and only the named notes
+for a per-note verb that applied to the rest (`reportChartPlanRefusal` / `reportChartRefusedNotes` /
 `refuseShapeHoldVerb`, all through `flashRefusalLight` in `chart_handlers.cpp`, drawn by
-`TabView::flashRefusal`). Every chart refusal, a refused fret entry's
-included, leaves the one record `RefusalLog::chartEdit` writes,
-`Refused chart edit subject=… detail=…`, so a reason only ever says WHY and the subject always says
-WHAT. A held key or a drag refuses once per event, so `RefusalLog` (`shared/refusal_log.h`, the one
-writer of chart and marker refusals) writes a run of identical records once and counts the rest:
-the run's count line, the record again with `repeats=N` appended, goes out when a different record
-ends the run or the controller goes. A visible bound, such as a move stopping at the next head, is not a refusal and flashes nothing. The ruler flashes too: every refused verb on a section,
-tempo or time-signature chip glows that chip — a tempo-anchor move the Tempo Lock refuses, a meter
-step or delete, a section move off the song's ends or onto another section — through one
-`IEditorView::flashRulerChipRefusal`, which names the chip by its row and its marker's start
-(`RulerChipKey`) and is drawn by `TimelineRuler::flashRulerChipRefusal`. Both surfaces run one
-pulse and one glow
-(`FlashPulse` on `g_refusal_flash_train`, and `paintRefusalGlow`, in `ui/src/shared/flash_pulse.h`);
-the ruler's renumber flash runs on the same `FlashPulse` with a train of its own. The design record
-is `docs/plans/in-progress/refusal-flash.md`.
+`TabView::flashRefusal`). Every chart refusal, a refused fret entry's included, leaves the one
+record `RefusalLog::chartEdit` writes, `Refused chart edit subject=… detail=…`, so a reason only
+ever says WHY and the subject always says WHAT. A held key or a drag refuses once per event, so
+`RefusalLog` (`shared/refusal_log.h`, the one writer of chart and marker refusals) writes a run of
+identical records once and counts the rest: the run's count line, the record again with `repeats=N`
+appended, goes out when a different record ends the run or the controller goes. A visible bound,
+such as a move stopping at the next head, is not a refusal and flashes nothing. The ruler flashes
+too: every refused verb on a section, tempo or time-signature chip glows that chip — a tempo-anchor
+move the Tempo Lock refuses, a meter step or delete, a section move off the song's ends or onto
+another section — through one `IEditorView::flashRulerChipRefusal`, which names the chip by its row
+and its marker's start (`RulerChipKey`) and is drawn by `TimelineRuler::flashRulerChipRefusal`. Both
+surfaces run one pulse and one glow (`FlashPulse` on `g_refusal_flash_train`, and
+`paintRefusalGlow`, in `ui/src/shared/flash_pulse.h`); the ruler's renumber flash runs on the same
+`FlashPulse` with a train of its own. The design record is
+`docs/plans/in-progress/refusal-flash.md`.
 
 **The SPLIT (`Shift+L`) and the CUT (a bare digit or `Insert` inside a ring) divide a ring by ONE
 walk**, `splitNoteIntoProducts` — the split at a selected point, the cut at the caret with a

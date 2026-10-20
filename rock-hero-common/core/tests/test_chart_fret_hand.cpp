@@ -603,7 +603,8 @@ TEST_CASE("A natural harmonic demands the fret nearest its node", "[core][chart]
 // The coverage authority reports every breaking position once, ascending, with every demand it
 // misses, each once, by where it is gripped from and then by fret; a position's verdict reads the
 // notes alone, so its neighbours never change it. The error names them all in one sentence, the
-// stops grouped by where they are gripped from.
+// stops grouped by where they are gripped from, and the drop removes exactly those positions,
+// reporting each with the same groups.
 TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][chart]")
 {
     // The 1:2 position misses fret 3, ringing from 1:1, and fret 2, struck at 1:2 on another
@@ -645,6 +646,18 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
 
     // Without the breaking positions, the one left still passes.
     CHECK(uncoveringFretHandPositions(resolved, {positions[1]}, tempo_map).empty());
+
+    // The drop erases exactly those two, reporting each where it stood with the stops it missed.
+    std::vector<FretHandPosition> kept = positions;
+    const std::vector<ChartConversion> dropped =
+        dropUncoveringFretHandPositions(resolved, kept, tempo_map);
+    CHECK(kept == std::vector{positions[1]});
+    REQUIRE(dropped.size() == 2);
+    CHECK(dropped[0].repair == ChartRepair::UncoveringHandPosition);
+    CHECK(
+        dropped[0].where ==
+        "hand position 1:2 (fret 3 gripped from 1:1 and fret 2 gripped from 1:2)");
+    CHECK(dropped[1].where == "hand position 2:1 (frets 9 and 10 gripped from 2:1)");
 }
 
 // Hand-position rule 1: an open string and a tap constrain nothing; the window is the fretted

@@ -201,8 +201,9 @@ Exemplar: `ChartEditPlan` with the twelve planners — `planInsertNote` /
 `planAdjustSustain` / `planSetLegato` / `planSettleChart` / `planSetAttack` / `planSetNoteFlag` /
 `planSetEmphasis` / `planToggleJunctions` / `planSetVibrato` — applied by `applyChartChange` and
 replayed by `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE
-authored per-string array, the note stream, carrying the shape holds whole where the funnel's hold
-normalizer rewrote them (`ShapeHoldsChange`), and one user gesture is one undo entry.
+authored per-string array, the note stream, carrying the shape holds and the authored positions
+whole where the funnel's normal form rewrote them (`StreamChange`), and one user gesture is one undo
+entry.
 `ChartEditPlan::reversed()` is the single statement of what "backwards" means.
 
 The per-note verbs — `planSetLegato` and every technique write through `planNoteWrite` — return more
@@ -221,31 +222,33 @@ tests.
 
 Every chart-note planner builds a candidate stream in slot order (a new note enters through
 `insertAtSlot`; nothing re-sorts the stream) and funnels it through the shared finalize
-(`finalizePlan` in `chart_edits.cpp`): sustain-overlap normalization, the intra-note strike
-flatten, then the technique-matrix gate — `validateChartNotes`' own questions asked of the
-candidate's *saved* form (`savedChartNote`), refusing the whole plan on any violation — then the
-diff against the chart the plan is expressed against, the shape holds brought to their normal form
-over the candidate (`normalizeShapeHolds`: each hold's end written back where the span walk
-publishes it, a hold left nothing dropped), and the authored positions' coverage of the whole
-candidate (`validateFretHandCoverage`). That chart is the live one for every verb that edits from
-what it finds, and the chart the gesture started from for a gesture, whose plan describes the whole
-run: every press replays from it and normalizes ITS holds, so a press stepping back restores a hold
-an earlier press rewrote. The sustain gesture still reads the LIVE chart for its ring bounds and the
-ring a floored note holds; the move gesture judges nothing against the live chart, so its caller
-simply hands `planMoveSelection` the pre-gesture chart and the one chart argument is both the source
-of the objects and the diff base. Every chart the editor holds is a fixpoint of the gate, so it
-judges only the notes the candidate touched plus the same-string rings their new onsets can shorten
-(the locality rule beside `sustainBoundOf`), in stream order: a keystroke costs what the edit
-touches rather than the song, and the first refusal is the whole walk's. The holds and coverage are
-the whole-stream questions, because a span and a grip are derived from their whole figure and an
-edit can move them far from the notes it touched; both read the one notes layer the normalizer
-derives, which the funnel returns with the diff and the rewrites (`JudgedChartPlan`) so the commit
-seeds the controller's memo with it rather than the projection deriving it again, and logs each
-rewrite once (`reportChartConversions`; a gesture's net conversions once its run ends). A new planner must
-end at the funnel too; skipping it is how a verb authors a chart the document reader would reject. Relational truths deliberately do NOT repair in the funnel:
-a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
-(`planSettleChart`) flattens it in one batch at the burst's end, which is what keeps a burst one
-undo step.
+(`finalizePlan` in `chart_edits.cpp`): sustain-overlap normalization, the intra-note strike flatten,
+then the technique-matrix gate — `validateChartNotes`' own questions asked of the candidate's
+*saved* form (`savedChartNote`), refusing the whole plan on any violation — then the diff against
+the chart the plan is expressed against, the shape holds brought to their normal form over the
+candidate (`normalizeShapeHolds`: each hold's end written back where the span walk publishes it, a
+hold left nothing dropped), and then the drop of every authored position the result no longer covers
+(`dropUncoveringFretHandPositions`): a position is downstream of the notes and the holds, so it
+never refuses a note or hold edit, and the drop rides the plan so undo restores it. That chart is
+the live one for every verb that edits from what it finds, and the chart the gesture started from
+for a gesture, whose plan describes the whole run: every press replays from it and normalizes ITS
+holds and positions, so a press stepping back restores a hold an earlier press rewrote and a
+position it dropped. The sustain gesture still reads the LIVE chart for its ring bounds and the ring
+a floored note holds; the move gesture judges nothing against the live chart, so its caller simply
+hands `planMoveSelection` the pre-gesture chart and the one chart argument is both the source of the
+objects and the diff base. Every chart the editor holds is a fixpoint of the gate, so it judges only
+the notes the candidate touched plus the same-string rings their new onsets can shorten (the
+locality rule beside `sustainBoundOf`), in stream order: a keystroke costs what the edit touches
+rather than the song, and the first refusal is the whole walk's. The holds and the position drop are
+the whole-stream steps, because a span and a grip are derived from their whole figure and an edit
+can move them far from the notes it touched; both read the one notes layer the normalizer derives,
+which the funnel returns with the diff and the rewrites (`JudgedChartPlan`) so the commit seeds the
+controller's memo with it rather than the projection deriving it again, and logs each rewrite once
+(`reportChartConversions`; a gesture's net conversions once its run ends). A new planner must end at
+the funnel too; skipping it is how a verb authors a chart the document reader would reject.
+Relational truths deliberately do NOT repair in the funnel: a connection claim the chart cannot
+justify plays as the pick it sounds like until the settle sweep (`planSettleChart`) flattens it in
+one batch at the burst's end, which is what keeps a burst one undo step.
 
 ## Refuse, never clamp (edits)
 

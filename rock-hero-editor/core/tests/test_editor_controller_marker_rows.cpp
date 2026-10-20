@@ -1,3 +1,5 @@
+#include "log_capture.h"
+
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -14,6 +16,7 @@
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -1951,12 +1954,14 @@ namespace
 } // namespace
 
 // AN AUTHORED POSITION COVERS EVERY FRETTED NOTE GRIPPED AT ITS INSTANT, asked by the placement
-// commit: a move into the ring, or a retyped fret above the note struck there, is refused whole and
-// the chip glows red; a move that keeps every gripped note covered lands.
+// commit: the notes are upstream of the position, so a move into the ring, or a retyped fret above
+// the note struck there, states something false and is refused whole, logged with the coverage
+// sentence, and the chip glows red; a move that keeps every gripped note covered lands.
 TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[core][marker-rows]")
 {
     SECTION("a move into the ring")
     {
+        const testing::LogCapture capture;
         MarkerRowEditor editor{makeMarkerSections(), {}, makeCoverageChart()};
         editor.clickPlacement(0);
         const std::optional<std::size_t> chip = editor.selectedChip();
@@ -1969,6 +1974,9 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
         CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
         REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
         CHECK(editor.view.refusal_flashes.back().fret_hand_position == chip);
+        const std::string contents = capture.text();
+        INFO(contents);
+        CHECK(contents.find("does not cover fret 3 gripped from 2:1") != std::string::npos);
     }
 
     SECTION("a fret above the note struck at its instant")
@@ -2005,11 +2013,11 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
     }
 }
 
-// The same rule asked by the note commit: a note struck at a placement's instant below its fret,
-// or a ring lengthened through it, is refused whole and the placement's chip glows red beside the
-// note gripping the stop it misses — the two things the refusal names; a note the placement covers
-// lands.
-TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][marker-rows]")
+// The same rule after a note edit, which it never refuses: a note struck at a placement's instant
+// below its fret, or a ring lengthened through it, lands, and the placement it leaves uncovering is
+// dropped into the edit's own undo entry, so undo puts both back; a note the placement covers keeps
+// it.
+TEST_CASE("A note edit drops the authored position it leaves uncovered", "[core][marker-rows]")
 {
     SECTION("a note entered below the window")
     {
@@ -2018,8 +2026,13 @@ TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][
         const std::size_t entries_before = editor.undoEntryCount();
 
         editor.controller.onChartFretDigitTyped(3);
+        CHECK(editor.notes().size() == 2);
+        CHECK(editor.placements().empty());
+        CHECK(editor.undoEntryCount() == entries_before + 1);
+
+        editor.controller.onUndoRequested();
         CHECK(editor.notes() == makeCoverageChart().notes);
-        CHECK(editor.undoEntryCount() == entries_before);
+        CHECK(editor.placements() == makeCoverageChart().fret_hand_positions);
     }
 
     SECTION("a ring lengthened through the position")
@@ -2032,22 +2045,14 @@ TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][
         const std::size_t flashes_before = editor.view.refusal_flashes.size();
 
         editor.controller.onChartSustainAdjustRequested(1);
+        CHECK_FALSE(editor.notes() == makeCoverageChart().notes);
+        CHECK(editor.placements().empty());
+        CHECK(editor.undoEntryCount() == entries_before + 1);
+        CHECK(editor.view.refusal_flashes.size() == flashes_before);
+
+        editor.controller.onUndoRequested();
         CHECK(editor.notes() == makeCoverageChart().notes);
-        CHECK(editor.undoEntryCount() == entries_before);
-        REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
-        // The chip of the authored position at measure 3, found among the row's chips by position
-        // since a derived one may stand before it.
-        REQUIRE(editor.state().tab != nullptr);
-        const std::vector<common::core::FhpViewState>& chips =
-            editor.state().tab->fret_hand_positions;
-        const auto chip =
-            std::ranges::find(chips, downbeat(3), &common::core::FhpViewState::position);
-        REQUIRE(chip != chips.end());
-        CHECK(
-            editor.view.refusal_flashes.back().fret_hand_position ==
-            std::optional{static_cast<std::size_t>(std::distance(chips.begin(), chip))});
-        // And the note whose lengthened ring grips the uncovered fret there.
-        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0});
+        CHECK(editor.placements() == makeCoverageChart().fret_hand_positions);
     }
 
     SECTION("a note the window covers")
@@ -2058,6 +2063,7 @@ TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][
 
         editor.controller.onChartFretDigitTyped(7);
         CHECK(editor.notes().size() == 2);
+        CHECK(editor.placements() == makeCoverageChart().fret_hand_positions);
         CHECK(editor.undoEntryCount() == entries_before + 1);
     }
 }

@@ -689,8 +689,10 @@ stays unbound, reserved for plan 52. Every picker row and every `Delete` writes 
 of every hold it overlaps, a new hold stated over it or none, the none holds that meet merged), and
 ends at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would
 rewrite; a refusal logs under the verb's label and lights what it names (`ChartPlanInvalid::lit`):
-an uncovering authored position's chip, the neighbour a push would empty, the stretch a hold that
-does not fit overruns, or else the hold itself — a hold as the notes sounding inside it. A
+the neighbour a push would empty, the stretch a hold that does not fit overruns, or else the hold
+itself — a hold as the notes sounding inside it. An authored position the new holds leave
+uncovering never refuses the verb: it is dropped into the same undo entry and logged
+(`dropUncoveringFretHandPositions`). A
 landing that names a span the notes no longer derive selects nothing (`landMarkerSelection`).
 
 **Two keys read the SELECTION rather than the cursor**, and both take the same projection shape as

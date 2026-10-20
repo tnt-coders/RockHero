@@ -3601,7 +3601,8 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
     // no-op that must cost nothing to come back from.
     if (burst != nullptr && plan->plan.removed == burst->plan.removed &&
         plan->plan.inserted == burst->plan.inserted &&
-        plan->plan.shape_holds == burst->plan.shape_holds)
+        plan->plan.shape_holds == burst->plan.shape_holds &&
+        plan->plan.fret_hand_positions == burst->plan.fret_hand_positions)
     {
         return false;
     }

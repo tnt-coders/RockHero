@@ -99,6 +99,12 @@ restores it.
 A hold verb never relies on it: a verb whose result would need cropping or dropping is refused
 with the refusal flash.
 
+An authored fret-hand position sits downstream of both the notes and the holds, so it never
+refuses either kind of edit. After the holds, the same pass drops every authored position that no
+longer covers the stops gripped at its instant (`dropUncoveringFretHandPositions`), after a hold
+verb as after a note edit or a load, inside the edit's own undo step, and logs each drop naming the
+position and every stop it missed.
+
 ## 4. Verbs
 
 | Target | Keys | Result |

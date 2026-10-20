@@ -43,7 +43,7 @@ thing stands in the way, that culprit glows instead of the selection: the author
 position that would not cover a stop, beside every note gripping a stop it misses — all the things
 "hand position P does not cover frets 5 and 7 gripped from Q" names, since a refusal naming one
 missed stop of several would send the charter to fix one and meet the next (the note gate's and the
-hold gate's one coverage refusal), the note a move would land on, the ring whose authored statement an edit would cut off (beside the
+hold gate's one coverage refusal; retired: positions yield to notes and holds, 2026-10-20), the note a move would land on, the ring whose authored statement an edit would cut off (beside the
 head that cuts it, since one of the two is the edit's own product with no mark yet), the
 predecessor a head cannot join, the neighbour hold a push would empty, and the stretch between a
 hold's stated end and where its shape closes. A hold edge key refused at every candidate its way
@@ -207,11 +207,11 @@ besides S. "as notes" = a hold lit through the notes sounding in it. All files u
 | 1 | `chart/chart_edits.cpp:finalizePlan` (truncation) | the edit would cut an authored statement off a ring it shortens | the ring + the head bounding it | when S is one of the two | yes |
 | 2 | `chart_edits.cpp:validateAffected` (alone) | the rule's message | the first affected note the rule refuses | one note of S | — |
 | 3 | `validateAffected` (pair) | the rule's message | the pair | part of S | the neighbour, yes |
-| 4 | `fretHandCoverageRefusal` (both gates) | hand position P does not cover frets … gripped from Q | first uncovering position's chip + every note gripping a missed stop | no, unless S grips a missed stop | yes (a stop taken from a slide arrival: chip only) |
+| ~~4~~ | ~~`fretHandCoverageRefusal` (both gates)~~ retired: positions yield to notes and holds, 2026-10-20 | ~~hand position P does not cover frets … gripped from Q~~ | ~~first uncovering position's chip + every note gripping a missed stop~~ | ~~no, unless S grips a missed stop~~ | ~~yes (a stop taken from a slide arrival: chip only)~~ |
 | 5 | `finalizeShapeHoldPlan` (reader rule) | the rule's message | every changed hold, as notes | as notes | as notes |
 | 6 | `finalizeShapeHoldPlan` (normalizer drop) | H would hold nothing | H, as notes | as notes | — |
 | 7 | `finalizeShapeHoldPlan` (no fit) | H does not fit its notes: its shape closes at X | notes sounding between H's stated end and X | no | yes |
-| 8 | `planSteppedShapeHoldEdge` (nearest candidate) | that candidate's own refusal (rows 4–7, 10–11) | that row's light | per row | per row |
+| 8 | `planSteppedShapeHoldEdge` (nearest candidate) | that candidate's own refusal (rows 5–7, 10–11) | that row's light | per row | per row |
 | 9 | `planSteppedShapeHoldEdge` (no candidate) | no note boundary or grid line later/earlier | the moved hold, as notes | as notes | — |
 | 10 | `movedShapeHolds` (moved emptied) | H would hold nothing | the moved hold, as notes | as notes | — |
 | 11 | `movedShapeHolds` (neighbour emptied) | the edge would push H′ to nothing | H′, as notes | no | as notes |
@@ -235,7 +235,7 @@ besides S. "as notes" = a hold lit through the notes sounding in it. All files u
 | 29 | `chart_handlers.cpp:applyChartEditPlan` (Note Lock) | Note Lock is on: … | the notes the plan rewrote | notes; selected keyframes dark | — |
 | 30 | `planChartFretEntry` (Note Lock) | Note Lock is on: … | per target: the ring, the retyped notes + keyframes, the hand chip; nothing for an insert at an empty slot | red box while typed; flashed only through `Insert` | — |
 | 31 | `planChartFretEntry` | no chart is loaded | nothing | — | — |
-| 32 | `armOrSettleChartFretEntry` (any refused digit entry) | the plan's reason | the pending red box only; `lit` is not flashed | the box | **no** (e.g. row 4's chip) |
+| 32 | `armOrSettleChartFretEntry` (any refused digit entry) | the plan's reason | the pending red box only; `lit` is not flashed | the box | **no** (e.g. row 3's neighbour) |
 | 33 | `chart/fret_hand_handlers.cpp` hand-position Add at cursor (funnel) | the funnel's reason (coverage, Note Lock) | a derived chip at that place if one stands, else nothing | — | **no** |
 | 34 | `refuseDerivedFretHandPosition` (Move, Delete) | P is derived, so nothing is stored there | the chip | yes | — |
 | 35 | `moveSelectedFretHandPosition` | fret-hand position would leave the chart | the chip | yes | — |
@@ -276,6 +276,7 @@ besides S. "as notes" = a hold lit through the notes sounding in it. All files u
   a chord refuses with row 4, which lights the position's chip and the chord's uncovered notes but
   NOT the note whose tail was lengthened. Rows 14, 20 and 11 share the shape: what the key acted on
   is dark, only what stood in its way glows.
+  Row 4's example retired: positions yield to notes and holds, 2026-10-20.
 - **(b) A hold has no target.** Every refusal naming a hold (5–11) lights the notes sounding in it,
   never its bracket or rails: neither the tab lane nor the highway can glow a hold.
 - **(c) A composed message hid the culprit.** The hold-edge stepper's own "no boundary … where the
@@ -283,6 +284,7 @@ besides S. "as notes" = a hold lit through the notes sounding in it. All files u
   boundary's own refusal (row 8).
 - **(d) A partial culprit misleads.** The coverage refusal first named one missed stop of two; the
   charter fixed one and met the next. It now names and lights them all (row 4).
+  Retired: positions yield to notes and holds, 2026-10-20.
 - **(e) Doc drift.** The held-key move and sustain steps report their refusals today
   (`chart_handlers.cpp`, `reportChartPlanRefusal` after `commitChartGestureStep`), so rows 18–20
   and the sustain path flash, which "Deliberately silent" and F9 above say they do not; and the
@@ -300,7 +302,7 @@ besides S. "as notes" = a hold lit through the notes sounding in it. All files u
 | 2, 3, 12, 13, 15, 18, 21–23 (one element of a wider S) | the named element(s) | all of S, the named element(s) within it | same as today |
 | 19, 29 (S's keyframes dark) | the notes | all of S | all of S (no culprit) |
 | 1 | ring + bounding head | + rest of S | the ring only: the edit's own product goes dark |
-| 4, 7, 11, 14, 20 (S dark) | C only | S + C | same as today |
+| 7, 11, 14, 20 (S dark) | C only | S + C | same as today |
 | 27 (short-ring reason) | the note | + the predecessor ring | the predecessor ring only: the note goes dark |
 | 36, 45, 53, 54 (C dark) | S's chip | S's chip + C (holding placement/section, neighbour meter, short reign) | C only |
 | 33, 42 (no S on screen, C dark) | nothing or a derived chip | C (+ S where a chip stands) | C |

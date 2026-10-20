@@ -4,11 +4,12 @@
 
 Every mutation follows one shape: a pure planner builds the note stream the edit should produce,
 normalizes same-string sustain overlaps (a re-strike stops the ring: the earlier note
-auto-truncates, payloads clipped to the shortened sustain, all inside the same undo entry) and the
-shape holds over it, and diffs against the current stream into a removed/inserted plan carrying any
-hold rewrite whole. The note stream is the ONE authored per-string array, so every verb is a
-removal-and-insertion over it, and applying, undoing, and redoing are the same primitive run in
-opposite directions: undo round-trips are exact by construction.
+auto-truncates, payloads clipped to the shortened sustain, all inside the same undo entry), the
+shape holds over it and the authored positions it no longer covers, and diffs against the current
+stream into a removed/inserted plan carrying any hold or position rewrite whole. The note stream is
+the ONE authored per-string array, so every verb is a removal-and-insertion over it, and applying,
+undoing, and redoing are the same primitive run in opposite directions: undo round-trips are exact
+by construction.
 */
 
 #pragma once
@@ -38,16 +39,27 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief A change to a chart's shape holds, both sides whole: a chart holds few, and the rewrite the
-hold normalizer makes can touch any of them.
+\brief A change to one of the small streams a chart keeps beside its notes — the shape holds or the
+authored fret-hand positions — both sides whole: a chart holds few of either, and the normal form a
+plan lands can rewrite any of them.
+\tparam Element The stream's record type.
 */
-struct ShapeHoldsChange
+template <typename Element> struct StreamChange
 {
-    /*! \brief The holds the change applies to. */
-    std::vector<common::core::ShapeHold> before;
+    /*! \brief The stream the change applies to. */
+    std::vector<Element> before;
 
-    /*! \brief The holds it leaves. */
-    std::vector<common::core::ShapeHold> after;
+    /*! \brief The stream it leaves. */
+    std::vector<Element> after;
+
+    /*!
+    \brief The change that walks the stream back: the sides swapped.
+    \return The inverse change.
+    */
+    [[nodiscard]] StreamChange reversed() const
+    {
+        return StreamChange{.before = after, .after = before};
+    }
 
     /*!
     \brief Compares two changes by both sides.
@@ -55,12 +67,35 @@ struct ShapeHoldsChange
     \param rhs Right-hand change.
     \return True when both sides are equal.
     */
-    friend bool operator==(const ShapeHoldsChange& lhs, const ShapeHoldsChange& rhs) = default;
+    friend bool operator==(const StreamChange& lhs, const StreamChange& rhs) = default;
 };
 
 /*!
-\brief One planned change to a chart: full note values removed and inserted, the shape holds where
-they change, plus a label.
+\brief The change from one stream to another, or nothing where they are equal: the one way a plan
+comes to carry a stream change, so no plan holds a change that changes nothing.
+\tparam Element The stream's record type.
+\param before The stream the plan applies to.
+\param after The stream it leaves.
+\return The change, or nothing.
+*/
+template <typename Element>
+[[nodiscard]] std::optional<StreamChange<Element>> streamChange(
+    const std::vector<Element>& before, const std::vector<Element>& after)
+{
+    if (before == after)
+    {
+        return std::nullopt;
+    }
+    return StreamChange<Element>{.before = before, .after = after};
+}
+
+/*!
+\brief One planned change to a chart: full note values removed and inserted, the shape holds and
+the authored fret-hand positions where they change, plus a label.
+
+The notes are the edit; the holds and the positions change only where the normal form the plan
+lands rewrites them — a hold cropped, extended or dropped, a position the result no longer covers
+dropped — so one undo restores all three together.
 */
 struct [[nodiscard]] ChartEditPlan
 {
@@ -71,18 +106,23 @@ struct [[nodiscard]] ChartEditPlan
     std::vector<common::core::ChartNote> inserted;
 
     /*! \brief The shape holds' change; absent where the plan leaves them as they are. */
-    std::optional<ShapeHoldsChange> shape_holds;
+    std::optional<StreamChange<common::core::ShapeHold>> shape_holds;
+
+    /*! \brief The authored positions' change; absent where the plan leaves them as they are. */
+    std::optional<StreamChange<common::core::FretHandPosition>> fret_hand_positions;
 
     /*! \brief User-visible undo label. */
     std::string label;
 
     /*!
     \brief Reports whether the plan describes no change at all.
-    \return True when the stream gains and loses nothing and the holds stay as they are.
+    \return True when the stream gains and loses nothing and the holds and positions stay as they
+            are.
     */
     [[nodiscard]] bool empty() const noexcept
     {
-        return removed.empty() && inserted.empty() && !shape_holds.has_value();
+        return removed.empty() && inserted.empty() && !shape_holds.has_value() &&
+               !fret_hand_positions.has_value();
     }
 
     /*!
@@ -95,30 +135,16 @@ struct [[nodiscard]] ChartEditPlan
     */
     [[nodiscard]] ChartEditPlan reversed() const
     {
-        std::optional<ShapeHoldsChange> holds_back;
-        if (const std::optional<ShapeHoldsChange>& change = shape_holds; change.has_value())
-        {
-            holds_back = ShapeHoldsChange{.before = change->after, .after = change->before};
-        }
         return ChartEditPlan{
             .removed = inserted,
             .inserted = removed,
-            .shape_holds = std::move(holds_back),
+            .shape_holds = shape_holds.transform(&StreamChange<common::core::ShapeHold>::reversed),
+            .fret_hand_positions = fret_hand_positions.transform(
+                &StreamChange<common::core::FretHandPosition>::reversed),
             .label = label,
         };
     }
 };
-
-/*!
-\brief The change from one set of shape holds to another, or nothing where they are equal: the
-one way a plan comes to carry a hold change, so no plan holds a change that changes nothing.
-\param before The holds the plan applies to.
-\param after The holds it leaves.
-\return The change, or nothing.
-*/
-[[nodiscard]] std::optional<ShapeHoldsChange> shapeHoldsChange(
-    const std::vector<common::core::ShapeHold>& before,
-    const std::vector<common::core::ShapeHold>& after);
 
 /*! \brief The edit would change nothing a document records — legal, just empty. */
 struct ChartPlanNoChange
@@ -151,9 +177,9 @@ struct ChartRefusalLight
 never clamped: why, and what the refusal lights, both decided where it refuses.
 
 A refusal lights what it names. Where another authored thing stands in the way, that is the
-culprit — the authored position that would not cover a stop, the note a move would land on, the
-ring whose statement an edit would cut off, the neighbour hold a push would empty, the stretch a
-hold runs on past — and where nothing does, the refused elements themselves. The light is stated at
+culprit — the note a move would land on, the ring whose statement an edit would cut off, the
+neighbour hold a push would empty, the stretch a hold runs on past — and where nothing does, the
+refused elements themselves. The light is stated at
 every refusing site, never defaulted: a site that can light nothing (an empty slot, no chart) says
 so with an empty light.
 */
@@ -180,10 +206,11 @@ using ChartPlanRefusal = std::variant<ChartPlanNoChange, ChartPlanInvalid>;
 
 /*!
 \brief A plan the gate passed (\ref finalizePlan), with the derivation of the chart it lands and
-what the hold normalizer rewrote to land it.
+what the normal form rewrote to land it.
 
-The gate derives the candidate's notes layer to normalize the shape holds and judge the authored
-positions' coverage of it, so that derivation travels with the diff rather than being thrown away:
+The gate derives the candidate's notes layer to normalize the shape holds and drop the authored
+positions it no longer covers, so that derivation travels with the diff rather than being thrown
+away:
 once the write has landed `plan`, the commit seeds the controller's memo with `resolved`, and the
 projection never derives what the gate already did. Apart from the plan rather than inside it,
 because the plan is compared, reversed and stored by the history, none of which a derivation or a
@@ -198,8 +225,9 @@ struct [[nodiscard]] JudgedChartPlan
     common::core::ChartResolutions resolved;
 
     /*!
-    \brief What normalizing the shape holds rewrote, against the plan's base: the lines the commit
-    logs (\ref common::core::normalizeShapeHolds).
+    \brief What the normal form rewrote, against the plan's base: the lines the commit logs — the
+    holds' rewrites (\ref common::core::normalizeShapeHolds), then the positions dropped
+    (\ref common::core::dropUncoveringFretHandPositions).
     */
     std::vector<common::core::ChartConversion> conversions;
 };
@@ -246,20 +274,23 @@ states), each pinned by a test; undo replays the inverse of a plan that passed. 
 only the notes the candidate TOUCHED, which the diff against `base` finds, and the same-string
 predecessors whose rings a touched onset on a new slot may shorten (the locality rule at
 \ref common::core::sustainBoundOf). It asks them the stream validator's own questions in stream
-order, so its first refusal is the whole stream's. Two steps read the whole candidate: the shape
-holds' normal form (\ref common::core::normalizeShapeHolds), since an edit can move a span's close
-far from the notes it touched, and the authored positions' coverage
-(\ref common::core::validateFretHandCoverage) of the notes layer that normalization derives: derived
-once here and returned with the plan and its rewrites (\ref JudgedChartPlan). A verb that
-re-addresses or re-meters the chart must leave it a fixpoint too.
+order, so its first refusal is the whole stream's. Two steps read the whole candidate and never
+refuse: the shape holds' normal form (\ref common::core::normalizeShapeHolds), since an edit can
+move a span's close far from the notes it touched, and then the drop of every authored position the
+notes layer that normalization derives no longer covers
+(\ref common::core::dropUncoveringFretHandPositions), since a position is downstream of the notes
+and the holds and never vetoes an edit to them. The layer is derived once here and returned with
+the plan and its rewrites (\ref JudgedChartPlan), and both rewrites ride the plan, so undo restores
+them. A verb that re-addresses or re-meters the chart must leave it a fixpoint too.
 
 `base` is the live chart for every verb that edits from what it finds, and the chart a gesture
 started from for a gesture, whose plan describes the whole run: every press replays from it and
-normalizes ITS holds, never the live ones, so a press stepping back restores a hold an earlier press
-cropped, extended or dropped. The duration gesture still reads its ring bounds from the live chart
-(\ref planAdjustSustain); the move gesture reads none — every bound it reads is a fact about the
-pre-gesture chart its own steps cannot change. Slide-out-ness stays such a fact only because the
-verb refuses a step that would carry a point onto the ring's end (\ref planMoveSelection).
+normalizes ITS holds and positions, never the live ones, so a press stepping back restores a hold
+an earlier press cropped, extended or dropped, and a position it dropped. The duration gesture still
+reads its ring bounds from the live chart (\ref planAdjustSustain); the move gesture reads none —
+every bound it reads is a fact about the pre-gesture chart its own steps cannot change.
+Slide-out-ness stays such a fact only because the verb refuses a step that would carry a point onto
+the ring's end (\ref planMoveSelection).
 
 \param base The chart the plan is diffed against, a fixpoint of this gate; the candidate keeps its
        tuning, its positions and its holds.
@@ -269,9 +300,9 @@ verb refuses a step that would carry a point onto the ring's end (\ref planMoveS
        (at `lower_bound`, beside any note already there, so a duplicate meets the order rule's
        refusal) and never re-sorts the whole stream.
 \param label User-visible undo label.
-\return The plan with the notes layer of the chart it lands and the holds' rewrites; NoChange when
-        the normalized candidate equals `base`, Invalid with the rule's own message when the gate
-        refuses it.
+\return The plan with the notes layer of the chart it lands and the normal form's rewrites;
+        NoChange when the normalized candidate equals `base`, Invalid with the rule's own message
+        when the gate refuses it.
 */
 [[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
@@ -284,21 +315,21 @@ or one holding a hold that does not fit its notes (shape rule 9), and plans the 
 A hold verb never relies on the normalizer (\ref common::core::normalizeShapeHolds): a result the
 normalizer would crop, extend or drop is refused rather than rewritten, so every hold the charter
 states lands exactly as stated. Every hold is judged, not only the ones the verb touched, because a
-hold's edges are walls the spans beside it close at. The notes never change, so the authored
-positions' coverage of the spans the holds give is the one other rule the result can break.
+hold's edges are walls the spans beside it close at. An authored position never refuses a hold: one
+the spans the holds give no longer cover is dropped into the plan, as the note gate drops it
+(\ref common::core::dropUncoveringFretHandPositions).
 
 A hold is lit as the notes sounding inside it — struck in it, or ringing into it — since a ring
 carried through a stretch is part of what a hold over it grips. A hold that does not fit lights the
 stretch between its stated end and where its shape closes; one the normalizer would drop lights
-itself; an uncovering authored position lights its chip and every note gripping a stop it misses; a
-stream the reader would refuse lights the holds the candidate changed.
+itself; a stream the reader would refuse lights the holds the candidate changed.
 
 \param base The chart the plan is diffed against, a fixpoint of every gate.
 \param tempo_map Tempo map placing the notes and the holds.
 \param candidate The holds the verb leaves, ascending.
 \param label User-visible undo label.
-\return The plan with the notes layer of the chart it lands; NoChange when the holds are the base's,
-        Invalid naming the first rule the holds break.
+\return The plan with the notes layer of the chart it lands and the positions it dropped; NoChange
+        when the holds are the base's, Invalid naming the first rule the holds break.
 */
 [[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
@@ -1093,9 +1124,9 @@ flatten as its own entry passes the chart itself.
 
 It is the whole CHART rather than its note stream because the base a fold diffs against is the
 state the replaced entry was applied to, and only the chart carries it: diffing here is what keeps
-that entry's own notes and hold rewrites from being dropped when the caller walks the chart back
-through the burst's reversal. The flatten itself moves no span, so the holds go as `chart` holds
-them.
+that entry's own notes, hold rewrites and dropped positions from being lost when the caller walks
+the chart back through the burst's reversal. The flatten itself moves no span and no demand, so the
+holds and the positions go as `chart` holds them.
 
 \param chart Chart being settled.
 \param unjustified Indices into `chart.notes` of the claims to flatten, as
@@ -1689,8 +1720,9 @@ a technique at all: its set states a value, so it has its own verb over \ref pla
 \brief THE apply of a planned change, across every authored array: the chart it owns with the plan
 applied.
 
-Every removed record must still match by full value, every inserted slot must be free and the shape
-holds must be the ones the plan's hold change applies to. The chart is edited as it goes, and a
+Every removed record must still match by full value, every inserted slot must be free, and the
+shape holds and the authored positions must be the ones the plan's changes to them apply to. The
+chart is edited as it goes, and a
 failed precondition anywhere discards it, so the caller's chart is never half applied: it is the
 caller's own copy or a value it gave up. That is what makes a plan crossing the arrays one atomic
 gesture, with no precheck that would restate the preconditions.

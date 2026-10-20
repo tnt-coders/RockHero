@@ -441,33 +441,49 @@ TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
     }
 }
 
-// The hand-position coverage rule names the authored position that would not cover a stop and the
-// stop it misses, so the note gate's refusal lights that position's chip and the note gripping the
-// stop — not the notes the edit was planned over as such.
-TEST_CASE("The note gate lights the position that would not cover a stop", "[core][chart]")
+// An authored position is downstream of the notes, so it never refuses a note edit: the note gate
+// lands the edit and drops the position the result no longer covers into the same plan, reporting
+// it with every stop it missed, and the plan's reversal puts it back.
+TEST_CASE("The note gate drops the position a note edit leaves uncovering", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    constexpr common::core::GridPosition at{.measure = 3, .beat = 3, .offset = {}};
     // A position at 3:3 on fret 20 covers the fixture's notes, whose rings all end by then, and
     // not fret 15 below it, struck at 3:1 on the free string 3 and rung a whole note through it.
-    chart.fret_hand_positions = {
-        common::core::FretHandPosition{.position = at, .fret = 20, .end_fret = std::nullopt}
+    const common::core::FretHandPosition position{
+        .position = {.measure = 3, .beat = 3, .offset = {}}, .fret = 20, .end_fret = std::nullopt
     };
+    chart.fret_hand_positions = {position};
 
     const auto plan = planInsertNote(
         chart,
         tempo_map,
         makeTestNote({.measure = 3, .beat = 1}, 3, 15, common::core::Fraction{1}),
         common::core::Fraction{1});
-    REQUIRE_FALSE(plan.has_value());
-    const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error());
-    REQUIRE(invalid != nullptr);
-    CHECK(invalid->reason.find("does not cover fret 15 gripped from 3:1") != std::string::npos);
-    // Both things the rule names: the position's chip and the note gripping the stop it misses.
-    CHECK(invalid->lit.fret_hand_position == std::optional{at});
-    CHECK(invalid->lit.notes == std::vector{keyAt({.measure = 3, .beat = 1}, 3)});
-    CHECK(invalid->lit.keyframes.empty());
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    CHECK(plan->plan.inserted.size() == 1);
+    CHECK(
+        plan->plan.fret_hand_positions ==
+        std::optional{
+            StreamChange<common::core::FretHandPosition>{.before = {position}, .after = {}}
+        });
+    REQUIRE(plan->conversions.size() == 1);
+    CHECK(
+        common::core::chartConversionText(plan->conversions.front()) ==
+        std::string{
+            common::core::chartRepairText(common::core::ChartRepair::UncoveringHandPosition)
+        } + " at hand position 3:3 (fret 15 gripped from 3:1)");
+
+    common::core::Chart edited = chart;
+    REQUIRE(applyChartChange(edited, plan->plan).has_value());
+    CHECK(edited.fret_hand_positions.empty());
+    REQUIRE(applyChartChange(edited, plan->plan.reversed()).has_value());
+    CHECK(edited.fret_hand_positions == std::vector{position});
+    CHECK(edited.notes == chart.notes);
 }
 
 // Every note rings, so a placement authors a duration: the session's grid step, clamped by the
@@ -2714,6 +2730,7 @@ TEST_CASE("applyChartChange applies a removal and insertion", "[core][chart]")
             .removed = to_remove,
             .inserted = to_insert,
             .shape_holds = std::nullopt,
+            .fret_hand_positions = std::nullopt,
             .label = {},
         });
     CHECK(result.has_value());
@@ -2740,6 +2757,7 @@ TEST_CASE("applyChartChange rejects a stale removal", "[core][chart]")
             .removed = to_remove,
             .inserted = {},
             .shape_holds = std::nullopt,
+            .fret_hand_positions = std::nullopt,
             .label = {},
         });
     CHECK_FALSE(result.has_value());
@@ -2768,6 +2786,7 @@ TEST_CASE("applyChartChange rejects a colliding insertion atomically", "[core][c
             .removed = to_remove,
             .inserted = to_insert,
             .shape_holds = std::nullopt,
+            .fret_hand_positions = std::nullopt,
             .label = {},
         });
     CHECK_FALSE(result.has_value());
@@ -3494,6 +3513,7 @@ TEST_CASE("writtenChartPlan records the written form of a transition", "[core][c
         .removed = {plain},
         .inserted = {started},
         .shape_holds = std::nullopt,
+        .fret_hand_positions = std::nullopt,
         .label = "Insert",
     };
     CHECK(writtenChartPlan(plant).empty());
@@ -3502,6 +3522,7 @@ TEST_CASE("writtenChartPlan records the written form of a transition", "[core][c
         .removed = {started},
         .inserted = {landed},
         .shape_holds = std::nullopt,
+        .fret_hand_positions = std::nullopt,
         .label = "Type",
     };
     const ChartEditPlan written = writtenChartPlan(land);
@@ -7101,8 +7122,8 @@ TEST_CASE("A note edit's plan carries the hold rewrite it causes", "[core][chart
     }
     common::core::ShapeHold cropped = hold;
     cropped.end = {.measure = 2, .beat = 2};
-    const std::optional<ShapeHoldsChange> expected =
-        ShapeHoldsChange{.before = {hold}, .after = {cropped}};
+    const std::optional<StreamChange<common::core::ShapeHold>> expected =
+        StreamChange<common::core::ShapeHold>{.before = {hold}, .after = {cropped}};
     CHECK(plan->plan.shape_holds == expected);
     CHECK(plan->resolved.shape_holds == std::vector{cropped});
     REQUIRE(plan->conversions.size() == 1);
@@ -7179,7 +7200,8 @@ TEST_CASE("applyChartChange rejects a stale hold change atomically", "[core][cha
         ChartEditPlan{
             .removed = {},
             .inserted = to_insert,
-            .shape_holds = ShapeHoldsChange{.before = {hold}, .after = {}},
+            .shape_holds = StreamChange<common::core::ShapeHold>{.before = {hold}, .after = {}},
+            .fret_hand_positions = std::nullopt,
             .label = {},
         });
     REQUIRE_FALSE(result.has_value());

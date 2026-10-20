@@ -12,7 +12,6 @@
 #include <iterator>
 #include <optional>
 #include <ranges>
-#include <rock_hero/common/core/chart/chart_fret_hand.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -72,6 +71,7 @@ namespace
         .removed = {},
         .inserted = {},
         .shape_holds = std::nullopt,
+        .fret_hand_positions = std::nullopt,
         .label = std::string{label},
     };
     std::size_t before_index = 0;
@@ -291,52 +291,45 @@ enum class StrandedStrikeRepair : std::uint8_t
     return stretchLight(notes, tempo_map, hold.start, hold.end);
 }
 
-// The hand-position coverage rule's refusal of a notes layer, lighting the chip of the first
-// authored position that breaks it; nothing while every position covers. The one statement of the
-// rule's refusal for both gates, since the notes the chart lands and the holds over them each can
-// move what a position must cover.
-[[nodiscard]] std::optional<ChartPlanInvalid> fretHandCoverageRefusal(
-    const common::core::ChartResolutions& notes_layer,
-    const std::vector<common::core::FretHandPosition>& positions,
-    const common::core::TempoMap& tempo_map)
+// Where both gates end: the plan with the notes layer of the chart it lands, the holds' rewrites
+// already in it, and then the coverage half of the normal form. An authored position is downstream
+// of the notes and the holds, so one the landed layer no longer covers is dropped into the plan —
+// undo restores it — and reported after the holds' rewrites, never a refusal of the edit.
+[[nodiscard]] JudgedChartPlan judgedPlan(
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map, ChartEditPlan plan,
+    common::core::ShapeHoldNormalization normal)
 {
-    const std::vector<common::core::UncoveringFretHandPosition> uncovering =
-        common::core::uncoveringFretHandPositions(notes_layer, positions, tempo_map);
-    if (uncovering.empty())
-    {
-        return std::nullopt;
-    }
-    const common::core::UncoveringFretHandPosition& first = uncovering.front();
-    // The rule names the position AND every stop it misses, "frets 5 and 7 gripped from 1:1": all
-    // are lit, each stop as the note(s) struck at its place demanding its fret of the hand, found
-    // as the walk itself finds an onset's demand (forEachGrippedStop). A stop a hold took from a
-    // slide's arrival has no onset demanding it and lights nothing beyond the chip.
-    ChartRefusalLight lit{
-        .notes = {}, .keyframes = {}, .fret_hand_position = positions[first.position].position
+    std::vector<common::core::FretHandPosition> positions = base.fret_hand_positions;
+    std::vector<common::core::ChartConversion> dropped =
+        common::core::dropUncoveringFretHandPositions(normal.resolved, positions, tempo_map);
+    normal.conversions.insert(
+        normal.conversions.end(),
+        std::make_move_iterator(dropped.begin()),
+        std::make_move_iterator(dropped.end()));
+    plan.fret_hand_positions = streamChange(base.fret_hand_positions, positions);
+    return JudgedChartPlan{
+        .plan = std::move(plan),
+        .resolved = std::move(normal.resolved),
+        .conversions = std::move(normal.conversions),
     };
-    const common::core::ChartConnections& connections = notes_layer.connections;
-    for (const common::core::UncoveredStop& stop : first.stops)
+}
+
+// One of a plan's whole-stream changes applied to the stream it was planned against; false, with
+// the stream untouched, when the stream is not that one.
+template <typename Element>
+[[nodiscard]] bool applyStreamChange(
+    std::vector<Element>& stream, const std::optional<StreamChange<Element>>& change)
+{
+    if (!change.has_value())
     {
-        const auto [begin, end] = std::ranges::equal_range(
-            connections.places, tempo_map.wholeNotePositionAt(stop.gripped_from));
-        for (auto place = begin; place != end; ++place)
-        {
-            const common::core::ChartNote& note = connections.saved_notes[static_cast<std::size_t>(
-                std::distance(connections.places.begin(), place))];
-            if (common::core::fretHandDemandAt(
-                    note, common::core::Fraction{}, notes_layer.hand_demands.capo) == stop.fret)
-            {
-                lit.notes.push_back(chartSlotKeyOf(note));
-            }
-        }
+        return true;
     }
-    // The stops are ascending by place, so the notes arrive in slot order up to one place's
-    // strings; sorted once for the flash's merge.
-    std::ranges::sort(lit.notes);
-    return ChartPlanInvalid{
-        .reason = common::core::fretHandCoverageError(first, positions).message,
-        .lit = std::move(lit),
-    };
+    if (stream != change->before)
+    {
+        return false;
+    }
+    stream = change->after;
+    return true;
 }
 
 // The stream validator's walk (validateChartNotes) over the affected notes only: each alone in its
@@ -463,18 +456,8 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     // proved, and kept: it is the notes layer of the chart this plan lands, which the commit seeds.
     common::core::ShapeHoldNormalization normal =
         common::core::normalizeShapeHolds(candidate, base.shape_holds, base.tuning.capo, tempo_map);
-    plan.shape_holds = shapeHoldsChange(base.shape_holds, normal.resolved.shape_holds);
-    if (std::optional<ChartPlanInvalid> uncovered =
-            fretHandCoverageRefusal(normal.resolved, base.fret_hand_positions, tempo_map);
-        uncovered.has_value())
-    {
-        return std::unexpected{std::move(*uncovered)};
-    }
-    return JudgedChartPlan{
-        .plan = std::move(plan),
-        .resolved = std::move(normal.resolved),
-        .conversions = std::move(normal.conversions),
-    };
+    plan.shape_holds = streamChange(base.shape_holds, normal.resolved.shape_holds);
+    return judgedPlan(base, tempo_map, std::move(plan), std::move(normal));
 }
 
 std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
@@ -536,23 +519,20 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
                 std::max(stated->end, normalized->end)),
         }};
     }
-    if (std::optional<ChartPlanInvalid> uncovered =
-            fretHandCoverageRefusal(normal.resolved, base.fret_hand_positions, tempo_map);
-        uncovered.has_value())
-    {
-        return std::unexpected{std::move(*uncovered)};
-    }
-    return JudgedChartPlan{
-        .plan =
-            ChartEditPlan{
-                .removed = {},
-                .inserted = {},
-                .shape_holds = shapeHoldsChange(base.shape_holds, candidate),
-                .label = std::string{label},
-            },
-        .resolved = std::move(normal.resolved),
-        .conversions = {},
-    };
+    // The holds land exactly as stated, so the normalizer rewrote none and reports nothing; the
+    // positions the spans they give no longer cover are what the plan can still drop.
+    assert(normal.conversions.empty() && "a hold stream its own normal form reported a rewrite");
+    return judgedPlan(
+        base,
+        tempo_map,
+        ChartEditPlan{
+            .removed = {},
+            .inserted = {},
+            .shape_holds = streamChange(base.shape_holds, candidate),
+            .fret_hand_positions = std::nullopt,
+            .label = std::string{label},
+        },
+        std::move(normal));
 }
 
 // Each hold keeps what lies outside the extent: its part before the extent's start and its part
@@ -2025,15 +2005,16 @@ ChartEditPlan planSettleChart(
     // already satisfied them — a plain pick demands nothing — and an unjustified claim already
     // derives as the pick it becomes, so no span moves and the holds stay normal. Passing through
     // the finalize would also diff against the current stream rather than `base`, which is the one
-    // thing this planner needs to control. The holds are carried as the chart holds them, so a fold
-    // over a burst that rewrote them keeps the rewrite.
+    // thing this planner needs to control. The holds and the positions are carried as the chart
+    // holds them, so a fold over a burst that rewrote them keeps the rewrite.
     //
     // The plan itself may come out EMPTY, and that is a real plan rather than a refusal: it means
     // the flatten put the chart back exactly where `base` had it, so the caller still has to
     // commit — walking the chart back to `base` is what removes the claim — and the entry it
     // replaces correctly describes nothing.
     ChartEditPlan plan = diffNotes(base.notes, settled, label);
-    plan.shape_holds = shapeHoldsChange(base.shape_holds, chart.shape_holds);
+    plan.shape_holds = streamChange(base.shape_holds, chart.shape_holds);
+    plan.fret_hand_positions = streamChange(base.fret_hand_positions, chart.fret_hand_positions);
     return plan;
 }
 
@@ -2051,9 +2032,11 @@ ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
     {
         static_cast<void>(common::core::stripSilentKeyframes(note));
     }
-    // A silent point moves no span's close, so the holds are written as they are.
+    // A silent point moves no span's close and demands nothing, so the holds and the positions are
+    // written as they are.
     ChartEditPlan written = diffNotes(removed, inserted, plan.label);
     written.shape_holds = plan.shape_holds;
+    written.fret_hand_positions = plan.fret_hand_positions;
     return written;
 }
 
@@ -2954,17 +2937,6 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
     std::unreachable();
 }
 
-std::optional<ShapeHoldsChange> shapeHoldsChange(
-    const std::vector<common::core::ShapeHold>& before,
-    const std::vector<common::core::ShapeHold>& after)
-{
-    if (before == after)
-    {
-        return std::nullopt;
-    }
-    return ShapeHoldsChange{.before = before, .after = after};
-}
-
 std::expected<common::core::Chart, EditorUndoFailureCode> chartWithPlanApplied(
     common::core::Chart chart, const ChartEditPlan& plan)
 {
@@ -2990,15 +2962,10 @@ std::expected<common::core::Chart, EditorUndoFailureCode> chartWithPlanApplied(
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};
         }
     }
-    // Bound once so the presence test and the reads are provably the same object.
-    const std::optional<ShapeHoldsChange>& holds = plan.shape_holds;
-    if (holds.has_value())
+    if (!applyStreamChange(chart.shape_holds, plan.shape_holds) ||
+        !applyStreamChange(chart.fret_hand_positions, plan.fret_hand_positions))
     {
-        if (chart.shape_holds != holds->before)
-        {
-            return std::unexpected{EditorUndoFailureCode::PreflightRejected};
-        }
-        chart.shape_holds = holds->after;
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
     return chart;
 }
