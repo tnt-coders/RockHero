@@ -1415,9 +1415,18 @@ ringing notes founding nothing, with the trigger "either cost reads wrong in a r
 **Retired** when the first cost read wrong on a real figure: a span fronted at 77:2 over a fret-3
 ring that died at 77:4 left the 3 out of its grip, because the span was founded at 78:1 and dated
 back. The user ruled that the dated front is where the bracket draws, so what sounds under its
-opening is what it prints: a ring sounding where a span is founded is a member whenever it was
-struck, and the frontier is a dating floor and nothing more (shape rule 1). The second cost returns
-with it, deliberately — a pedal or drone under a melody line founds a span per melody note.
+opening is what it prints (shape rule 1). The fix is the join at the front, not founding over old
+rings: a span still exists on its own onsets alone, founding counting only statements since the
+frontier, and once it is founded every ring struck before its dated front and still sounding there
+joins as a carried member. A carried member's death splits the span rather than closing it: the
+piece up to the death prints it, and the span runs on with the remaining members. A note that
+sounded under the opening without joining floors the front instead, so it is never backdated over.
+
+The figure the strict law was ruled to stop stays stopped: a pedal or drone under a melody line
+still founds no bracket per melody note, since a carried ring never founds. The item's second cost
+therefore stands as accepted — one fresh pick under two ringing notes brackets nothing on its own.
+
+### ~~An arpeggio that opens on a single onset lights its whole box at that first note~~ — RETIRED 2026-10-04: the trigger fired
 
 Recorded 2026-10-02: the first lone note of an arpeggio popped the sides of the arpeggio box over
 it instead of its own fret, because the strike pops counted the arpeggio's opening mark as a box

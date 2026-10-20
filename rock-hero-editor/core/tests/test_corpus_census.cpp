@@ -2874,7 +2874,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22751.0,
+                .expected = 22338.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
@@ -2885,7 +2885,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // sounds in parts: a partial sounding breaks it instead (shape rules 3 and 5).
                 .label = "arpeggio spans",
                 .rig = static_cast<double>(census.derivation.spans_arpeggio),
-                .expected = 1446.0,
+                .expected = 1055.0,
             },
             CrossCheck{
                 // The spans trigger 4 flips ALONE: a carried ring folding into the onset is the
@@ -2898,7 +2898,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // rule 1); a chimed one is a tail and is not counted.
                 .label = "trigger-4-only flips",
                 .rig = static_cast<double>(census.derivation.trigger4_only_spans),
-                .expected = 168.0,
+                .expected = 194.0,
             },
             CrossCheck{
                 // The spans holding at least one LONE re-pick: a single sounding member restriking
@@ -2910,7 +2910,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the ambiguous kind the `end_slot` rows there exist to separate.
                 .label = "lone re-pick spans",
                 .rig = static_cast<double>(census.derivation.ii_spans),
-                .expected = 2936.0,
+                .expected = 2771.0,
             },
             CrossCheck{
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
@@ -2923,7 +2923,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the same population edge by edge, independently of this count.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 1269.0,
+                .expected = 1225.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
@@ -2936,7 +2936,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // numbers.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 1161.0,
+                .expected = 1139.0,
             },
             CrossCheck{
                 // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a
@@ -3033,12 +3033,12 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // string 1's landing (shape rule 1's floor), so none of the three is counted.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 156.0,
+                .expected = 144.0,
             },
             CrossCheck{
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 156.0,
+                .expected = 144.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window
@@ -3052,7 +3052,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 17638.0,
+                .expected = 17641.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",

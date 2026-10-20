@@ -48,23 +48,29 @@ is bookkeeping about that tenure.
    never that tenure is waived. "Held through the slide" is END-INCLUSIVE at the landing
    instant: a member's ring dying exactly AT the landing belonged to the predecessor (the seam
    ownership), and the survivors ringing strictly past open the successor.
-7. NOTHING ELSE opens a span. Founding is asked only where the fretting hand states a stop, so
-   strings that ring on past a break found nothing on their own (ring-out opens nothing), and a
-   slot of bare taps or natural-harmonic nodes over them opens nothing: they are tails until a
-   fretting-hand strike founds a span over them.
+7. NOTHING ELSE opens a span: a span exists on its own onsets alone. Founding is asked only where
+   the fretting hand states a stop, and counts only statements made since the coverage frontier,
+   so strings that ring on past a break found nothing (ring-out opens nothing) — not under a lone
+   fretting-hand strike, a pedal or drone under a melody line brackets nothing, and a slot of bare
+   taps or natural-harmonic nodes over them opens nothing.
 
    **WHAT SOUNDS UNDER A BRACKET'S OPENING IS WHAT IT PRINTS.** The dated front is where the
-   bracket draws, so a ring still sounding where a span is founded is a member of it WHENEVER IT
-   WAS STRUCK, fretted and open alike: it counts toward the founding, joins the grip and bounds
-   the reach like any member, and as a member the founding stroke did not strike it makes the
-   span born in parts. The coverage frontier is a DATING FLOOR and nothing more: a ring struck
-   behind it dates no front earlier than the frontier, so a span founded over rings a closed span
-   left sounding dates from that close, and its opening bracket lists exactly the stops sounding
-   or struck there. At the first fretting-hand strike after a break, the rings still standing and
-   the strike found a span dated from the break; a pedal or drone under a moving melody founds a
-   span per melody note, accepted as the same principle. A natural harmonic's ring states no grip
-   and joins nothing, and a ring folds into no new span on a string the slot strikes at another
-   stop.
+   bracket draws. Once a span is founded and its front dated, every ring struck before that front
+   and still sounding there is a CARRIED MEMBER, fretted and open alike: it joins the grip,
+   stating what its strike stated, and bounds the span like any member, and as a member the
+   founding stroke did not strike it makes the span sound in parts. It never founds — it only
+   fills in what the hand was demonstrably holding under the opening — and it joins only where it
+   outlives the front by the minimum sustain distance there; a shorter tail reads as released
+   before the span and stays a plain tail. ITS DEATH IS A SPLIT, NOT A CLOSE: the piece up to the
+   death is published with it in the grip, sounding in parts, and the span runs on from the death
+   with the members still standing, fronted there, each piece classed on its own members — the
+   remainder a box if its own members were struck whole. Inside an unnamed hold the death is
+   suppressed like any quit; at the hold's end it closes the hold's span there and the remainder
+   runs on as derived. A fretting-hand restrike of a carried member inside the span makes it the
+   span's own, and its death is then a quit. The coverage frontier floors the dating and gates the
+   founding and never enters the reach. A natural harmonic's ring states no grip and joins
+   nothing, and a ring still sounding at the founding folds into no span on a string that slot
+   sounds otherwise.
 
    THE LANDING IS THE ONE OTHER SEAM A MEMBER CROSSES, and the one place the HAND still decides. A
    landing is the grip itself moving under fingers that slid and never lifted, so the survivors
@@ -78,14 +84,15 @@ is bookkeeping about that tenure.
    THE POSTURE IS THE GRIP ALONE: every ring refused at either site is a plain tail, an open
    string's 0 included — it prints in no later bracket and classifies nothing. (Ruled 2026-09-24:
    the open string used to ride on as TEXTURE, a second kind of stop printed because its 0 claims
-   no finger, but a fretted ring proves its finger as surely, so there is one kind and every ring
-   sounding under the opening is a grip member; at My Sacrifice 44:4 the exception re-printed a
-   split chord's open half and dropped its fretted half.)
+   no finger, but a fretted ring proves its finger as surely, so there is one kind and a ring
+   sounding under the opening joins as a carried grip member; at My Sacrifice 44:4 the exception
+   re-printed a split chord's open half and dropped its fretted half.)
 
 ### When a span runs and ends
 
 8. A span RUNS UNTIL ITS GRIP BREAKS, and only these break it:
-   - A MEMBER QUITS — any posture member, carried or struck. The grip technically changed,
+   - A MEMBER QUITS — any posture member, a carried member's death excepted, which splits the
+     span instead (rule 7). The grip technically changed,
      and there is ONE kind of member: LAW III's classifies-never-bounds rider is overruled, with
      the import's contradiction cut of co-terminating let-ring rings at grip changes as what keeps
      this from fragmenting passages.
@@ -123,10 +130,10 @@ is bookkeeping about that tenure.
 
      Chord -> parts: a stroke sounding PART of what a never-in-parts span STATED — some of its
      own stops, not all — is the statement coming apart, so the chord span closes there and
-     the parts found their own span through the ordinary slot open, over what they STRIKE and
-     what STILL SOUNDS, dated from the close: the chord's rings still ringing there are members
-     like any carried ring. The bracket covers exactly the ground that sounds in parts. Where the
-     partial is the stroke's own next slot
+     the parts found their own span through the ordinary slot open only over what they STRIKE,
+     the chord's rings now lying behind the frontier; where the parts do found one, the chord's
+     rings still sounding at its front join it as carried members. The bracket covers exactly
+     the ground that sounds in parts. Where the partial is the stroke's own next slot
      and the stroke is still sounding under it there is no split at all — the stroke is
      absorbed, the span flows, the class turns in place, and the box a strum earned survives
      literally, as a box drawn inside the bracket. This direction cuts everywhere else. A stroke
@@ -171,8 +178,8 @@ is bookkeeping about that tenure.
    statement ran out. Never a display value.
 10. A slide with the grip held: the span covers the glide and ends at the landing, where the
     successor opens (rule 6) — the two tile exactly. Grip broken mid-slide: the span ends at
-    the break and a landing reached after it opens nothing: the survivors are members of whatever
-    the next fretting-hand strike founds over them, or tails where none does.
+    the break and a landing reached after it opens nothing: the survivors ring out as tails,
+    carried into the next span only where its own onsets found one under them.
 
 ### Tails and holds
 
@@ -284,10 +291,12 @@ event-algebra, edge-first, deletion-first).
   its own one-line law, not a case of the slot law: read literally the disjunction would refuse the
   gated 2-note slide, since a landing has own = 0. Rule 6 opens at two survivors because a
   landing's members were already ESTABLISHED members of the span that just closed — the 3-minimum
-  gates members ARRIVING staggered, and nothing arrives at a landing. The front: one floor
-  `max(covered, foreign-sound end over stated strings)`, and members date it from the earliest
-  onset at or after the floor — `covered` is this dating floor and never a reach input, and the
-  asymmetry is the one thing separating the front from the reach. The floor holds through growth
+  gates members ARRIVING staggered, and nothing arrives at a landing; `total` counts only
+  statements made since `covered`. The front: one floor `max(covered, foreign-sound end over
+  stated strings, end of every fretting-hand sound on an unstated string that does not join as a
+  carried member)`, and members date it from the earliest onset at or after the floor — `covered`
+  is this dating floor and the founding gate, never a reach input, and the asymmetry is the one
+  thing separating the front from the reach. The floor holds through growth
   as an invariant: a strike on a string whose foreign sound ended past the standing front is a
   contradiction, never a join (Law A at the join). All SOUNDED members bound (a
   claim lends no ring: it neither bounds the reach nor feeds the quit arm, so a span of claims alone

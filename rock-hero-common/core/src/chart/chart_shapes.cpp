@@ -257,8 +257,8 @@ struct OpenSpan
     // floor); its presence is the landing emit rule's stated arm (shape rule 4).
     std::optional<Fraction> last_stated_place{};
 
-    // The hand's OWN strokes have sounded this grip in parts — what the unison-restatement break
-    // and the partial-sounding guards read, published as \ref ChartShape::sounds_in_parts.
+    // The hand's OWN strokes have sounded this grip in parts. Read through \ref inParts beside
+    // the carried members, which make the figure sound in parts too.
     bool struck_in_parts{false};
 
     // True on the span a landing opened and nowhere else (shape rule 4) — the one span no event
@@ -270,7 +270,21 @@ struct OpenSpan
     // The unnamed shape hold stating this span (shape rule 9); empty on a span its notes alone
     // state. Published as \ref ChartShape::hold_stated.
     std::optional<HoldTenure> hold{};
+
+    // Per string, whether the member was CARRIED into this span: a ring struck before the span's
+    // front that still sounded there (shape rule 1). A carried member bounds the span like any
+    // other, but its death is a SPLIT, not a close: the span it joined exists on its own onsets,
+    // so it runs on past the death with the members still standing. A fretting-hand restrike
+    // inside the span makes the member the span's own.
+    std::vector<bool> carried;
 };
+
+// Whether the span sounds in parts (shape rule 5): its own strokes did, or a member was carried in
+// rather than struck, which is a member its founding stroke did not strike.
+[[nodiscard]] bool inParts(const OpenSpan& span)
+{
+    return span.struck_in_parts || std::ranges::any_of(span.carried, std::identity{});
+}
 
 // A shape hold on the walk's whole-note axis.
 struct HoldExtent
@@ -694,8 +708,10 @@ ChartShapes deriveChartShapes(
         {
             closed_hold_end = tenure->end;
         }
-        // A hold whose span closes at its front holds nothing, and publishes no span.
-        if (open->hold.has_value() && !(open->front_place < end))
+        // A span closing at its front holds nothing, and publishes no span (shape rule 3: every
+        // span is strictly positive): a hold's span closing at its start, or a split's remainder
+        // the strike at its own front breaks at once.
+        if (!(open->front_place < end))
         {
             open.reset();
             return;
@@ -708,7 +724,7 @@ ChartShapes deriveChartShapes(
             .closing_onset_place = head,
             // Indexed below, once the span is known to be published.
             .posture = 0,
-            .sounds_in_parts = open->struck_in_parts,
+            .sounds_in_parts = inParts(*open),
             .landing_opened = open->landing_opened,
             .bracket_place = open->bracket_place,
             .hold_stated = open->hold.has_value(),
@@ -747,17 +763,116 @@ ChartShapes deriveChartShapes(
     //
     // Inside a shape hold the boundary is the span's first hand conflict no slot states (shape rule
     // 9), which closes the span whether or not a landing hands it over.
+    // One slot reading, reused by every slot so each buffer is allocated once. Declared here
+    // because the split below asks whether the slot standing at a boundary restrikes the member
+    // dying there.
+    SlotReading slot{
+        .place = Fraction{},
+        .strikes = std::vector<std::optional<ChartStop>>(string_count),
+        .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
+        .sounding = std::vector<std::optional<Fraction>>(string_count),
+        .tap_floors = std::vector<std::optional<int>>(string_count),
+        .struck = 0,
+    };
+
+    // THE SPLIT (shape rule 1): where the member whose coverage ends at `boundary` was CARRIED into
+    // the span, the span does not close there — it exists on its own onsets — but splits: the
+    // piece up to the death is published with the carried member in its grip, and the span runs
+    // on from the death with the members still standing, fronted there, keeping the hand's own
+    // in-parts verdict and nothing a carried member gave it. A member of the span's own ending
+    // there is a quit (the slot path's business); a carried member whose coverage is capped at a
+    // LANDING its ring runs past has not died, and the landing hands it on (shape rule 4); one the
+    // slot at `now` restates is renewed there (the slot path's business again), while a strike at
+    // another stop there finds the member already dead and is judged against the remainder; and
+    // inside its shape hold a span's quits are suppressed, a carried member's included (shape rule
+    // 9). None of those is a split. At the hold's own end a carried member's death is one: the
+    // hold's span closes there, as the hold states, and the remainder runs on as it derives
+    // unheld, so a hold placed exactly over a piece changes nothing else.
+    const auto split_at_carried_death = [&](const Fraction boundary, const Fraction now) {
+        // Bound once so the presence test and the read are provably the same object.
+        if (const std::optional<HoldTenure>& tenure = open->hold;
+            tenure.has_value() && boundary < tenure->end)
+        {
+            return false;
+        }
+        bool dying = false;
+        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        {
+            // Bound once so the presence test and the reads are provably the same object.
+            const std::optional<ChartStop>& stop = open->stops[string_index];
+            if (!stop.has_value() || hand[string_index].covers != boundary)
+            {
+                continue;
+            }
+            const std::optional<std::size_t>& finger = hand[string_index].finger;
+            if (!open->carried[string_index] ||
+                (finger.has_value() && boundary < ring_end_of(*finger)))
+            {
+                return false;
+            }
+            // A restatement is judged on GRIP STATEMENTS like every identity question: a source
+            // riding above the carried stop states that stop (the hold-under law), and any other
+            // strike states what it sounds; either way the same stop renews the member.
+            // Bound once so the presence tests and the reads are provably the same objects.
+            const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+            const std::optional<ChartStop>& struck = slot.strikes[string_index];
+            if (boundary == now && slot.place == now && striking.has_value() &&
+                struck.has_value() &&
+                gripStatement(saved_notes[*striking], planted_stops[*striking], *stop)
+                        .value_or(*struck) == *stop)
+            {
+                return false;
+            }
+            dying = true;
+        }
+        if (!dying)
+        {
+            return false;
+        }
+        // Bound once so the presence test and the read are provably the same object.
+        const std::optional<Fraction>& stated = open->last_stated_place;
+        OpenSpan remainder{
+            .front_place = boundary,
+            .stops = open->stops,
+            .bracket_place = boundary,
+            .last_stated_place =
+                stated.has_value() && boundary < *stated ? stated : std::optional<Fraction>{},
+            .struck_in_parts = open->struck_in_parts,
+            .landing_opened = false,
+            .hold = std::nullopt,
+            .carried = open->carried,
+        };
+        for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+        {
+            if (remainder.carried[string_index] && hand[string_index].covers == boundary)
+            {
+                remainder.stops[string_index].reset();
+                remainder.carried[string_index] = false;
+            }
+        }
+        emit(boundary, std::nullopt);
+        open = std::move(remainder);
+        return true;
+    };
+
     std::optional<Fraction> settled_through;
     const auto settle_landings = [&](const Fraction now) {
         const std::optional<Fraction> judged_through = std::exchange(settled_through, now);
         while (open.has_value())
         {
             const Fraction boundary = span_reach(*open);
+            if (now < boundary)
+            {
+                return;
+            }
+            if (split_at_carried_death(boundary, now))
+            {
+                continue;
+            }
             // A boundary inside the span's shape hold is a hand conflict, judged once like a
             // death would be only where a slot stands at it.
             const bool held = insideHold(*open, boundary);
-            if (now < boundary ||
-                (!held && judged_through.has_value() && boundary <= *judged_through))
+            if (!held && judged_through.has_value() && boundary <= *judged_through)
             {
                 return;
             }
@@ -839,6 +954,7 @@ ChartShapes deriveChartShapes(
                 .struck_in_parts = false,
                 .landing_opened = true,
                 .hold = std::nullopt,
+                .carried = std::vector<bool>(string_count),
             };
             // The landing restarts each survivor's fretting-hand coverage at the landed grip —
             // re-read from the channel, so a multi-leg glide's NEXT departure still caps it
@@ -915,15 +1031,7 @@ ChartShapes deriveChartShapes(
         return at % 2 == 0 ? extent.start : extent.end;
     };
 
-    // One slot reading and one grown grip, reused by every slot so each buffer is allocated once.
-    SlotReading slot{
-        .place = Fraction{},
-        .strikes = std::vector<std::optional<ChartStop>>(string_count),
-        .strike_notes = std::vector<std::optional<std::size_t>>(string_count),
-        .sounding = std::vector<std::optional<Fraction>>(string_count),
-        .tap_floors = std::vector<std::optional<int>>(string_count),
-        .struck = 0,
-    };
+    // One grown grip, reused by every slot so the buffer is allocated once.
     std::vector<std::optional<ChartStop>> grown(string_count);
 
     std::size_t index = 0;
@@ -1025,6 +1133,7 @@ ChartShapes deriveChartShapes(
                 .struck_in_parts = false,
                 .landing_opened = false,
                 .hold = HoldTenure{.end = slot.place, .conflict = std::nullopt},
+                .carried = std::vector<bool>(string_count),
             };
             unfounded_hold.reset();
         }
@@ -1666,7 +1775,7 @@ ChartShapes deriveChartShapes(
             const bool restates_whole = stroke_says_whole(open->stops);
             unison_restatement = restates_whole && chord_statement_stands &&
                                  stated_count >= g_span_member_threshold &&
-                                 (open->struck_in_parts || strikes_beyond_grip);
+                                 (inParts(*open) || strikes_beyond_grip);
             // The chord->parts direction measures the stroke against the span's OWN statement, so
             // it fires only where the stroke touches a stated stop without restating them all —
             // sounding PART of what the span stated is the statement coming apart, while a stroke
@@ -1680,7 +1789,7 @@ ChartShapes deriveChartShapes(
             // restrike beside a travelling member rides, per member and not per slot (the mid-slide
             // rule). And a span already IN PARTS wears the bracket that covers partial sounding, so
             // partials ride it unchanged.
-            partial_sounding = !restates_whole && touched_stated > 0 && !open->struck_in_parts &&
+            partial_sounding = !restates_whole && touched_stated > 0 && !inParts(*open) &&
                                open->last_stated_place.has_value() && !member_travelling;
             // THE PARTIAL-SLIDE SPLIT (the chord split mid sustain): a partial-slide slot touching
             // a never-in-parts span is the statement coming apart AT this slot — even where it
@@ -1688,9 +1797,9 @@ ChartShapes deriveChartShapes(
             // rest stays — so the box closes here and this slot founds the parts figure, dated at
             // its own onset. It shares every guard the chord->parts direction carries, and the
             // whole-grip slide never fires it.
-            partial_sounding = partial_sounding ||
-                               (partial_slide && touched_stated > 0 && !open->struck_in_parts &&
-                                open->last_stated_place.has_value() && !member_travelling);
+            partial_sounding =
+                partial_sounding || (partial_slide && touched_stated > 0 && !inParts(*open) &&
+                                     open->last_stated_place.has_value() && !member_travelling);
             // A grip too small for parts is a box to the end: where it would turn, it breaks.
             partial_sounding = partial_sounding || (turns_to_parts && too_few_for_parts);
         }
@@ -1714,6 +1823,12 @@ ChartShapes deriveChartShapes(
                 if (!entry.has_value())
                 {
                     entry = grip_statement_of(string_index);
+                }
+                // A fretting-hand strike on a carried member's string restates it: the member is
+                // the span's own from here, and its death is a quit, not a split.
+                if (slot.strikes[string_index].has_value())
+                {
+                    open->carried[string_index] = false;
                 }
             }
             if (slot.struck > 0)
@@ -1770,6 +1885,14 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
+                // ONLY A STATEMENT SINCE THE FRONTIER founds and dates: a ring struck behind the
+                // last close belongs to the figure that closed, so it never makes a bracket exist
+                // where the fresh onsets alone would draw none. Whether it JOINS the span founded
+                // here is asked at the front, below (shape rule 1).
+                if (onset_place[*finger] < covered)
+                {
+                    continue;
+                }
                 const std::optional<ChartStop> carried = carried_stop(string_index, slot.place);
                 if (!carried.has_value())
                 {
@@ -1784,11 +1907,6 @@ ChartShapes deriveChartShapes(
                 {
                     continue;
                 }
-                // A ring still sounding here is part of the sounding shape, fretted or open
-                // alike, whenever it was struck: it counts toward a founding here and joins the
-                // grip of the span founded, stating what its strike stated (shape rule 1). The
-                // coverage frontier keeps the span's FRONT from dating behind it (the floor below),
-                // and nothing else; so what sounds under a bracket's opening is what it prints.
                 stops[string_index] = carried_statement(string_index, *carried);
                 // A carry brings its coverage AS OF NOW into the span it joins: the third moment
                 // \ref coverage_at names. Nothing was standing to restart this string at the
@@ -1817,6 +1935,38 @@ ChartShapes deriveChartShapes(
                 const bool whole_stroke =
                     slot.struck > 0 && stroke_says_whole(stops) &&
                     (tooFewForParts(stops) || (!partial_slide && chord_statement_stands));
+                // Whether the ring on a string the grip does not state joins a span fronted at
+                // `front` as a CARRIED member, and with what stop (shape rule 1): struck before the
+                // front and still sounding there, outliving it by the minimum sustain distance
+                // there — a shorter tail draws nothing into the span and reads as released before
+                // it — and folding in on no string this slot strikes with the fretting hand (a
+                // strike there is the span's own statement of that string, or a node proving the
+                // finger left) nor, while still sounding, on one any onset sounds (the supersession
+                // rule).
+                const auto joins_at = [&](const std::size_t string_index,
+                                          const Fraction front) -> std::optional<ChartStop> {
+                    if (slot.strike_notes[string_index].has_value())
+                    {
+                        return std::nullopt;
+                    }
+                    const std::optional<std::size_t>& finger = hand[string_index].finger;
+                    if (!finger.has_value() || !(onset_place[*finger] < front))
+                    {
+                        return std::nullopt;
+                    }
+                    const std::optional<ChartStop> at_front = carried_stop(string_index, front);
+                    if (!at_front.has_value())
+                    {
+                        return std::nullopt;
+                    }
+                    const Fraction reach = coverage_at(string_index, front);
+                    if (!(minimumSustainDistance(tempo_map, front) < reach - front) ||
+                        (slot.place < reach && slot.sounding[string_index].has_value()))
+                    {
+                        return std::nullopt;
+                    }
+                    return at_front;
+                };
                 Fraction front_place = slot.place;
                 if (!whole_stroke)
                 {
@@ -1829,8 +1979,9 @@ ChartShapes deriveChartShapes(
                     // earliest member statement, so extending a member's statement backward never
                     // moves a front later.
                     //
-                    // Every dating string reads the ONE statement-began column, struck and carried
-                    // alike: a member's own onset is not the question — it is only a substitute for
+                    // Every dating string reads the ONE statement-began column, struck and ringing
+                    // since the frontier alike (a carried member, joining below, dates nothing): a
+                    // member's own onset is not the question — it is only a substitute for
                     // the beginning of the statement that onset makes, and it answers wrongly in
                     // both directions. A restrike of a stop already held began its statement
                     // earlier (re-articulation), and a slid finger began its statement LATER than
@@ -1855,6 +2006,46 @@ ChartShapes deriveChartShapes(
                                 front_place, std::max(stated_since_here[string_index], floor));
                         }
                     }
+                    // THE NON-MEMBER FLOOR (shape rule 1: what sounds under a bracket's opening is
+                    // what it prints): a front never dates behind the end of a fretting-hand sound
+                    // on a string the grip does not state, unless that sound joins as a carried
+                    // member below. So a note struck inside the dated stretch that died before the
+                    // founding, a ring outliving the front by a sliver, and a ring the slot
+                    // supersedes all move the front past their end rather than sounding unprinted
+                    // under the bracket. A natural's chime states no grip and floors nothing. A
+                    // later front can turn a joiner into a sliver, so the floor is read until it
+                    // settles.
+                    for (bool moved = true; moved;)
+                    {
+                        moved = false;
+                        for (std::size_t string_index = 0; string_index < string_count;
+                             ++string_index)
+                        {
+                            if (stops[string_index].has_value())
+                            {
+                                continue;
+                            }
+                            const std::optional<std::size_t>& finger = hand[string_index].finger;
+                            if (!finger.has_value())
+                            {
+                                continue;
+                            }
+                            const Fraction end = std::min(ring_end_of(*finger), slot.place);
+                            if (!(front_place < end) ||
+                                joins_at(string_index, front_place).has_value())
+                            {
+                                continue;
+                            }
+                            const std::optional<ChartStop> sounded =
+                                covers_at(string_index, onset_place[*finger]);
+                            if (!sounded.has_value() || nodeGrip(*sounded))
+                            {
+                                continue;
+                            }
+                            front_place = end;
+                            moved = true;
+                        }
+                    }
                 }
                 // Inside an unnamed hold the span the notes found is the hold's, fronted at its
                 // stated start (shape rule 9).
@@ -1865,6 +2056,28 @@ ChartShapes deriveChartShapes(
                     front_place = holds[*unfounded].start;
                     hold = HoldTenure{.end = holds[*unfounded].end, .conflict = std::nullopt};
                     unfounded_hold.reset();
+                }
+                // THE CARRIED MEMBERS (shape rule 1): what sounds under a bracket's opening is what
+                // it prints. Every ring that joins at the front (\c joins_at) is in the grip,
+                // whenever it was struck, stating what its strike stated, and bounds the span like
+                // any member — its death inside the span is the split. Its coverage is read from
+                // the front, the instant it joins, so a landing it passed later still caps it
+                // (shape rule 4).
+                std::vector<bool> carried_in(string_count, false);
+                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+                {
+                    if (stops[string_index].has_value())
+                    {
+                        continue;
+                    }
+                    const std::optional<ChartStop> at_front = joins_at(string_index, front_place);
+                    if (!at_front.has_value())
+                    {
+                        continue;
+                    }
+                    stops[string_index] = carried_statement(string_index, *at_front);
+                    carried_in[string_index] = true;
+                    hand[string_index].covers = coverage_at(string_index, front_place);
                 }
                 // The opening mark draws at the front: the chord frame states the grip where its
                 // first member's statement began, and a glide's landing begins one exactly as a
@@ -1877,10 +2090,11 @@ ChartShapes deriveChartShapes(
                     .struck_in_parts = false,
                     .landing_opened = false,
                     .hold = hold,
+                    .carried = std::move(carried_in),
                 };
-                // Born in parts exactly when a stroke founded it and that stroke was not whole
-                // (above): a member it did not strike, a carried ring included, is a member
-                // arriving separately (shape rule 5).
+                // The hand's own strokes sound the grip in parts exactly when a stroke founded it
+                // and that stroke was not whole (above); a carried member makes the figure sound in
+                // parts beside that (\ref inParts, shape rule 5).
                 open->struck_in_parts = slot.struck > 0 && !whole_stroke;
             }
         }
@@ -1920,6 +2134,9 @@ ChartShapes deriveChartShapes(
             string_hand.stated_since = stated_since_here[*string_index];
             string_hand.covers = coverage_at(*string_index, slot.place);
         }
+        // A span founded here over carried rings that died between its front and this instant
+        // splits at each death, now that every member's coverage is written (the split).
+        settle_landings(slot.place);
         watch_conflicts(slot.place);
 
         index = onset_end;
