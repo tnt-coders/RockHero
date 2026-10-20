@@ -1,13 +1,17 @@
-# GP Let-Ring Figure Law Improvements
+# Plan 71 — Let-ring import
 
-**Status:** Deferred. Not executable as written. The figures, counts and function names below
-describe the import as it stands when this plan is written; re-read
-`rock-hero-editor/core/src/project/gp_chart_builder.cpp`, `docs/design/rulesets/gp-import-rules.md`
-and the corpus census before acting on any of it, and re-measure every number.
+## Status
+
+**On the roadmap 2026-10-19 (promoted from `docs/plans/todo/`); not started. Gated on G71-TRUTH:
+Phase 0's ground truth is the user's hand authoring, which waits for the user's time.**
 
 **Priority (user, 2026-10-19):** let-ring import is the app's BIGGEST correctness pain point. Span
 derivation and hold authoring now read fairly correct, and what they derive from is the ring the
 import wrote. This plan is the first correctness work to pick up once the active plans allow it.
+
+The figures, counts and function names below describe the import as it stood when the plan was
+written. Before Phase 1, re-read `rock-hero-editor/core/src/project/gp_chart_builder.cpp`,
+`docs/design/rulesets/gp-import-rules.md` and the corpus census, and re-measure every number.
 
 ## Purpose
 
@@ -30,7 +34,8 @@ reference" below.
 
 Sightings and counts locate where the law and the reference disagree. Neither one says which is
 right, and that is why the arms below are still open questions. The plan therefore starts with a
-ground truth. It runs before any arm is ruled, and every arm is measured against it.
+ground truth. It runs before any arm is ruled, and every arm is measured against it. Steps 1 to 3
+are Phase 0 and the user's; steps 4 to 6 are Phase 1 (see Phases at the end).
 
 1. **Select.** The user picks a few songs whose let-ring usage covers the arms below: arpeggiated
    chords split across voices (figure L), open-string drones (c), fretted rings that cross a
@@ -191,6 +196,19 @@ same-string merge extends like any other" doctrine.
 
 Each arm's own span impact is not separated beyond the tie row. Measure it per arm when the arm is
 ruled.
+
+## Phases
+
+- **Phase 0 — the ground truth (the user's; closes G71-TRUTH).** Steps 1 to 3 of the ground-truth
+  section: songs selected, rings authored over recorded reviewed ranges, packages stored under
+  the firewall.
+- **Phase 1 — diff and fit.** Steps 4 to 6: re-verify the inventory above, diff the import against
+  the truth, score the candidate rules, and bring the user one recommended rule per arm with its
+  scores and its corpus-wide changes. No production change lands in this phase.
+- **Phase 2 — the rulings land.** One change per arm the user rules, each with fixtures for its
+  sighted figure and a census re-pin, and `gp-import-rules.md` updated in the same change.
+- **Phase 3 — sighting.** The user re-imports the truth songs and a few untouched ones, and checks
+  them by eye.
 
 ## Execution notes
 

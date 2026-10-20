@@ -1398,7 +1398,7 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
   The other 22 (52 rings) are true silences. The event-anchor form changes 66 rings (17 spans out,
   15 in) and leaves figure L unchanged. The proposed refinement is "a rest stops let-ring only
   where the whole track is silent", with the per-arm questions in
-  `docs/plans/todo/gp-let-ring-figure-law-improvements.md` (arm a).
+  `docs/plans/roadmap/71-let-ring-import.md` (arm a).
 
   **Trigger:** a ruling on that plan's arm (a), or the let-ring law being reopened. **Where to
   start:** the plan, and the per-rest voice listing it points to.

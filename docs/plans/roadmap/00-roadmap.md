@@ -62,6 +62,7 @@ graph TD
         P66[66 tempo repair tools]
         P67[67 nothing snaps to downbeats]
         P68[68 Rock Sidekick rename]
+        P71[71 let-ring import GATE]
     end
     subgraph Deferred
         P28[28 practice mode]
@@ -199,6 +200,7 @@ first-executable phases are editor-side; the artifact it themes is shared by bot
 | **G57-BOARD** | docs/plans/roadmap/57-positions-past-the-drawn-board.md | 57-Q1 corpus measurement first (it may close the plan outright by shrinking the domain to the board), then 57-Q2..Q4 sign-off if a display mechanism is needed | 57 entirely; the interim (`highwayDrawnStop` holding a node at the board's edge) shipped 2026-08-10 and stands meanwhile |
 | docs/plans/roadmap/58-user-fretboard-art.md | **Roadmap - decision shape settled 2026-08-17, not started** | User-provided fretboard skin images (trapezoid/block inlay styles, artistic 12th frets, full-neck art) as an override tier above the shipping code-mapped dot tier; one image mechanism, authored separately per string count, falling back to the dot tier for counts without art | Written 2026-08-17 out of the positional audit's inlay findings: the stretched per-fret sheet rendered dots elliptical (4.8% at 6 strings, 57% at 4) with four hand-seat bugs, and the fix discussion settled the tiering - the derived dot path ships now as the default and the expressive-art feature waits here |
 | **G60-RULINGS** | docs/plans/roadmap/60-the-hand.md §9 | **RULED 2026-10-02** in the law-by-law session: Q1 signed, its re-measurement condition discharged 2026-10-03 (rule 12 lifts the headline to 88.09%; rule 13 has no corpus population), Q2 no profiles at first release (future profiles chart-scoped), Q4 yes, Q3 and Q5 deferred to a Phase 5 session (Q5 NO for now); only the marker moves on `Alt+←/→`, the content-editing front gesture struck | Phases 1 and 2 closed (2026-10-04, 2026-10-08); Phase 3 next; Phase 5 waits for its own session; Phase 6 closes on the census measure, whose slide split it now owes at its entry |
+| **G71-TRUTH** | docs/plans/roadmap/71-let-ring-import.md Phase 0 | The user selects a few let-ring songs covering the plan's arms, imports them, hand-authors every marked ring over recorded reviewed bar ranges, and stores them under the corpus firewall — waiting on the user's time (2026-10-19) | 71 Phases 1–3: no arm of the let-ring law is ruled or changed before the rules are scored against this truth |
 
 Known tensions from the planning mandate, and where each is resolved (none papered over):
 
@@ -300,6 +302,8 @@ The items below stay the per-plan record; where the two disagree about order, th
 29. docs/plans/roadmap/30-game-2d-tab-view.md Phase 1 (scene-model promotion — dependency-free), Phase 2 (shared notation paint core + manifest; 30-Q1 amendment landed, runs before item 24's plan 40 Phase 3 per 30-Q2), Phases 3–5 (game strip renderer, three-way game display modes incl. simultaneous 2D+3D, editor preview display selector); Phase 6 (feedback overlays) after 24's event feed + 25 Phase 5's reduction.
 
 26g. docs/plans/roadmap/63-technique-authored-surfaces.md — Phases 1–2 BUILT 2026-09-29 (the bend chip is a caret face: `Up` from a bent object's mark stands on its chip, `Delete` there takes the bend through the picker's own "No bend", `Enter` and `B` open the picker, a click arms it, and the chip draws over the caret square); Phase 3, the sighting, remains. Pulled forward by the user the day it was ruled.
+
+26h. docs/plans/roadmap/71-let-ring-import.md — **the app's biggest correctness pain point (user, 2026-10-19), promoted from `docs/plans/todo/` the same day.** Phase 0 is the user's ground truth (G71-TRUTH: songs imported and their let-ring rings authored by hand); Phase 1 diffs the import against it and fits the rule from GP data alone, holding songs out; Phase 2 lands each ruled arm (rests, fretted rings past the anchor, open-string drones, ties) as its own change; Phase 3 is the sighting. First correctness work to pick up once G71-TRUTH closes and the active plans allow it; not in G0 scope unless the user rules it in.
 
 **Stage 7 — Deferred**
 30. docs/plans/roadmap/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
@@ -653,6 +657,14 @@ silent defaults. Full option analysis in the plan.
 - **70-Q3** logs stay in Roaming (watch item "Logs in Roaming").
 - **Design-rule change APPROVED 2026-10-11:** `common/core` links the `juce_data_structures` properties types PRIVATE as well as INTERFACE; the design docs are updated in Phase 1.
 
+### docs/plans/roadmap/71-let-ring-import.md (gate G71-TRUTH; arms a–d OPEN, each ruled against the ground truth)
+
+- **G71-TRUTH** the user's hand-authored let-ring rings for a few songs (Phase 0). Every question below waits on it.
+- **71-a** rests: does a rest stop a ring only where the whole track is silent, and should a chord change stated in another voice end a held ring (figure L)?
+- **71-b** fretted rings: may a fragment's donation depend on what the closing figure states later, and does a fretted ring outlive the anchor until its own string is re-struck?
+- **71-c** open strings: how long may an untouched open string be asked to ring — the phrase, one horizon from its onset, or the phrase capped at that horizon?
+- **71-d** ties: does a tied let-ring chain ring past its tie end?
+
 ### Roadmap-level items
 
 - **RM-6** (OPEN, added 2026-08-17) **Bass highway spacing.** The third-party reference the marker
@@ -769,6 +781,7 @@ disposition changed or when they gate a decision listed in §5.
 | design-calls-from-the-2026-08-10-review.md | UNTOUCHED (added post-consolidation) | none | The deep review's design-level residue (Arrangement persisted/prepared split, ScoringRuleset version factory, theme font roles) — each needs the user's direction before execution |
 | tap-harmonic-display.md | UNTOUCHED (added post-consolidation) | none | Records what the board draws for a tap harmonic today (an undesigned composite) and the presentation decisions the user has never made; blocked on a walkthrough, fenced from G57-BOARD |
 | intricate-highway-themes.md | UNTOUCHED (added 2026-10-12 when the render looks were withdrawn) | none — unscheduled | The theme render looks (pixel, CRT, dither, halftone, the hard palette snap) and the 97 sighted themes, built and withdrawn the same day; names the commit that holds all of it (`4f8e0d7b`) and what the sightings taught; the CRT alone returned on 2026-10-13 in a reduced form (`"crt": true`, Retro Arcade) |
+| gp-let-ring-figure-law-improvements.md | PROMOTED 2026-10-19 to docs/plans/roadmap/71-let-ring-import.md | moved (git history follows the file) | User ruling: let-ring import is the biggest correctness pain point; the plan gained the user-authored ground truth (G71-TRUTH) that its four arms are scored against |
 | a-position-is-a-number.md | UNTOUCHED (added 2026-10-09 as plan 67's §7 follow-on) | none — unscheduled | The program itself on whole-note places (plan 67 §1a B'): a meter edit becomes a map-only edit and the whole-song snapshot survives only for Scale Tempo and the Note Lock; a program-wide mechanical refactor that depends on plan 67's format and gates nothing |
 
 ---
@@ -827,6 +840,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/roadmap/68-rock-sidekick-rename.md | **PARKED 2026-10-11 as a decision record (68-Q6..Q9 added)**; drafted 2026-10-10; 68-Q2 decided (`.rsk`), 68-Q1 and Q3..Q5 open | Rename the editor to Rock Sidekick: tree, namespace, targets, executable, product identity, persisted names, docs; role types kept | Not started |
 | docs/plans/roadmap/69-highway-display-toggles.md | **Phases 1–2 landed 2026-10-11; sighting pending**; 69-Q1 answered (plan 70), Q2..Q3 open | Player toggles for the 3D anticipation ring, note rotation (rolling flip) and arpeggio brackets, in `HighwayDisplayOptions` | View > Highway Display in the editor; the game reads the shared choices at launch |
 | docs/plans/roadmap/70-per-user-data-layout.md | **Phases 1–2 landed 2026-10-11; Phase 3 (the user's by-hand moves) pending**; 70-Q1 open; design-rule change approved and applied | One per-user data tree, one shared locked settings file (audio keys + `highway.*` keys) through an area-agnostic `SharedSettingsFile`, per-app `game`/`editor` files | Not started |
+| docs/plans/roadmap/71-let-ring-import.md | **Gated on G71-TRUTH (the user's ground truth); promoted 2026-10-19** — the biggest correctness pain point | The GP let-ring figure law fitted to user-authored rings: rests, fretted rings past the anchor, open-string drones, ties | Not started |
 
 Milestone 0: **REACHED 2026-07-16** — docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist and docs/plans/roadmap/25-note-highway-3d.md Phase 3 exit criteria (notes scroll in time
