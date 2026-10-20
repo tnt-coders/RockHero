@@ -77,8 +77,11 @@ namespace
         limit = *closing - shape.place - margins.length(*closing);
     }
     // STRICTLY after the front: a morph begun at or before it is the hand arriving into this grip.
+    // A span a shape hold states is exempt: the hold is the author's word that the hand holds
+    // this grip through the hold's end, so a window changing inside it — widening for a finger
+    // added above a held stop — is not the hand leaving (shape rule 9).
     if (const auto move = std::ranges::upper_bound(move_starts, shape.place);
-        move != move_starts.end())
+        !shape.hold_stated && move != move_starts.end())
     {
         const Fraction before_move = *move - shape.place;
         limit = limit.has_value() ? std::min(*limit, before_move) : before_move;

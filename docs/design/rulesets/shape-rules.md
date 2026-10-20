@@ -370,7 +370,11 @@ takes the next one.
      closing head's, the earlier of the two binding, under the same floor and protection. It is
      what bounds a span whose rings outlive the start of the move into the next position with no
      head to cut them. A glide's ramp is not such a move: it is the span's own member travelling,
-     which the span covers (rule 4), so its rails ride the window with it.
+     which the span covers (rule 4), so its rails ride the window with it. A span a shape hold
+     states is exempt: the hold is the author's word that the hand holds this grip through the
+     hold's end, so a window changing inside it — widening for a finger added above a held stop —
+     is not the hand leaving, and the furniture runs to the close under the closing head's margin
+     alone (rule 9).
    - **The close stays reachable.** The view state publishes both instants,
      `ShapeViewState::drawn_end_seconds`, which draws everywhere, and
      `ShapeViewState::close_seconds`. The editor's 2D lane draws a span to its close while the

@@ -1500,6 +1500,77 @@ TEST_CASE(
     }
 }
 
+// Shape rule 6's hand-move limit binds a derived span alone: a shape hold is the author's word that
+// the hand holds its grip to the hold's end, so a window changing inside a held span is not the
+// hand leaving it, and the span draws to its close.
+TEST_CASE("A held span draws past the hand's next move to its close", "[core][chart]")
+{
+    // 120 BPM 4/4: a quarter is half a second and the margin is 0.05 s. A chord rings to 0.71875 s,
+    // and fret 12 on 1:2.5 (0.75 s) lies outside its window, so the hand's morph into the next
+    // position begins at 0.7 s, inside the chord's rings. `holds` states the chart's shape holds.
+    const auto project = [](const std::vector<ShapeHold>& holds) {
+        const auto note = [](const GridPosition& position,
+                             const int string,
+                             const int fret,
+                             const Fraction ring) {
+            return ChartNote{
+                .position = position,
+                .string = string,
+                .fret = fret,
+                .sustain = ring,
+                .bend = {},
+                .keyframes = {},
+            };
+        };
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            note(GridPosition{.measure = 1, .beat = 1}, 1, 5, Fraction{23, 64}),
+            note(GridPosition{.measure = 1, .beat = 1}, 2, 7, Fraction{23, 64}),
+            note(
+                GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+                3,
+                12,
+                Fraction{1, 8}),
+        };
+        chart.shape_holds = holds;
+        Arrangement arrangement = makeArrangementWithChart();
+        arrangement.chart = std::move(chart);
+        return makeChartViewState(arrangement, makeTempoMap());
+    };
+
+    SECTION("derived, the span ends where the move begins")
+    {
+        const ChartViewState state = project({});
+        REQUIRE(state.fret_hand_positions.size() == 2);
+        const HandArrival& move = arrivalAtChip(state, 1);
+        REQUIRE(state.shapes.size() == 1);
+        CHECK_FALSE(state.shapes[0].held);
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(move.seconds - move.ramp_seconds));
+        CHECK(state.shapes[0].drawn_end_seconds == Catch::Approx(0.7));
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.71875));
+    }
+
+    SECTION("held over the same extent, the span draws to its close")
+    {
+        // The hold ends where the rings do, a beat and seven sixteenths in, so the held span closes
+        // there with no head after it and owes no margin either.
+        const ChartViewState state = project({ShapeHold{
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{7, 16}},
+            .grip = UnnamedGrip{},
+        }});
+        REQUIRE(state.fret_hand_positions.size() == 2);
+        CHECK(arrivalAtChip(state, 1).seconds == Catch::Approx(0.75));
+        REQUIRE(state.shapes.size() == 1);
+        CHECK(state.shapes[0].held);
+        CHECK(state.shapes[0].close_seconds == Catch::Approx(0.71875));
+        CHECK_THAT(
+            state.shapes[0].close_seconds,
+            Catch::Matchers::WithinULP(state.shapes[0].drawn_end_seconds, 0));
+    }
+}
+
 // The pick-slide seam: latent overridden techniques never reach the view, and the path's
 // turnarounds are pitched stops while only its terminal releases.
 TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
