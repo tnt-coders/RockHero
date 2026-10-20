@@ -6497,16 +6497,17 @@ TEST_CASE(
 
 // The hand's next move picks an unpitched slide-out's exit fret. A next placement of the natural
 // stream departing in the slide-out's direction AND serving the very next onset makes the gesture a
-// departure: the exit fret rides that anchor travel (widened to GP import rule 4's two-fret
-// minimum). Otherwise it is a slide-out: the fixed four-fret exit. The gesture places no window of
-// its own: the positions a reader derives from the notes are the whole hand.
+// departure: the exit fret is that anchor travel, exactly. Otherwise it is a slide-out: the fixed
+// four-fret exit. An exit naming the stop the next head on its string is struck at, at that
+// instant, is the arrival the chart reads: the hand slid into that note, a shift slide. The gesture
+// places no window of its own: the positions a reader derives from the notes are the whole hand.
 TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
-    SECTION("a departing hand carries the exit fret downward")
+    SECTION("a departing hand slides the exit down into the next head")
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -6519,14 +6520,16 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         REQUIRE(chart.notes.size() == 2);
 
         // The hand's next anchor departs 8 -> 3, agreeing with the downward slide-out, so the exit
-        // rides that travel instead of the fixed four frets. The ride's own answer, 3, is the stop
-        // the next head is struck at, and the ring reaches that head: written there the chart would
-        // read the SLIDE-OUT the source stated as a shift slide's ARRIVAL, so the exit moves one
-        // fret further in the gesture's own direction (slideOutExitClearOfNextHead).
+        // is that travel instead of the fixed four frets. The answer, 3, is the stop the next head
+        // is struck at, and the ring reaches that head: the chart reads the shift slide's ARRIVAL.
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
-        CHECK(*slide_out == 2);
-        // The gesture is STORED running to the fret-3 onset with its slide-out on it, and its ink
+        CHECK(*slide_out == 3);
+        const bool arrives = common::core::arrivesIntoNextHead(
+            common::core::LegatoPredecessor{.note = chart.notes[0], .onset_gap = Fraction{1, 4}},
+            chart.notes[1]);
+        CHECK(arrives);
+        // The gesture is STORED running to the fret-3 onset with its arrival on it, and its ink
         // stops the margin before it. The window steps straight from 8 to 3 at that onset.
         CHECK(chart.notes[0].sustain == Fraction{1, 4});
         CHECK(inkEndsOf(chart, built->tempo_map)[0] == Fraction{9, 40});
@@ -6536,7 +6539,7 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         CHECK(hands[1].fret == 3);
     }
 
-    SECTION("a departing hand carries the exit fret upward")
+    SECTION("a departing hand slides the exit up into the next head")
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -6549,12 +6552,16 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         REQUIRE(chart.notes.size() == 2);
 
         // The upward mirror: the hand's next anchor departs 3 -> 8 (the floor of the fret-8
-        // run), agreeing with the flags-8 slide-out, so the exit rides that travel to 3 + 5 = 8
-        // rather than the four-fret default 7 — and, 8 being the stop the next head is struck at,
-        // steps one fret further on, as in the downward case.
+        // run), agreeing with the flags-8 slide-out, so the exit is that travel, 3 + 5 = 8, rather
+        // than the four-fret default 7 — the stop the next head is struck at, so an arrival, as in
+        // the downward case.
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
-        CHECK(*slide_out == 9);
+        CHECK(*slide_out == 8);
+        const bool arrives = common::core::arrivesIntoNextHead(
+            common::core::LegatoPredecessor{.note = chart.notes[0], .onset_gap = Fraction{1, 4}},
+            chart.notes[1]);
+        CHECK(arrives);
         // Stored to the fret-8 onset and inked a margin before it, and the window steps from 3 to 8
         // at that onset, as in the downward case above.
         CHECK(chart.notes[0].sustain == Fraction{1, 4});
@@ -6732,14 +6739,13 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         CHECK(hands.front().fret == 8);
     }
 
-    SECTION("a crowded slide-out still rides an agreeing departure")
+    SECTION("a crowded slide-out still rides an agreeing departure into the next head")
     {
         GpScore score = makeLinearScore(1, syncs);
         // The hand's next placement departs downward and serves the very next onset, and the
         // STORED slide-out ends exactly on that onset rather than past it, so there is room to
         // ride. The ride's answer is the next head's own stop and the ring reaches that head, so
-        // the exit steps one fret past it to keep the source's SLIDE-OUT from reading as an
-        // arrival.
+        // the chart reads the arrival.
         score.tracks[0].bars.push_back(
             GpBar{.voices = {{noteBeat(Fraction{1, 64}, 8, 0, 4), noteBeat(Fraction{1, 64}, 3)}}});
 
@@ -6750,14 +6756,39 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         REQUIRE(chart.notes.size() == 2);
         const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
-        CHECK(*slide_out == 2);
+        CHECK(*slide_out == 3);
+        const bool arrives = common::core::arrivesIntoNextHead(
+            common::core::LegatoPredecessor{.note = chart.notes[0], .onset_gap = Fraction{1, 64}},
+            chart.notes[1]);
+        CHECK(arrives);
         CHECK(chart.notes[0].sustain == Fraction{1, 64});
         CHECK(inkEndsOf(chart, built->tempo_map)[0] == Fraction{});
         REQUIRE_FALSE(hands.empty());
         CHECK(hands.front().fret == 8);
-        // The last window is the fret-3 landing's own, which the exit's one-fret step past that
-        // stop does not touch.
+        // The last window is the fret-3 landing's own, the stop the slide arrives at.
         CHECK(hands.back().fret == 3);
+    }
+
+    SECTION("a one-fret hand move gives a one-fret exit")
+    {
+        GpScore score = makeLinearScore(2, syncs);
+        // The bar line starts a fret-7 run on another string, one fret below the opening hand's, so
+        // the natural stream moves 8 to 7 at the next onset, which agrees with the downward
+        // slide-out: the exit is that one fret, not a widened minimum. The landing is on another
+        // string, so nothing arrives.
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1}, 8, 0, 4)}}});
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 4}, 7, 1)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const std::vector<DerivedHand> hands = handsOf(chart, built->tempo_map);
+        REQUIRE(chart.notes.size() == 2);
+        REQUIRE(hands.size() == 2);
+        CHECK(hands[1].fret == 7);
+        const auto* const slide_out = common::core::endStatedFretOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(*slide_out == 7);
     }
 }
 

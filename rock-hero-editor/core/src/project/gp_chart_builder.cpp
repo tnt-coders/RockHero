@@ -1537,72 +1537,6 @@ struct BuiltNote
     return entry.place + entry.note.sustain;
 }
 
-// The next HEAD on this record's own string, or nullptr — the successor the slide-out/arrival
-// relation is a fact about. The stream is in onset order, so the first later record on the string
-// is it. A record `merged_away` marks was folded into its predecessor and is no head; a null table
-// says the stream holds heads only, which is what it holds once the merges have been compacted out.
-[[nodiscard]] const BuiltNote* nextHeadOnString(
-    const std::vector<BuiltNote>& built, const std::size_t index,
-    const std::vector<bool>* const merged_away)
-{
-    for (std::size_t ahead = index + 1; ahead < built.size(); ++ahead)
-    {
-        if (merged_away != nullptr && (*merged_away)[ahead])
-        {
-            continue;
-        }
-        if (built[ahead].note.string == built[index].note.string)
-        {
-            return &built[ahead];
-        }
-    }
-    return nullptr;
-}
-
-// The exit fret a SLIDE-OUT may take. The importer INVENTS this fret — four frets out in the flag's
-// direction, or the hand's next move where it agrees — and a fret at a ring's end naming the stop
-// the next head on that string is struck at, at that same instant, is what the chart reads as a
-// shift slide's ARRIVAL. The source said this note SLIDES OUT, so the invented fret is the
-// importer's to keep clear of that stop: where the candidate would collide, the choice moves one
-// fret further in the gesture's own direction, and the other way at the board's edge.
-//
-// Asked of the one authority rather than by restating its clauses, on a trial carrying the ring the
-// same-string clamp will settle on: that clamp only ever shortens, so a ring already reaching the
-// next head ends exactly on it while a shorter one never can. One step is always enough, the
-// relation comparing the candidate against a single stop.
-[[nodiscard]] int slideOutExitClearOfNextHead(
-    const BuiltNote& entry, const BuiltNote* const next_head, const int candidate,
-    const bool upward, const int capo)
-{
-    if (next_head == nullptr)
-    {
-        return candidate;
-    }
-    const Fraction gap = next_head->place - entry.place;
-    if (entry.note.sustain < gap)
-    {
-        return candidate;
-    }
-    ChartNote trial = entry.note;
-    static_cast<void>(common::core::clipPayloadsToSustain(trial, gap));
-    common::core::setSlideOut(trial, candidate);
-    if (!common::core::arrivesIntoNextHead(
-            common::core::LegatoPredecessor{.note = trial, .onset_gap = gap}, next_head->note))
-    {
-        return candidate;
-    }
-    const int floor = common::core::firstPlayableFret(capo);
-    const int onward = upward ? candidate + 1 : candidate - 1;
-    if (onward >= floor && onward <= common::core::g_max_fret)
-    {
-        return onward;
-    }
-    const int back = upward ? candidate - 1 : candidate + 1;
-    // A board with no second candidate at all leaves the collision standing; the fret rules judge
-    // what such a tuning can express, and nothing here can invent room that is not on the neck.
-    return back >= floor && back <= common::core::g_max_fret ? back : candidate;
-}
-
 // The stored stream lifted out of the build records: the notes exactly as they will ship. Both
 // the same-string clamp and the presentation derivation speak about a note stream, so this is
 // what they are handed. No scrape suppression is applied on the way out — the pick-slide
@@ -2195,9 +2129,11 @@ void resolveSlideIns(
 
 // Chooses every unpitched slide-out's exit fret from the hand's next move. When the natural
 // stream's next event after the slide-out's departure moves in its direction AND arrives by the
-// next onset after that departure, the slide-out IS the departure: the exit fret rides that travel
-// (widened to GP import rule 4's two-fret minimum). Otherwise the slide-out keeps the fixed
-// four-fret gesture it was built with, as does one ending past the next onset.
+// next onset after that departure, the slide-out IS the departure: the exit fret is that travel,
+// exactly. Where it names the stop the next head on its string is struck at, the chart reads the
+// arrival (\ref common::core::arrivesIntoNextHead) — the hand slid into that chord, and the
+// gesture is the shift slide it plays, whatever the source's flag said. Otherwise the slide-out
+// keeps the fixed four-fret gesture it was built with, as does one ending past the next onset.
 //
 // Every question here — where the slide-out ends, which fret it leaves from, whether it still
 // clears the next onset — is asked of the STORED note, whose ring is the truth; spacing before the
@@ -2256,18 +2192,12 @@ void resolveSlideOutExits(
                              !(built[next_note].place < after->front);
         if (departs)
         {
-            const int travel = widenedToMinimumTravel(delta, downward);
             common::core::setSlideOut(
                 entry.note,
-                slideOutExitClearOfNextHead(
-                    entry,
-                    nextHeadOnString(built, index, nullptr),
-                    std::clamp(
-                        departing + travel,
-                        common::core::firstPlayableFret(capo),
-                        common::core::g_max_fret),
-                    !downward,
-                    capo));
+                std::clamp(
+                    departing + delta,
+                    common::core::firstPlayableFret(capo),
+                    common::core::g_max_fret));
         }
     }
 }
@@ -2949,16 +2879,7 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
                 note.sustain = last_stated_fret +
                                minimumSlideWindow(tempo_map, entry.place + last_stated_fret);
             }
-            // Read after the ring is settled, because the relation the exit must stay clear of
-            // asks whether that ring reaches the next head.
-            common::core::setSlideOut(
-                note,
-                slideOutExitClearOfNextHead(
-                    entry,
-                    nextHeadOnString(built, index, &merged_away),
-                    target,
-                    upward,
-                    chart.tuning.capo));
+            common::core::setSlideOut(note, target);
         }
     }
 

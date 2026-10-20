@@ -2980,7 +2980,7 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // open strings carry it — the authored charts' own habit.
                 .label = "fret-hand windows placed",
                 .rig = static_cast<double>(census.derivation.fhp_placements),
-                .expected = 17640.0,
+                .expected = 17642.0,
             },
             CrossCheck{
                 .label = "  ... arriving where nothing fretted sounds",
