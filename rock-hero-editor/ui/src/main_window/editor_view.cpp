@@ -886,11 +886,6 @@ void EditorView::setState(const core::EditorViewState& state)
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
     refreshAudioMeters();
-    // Project load/close swaps the tempo map behind the musical readout, and the vblank feed
-    // only runs while the view is showing, so state pushes invalidate the cached readout sample
-    // and refresh the readouts directly.
-    m_position_readout_seconds.reset();
-    refreshTimeDisplay();
 
     // The visible range each timeline row maps across is NOT pushed here: the track viewport
     // sizes the canvas those rows live on and reaches a little before the timeline's start
@@ -920,6 +915,12 @@ void EditorView::setState(const core::EditorViewState& state)
         : m_state.tone_automation.lane_caret.has_value()
             ? std::optional<double>{m_state.tone_automation.lane_caret->seconds}
             : std::nullopt);
+    // Project load/close swaps the tempo map behind the musical readout, and the vblank feed
+    // only runs while the view is showing, so state pushes invalidate the cached readout sample
+    // and refresh the readouts directly — after the viewport holds the new caret and drag cursor,
+    // since the readout shows the position it marks.
+    m_position_readout_seconds.reset();
+    refreshTimeDisplay();
     // The keyboard position keeps its measure in view: whenever the core counts a MOVE — a step, a
     // click that arms, Tab onto the next marker, an extend, the walk's column rule seeking the
     // cursor into a marker selected far from it — the window fits the whole measure it landed in,
@@ -3706,14 +3707,14 @@ void EditorView::refreshAudioMeters()
     m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
 }
 
-// Samples the transport cursor into the strip readout at display cadence, like the cursor
-// overlay. Vblank frames where the transport holds position return before any string formatting;
+// Samples the position the timeline marks (TrackViewport::markSeconds) into the strip readout at
+// display cadence. Vblank frames where that position holds return before any string formatting;
 // setState clears the cached sample so a swapped tempo map or project-loaded flag re-renders
 // even at an unchanged position. The beat position stays off without a project because the
 // default tempo map would show placeholder values; the plain time remains meaningful either way.
 void EditorView::refreshTimeDisplay()
 {
-    const double seconds = m_transport.position().seconds;
+    const double seconds = m_track_viewport->markSeconds();
     if (m_position_readout_seconds == seconds)
     {
         return;

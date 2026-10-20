@@ -409,7 +409,7 @@ private:
     // Samples continuous meter display data from the audio backend.
     void refreshAudioMeters();
 
-    // Samples the transport cursor position into the transport-strip time and musical readouts.
+    // Samples the position the timeline marks into the transport-strip time and musical readouts.
     void refreshTimeDisplay();
 
     // Opens the audio-device settings window from controller state.
@@ -711,7 +711,7 @@ private:
     // Read-only meter source sampled at display cadence.
     const common::audio::IAudioMeterSource& m_audio_meters;
 
-    // Read-only transport sampled at display cadence for the transport-strip time readout.
+    // Read-only transport the preview window samples for its paused position.
     const common::audio::ITransport& m_transport;
 
     // Playback-time telemetry the 3D preview samples while playing.
@@ -745,7 +745,7 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Read-only readout of the transport cursor's current position as
+    // Read-only readout of the position the timeline marks (TrackViewport::markSeconds) as
     // "measure.beat.hundredths / time" (plain time without a project), shown beside the
     // transport buttons and refreshed at display cadence. The active tempo and time signature
     // are not repeated here: the timeline ruler's header bands pin them to their left edge.
@@ -756,8 +756,8 @@ private:
     // its size must stay visible even when the highlighted notes are scrolled off-screen.
     juce::Label m_selection_count_display;
 
-    // Transport position behind the current m_position_display text, so vblank frames where the
-    // transport holds position skip re-formatting the readout strings. Seconds alone identify
+    // Marked position behind the current m_position_display text, so vblank frames where that
+    // position holds skip re-formatting the readout strings. Seconds alone identify
     // the text because the other readout inputs (project-loaded flag, tempo map) change only
     // through setState, which clears this cache.
     std::optional<double> m_position_readout_seconds{};
@@ -837,7 +837,7 @@ private:
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
 
-    // This view's one per-frame sampler: every vblank it re-reads the meters, the transport
+    // This view's one per-frame sampler: every vblank it re-reads the meters, the marked
     // position for the time readout, and the foreground-and-Alt predicate behind the actual-ring
     // reveal and the menu access keys (syncAltHeldState) — volatile display state the controller
     // never pushes. Declared after every member it samples into so it is destroyed, and its

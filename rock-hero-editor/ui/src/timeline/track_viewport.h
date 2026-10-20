@@ -253,9 +253,9 @@ public:
     /*!
     \brief Stores the armed caret's timeline position, or absence while the marker is passive.
 
-    Armed (present) hides the ruler's aligned mark — the caret square is the position
-    display — and re-centers wheel zoom on the caret instead of the transport cursor. Passive
-    (absent) shows the ruler mark at the transport position and zooms around it. The
+    Armed (present) places the ruler's mark at the caret (\ref markSeconds) and re-centers wheel
+    zoom on it instead of the transport cursor. Passive (absent) shows the ruler mark at the
+    transport position and zooms around it. The
     content-spanning cursor line is independent of this: with a chart it renders only during
     playback, so paused editing never has a line over the notes (the marker model).
 
@@ -350,6 +350,17 @@ public:
     off-screen.
     */
     [[nodiscard]] std::optional<juce::Rectangle<int>> selectedRulerChipBounds() const;
+
+    /*!
+    \brief The play-from-here position the timeline marks.
+
+    The playhead while playing; else the armed caret, which play seeks to before starting; else
+    the held tempo-chip drag's cursor; else the transport's rest. The ruler mark and the
+    transport-strip readout both read this, so they can never show different positions.
+
+    \return The marked position in seconds on the arrangement timeline.
+    */
+    [[nodiscard]] double markSeconds() const noexcept;
 
     /*!
     \brief Forwards the song's section names to the pinned ruler's section chip row.

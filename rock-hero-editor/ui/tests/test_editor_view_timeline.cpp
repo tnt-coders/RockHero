@@ -1557,6 +1557,53 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
     CHECK(position_display.getText() == "2.1.00 / 0:03:650");
 }
 
+// Verifies the readout shows the position the timeline marks: an armed caret, on the chart or on an
+// automation lane, is where play starts, so both readouts follow it rather than the transport's
+// rest, and return to the transport once the marker is passive again.
+TEST_CASE("EditorView position readout follows the armed caret", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureHighwayThemeRegistry()
+    };
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto& position_display =
+        findRequiredDescendant<juce::Label>(view, "transport_position_display");
+
+    // One 4/4 measure over 4.0s is one beat per second: the transport rests on measure 1 beat 2
+    // and a half, and the caret stands on measure 1 beat 3.
+    auto state = makeLoadedEditorState(4.0);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
+    transport.current_position = common::core::TimePosition{1.5};
+
+    SECTION("Chart caret")
+    {
+        state.chart_edit.caret = core::ChartCaretViewState{.seconds = 2.0, .string = 1};
+    }
+    SECTION("Automation lane caret")
+    {
+        state.tone_automation.lane_caret = core::ToneAutomationLaneCaretRef{
+            .lane_index = 0,
+            .seconds = 2.0,
+            .position = {.measure = 1, .beat = 3, .offset = {}},
+        };
+    }
+    view.setState(state);
+    CHECK(position_display.getText() == "1.3.00 / 0:02:000");
+
+    state.chart_edit.caret.reset();
+    state.tone_automation.lane_caret.reset();
+    view.setState(state);
+    CHECK(position_display.getText() == "1.2.50 / 0:01:500");
+}
+
 // Verifies the default zoom maps four seconds of timeline to the canonical width.
 TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
 {

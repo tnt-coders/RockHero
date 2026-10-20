@@ -1179,6 +1179,18 @@ void TrackViewport::refreshTimelineGridForViewChange()
     refreshTimelineGrid();
 }
 
+// While armed the mark sits at the caret, not the stale transport position, or it would lie about
+// where Space starts: play seeks to the caret before starting.
+double TrackViewport::markSeconds() const noexcept
+{
+    if (m_transport.state().playing)
+    {
+        return m_transport.position().seconds;
+    }
+    return m_armed_caret_seconds.value_or(
+        m_drag_cursor_seconds.value_or(m_transport.position().seconds));
+}
+
 // Keeps the ruler cursor aligned with where playback would start, and is the single authority for
 // the paused column's visibility rule: no layout path restates it, so the two surfaces the rule
 // drives (the overlay's line and the content's masked column) can never disagree.
@@ -1189,15 +1201,9 @@ void TrackViewport::updateRulerCursor()
         return;
     }
 
-    // The ruler mark is the play-from-here indicator and is ALWAYS shown: the moving playhead
-    // while playing, else the marker — the armed caret's slot (Space seeks there before playing)
-    // or the passive transport rest. While armed the mark must sit at the caret, not the stale
-    // transport position, or it would lie about where Space starts.
+    // The ruler mark is the play-from-here indicator and is ALWAYS shown, at markSeconds().
     const bool playing = m_transport.state().playing;
-    const double mark_seconds =
-        playing ? m_transport.position().seconds
-                : m_armed_caret_seconds.value_or(
-                      m_drag_cursor_seconds.value_or(m_transport.position().seconds));
+    const double mark_seconds = markSeconds();
     // The caret masks arrive pushed from the caret-bearing views (already in content coordinates),
     // so this never polls their geometry — the gap can never be derived from a caret a view has
     // not adopted yet. At most one is set at a time (one marker editor-wide); the tab lane wins if
