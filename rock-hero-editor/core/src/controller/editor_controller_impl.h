@@ -720,11 +720,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // stands first, since that content is the truth the edit must hold. The ONE reader of the
     // lock's origin.
     [[nodiscard]] SongTimelineSnapshot timeKeptSnapshot(const common::core::TempoMap& tempo_map);
-    // THE Note Lock's refusal: while the lock is on, the reason every edit that would move or
-    // change the song's content is turned down, in the words the refusal log and the red box
-    // carry; nothing while it is off. Asked by the marker funnel's judge, the chart funnel and
-    // the pending fret entry's plan, and the automation points verb.
-    [[nodiscard]] std::optional<ChartPlanInvalid> noteLockRefusal() const;
+    // THE Note Lock's refusal: while the lock is on, the words every edit that would move or
+    // change the song's content is turned down with, which each refusing site wraps in its own
+    // refusal beside what it lights; nothing while it is off. Asked by the marker funnel's judge,
+    // the chart funnel and the pending fret entry's plan, and the automation points verb.
+    [[nodiscard]] std::optional<std::string> noteLockRefusal() const;
     // The map a held tempo-chip drag would commit (EditorViewState::grid_map), derived from the
     // session's map on every publish so it can never outlive the map it moves.
     [[nodiscard]] std::optional<common::core::TempoMap> tempoDragPreview() const;
@@ -801,10 +801,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void commitHoldChoice(
         MarkerVerb verb, const ShapeHoldExtent& extent,
         const std::optional<common::core::HoldGrip>& grip);
-    // A refused hold verb: its log record under the verb's label, and the refusal flash on the
-    // notes struck inside the target's extent.
-    void refuseShapeHoldVerb(
-        MarkerVerb verb, std::string_view reason, const ShapeHoldExtent& target);
+    // A refused hold verb: its log record under the verb's label, and the refusal flash on what the
+    // refusal lights.
+    void refuseShapeHoldVerb(MarkerVerb verb, const ChartPlanInvalid& refusal);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();
@@ -1125,17 +1124,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void requestChartBendPicker(ChartBendPicker picker);
     // Asks the attached view for the hold picker, dropped like the harmonic question with no view.
     void requestChartHoldPicker(ChartHoldPicker picker);
-    // THE REFUSAL REPORT: each reason goes to the log beside the subject it refused, and the
-    // refused elements flash red. A whole plan refused names and flashes its subject — what the
-    // verb planned over; a NoChange is an honest no-op and reports nothing. Per-note refusals name
-    // and flash only the notes refused. Called after any apply, because the flash is addressed in
-    // the projection the view is showing.
+    // THE REFUSAL REPORT: each reason goes to the log beside the subject it refused, and what the
+    // refusal lights flashes red. A whole plan refused is logged against its subject — what the
+    // verb planned over — and flashes what its refusal names (ChartPlanInvalid::lit); a NoChange
+    // is an honest no-op and reports nothing. Per-note refusals name and flash only the notes
+    // refused. Called after any apply, because the flash is addressed in the projection the view
+    // is showing.
     void reportChartPlanRefusal(const ChartPlanRefusal& refusal, const ChartSelection& subject);
     void reportChartRefusedNotes(std::span<const ChartRefusedNote> refused);
-    // The flash's one path: keys to the lane's projection indices, through the two authorities
-    // resolvedChartEdit reads the selection by.
-    void flashChartElements(
-        std::span<const ChartSlotKey> notes, std::span<const ChartKeyframeKey> keyframes);
+    // The flash's one path: a refusal's light resolved to the lane's projection indices — the
+    // keys through the two authorities resolvedChartEdit reads the selection by, the hand chip
+    // through its row's marker index — and handed to the view as one flash. Nothing where
+    // nothing resolves.
+    void flashRefusalLight(const ChartRefusalLight& lit);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
@@ -1882,6 +1883,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         MarkerModelNormalization normalization;
     };
 
+    // A marker model the funnel refuses: why, for the log. It carries no light, because the funnel
+    // judges a model and never knows which chip the verb acted on; the verb that produced the model
+    // lights that chip beside the funnel's record.
+    struct MarkerModelInvalid
+    {
+        std::string reason;
+    };
+
+    // Why the funnel's judge returned no model: a model equal to the one it would replace is a
+    // valid no-op, kept apart from a refusal exactly as ChartPlanRefusal keeps its two.
+    using MarkerModelRefusal = std::variant<ChartPlanNoChange, MarkerModelInvalid>;
+
     // Hands the memo the displayed arrangement's notes layer a landed model's normalization
     // derived, so the projection derives nothing the funnel already did; nothing where it derived
     // none. Called right after the model is applied.
@@ -1893,7 +1906,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // normalized, refused Invalid where it breaks a rule (with the rule's diagnostic), NoChange
     // where it matches `before`. Defined beside the commit in marker_model_commit.h.
     template <typename Snapshot>
-    [[nodiscard]] std::expected<JudgedMarkerModel<Snapshot>, ChartPlanRefusal> judgeMarkerModel(
+    [[nodiscard]] std::expected<JudgedMarkerModel<Snapshot>, MarkerModelRefusal> judgeMarkerModel(
         const Snapshot& before, Snapshot after) const;
 
     // THE one log of a conversion an edit's normalizer made, for every edit that lands one: a

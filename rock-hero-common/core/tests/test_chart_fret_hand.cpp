@@ -600,13 +600,19 @@ TEST_CASE("A natural harmonic demands the fret nearest its node", "[core][chart]
     CHECK(coveredBy({chime(19.01955)}, positionAt(1, 1, 7, 19)));
 }
 
-// The coverage authority reports every breaking position once, ascending, with the first demand it
-// misses; a position's verdict reads the notes alone, so its neighbours never change it.
+// The coverage authority reports every breaking position once, ascending, with every demand it
+// misses, each once, by where it is gripped from and then by fret; a position's verdict reads the
+// notes alone, so its neighbours never change it. The error names them all in one sentence, the
+// stops grouped by where they are gripped from.
 TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][chart]")
 {
+    // The 1:2 position misses fret 3, ringing from 1:1, and fret 2, struck at 1:2 on another
+    // string; the 2:1 position's window [5, 8] misses the frets 9 and 10 struck there.
     const std::vector<ChartNote> notes = {
         noteAt(1, 1, 1, 3, Fraction{1, 2}),
+        noteAt(1, 2, 2, 2),
         noteAt(2, 1, 1, 9),
+        noteAt(2, 1, 2, 10),
     };
     const std::vector<FretHandPosition> positions = {
         positionAt(1, 2, 5), positionAt(1, 3, 5), positionAt(2, 1, 5, 8)
@@ -617,10 +623,25 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
         uncoveringFretHandPositions(resolved, positions, tempo_map);
     REQUIRE(uncovering.size() == 2);
     CHECK(uncovering[0].position == 0);
-    CHECK(uncovering[0].fret == 3);
-    CHECK(uncovering[0].gripped_from == GridPosition{.measure = 1, .beat = 1});
+    CHECK(
+        uncovering[0].stops ==
+        std::vector{
+            UncoveredStop{.gripped_from = GridPosition{.measure = 1, .beat = 1}, .fret = 3},
+            UncoveredStop{.gripped_from = GridPosition{.measure = 1, .beat = 2}, .fret = 2},
+        });
+    CHECK(
+        fretHandCoverageError(uncovering[0], positions).message ==
+        "hand position 1:2 does not cover fret 3 gripped from 1:1 and fret 2 gripped from 1:2");
     CHECK(uncovering[1].position == 2);
-    CHECK(uncovering[1].fret == 9);
+    CHECK(
+        uncovering[1].stops ==
+        std::vector{
+            UncoveredStop{.gripped_from = GridPosition{.measure = 2, .beat = 1}, .fret = 9},
+            UncoveredStop{.gripped_from = GridPosition{.measure = 2, .beat = 1}, .fret = 10},
+        });
+    CHECK(
+        fretHandCoverageError(uncovering[1], positions).message ==
+        "hand position 2:1 does not cover frets 9 and 10 gripped from 2:1");
 
     // Without the breaking positions, the one left still passes.
     CHECK(uncoveringFretHandPositions(resolved, {positions[1]}, tempo_map).empty());

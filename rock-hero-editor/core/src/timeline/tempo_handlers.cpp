@@ -143,15 +143,13 @@ SongTimelineSnapshot EditorController::Impl::timeKeptSnapshot(
     return SongTimelineSnapshot{.timeline = timeKeptTimeline(origin, tempo_map)};
 }
 
-std::optional<ChartPlanInvalid> EditorController::Impl::noteLockRefusal() const
+std::optional<std::string> EditorController::Impl::noteLockRefusal() const
 {
     if (!m_grid_session.note_lock.has_value())
     {
         return std::nullopt;
     }
-    return ChartPlanInvalid{
-        "Note Lock is on: the song's content is frozen while it holds the notes in time"
-    };
+    return "Note Lock is on: the song's content is frozen while it holds the notes in time";
 }
 
 // The tempo chord authors at the cursor and never reads the selection: the cursor's placement slot,

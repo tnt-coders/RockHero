@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <expected>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
@@ -115,13 +116,16 @@ struct FixtureChart
     const Chart& chart, const TempoMap& tempo_map, const std::vector<ChartNote>& base,
     std::vector<ChartNote> candidate)
 {
+    // The twin judges reasons only: what a refusal lights is the gate's own, asserted elsewhere.
+    const ChartRefusalLight unlit{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
     if (std::ranges::any_of(
             common::core::normalizeSustainOverlaps(candidate, tempo_map),
             &common::core::TailTruncation::statement_lost))
     {
-        return std::unexpected{
-            ChartPlanInvalid{"the edit would cut an authored statement off a ring it shortens"}
-        };
+        return std::unexpected{ChartPlanInvalid{
+            .reason = "the edit would cut an authored statement off a ring it shortens",
+            .lit = unlit,
+        }};
     }
     for (ChartNote& note : candidate)
     {
@@ -137,7 +141,7 @@ struct FixtureChart
             common::core::validateChartNotes(saved_form, chart.tuning, tempo_map);
         !valid.has_value())
     {
-        return std::unexpected{ChartPlanInvalid{valid.error().message}};
+        return std::unexpected{ChartPlanInvalid{.reason = valid.error().message, .lit = unlit}};
     }
     if (candidate == base)
     {

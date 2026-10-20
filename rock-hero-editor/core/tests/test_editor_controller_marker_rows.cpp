@@ -2006,8 +2006,9 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
 }
 
 // The same rule asked by the note commit: a note struck at a placement's instant below its fret,
-// or a ring lengthened through it, is refused whole and the note glows red; a note the placement
-// covers lands.
+// or a ring lengthened through it, is refused whole and the placement's chip glows red beside the
+// note gripping the stop it misses — the two things the refusal names; a note the placement covers
+// lands.
 TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][marker-rows]")
 {
     SECTION("a note entered below the window")
@@ -2034,6 +2035,18 @@ TEST_CASE("A note edit refuses leaving an authored position uncovered", "[core][
         CHECK(editor.notes() == makeCoverageChart().notes);
         CHECK(editor.undoEntryCount() == entries_before);
         REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+        // The chip of the authored position at measure 3, found among the row's chips by position
+        // since a derived one may stand before it.
+        REQUIRE(editor.state().tab != nullptr);
+        const std::vector<common::core::FhpViewState>& chips =
+            editor.state().tab->fret_hand_positions;
+        const auto chip =
+            std::ranges::find(chips, downbeat(3), &common::core::FhpViewState::position);
+        REQUIRE(chip != chips.end());
+        CHECK(
+            editor.view.refusal_flashes.back().fret_hand_position ==
+            std::optional{static_cast<std::size_t>(std::distance(chips.begin(), chip))});
+        // And the note whose lengthened ring grips the uncovered fret there.
         CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0});
     }
 

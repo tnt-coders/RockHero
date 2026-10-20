@@ -85,14 +85,15 @@ template <typename Snapshot>
 // about what the commit would refuse. The Note Lock's refusal comes first, since it refuses the
 // edit whatever model it produced.
 template <typename Snapshot>
-std::expected<EditorController::Impl::JudgedMarkerModel<Snapshot>, ChartPlanRefusal>
+std::expected<
+    EditorController::Impl::JudgedMarkerModel<Snapshot>, EditorController::Impl::MarkerModelRefusal>
 EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after) const
 {
     if constexpr (!g_states_grid<Snapshot>)
     {
-        if (std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+        if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
         {
-            return std::unexpected{std::move(*refusal)};
+            return std::unexpected{MarkerModelInvalid{.reason = std::move(*locked)}};
         }
     }
     MarkerModelNormalization normalization = normalizedModel(after);
@@ -104,7 +105,7 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
             });
         violation.has_value())
     {
-        return std::unexpected{ChartPlanInvalid{std::move(*violation)}};
+        return std::unexpected{MarkerModelInvalid{.reason = std::move(*violation)}};
     }
     if (after == before)
     {
@@ -126,11 +127,11 @@ template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
     Snapshot before, Snapshot after, std::string label, const EntryFocus focus)
 {
-    std::expected<JudgedMarkerModel<Snapshot>, ChartPlanRefusal> judged =
+    std::expected<JudgedMarkerModel<Snapshot>, MarkerModelRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
+        if (const auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
         {
             m_refusal_log.markerEdit(label, invalid->reason);
             return MarkerCommit::Refused;
@@ -221,11 +222,11 @@ bool EditorController::Impl::commitMarkerMove(
         return true;
     }
 
-    std::expected<JudgedMarkerModel<Snapshot>, ChartPlanRefusal> judged =
+    std::expected<JudgedMarkerModel<Snapshot>, MarkerModelRefusal> judged =
         judgeMarkerModel(*origin, std::move(after));
     if (!judged.has_value())
     {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&judged.error()))
+        if (const auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
         {
             m_refusal_log.markerEdit(label, invalid->reason);
             m_marker_move_origin = std::move(held);

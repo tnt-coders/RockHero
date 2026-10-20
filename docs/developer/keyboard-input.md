@@ -672,7 +672,9 @@ the desktop tooltip window reads. Refused on a bare caret. The selection-kind di
 rest: `Alt+Left/Right` (`MoveSelection`) step the start to the adjacent note onset and
 `Alt+Shift+Left/Right` (`AdjustChartSustain`, whose availability opens on
 `has_span_row_selection`) the end to the nearest note boundary where the hold fits its notes,
-skipping the boundaries the gate refuses and refused only where none fits
+skipping the boundaries the gate refuses and refused only where none fits — with the NEAREST
+boundary's own refusal, its reason and its light, never a message about the direction; only where
+no boundary lies that way at all does the refusal say so and light the moved hold
 (`planSteppedShapeHoldEdge`, each candidate judged by `planMoveShapeHoldEdge`), as one held run
 through `commitChartGestureStep` (`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on
 the first press (and staying a derived span, selected, when the run steps back to where it began)
@@ -685,7 +687,9 @@ stays unbound, reserved for plan 52. Every picker row and every `Delete` writes 
 `commitHoldChoice`, and every hold verb through the one carve (`carvedShapeHolds`: the extent out
 of every hold it overlaps, a new hold stated over it or none, the none holds that meet merged), and
 ends at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would
-rewrite; a refusal logs under the verb's label and flashes the notes struck inside the target. A
+rewrite; a refusal logs under the verb's label and lights what it names (`ChartPlanInvalid::lit`):
+an uncovering authored position's chip, the neighbour a push would empty, the stretch a hold that
+does not fit overruns, or else the hold itself — a hold as the notes sounding inside it. A
 landing that names a span the notes no longer derive selects nothing (`landMarkerSelection`).
 
 **Two keys read the SELECTION rather than the cursor**, and both take the same projection shape as

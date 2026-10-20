@@ -36,22 +36,6 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// The slots of the notes struck inside [start, end): what a refused hold verb flashes.
-[[nodiscard]] std::vector<ChartSlotKey> notesStruckWithin(
-    const std::vector<common::core::ChartNote>& notes, const common::core::GridPosition& start,
-    const common::core::GridPosition& end)
-{
-    std::vector<ChartSlotKey> struck;
-    for (auto note = std::ranges::lower_bound(
-             notes, start, std::ranges::less{}, &common::core::ChartNote::position);
-         note != notes.end() && note->position < end;
-         ++note)
-    {
-        struck.push_back(chartSlotKeyOf(*note));
-    }
-    return struck;
-}
-
 // The selection naming the hold of `holds` standing at `place`: a none hold as itself, an unnamed
 // hold as the span it states, which starts where it does, and with no hold there the span the
 // notes derive starting at `place`. A verb lands on what its carve left there, so a none hold
@@ -195,16 +179,12 @@ std::optional<ShapeHoldExtent> EditorController::Impl::selectedHoldExtent() cons
     };
 }
 
+// Logged under the verb's label, as every marker verb's refusal is; the flash is the refusal's own.
 void EditorController::Impl::refuseShapeHoldVerb(
-    const MarkerVerb verb, const std::string_view reason, const ShapeHoldExtent& target)
+    const MarkerVerb verb, const ChartPlanInvalid& refusal)
 {
-    m_refusal_log.markerEdit(markerVerbLabel(verb), reason);
-    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
-        arrangement != nullptr && arrangement->chart.has_value())
-    {
-        flashChartElements(
-            notesStruckWithin(arrangement->chart->notes, target.start, target.end), {});
-    }
+    m_refusal_log.markerEdit(markerVerbLabel(verb), refusal.reason);
+    flashRefusalLight(refusal.lit);
 }
 
 // The choice lands on the hold the carve leaves at the extent's start, merged or not: a none hold
@@ -228,7 +208,7 @@ void EditorController::Impl::commitHoldChoice(
     {
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
         {
-            refuseShapeHoldVerb(verb, invalid->reason, extent);
+            refuseShapeHoldVerb(verb, *invalid);
         }
         return;
     }
@@ -339,35 +319,28 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         // NoChange is the run stepped back to where it began, which the commit retires.
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&stepped.plan.error()))
         {
-            refuseShapeHoldVerb(
-                verb,
-                invalid->reason,
-                ShapeHoldExtent{.start = gesture.base.start, .end = gesture.base.end});
+            refuseShapeHoldVerb(verb, *invalid);
             return;
         }
     }
     gesture.value = stepped.value;
     const common::core::GridPosition landed =
         edge == ShapeHoldEdge::Start ? gesture.value : gesture.base.start;
-    const std::expected<bool, ChartPlanInvalid> moved = commitChartGestureStep(
+    // The step was judged above, so the commit has nothing left to refuse: it lands the plan or
+    // retires a run stepped back to its start.
+    static_cast<void>(commitChartGestureStep(
         continues,
         // The plan the candidate was judged with, handed on rather than planned a second time.
         [&stepped](const common::core::Chart& /*pre_gesture*/) { return std::move(stepped.plan); },
         gesture,
         // The hold the run leaves standing at its moved start, read off the same holds the plan
         // judges, so a none hold the run merged into a neighbour lands selected whole.
-        [&landed, &gesture](const common::core::Chart& pre_gesture) -> ChartEditLanding {
+        [&landed, &gesture, &tempo_map](
+            const common::core::Chart& pre_gesture) -> ChartEditLanding {
             const std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> holds =
-                movedShapeHolds(pre_gesture.shape_holds, gesture.base, gesture.edge, gesture.value);
+                movedShapeHolds(pre_gesture, tempo_map, gesture.base, gesture.edge, gesture.value);
             return selectionOfHoldAt(holds.value_or(pre_gesture.shape_holds), landed);
-        });
-    if (!moved.has_value())
-    {
-        refuseShapeHoldVerb(
-            verb,
-            moved.error().reason,
-            ShapeHoldExtent{.start = gesture.base.start, .end = gesture.base.end});
-    }
+        }));
 }
 
 } // namespace rock_hero::editor::core

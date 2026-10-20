@@ -6,7 +6,6 @@
 #include "shared/editor_controller_logging.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -138,8 +137,7 @@ const common::core::ChartViewState* EditorController::Impl::currentTabProjection
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
-void EditorController::Impl::flashChartElements(
-    const std::span<const ChartSlotKey> notes, const std::span<const ChartKeyframeKey> keyframes)
+void EditorController::Impl::flashRefusalLight(const ChartRefusalLight& lit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (m_view == nullptr || arrangement == nullptr || !arrangement->chart.has_value())
@@ -147,12 +145,22 @@ void EditorController::Impl::flashChartElements(
         return;
     }
     const std::vector<common::core::ChartNote>& chart_notes = arrangement->chart->notes;
-    ChartRefusalFlash flash{.notes = slotIndicesForKeys(chart_notes, notes), .keyframes = {}};
+    ChartRefusalFlash flash{
+        .notes = slotIndicesForKeys(chart_notes, lit.notes),
+        .keyframes = {},
+        .fret_hand_position = {},
+    };
     if (m_tab_view_state != nullptr)
     {
-        flash.keyframes = keyframeIndicesForKeys(chart_notes, m_tab_view_state->notes, keyframes);
+        flash.keyframes =
+            keyframeIndicesForKeys(chart_notes, m_tab_view_state->notes, lit.keyframes);
     }
-    if (!flash.notes.empty() || !flash.keyframes.empty())
+    if (lit.fret_hand_position.has_value())
+    {
+        flash.fret_hand_position =
+            markerIndex(MarkerRow::FretHandPosition, *lit.fret_hand_position);
+    }
+    if (!flash.notes.empty() || !flash.keyframes.empty() || flash.fret_hand_position.has_value())
     {
         m_view->flashChartRefusal(std::move(flash));
     }
@@ -169,7 +177,7 @@ void EditorController::Impl::reportChartPlanRefusal(
     }
     m_refusal_log.chartEdit(
         chartSubjectText(subject.notes(), subject.keyframes()), invalid->reason);
-    flashChartElements(subject.notes(), subject.keyframes());
+    flashRefusalLight(invalid->lit);
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h. The refused notes arrive in the
@@ -181,14 +189,14 @@ void EditorController::Impl::reportChartRefusedNotes(
     {
         return;
     }
-    std::vector<ChartSlotKey> notes;
-    notes.reserve(refused.size());
+    ChartRefusalLight lit{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
+    lit.notes.reserve(refused.size());
     for (const ChartRefusedNote& note : refused)
     {
         m_refusal_log.chartEdit(chartSlotText(note.note), note.reason);
-        notes.push_back(note.note);
+        lit.notes.push_back(note.note);
     }
-    flashChartElements(notes, {});
+    flashRefusalLight(lit);
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -1052,7 +1060,7 @@ bool EditorController::Impl::applyChartEditPlan(
 bool EditorController::Impl::applyChartEditPlan(
     JudgedChartPlan plan, std::optional<ChartEditLanding> landing)
 {
-    if (const std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+    if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
     {
         std::vector<ChartSelectionKey> rewritten;
         rewritten.reserve(plan.plan.removed.size());
@@ -1062,7 +1070,14 @@ bool EditorController::Impl::applyChartEditPlan(
         }
         ChartSelection subject;
         subject.replaceWith(rewritten);
-        reportChartPlanRefusal(*refusal, subject);
+        // The lock names nothing on the lane, so the refusal lights the notes it froze.
+        reportChartPlanRefusal(
+            ChartPlanInvalid{
+                .reason = std::move(*locked),
+                .lit =
+                    {.notes = subject.notes(), .keyframes = {}, .fret_hand_position = std::nullopt},
+            },
+            subject);
         return false;
     }
 
@@ -2769,13 +2784,37 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        return std::unexpected{ChartPlanInvalid{"no chart is loaded"}};
+        // No chart, so nothing to light.
+        return std::unexpected{ChartPlanInvalid{
+            .reason = "no chart is loaded",
+            .lit = {.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt},
+        }};
     }
     // Refused at the plan, not only at the settle, so the pending box is red while the value is
-    // typed: what the commit would refuse is what the box shows.
-    if (std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+    // typed: what the commit would refuse is what the box shows. The lock names nothing on the
+    // lane, so its refusal lights what the entry would have written through: the ring a cut or a
+    // point divides, the objects a retype addresses, the placement whose fret it retypes; an insert
+    // at an empty slot has nothing standing there to light.
+    if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
     {
-        return std::unexpected{std::move(*refusal)};
+        ChartRefusalLight lit{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
+        std::visit(
+            common::core::Overloaded{
+                [](const ChartFretEntry::InsertAt&) {},
+                [&lit](const ChartFretEntry::Cut& cut) { lit.notes = {cut.note}; },
+                [&lit](const ChartFretEntry::CreateKeyframe& create) { lit.notes = {create.note}; },
+                [&lit](const ChartFretEntry::Retype& retype) {
+                    lit.notes = retype.keys;
+                    lit.keyframes = retype.keyframe_keys;
+                },
+                [&lit](const ChartFretEntry::RetypeHandFret& hand) {
+                    lit.fret_hand_position = hand.position;
+                },
+            },
+            entry.target);
+        return std::unexpected{
+            ChartPlanInvalid{.reason = std::move(*locked), .lit = std::move(lit)}
+        };
     }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
@@ -3264,25 +3303,16 @@ void EditorController::Impl::insertAtChartCaret(const ChartEntryPlane plane)
     {
         return;
     }
-    const ChartSlotKey site = *slot;
     const int fret =
-        chartFretInForceAt(arrangement->chart->notes, session().song().tempo_map, site);
-    // What a refusal flashes, since no red box shows one here: the ring a cut or a point would
-    // divide, else the slot itself, which flashes nothing when no note stands there.
-    const ChartSlotKey refused_site = std::visit(
-        common::core::Overloaded{
-            [](const ChartFretEntry::Cut& cut) { return cut.note; },
-            [](const ChartFretEntry::CreateKeyframe& create) { return create.note; },
-            [site](const auto&) { return site; },
-        },
-        *target);
+        chartFretInForceAt(arrangement->chart->notes, session().song().tempo_map, *slot);
     ChartFretEntry entry = plannedChartFretEntry(fret, std::move(*target), m_now_milliseconds());
     if (!entry.plan.has_value())
     {
+        // No red box shows the refusal here, so it flashes what the plan's refusal lights.
         if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
         {
-            reportChartRefusedNotes(
-                std::array{ChartRefusedNote{.note = refused_site, .reason = invalid->reason}});
+            m_refusal_log.chartEdit(chartFretEntrySubject(entry), invalid->reason);
+            flashRefusalLight(invalid->lit);
             return;
         }
     }

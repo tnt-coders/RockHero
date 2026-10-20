@@ -146,6 +146,21 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
     return position.fret <= fret && fret <= position.end_fret.value_or(fret);
 }
 
+// `items` as prose: "a", "a and b", "a, b and c".
+[[nodiscard]] std::string listedInProse(const std::vector<std::string>& items)
+{
+    std::string listed;
+    for (std::size_t index = 0; index < items.size(); ++index)
+    {
+        if (index > 0)
+        {
+            listed += index + 1 == items.size() ? " and " : ", ";
+        }
+        listed += items[index];
+    }
+    return listed;
+}
+
 } // namespace
 
 void dropNotePath(ChartNote& note)
@@ -359,7 +374,7 @@ std::expected<void, ChartError> validateShapeHolds(
 
 // Each position against the stops gripped at its instant, the query the derivation tops an
 // authored window with, so a stop is demanded here exactly where the derivation keeps it. Each
-// position keeps the first stop it misses.
+// position keeps every stop it misses, once, in the order a refusal lists them.
 std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
@@ -368,27 +383,60 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     for (std::size_t index = 0; index < positions.size(); ++index)
     {
         const FretHandPosition& position = positions[index];
-        std::optional<UncoveringFretHandPosition> missed;
+        std::vector<UncoveredStop> missed;
         forEachGrippedStop(
             notes_layer.connections,
             notes_layer.hand_demands,
             tempo_map.wholeNotePositionAt(position.position),
             [&](const int fret, const Fraction from) {
-                if (!missed.has_value() && !positionCovers(position, fret))
+                if (!positionCovers(position, fret))
                 {
-                    missed = UncoveringFretHandPosition{
-                        .position = index,
-                        .fret = fret,
-                        .gripped_from = tempo_map.gridPositionAtWholeNote(from),
-                    };
+                    missed.push_back(
+                        UncoveredStop{
+                            .gripped_from = tempo_map.gridPositionAtWholeNote(from),
+                            .fret = fret,
+                        });
                 }
             });
-        if (missed.has_value())
+        if (!missed.empty())
         {
-            uncovering.push_back(*missed);
+            // A chord's strings and the hold begun by it can demand one fret twice.
+            std::ranges::sort(missed);
+            const auto repeated = std::ranges::unique(missed);
+            missed.erase(repeated.begin(), repeated.end());
+            uncovering.push_back(
+                UncoveringFretHandPosition{.position = index, .stops = std::move(missed)});
         }
     }
     return uncovering;
+}
+
+// The stops grouped by where they are gripped from, which the record's order already keeps
+// together: each group names its frets and its place once.
+ChartError fretHandCoverageError(
+    const UncoveringFretHandPosition& uncovering, const std::vector<FretHandPosition>& positions)
+{
+    std::vector<std::string> groups;
+    for (auto stop = uncovering.stops.begin(); stop != uncovering.stops.end();)
+    {
+        const auto past = std::ranges::find_if_not(
+            stop, uncovering.stops.end(), [&stop](const UncoveredStop& later) {
+                return later.gripped_from == stop->gripped_from;
+            });
+        std::vector<std::string> frets;
+        std::ranges::transform(stop, past, std::back_inserter(frets), [](const UncoveredStop& one) {
+            return std::to_string(one.fret);
+        });
+        groups.push_back(
+            std::string{frets.size() == 1 ? "fret " : "frets "} + listedInProse(frets) +
+            " gripped from " + formatGridPositionToken(stop->gripped_from));
+        stop = past;
+    }
+    return ChartError{
+        .code = ChartErrorCode::InvalidFretHandPosition,
+        .message = formatHandPositionToken(positions[uncovering.position].position) +
+                   " does not cover " + listedInProse(groups),
+    };
 }
 
 std::expected<void, ChartError> validateFretHandCoverage(
@@ -401,13 +449,7 @@ std::expected<void, ChartError> validateFretHandCoverage(
     {
         return {};
     }
-    const UncoveringFretHandPosition& first = uncovering.front();
-    return std::unexpected{ChartError{
-        .code = ChartErrorCode::InvalidFretHandPosition,
-        .message = formatHandPositionToken(positions[first.position].position) +
-                   " does not cover fret " + std::to_string(first.fret) + " gripped from " +
-                   formatGridPositionToken(first.gripped_from),
-    }};
+    return std::unexpected{fretHandCoverageError(uncovering.front(), positions)};
 }
 
 std::string_view chartRepairText(const ChartRepair repair)

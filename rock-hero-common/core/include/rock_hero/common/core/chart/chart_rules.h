@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -763,20 +764,49 @@ Only the stated extents are judged: no note is read.
 [[nodiscard]] std::expected<void, ChartError> validateShapeHolds(
     const std::vector<ShapeHold>& holds, const TempoMap& tempo_map);
 
+/*! \brief One stop gripped at an authored position's instant that its window does not cover. */
+struct UncoveredStop
+{
+    /*! \brief Where the demand was struck or began holding. */
+    GridPosition gripped_from;
+
+    /*! \brief The fret demanded of the hand there. */
+    int fret{};
+
+    /*!
+    \brief Orders two stops by where they are gripped from, then by fret — the members' own order,
+    which is the order a refusal lists them in.
+    \param lhs Left-hand stop.
+    \param rhs Right-hand stop.
+    \return Ordering of lhs relative to rhs.
+    */
+    friend constexpr std::strong_ordering operator<=>(
+        const UncoveredStop& lhs, const UncoveredStop& rhs) noexcept = default;
+
+    /*!
+    \brief Compares two stops for equal value.
+    \param lhs Left-hand stop.
+    \param rhs Right-hand stop.
+    \return True when both name the same fret gripped from the same place.
+    */
+    friend constexpr bool operator==(const UncoveredStop& lhs, const UncoveredStop& rhs) noexcept =
+        default;
+};
+
 /*!
-\brief An authored position that breaks the hand-position coverage rule, with the first demand it
-misses.
+\brief An authored position that breaks the hand-position coverage rule, with every demand it
+misses: a refusal names them all, so a charter never fixes one to meet the next.
 */
 struct UncoveringFretHandPosition
 {
     /*! \brief Index of the position in the stream it was found in. */
     std::size_t position{};
 
-    /*! \brief The fret demanded at the position's instant that its window does not cover. */
-    int fret{};
-
-    /*! \brief Where the demand was struck or began holding. */
-    GridPosition gripped_from;
+    /*!
+    \brief Every stop gripped at the position's instant that its window does not cover, each once,
+    ascending by where it is gripped from and then by fret; never empty.
+    */
+    std::vector<UncoveredStop> stops;
 };
 
 /*!
@@ -805,11 +835,28 @@ editor's plan gate, its memo — pays for no second derivation here.
        the demands are read under.
 \param positions Authored positions, strictly ascending (\ref validateFretHandPositions).
 \param tempo_map Song tempo map placing the notes and the positions.
-\return Each breaking position once, ascending by index; empty when every position covers.
+\return Each breaking position once, ascending by index, with every stop it misses; empty when
+        every position covers.
 */
 [[nodiscard]] std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
     const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map);
+
+/*!
+\brief The coverage rule's error for one position that breaks it: the words
+\ref validateFretHandCoverage refuses with, for a caller that also needs the position itself.
+
+One sentence lists every missed stop, grouped by where it is gripped from: "hand position 1:3 does
+not cover frets 5 and 7 gripped from 1:1", or across places "… does not cover fret 5 gripped from
+1:1 and fret 12 gripped from 1:3".
+
+\param uncovering A breaking position, as \ref uncoveringFretHandPositions found it in `positions`.
+\param positions The authored positions `uncovering` indexes.
+\return The error naming the position and every fret it misses with where each was struck or began
+        holding.
+*/
+[[nodiscard]] ChartError fretHandCoverageError(
+    const UncoveringFretHandPosition& uncovering, const std::vector<FretHandPosition>& positions);
 
 /*!
 \brief Validates the hand-position coverage rule (\ref uncoveringFretHandPositions) as a chart rule.

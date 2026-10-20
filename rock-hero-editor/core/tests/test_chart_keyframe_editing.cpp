@@ -2037,13 +2037,14 @@ TEST_CASE("A cut inside a scrape refuses", "[core][chart]")
         CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
     }
 
-    SECTION("the junction toggle on the scrape's keyframe flashes that keyframe")
+    SECTION("the junction toggle on the scrape's keyframe flashes the scrape and that keyframe")
     {
+        // The refusal names both: the scrape that has no junction, and the point asked to be one.
         click(fixture.controller, g_junction_x, g_string_3_y);
         fixture.controller.onChartJunctionToggleRequested();
         CHECK(currentChart(fixture.controller) == original);
         REQUIRE(fixture.view.refusal_flashes.size() == 1);
-        CHECK(fixture.view.refusal_flashes[0].notes.empty());
+        CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
         CHECK(fixture.view.refusal_flashes[0].keyframes.size() == 1);
     }
 }

@@ -24,6 +24,7 @@
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -63,6 +64,14 @@ using rock_hero::common::core::testing::anchor;
 [[nodiscard]] ChartSlotKey keyAt(common::core::GridPosition position, int string)
 {
     return ChartSlotKey{.position = position, .string = string};
+}
+
+// What a refusal lights, or null where the planner answered NoChange: a refusal lights what it
+// names, so the light is asserted beside the refusal.
+[[nodiscard]] const ChartRefusalLight* litOf(const ChartPlanRefusal& refusal)
+{
+    const auto* const invalid = std::get_if<ChartPlanInvalid>(&refusal);
+    return invalid == nullptr ? nullptr : &invalid->lit;
 }
 
 // The grids the duration-gesture scenarios step on. Against the 4/4 map above a quarter-note grid
@@ -422,11 +431,43 @@ TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
     REQUIRE_FALSE(plan.has_value());
     if (!plan.has_value())
     {
-        // The refusal carries the rule's own words, which is what the log reports.
+        // The refusal carries the rule's own words, which is what the log reports, and lights the
+        // pair the order rule judged: the head that stands and the one that would land on it. The
+        // landing head has no mark yet, so the standing one is what the charter sees lit.
         const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error());
         REQUIRE(invalid != nullptr);
         CHECK_FALSE(invalid->reason.empty());
+        CHECK(std::ranges::count(invalid->lit.notes, keyAt({.measure = 2, .beat = 1}, 1)) == 2);
     }
+}
+
+// The hand-position coverage rule names the authored position that would not cover a stop and the
+// stop it misses, so the note gate's refusal lights that position's chip and the note gripping the
+// stop — not the notes the edit was planned over as such.
+TEST_CASE("The note gate lights the position that would not cover a stop", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    constexpr common::core::GridPosition at{.measure = 3, .beat = 3, .offset = {}};
+    // A position at 3:3 on fret 20 covers the fixture's notes, whose rings all end by then, and
+    // not fret 15 below it, struck at 3:1 on the free string 3 and rung a whole note through it.
+    chart.fret_hand_positions = {
+        common::core::FretHandPosition{.position = at, .fret = 20, .end_fret = std::nullopt}
+    };
+
+    const auto plan = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 3, .beat = 1}, 3, 15, common::core::Fraction{1}),
+        common::core::Fraction{1});
+    REQUIRE_FALSE(plan.has_value());
+    const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error());
+    REQUIRE(invalid != nullptr);
+    CHECK(invalid->reason.find("does not cover fret 15 gripped from 3:1") != std::string::npos);
+    // Both things the rule names: the position's chip and the note gripping the stop it misses.
+    CHECK(invalid->lit.fret_hand_position == std::optional{at});
+    CHECK(invalid->lit.notes == std::vector{keyAt({.measure = 3, .beat = 1}, 3)});
+    CHECK(invalid->lit.keyframes.empty());
 }
 
 // Every note rings, so a placement authors a duration: the session's grid step, clamped by the
@@ -972,9 +1013,16 @@ TEST_CASE("planMoveSelection refuses landing on an unmoved note", "[core][chart]
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
-    // The first note advanced a quarter note lands on the second, unmoved note's slot.
-    CHECK_FALSE(moveNotes(chart, tempo_map, keys, common::core::Fraction{1, 4}, 0, "Move Notes")
-                    .has_value());
+    // The first note advanced a quarter note lands on the second, unmoved note's slot. The refusal
+    // lights the note that stays, which is what stands in the way, not the one that moved.
+    const auto plan =
+        moveNotes(chart, tempo_map, keys, common::core::Fraction{1, 4}, 0, "Move Notes");
+    REQUIRE_FALSE(plan.has_value());
+    const ChartRefusalLight* const lit = litOf(plan.error());
+    REQUIRE(lit != nullptr);
+    CHECK(lit->notes == std::vector{keyAt({.measure = 1, .beat = 2}, 1)});
+    CHECK(lit->keyframes.empty());
+    CHECK_FALSE(lit->fret_hand_position.has_value());
 }
 
 // A move onto a free slot plans a removal of the origin and an insertion at the destination,
@@ -1093,7 +1141,11 @@ TEST_CASE("planMoveSelection refuses a keyframe stepped out of its bounds", "[co
         const auto plan = planMoveSelection(
             chart, tempo_map, {}, second, common::core::Fraction{1, 2}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
+        // The planner's own bound lights the point it refused to step, by its key as it stands.
+        const ChartRefusalLight* const lit = litOf(plan.error());
+        REQUIRE(lit != nullptr);
+        CHECK(lit->keyframes == second);
+        CHECK(lit->notes.empty());
     }
     SECTION("stepped onto its neighbour")
     {
@@ -1483,7 +1535,12 @@ TEST_CASE("planMoveSelection refuses a landing that would erase a statement", "[
             });
         const auto plan = moveNotes(chart, tempo_map, mover, step_back, 0, "Move Note");
         REQUIRE_FALSE(plan.has_value());
-        CHECK(std::holds_alternative<ChartPlanInvalid>(plan.error()));
+        // The refusal lights the ring it would cut and the head that cuts it: the mover stands on
+        // its landing, two beats back, where the projection has no mark, so the tail is what the
+        // charter sees lit.
+        const ChartRefusalLight* const lit = litOf(plan.error());
+        REQUIRE(lit != nullptr);
+        CHECK(lit->notes == std::vector{keyAt(tail_onset, 1), keyAt({.measure = 2, .beat = 4}, 1)});
     }
 
     SECTION("a slide-out past the landing rides back onto the landing itself")
@@ -5840,12 +5897,19 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
+    // The notes a refusal lit: the predecessor where the predecessor is what stands in the way,
+    // the head itself where the head is.
+    const auto lit_notes = [](const ChartPlanRefusal& refusal) {
+        const ChartRefusalLight* const lit = litOf(refusal);
+        return lit == nullptr ? std::vector<ChartSlotKey>{} : lit->notes;
+    };
+
     SECTION("a head with no predecessor on its string")
     {
         const common::core::Chart chart = makeSingleNoteChart(5);
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
+        CHECK(lit_notes(joined.error()) == std::vector{keyAt({.measure = 2, .beat = 1}, 1)});
     }
 
     SECTION("a predecessor whose tail already slides out")
@@ -5861,7 +5925,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
+        CHECK(lit_notes(joined.error()) == std::vector{keyAt({.measure = 2, .beat = 1}, 1)});
     }
 
     SECTION("a scrape predecessor, which has no fretting finger to hand over")
@@ -5874,7 +5938,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 2, .beat = 2}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
+        CHECK(lit_notes(joined.error()) == std::vector{keyAt({.measure = 2, .beat = 1}, 1)});
     }
 
     SECTION("a head carrying a harmonic node, which a point cannot state")
@@ -5891,7 +5955,7 @@ TEST_CASE("planToggleJunctions refuses what cannot join", "[core][chart]")
         };
         const auto joined = joinHeads(chart, tempo_map, {keyAt({.measure = 3, .beat = 1}, 1)});
         REQUIRE_FALSE(joined.has_value());
-        CHECK(std::holds_alternative<ChartPlanInvalid>(joined.error()));
+        CHECK(lit_notes(joined.error()) == std::vector{keyAt({.measure = 3, .beat = 1}, 1)});
     }
 }
 
@@ -7048,6 +7112,53 @@ TEST_CASE("A note edit's plan carries the hold rewrite it causes", "[core][chart
     CHECK(chart.shape_holds == std::vector{cropped});
     REQUIRE(applyChartChange(chart, plan->plan.reversed()).has_value());
     CHECK(chart == original);
+}
+
+// A refused edge move lights what it names, as the notes sounding inside the hold it names: the
+// neighbour a push would leave with nothing, or the moved hold itself where the move leaves it no
+// length. The chart holds one chord inside each hold, so each hold lights exactly its own notes.
+TEST_CASE("A refused hold edge move lights what it names", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::ShapeHold first{
+        .start = {.measure = 3, .beat = 1},
+        .end = {.measure = 3, .beat = 3},
+        .grip = common::core::UnnamedGrip{},
+    };
+    const common::core::ShapeHold second{
+        .start = {.measure = 3, .beat = 3},
+        .end = {.measure = 4, .beat = 2},
+        .grip = common::core::UnnamedGrip{},
+    };
+    common::core::Chart chart;
+    chart.tuning = makeTestChart().tuning;
+    chart.notes = {
+        makeTestNote(first.start, 1, 5, common::core::Fraction{1, 4}),
+        makeTestNote(first.start, 2, 7, common::core::Fraction{1, 4}),
+        makeTestNote(second.start, 1, 8, common::core::Fraction{1, 4}),
+        makeTestNote(second.start, 2, 10, common::core::Fraction{1, 4}),
+    };
+    chart.shape_holds = {first, second};
+    // The notes a refusal lit, read only where the move was refused.
+    const auto lit_notes =
+        [](const std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal>& moved) {
+            const ChartPlanInvalid* const invalid =
+                moved.has_value() ? nullptr : std::get_if<ChartPlanInvalid>(&moved.error());
+            return invalid == nullptr ? std::vector<ChartSlotKey>{} : invalid->lit.notes;
+        };
+
+    SECTION("a push to nothing lights the neighbour")
+    {
+        const auto moved = movedShapeHolds(chart, tempo_map, first, ShapeHoldEdge::End, second.end);
+        CHECK(lit_notes(moved) == std::vector{keyAt(second.start, 1), keyAt(second.start, 2)});
+    }
+
+    SECTION("a hold left with no length lights itself")
+    {
+        const auto moved =
+            movedShapeHolds(chart, tempo_map, first, ShapeHoldEdge::End, first.start);
+        CHECK(lit_notes(moved) == std::vector{keyAt(first.start, 1), keyAt(first.start, 2)});
+    }
 }
 
 // A plan written against holds the chart no longer holds is refused whole, notes included.

@@ -126,13 +126,44 @@ struct ChartPlanNoChange
 };
 
 /*!
+\brief What a refusal lights in the tab lane: the elements the refusal names, as the keys the
+selection is published by, plus the chip of a fret-hand position where one is named.
+
+Keys rather than projection indices, because a refusal is decided by a planner that sees the chart
+and never the projection; the controller resolves them exactly as it resolves the selection. A key
+the current projection cannot resolve (a note the refused plan would have created) lights nothing,
+which is right: there is no mark for it yet.
+*/
+struct ChartRefusalLight
+{
+    /*! \brief The notes to light, by slot. */
+    std::vector<ChartSlotKey> notes;
+
+    /*! \brief The keyframes to light. */
+    std::vector<ChartKeyframeKey> keyframes;
+
+    /*! \brief The fret-hand position whose chip to light, by the position that names it. */
+    std::optional<common::core::GridPosition> fret_hand_position;
+};
+
+/*!
 \brief The result would break a chart rule or a planner's own bound, so the whole plan is refused,
-never clamped.
+never clamped: why, and what the refusal lights, both decided where it refuses.
+
+A refusal lights what it names. Where another authored thing stands in the way, that is the
+culprit — the authored position that would not cover a stop, the note a move would land on, the
+ring whose statement an edit would cut off, the neighbour hold a push would empty, the stretch a
+hold runs on past — and where nothing does, the refused elements themselves. The light is stated at
+every refusing site, never defaulted: a site that can light nothing (an empty slot, no chart) says
+so with an empty light.
 */
 struct ChartPlanInvalid
 {
     /*! \brief Why, in words for the log: the rule's own message, or the planner's bound. */
     std::string reason;
+
+    /*! \brief What the refusal flash lights. */
+    ChartRefusalLight lit;
 };
 
 /*!
@@ -256,6 +287,12 @@ states lands exactly as stated. Every hold is judged, not only the ones the verb
 hold's edges are walls the spans beside it close at. The notes never change, so the authored
 positions' coverage of the spans the holds give is the one other rule the result can break.
 
+A hold is lit as the notes sounding inside it — struck in it, or ringing into it — since a ring
+carried through a stretch is part of what a hold over it grips. A hold that does not fit lights the
+stretch between its stated end and where its shape closes; one the normalizer would drop lights
+itself; an uncovering authored position lights its chip and every note gripping a stop it misses; a
+stream the reader would refuse lights the holds the candidate changed.
+
 \param base The chart the plan is diffed against, a fixpoint of every gate.
 \param tempo_map Tempo map placing the notes and the holds.
 \param candidate The holds the verb leaves, ascending.
@@ -316,7 +353,9 @@ struct SteppedShapeHoldEdge
 
     /*!
     \brief The plan landing the edge there; NoChange where it landed back where the run began,
-    Invalid where no boundary that way is accepted by the hold gate.
+    Invalid where no boundary that way is accepted by the hold gate: the nearest boundary's own
+    refusal, or, where no boundary lies that way at all, one naming the direction and lighting
+    the moved hold.
     */
     std::expected<JudgedChartPlan, ChartPlanRefusal> plan;
 };
@@ -329,7 +368,10 @@ A start steps from note onset to note onset, an end from note boundary to note b
 or a ring's end, of any string. Each candidate is judged by \ref planMoveShapeHoldEdge, so the fit
 is the gate's own predicate and nothing here restates it: the first accepted candidate is the step.
 A candidate that lands the edge back where the run began is the run undone, returned as NoChange.
-The press is refused only where no boundary that way is accepted.
+The press is refused only where no boundary that way is accepted, and then with the NEAREST
+boundary's own refusal — the step the key asked for, its reason and what it lights — so a culprit
+the gate found is never hidden behind a message about the direction; only where no boundary lies
+that way at all does the refusal say so, lighting the moved hold.
 
 \param base The chart the run began from.
 \param tempo_map Tempo map placing the notes and the holds.
@@ -351,21 +393,23 @@ other holds (\ref carvedShapeHolds).
 
 An edge moved into a neighbouring hold pushes that hold's facing edge along with it, which is the
 carve cropping the hold it straddles, and a none hold reaching another none hold merges with it. A
-neighbour pushed to nothing is refused, as is the moved hold left with no length. `moved` is the
-hold as the run began, so a run that steps back restores the neighbour it pushed: every press
-replays from the run's start chart.
+neighbour pushed to nothing is refused, lighting that neighbour, as is the moved hold left with no
+length, lighting the moved hold. `moved` is the hold as the run began, so a run that steps back
+restores the neighbour it pushed: every press replays from the run's start chart.
 
-\param holds The holds the run began from.
-\param moved The hold being moved as the run began: one of `holds`, which the result replaces, or
-       a derived span's extent as an unnamed hold, which the result adds.
+\param base The chart the run began from: its holds are moved, its notes light a refusal.
+\param tempo_map Tempo map placing the notes a refusal lights.
+\param moved The hold being moved as the run began: one of the base's holds, which the result
+       replaces, or a derived span's extent as an unnamed hold, which the result adds.
 \param edge The edge moved.
 \param value Where the run has moved that edge.
 \return The holds; NoChange where the edge stands where the run began, which leaves a derived span
         unconverted, Invalid naming the rule broken.
 */
 [[nodiscard]] std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShapeHolds(
-    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& moved,
-    ShapeHoldEdge edge, const common::core::GridPosition& value);
+    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
+    const common::core::ShapeHold& moved, ShapeHoldEdge edge,
+    const common::core::GridPosition& value);
 
 /*!
 \brief Plans a hold edge key's run: the holds it leaves (\ref movedShapeHolds), judged by the hold

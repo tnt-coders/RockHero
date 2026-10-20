@@ -541,6 +541,48 @@ TEST_CASE("Ctrl+H over a time selection holds exactly the selection", "[core][ho
     }
 }
 
+// An authored position at 1:3 on fret 10 covers string 3's fret 12 struck there. A hold over
+// [1:1, 1:4) carries the 1:1 box's frets 5 and 7 through 1:3, where the position's window does not
+// cover them: the refusal names the position and every stop it misses, "frets 5 and 7 gripped from
+// 1:1", and lights them all — the chip and both notes of the box — not the selection as such.
+TEST_CASE("A hold an authored position would not cover lights the position", "[core][holds]")
+{
+    const LogCapture capture;
+    common::core::Chart chart =
+        chartOf({chordAt(at(1, 1), 5, 7), {makeTestNote(at(1, 3), 3, 12, Fraction{1, 4})}});
+    chart.fret_hand_positions = {
+        common::core::FretHandPosition{.position = at(1, 3), .fret = 10, .end_fret = std::nullopt}
+    };
+    HoldEditor editor{std::move(chart)};
+    const std::size_t entries = editor.entries();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.selectTime(0.0, 3);
+    editor.holdShape();
+    CHECK(editor.holds().empty());
+    CHECK(editor.entries() == entries);
+    const std::string contents = capture.text();
+    INFO(contents);
+    CHECK(
+        contents.find("hand position 1:3 does not cover frets 5 and 7 gripped from 1:1") !=
+        std::string::npos);
+
+    REQUIRE(editor.state().tab != nullptr);
+    const std::vector<common::core::FhpViewState>& chips = editor.state().tab->fret_hand_positions;
+    std::optional<std::size_t> chip;
+    for (std::size_t index = 0; index < chips.size(); ++index)
+    {
+        if (chips[index].position == at(1, 3))
+        {
+            chip = index;
+        }
+    }
+    REQUIRE(chip.has_value());
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().fret_hand_position == chip);
+    CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 1});
+}
+
 // Ctrl+H over selected notes runs from the first onset to the last ring's end.
 TEST_CASE("Ctrl+H over a note selection holds from its onset to its ring's end", "[core][holds]")
 {
@@ -611,7 +653,8 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
 
     // String 1 states fret 5 over the old hold, so frets 7 and 6 above it prove nothing. Cut at
     // 1:3, the part left after the new hold states fret 7 there, and fret 6 below it at 2:1 is that
-    // finger lifting: a hand conflict that would crop the part.
+    // finger lifting: a hand conflict that would crop the part. The refusal lights the stretch the
+    // crop would cut, [2:1, 2:3), where the 2:1 chord sounds, not the selected [1:1, 1:3).
     SECTION("a part that would not fit refuses the verb")
     {
         const LogCapture capture;
@@ -621,6 +664,7 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
              chordAt(at(2, 1), 6, 7, Fraction{1, 2})},
             {unnamedHold(at(1, 1), at(2, 3))})};
         const std::size_t entries = editor.entries();
+        const std::size_t flashes = editor.view.refusal_flashes.size();
         editor.selectTime(0.0, 2);
         editor.holdShape();
         INFO(editor.holdsText());
@@ -628,7 +672,13 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
         CHECK(editor.entries() == entries);
         const std::string contents = capture.text();
         INFO(contents);
-        CHECK(contents.find("shape hold 1:3 to 2:3 does not fit its notes") != std::string::npos);
+        CHECK(
+            contents.find(
+                "shape hold 1:3 to 2:3 does not fit its notes: its shape closes at 2:1") !=
+            std::string::npos);
+        REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{4, 5});
+        CHECK_FALSE(editor.view.refusal_flashes.back().fret_hand_position.has_value());
     }
 }
 
@@ -671,18 +721,23 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
     SECTION("the end key, refused where no earlier boundary lets the hold fit its notes")
     {
         // Every boundary earlier than the span's close falls inside its rings, so the hold would
-        // run on past each of them: none fits, and the press is refused.
+        // run on past each of them: none fits, and the press is refused with the NEAREST
+        // boundary's own refusal — the hold stated to 1:3 closes at 1:4 — lighting the stretch it
+        // overruns, [1:3, 1:4), where the third note is struck and the first two still ring.
         const std::size_t flashes = editor.view.refusal_flashes.size();
         const LogCapture capture;
         editor.endKey(false);
         const std::string contents = capture.text();
         INFO(contents);
         CHECK(
-            contents.find("no note boundary earlier where the hold fits its notes") !=
+            contents.find(
+                "shape hold 1:1 to 1:3 does not fit its notes: its shape closes at 1:4") !=
             std::string::npos);
         CHECK(editor.holds().empty());
         CHECK(editor.entries() == entries);
-        CHECK(editor.view.refusal_flashes.size() == flashes + 1);
+        REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 1, 2});
+        CHECK_FALSE(editor.view.refusal_flashes.back().fret_hand_position.has_value());
         CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
     }
 }
@@ -750,14 +805,19 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
     SECTION("a neighbour pushed to nothing at every later boundary refuses the press")
     {
         // Every boundary later than 3:4 lies at or past the neighbour's end, so each would push it
-        // to nothing: no boundary fits, and the press is refused.
+        // to nothing: no boundary fits, and the press is refused with the nearest boundary's own
+        // refusal, which names the neighbour — as it stood when the run began, since every press
+        // replays from the run's start chart — and lights its notes.
+        const std::size_t flashes = editor.view.refusal_flashes.size();
         const LogCapture capture;
         editor.endKey(true);
         const std::string contents = capture.text();
         INFO(contents);
         CHECK(
-            contents.find("no note boundary later where the hold fits its notes") !=
+            contents.find("the edge would push shape hold 3:3 to 4:2 to nothing") !=
             std::string::npos);
+        REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK_FALSE(editor.view.refusal_flashes.back().notes.empty());
         CHECK(
             editor.holds() ==
             std::vector{unnamedHold(at(3, 1), at(3, 4)), unnamedHold(at(3, 4), at(4, 2))});

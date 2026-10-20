@@ -212,7 +212,8 @@ the planner already knew, so carrying them costs no second pass and no separate 
 step. The consumer is the refusal flash (`docs/plans/in-progress/refusal-flash.md`), which glows
 those very elements and logs each reason. A count plus a dominant reason would not do: the flash
 needs identities, so the planner returns them and the count is the list's size. A refusal of the
-whole plan carries its reason too (`ChartPlanInvalid::reason`). Recurring:
+whole plan carries its reason and what it lights (`ChartPlanInvalid::reason`, `::lit`), both
+decided where it refuses. Recurring:
 `planLanePointAtCaret` → `plantLanePoint` (`tone_handlers.cpp`), and the game's
 `library_scan_plan.h` (a pure planner that diffs the cached index and returns a deterministic action
 list, no IO). Reach for it when a mutation needs undo, a truthful preview, or side-effect-free

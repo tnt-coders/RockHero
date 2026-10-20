@@ -1289,12 +1289,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
     }
     // The points are content the Note Lock holds in time, so the lock refuses them as it refuses
     // every marker; this verb lands outside the marker funnel, so it asks here.
-    if (const std::optional<ChartPlanInvalid> refusal = noteLockRefusal(); refusal.has_value())
+    if (const std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
     {
         m_refusal_log.markerEdit(
             automationPointsLabel(automationParameterName(
                 identity->second.tone_document_ref, action.instance_id, action.param_id)),
-            refusal->reason);
+            *locked);
         return;
     }
 

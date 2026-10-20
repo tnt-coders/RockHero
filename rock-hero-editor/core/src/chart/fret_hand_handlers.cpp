@@ -256,12 +256,8 @@ void EditorController::Impl::refuseDerivedFretHandPosition(
 
 void EditorController::Impl::flashFretHandChip(const common::core::GridPosition& position)
 {
-    if (const std::optional<std::size_t> chip = markerIndex(MarkerRow::FretHandPosition, position);
-        chip.has_value() && m_view != nullptr)
-    {
-        m_view->flashChartRefusal(
-            ChartRefusalFlash{.notes = {}, .keyframes = {}, .fret_hand_position = chip});
-    }
+    flashRefusalLight(
+        ChartRefusalLight{.notes = {}, .keyframes = {}, .fret_hand_position = position});
 }
 
 // Steps the selected placement one placement-quantum line, the tone change's step. Refused rather
@@ -324,11 +320,19 @@ std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> Edito
         return std::unexpected{ChartPlanNoChange{}};
     }
     *match = retyped(*match, edge, fret);
-    std::expected<JudgedMarkerModel<FretHandPositionsSnapshot>, ChartPlanRefusal> judged =
+    std::expected<JudgedMarkerModel<FretHandPositionsSnapshot>, MarkerModelRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
-        return std::unexpected{std::move(judged.error())};
+        // The funnel's refusal, made the entry's: a refused retype lights the placement's chip.
+        if (auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
+        {
+            return std::unexpected{ChartPlanInvalid{
+                .reason = std::move(invalid->reason),
+                .lit = {.notes = {}, .keyframes = {}, .fret_hand_position = position},
+            }};
+        }
+        return std::unexpected{ChartPlanNoChange{}};
     }
     return ChartFretHandPlan{.placements = std::move(judged->model), .edge = edge};
 }
