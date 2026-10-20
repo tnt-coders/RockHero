@@ -24,7 +24,8 @@ the played time so playback resumes seamlessly from the stop point.
 
 Pure and injected-time: no clocks or ports are read here, so the paused/resume policy the preview
 window depends on is unit-testable without a GPU frame callback. Owned by PreviewSurface, which
-resolves the paused target (armed caret, else transport position) and feeds this model.
+resolves the paused target (the timeline's paused mark, else transport position) and feeds this
+model.
 */
 class PreviewTimeModel
 {

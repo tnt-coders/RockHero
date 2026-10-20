@@ -29,9 +29,10 @@ Owns a native child window embedded in the preview window's peer (the spike-prov
 docs/design/architecture.md "Game View" describes), the process bgfx device, and the shared
 highway renderer. Frames tick on the message thread at vblank cadence — the editor's established
 display-refresh mechanism — sampling song time from the playback clock while playing
-(block-quantized transport reads shimmer on a moving field) and from the marker rule while paused:
-the armed caret is THE paused position (the marker model), with the exact transport position as
-the passive fallback, so a paused seek or caret move always lands. Paused time glides toward its
+(block-quantized transport reads shimmer on a moving field) and from the timeline's paused mark
+while paused (TrackViewport::pausedMarkSeconds: the armed caret, chart or lane, else a held
+tempo-chip drag's cursor), with the exact transport position as the fallback, so a paused seek or
+caret move always lands. Paused time glides toward its
 target with a short exponential settle, so navigation reads as motion down the highway, not a
 cut.
 
@@ -118,10 +119,10 @@ public:
         const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette);
 
     /*!
-    \brief Publishes the armed caret's timeline position for the paused-time marker rule.
-    \param seconds Armed caret seconds, or nullopt while the marker is passive.
+    \brief Publishes the timeline's paused mark (TrackViewport::pausedMarkSeconds) for paused time.
+    \param seconds The paused mark's seconds, or nullopt while it is the transport's rest.
     */
-    void setCaretSeconds(std::optional<double> seconds);
+    void setPausedMarkSeconds(std::optional<double> seconds);
 
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
@@ -180,9 +181,9 @@ private:
     // restates it; the renderer ignores an unchanged set.
     common::core::HighwayDisplayOptions m_display_options{};
 
-    // The armed caret's timeline seconds while the marker is armed; the paused frame shows it
-    // (the marker rule) and falls back to the transport position while passive.
-    std::optional<double> m_caret_seconds;
+    // The timeline's paused mark; the paused frame shows it and falls back to the transport
+    // position while it is empty.
+    std::optional<double> m_paused_mark_seconds;
 
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};

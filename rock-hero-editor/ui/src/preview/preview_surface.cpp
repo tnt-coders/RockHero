@@ -287,9 +287,9 @@ void PreviewSurface::setLook(
     bringUpRenderer();
 }
 
-void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)
+void PreviewSurface::setPausedMarkSeconds(const std::optional<double> seconds)
 {
-    m_caret_seconds = seconds;
+    m_paused_mark_seconds = seconds;
 }
 
 void PreviewSurface::resized()
@@ -401,15 +401,14 @@ void PreviewSurface::renderFrame()
                                   : static_cast<double>((now - m_previous_tick).count()) / 1.0e9;
     m_previous_tick = now;
 
-    // Song time follows the marker rule while paused — the armed caret is THE paused position (the
-    // marker model), with the exact transport position as the passive fallback so paused seeks
-    // always land even if the clock publisher is idle. The transport read sits in the ternary's
-    // paused arm, so the port call stays off the playing path (value_or does evaluate it whenever
-    // paused, armed or not — harmless there). PreviewTimeModel owns the playing/paused policy
-    // (extrapolation and the paused glide).
+    // Song time follows the timeline's paused mark while paused, with the exact transport position
+    // as the fallback so paused seeks always land even if the clock publisher is idle. The
+    // transport read sits in the ternary's paused arm, so the port call stays off the playing path
+    // (value_or does evaluate it whenever paused, mark or not — harmless there). PreviewTimeModel
+    // owns the playing/paused policy (extrapolation and the paused glide).
     const common::audio::PlaybackClockSnapshot snapshot = m_playback_clock.snapshot();
     const double paused_target_seconds =
-        snapshot.playing ? 0.0 : m_caret_seconds.value_or(m_transport.position().seconds);
+        snapshot.playing ? 0.0 : m_paused_mark_seconds.value_or(m_transport.position().seconds);
     const double song_seconds =
         m_time_model.advance(snapshot, paused_target_seconds, now, dt_seconds);
 

@@ -188,10 +188,11 @@ black fallback — and retries only the renderer on a later open, which never re
 Per-frame song time comes from `PreviewTimeModel`
 (`rock-hero-editor/ui/src/preview/preview_time_model.{h,cpp}`), a small headless, injected-time
 policy `PreviewSurface` owns: plan-12 extrapolation while playing, an exponential glide toward the
-marker target (armed caret, else transport position) while paused, with a snap on first frame and
-on resume after a hidden gap. It is extracted from the vblank callback precisely so that timing
-policy is unit-tested (`test_preview_time_model.cpp`) rather than welded to the GPU frame path;
-edit preview timing there, not in `renderFrame`.
+timeline's paused mark (`TrackViewport::pausedMarkSeconds`: the armed caret, chart or lane, else a
+held tempo-chip drag's cursor; else the transport position) while paused, with a snap on first
+frame and on resume after a hidden gap. It is extracted from the vblank callback precisely so that
+timing policy is unit-tested (`test_preview_time_model.cpp`) rather than welded to the GPU frame
+path; edit preview timing there, not in `renderFrame`.
 
 State reaches the preview the same way the game gets it: editor core runs the *same*
 `makeHighwayViewState` projection (memoized per displayed arrangement in `editor_controller.cpp`)

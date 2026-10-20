@@ -815,16 +815,6 @@ void EditorView::setState(const core::EditorViewState& state)
         m_preview_window->setDisplayOptions(previewDisplayOptions(m_state));
     }
 
-    // The paused preview shows the marker-rule time (the armed caret is THE paused position),
-    // so caret moves must land in the 3D view immediately.
-    if (m_preview_window != nullptr && previous_state.chart_edit.caret != m_state.chart_edit.caret)
-    {
-        m_preview_window->setCaretSeconds(
-            m_state.chart_edit.caret.has_value()
-                ? std::optional<double>{m_state.chart_edit.caret->seconds}
-                : std::nullopt);
-    }
-
     if (previous_state.project_file != m_state.project_file)
     {
         updateWindowTitle();
@@ -921,6 +911,12 @@ void EditorView::setState(const core::EditorViewState& state)
     // since the readout shows the position it marks.
     m_position_readout_seconds.reset();
     refreshTimeDisplay();
+    // The paused preview shows the same mark, so a caret move or a held tempo drag lands in the 3D
+    // view immediately; the preview samples the transport itself for the rest.
+    if (m_preview_window != nullptr)
+    {
+        m_preview_window->setPausedMarkSeconds(m_track_viewport->pausedMarkSeconds());
+    }
     // The keyboard position keeps its measure in view: whenever the core counts a MOVE — a step, a
     // click that arms, Tab onto the next marker, an extend, the walk's column rule seeking the
     // cursor into a marker selected far from it — the window fits the whole measure it landed in,
@@ -1399,10 +1395,7 @@ void EditorView::togglePreviewWindow()
     {
         m_preview_window->setHighwayState(m_state.highway);
         m_preview_window->setDisplayOptions(previewDisplayOptions(m_state));
-        m_preview_window->setCaretSeconds(
-            m_state.chart_edit.caret.has_value()
-                ? std::optional<double>{m_state.chart_edit.caret->seconds}
-                : std::nullopt);
+        m_preview_window->setPausedMarkSeconds(m_track_viewport->pausedMarkSeconds());
         m_preview_window->open();
     }
 }

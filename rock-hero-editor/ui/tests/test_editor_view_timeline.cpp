@@ -1604,6 +1604,56 @@ TEST_CASE("EditorView position readout follows the armed caret", "[ui][editor-vi
     CHECK(position_display.getText() == "1.2.50 / 0:01:500");
 }
 
+// Verifies the paused mark the 3D preview is fed: a lane caret or a held tempo-chip drag stands in
+// for the transport's rest exactly as a chart caret does, and nothing stands in while the marker is
+// passive. The preview window renders through bgfx, so its feed — the viewport's paused mark after
+// the state push — is what a test can read.
+TEST_CASE("EditorView paused mark covers lane carets and tempo drags", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureHighwayThemeRegistry()
+    };
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+
+    auto state = makeLoadedEditorState(4.0);
+    setSessionTempoMap(state, makeOneMeasureTempoMap(4000));
+    transport.current_position = common::core::TimePosition{1.5};
+
+    SECTION("Automation lane caret")
+    {
+        state.tone_automation.lane_caret = core::ToneAutomationLaneCaretRef{
+            .lane_index = 0,
+            .seconds = 2.0,
+            .position = {.measure = 1, .beat = 3, .offset = {}},
+        };
+    }
+    SECTION("Tempo-chip drag cursor")
+    {
+        state.drag_cursor_seconds = 2.0;
+    }
+    view.setState(state);
+    const std::optional<double> paused_mark = track_viewport.pausedMarkSeconds();
+    REQUIRE(paused_mark.has_value());
+    if (paused_mark.has_value())
+    {
+        CHECK_THAT(*paused_mark, Catch::Matchers::WithinULP(2.0, 0));
+    }
+
+    state.tone_automation.lane_caret.reset();
+    state.drag_cursor_seconds.reset();
+    view.setState(state);
+    CHECK_FALSE(track_viewport.pausedMarkSeconds().has_value());
+}
+
 // Verifies the default zoom maps four seconds of timeline to the canonical width.
 TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
 {

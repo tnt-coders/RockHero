@@ -111,10 +111,10 @@ void PreviewWindow::setLook(
     m_surface->setLook(theme, palette);
 }
 
-// Forwards the armed caret's position to the surface's paused-time marker rule.
-void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
+// Forwards the timeline's paused mark to the surface's paused time.
+void PreviewWindow::setPausedMarkSeconds(const std::optional<double> seconds)
 {
-    m_surface->setCaretSeconds(seconds);
+    m_surface->setPausedMarkSeconds(seconds);
 }
 
 // The title-bar close is the View-menu toggle turning the preview off: hide, never destroy.

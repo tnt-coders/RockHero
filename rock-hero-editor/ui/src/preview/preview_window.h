@@ -107,10 +107,10 @@ public:
         const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette);
 
     /*!
-    \brief Publishes the armed caret's timeline position for the surface's paused marker rule.
-    \param seconds Armed caret seconds, or nullopt while the marker is passive.
+    \brief Publishes the timeline's paused mark (TrackViewport::pausedMarkSeconds) to the surface.
+    \param seconds The paused mark's seconds, or nullopt while it is the transport's rest.
     */
-    void setCaretSeconds(std::optional<double> seconds);
+    void setPausedMarkSeconds(std::optional<double> seconds);
 
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;

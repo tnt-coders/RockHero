@@ -1181,14 +1181,19 @@ void TrackViewport::refreshTimelineGridForViewChange()
 
 // While armed the mark sits at the caret, not the stale transport position, or it would lie about
 // where Space starts: play seeks to the caret before starting.
+std::optional<double> TrackViewport::pausedMarkSeconds() const noexcept
+{
+    return m_armed_caret_seconds.has_value() ? m_armed_caret_seconds : m_drag_cursor_seconds;
+}
+
+// The playhead while playing, else the paused mark over the transport's rest.
 double TrackViewport::markSeconds() const noexcept
 {
     if (m_transport.state().playing)
     {
         return m_transport.position().seconds;
     }
-    return m_armed_caret_seconds.value_or(
-        m_drag_cursor_seconds.value_or(m_transport.position().seconds));
+    return pausedMarkSeconds().value_or(m_transport.position().seconds);
 }
 
 // Keeps the ruler cursor aligned with where playback would start, and is the single authority for

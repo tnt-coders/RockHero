@@ -354,13 +354,25 @@ public:
     /*!
     \brief The play-from-here position the timeline marks.
 
-    The playhead while playing; else the armed caret, which play seeks to before starting; else
-    the held tempo-chip drag's cursor; else the transport's rest. The ruler mark and the
-    transport-strip readout both read this, so they can never show different positions.
+    The playhead while playing; else \ref pausedMarkSeconds; else the transport's rest. The ruler
+    mark and the transport-strip readout both read this, so they can never show different
+    positions.
 
     \return The marked position in seconds on the arrangement timeline.
     */
     [[nodiscard]] double markSeconds() const noexcept;
+
+    /*!
+    \brief The paused mark's position where it is not the transport's rest.
+
+    The armed caret, which play seeks to before starting; else the held tempo-chip drag's cursor.
+    \ref markSeconds falls back to the transport from here, and the 3D preview, which samples the
+    transport itself at its own frame cadence, is fed this.
+
+    \return The paused mark in seconds on the arrangement timeline, or empty while it is the
+    transport's rest.
+    */
+    [[nodiscard]] std::optional<double> pausedMarkSeconds() const noexcept;
 
     /*!
     \brief Forwards the song's section names to the pinned ruler's section chip row.

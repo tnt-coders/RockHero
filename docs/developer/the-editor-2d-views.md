@@ -123,8 +123,9 @@ the pointer. The cursor rides the chip: the core publishes the held anchor's tim
 paused column and `CursorOverlay`'s line there without a seek. The transport strip's measure and
 time readout prints the same instant: `TrackViewport::markSeconds` is the one statement of the
 position the timeline marks (the playhead while playing, else the armed caret, else the drag
-cursor, else the transport's rest), and the readout reads it. The **content
-map** is the grid map with the Note Lock off and `tempo_map` with it on — the core's answer, so no
+cursor, else the transport's rest), and the readout reads it; the 3D preview is fed its paused
+half, `TrackViewport::pausedMarkSeconds`, and samples the transport itself for the rest. The
+**content map** is the grid map with the Note Lock off and `tempo_map` with it on — the core's answer, so no
 view branches on the lock. Every published time stays as the session resolved it, and each
 content surface re-times it from `tempo_map` to the content map at its one seconds-to-pixel seam
 (`TempoMap::secondsRetimedFrom`, the identity whenever the maps are equal): the tab lane's
