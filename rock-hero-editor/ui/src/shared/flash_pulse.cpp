@@ -23,12 +23,14 @@ constexpr float g_refusal_glow_layer_alpha{0.4f};
 
 } // namespace
 
+// Starts the train's clock now, which a held mark's fade also reads.
 FlashPulse::FlashPulse(const FlashTrain train, const std::optional<FlashHold> hold) noexcept
     : m_train{train}
     , m_hold{hold}
     , m_started_ms{juce::Time::getMillisecondCounterHiRes()}
 {}
 
+// Done once the train has run out and any held mark has faded, so the surface can retire it.
 bool FlashPulse::finished() const noexcept
 {
     return progress() >= 1.0 && heldFinished();
@@ -42,6 +44,7 @@ float FlashPulse::level() const noexcept
     return static_cast<float>(wave * wave);
 }
 
+// Full while the hold lasts, then a linear fade to dark; zero when nothing is held.
 float FlashPulse::heldLevel() const noexcept
 {
     if (!m_hold.has_value())
@@ -52,16 +55,19 @@ float FlashPulse::heldLevel() const noexcept
     return static_cast<float>(std::clamp(1.0 - (into_fade / m_hold->fade_seconds), 0.0, 1.0));
 }
 
+// True once the held mark's hold and fade have both elapsed, or when nothing is held.
 bool FlashPulse::heldFinished() const noexcept
 {
     return !m_hold.has_value() || elapsedSeconds() >= m_hold->hold_seconds + m_hold->fade_seconds;
 }
 
+// The one clock the train and every hold read, from the high-resolution counter.
 double FlashPulse::elapsedSeconds() const noexcept
 {
     return (juce::Time::getMillisecondCounterHiRes() - m_started_ms) / 1000.0;
 }
 
+// How far the train has run, clamped to [0, 1].
 double FlashPulse::progress() const noexcept
 {
     return std::clamp(elapsedSeconds() / m_train.seconds, 0.0, 1.0);

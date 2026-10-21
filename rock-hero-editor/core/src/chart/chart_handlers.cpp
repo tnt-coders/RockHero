@@ -400,6 +400,8 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
         target);
 }
 
+// Resets every piece of chart-editing state to a fresh, passive context when the chart is replaced
+// or closed.
 void EditorController::Impl::clearChartEditingState()
 {
     // DISCARD rather than settle: this is context teardown (a chart being replaced or closed),
@@ -440,17 +442,20 @@ ChartSelection& EditorController::Impl::chartSelectionMutable()
     return emplaced;
 }
 
+// The selected tone region's id, or empty while the selection holds another kind.
 std::string EditorController::Impl::selectedToneRegionId() const
 {
     const ToneRegionSelection* const selection = std::get_if<ToneRegionSelection>(&m_selection);
     return selection != nullptr ? selection->region_id : std::string{};
 }
 
+// The selected automation point, or null while the selection holds another kind.
 const AutomationPointSelection* EditorController::Impl::selectedAutomationPoint() const
 {
     return std::get_if<AutomationPointSelection>(&m_selection);
 }
 
+// The selected time span, or null while the selection holds another kind.
 const TimeSelection* EditorController::Impl::selectedTimeSelection() const
 {
     return std::get_if<TimeSelection>(&m_selection);
@@ -490,6 +495,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     syncAudibleTone();
 }
 
+// Clears whatever is selected through the one assignment seam.
 void EditorController::Impl::clearSelection()
 {
     setSelection(std::monostate{});
@@ -594,6 +600,8 @@ common::core::TimePosition EditorController::Impl::cursorTimeAt(
     return session().timeline().clamp(common::core::TimePosition{tempo_map.secondsAt(position)});
 }
 
+// The editor-driven cursor move: seeks onto the position and points the rig at the tone there,
+// keeping the selection.
 void EditorController::Impl::moveCursorTo(const common::core::GridPosition position)
 {
     m_transport.seek(cursorTimeAt(session().song().tempo_map, position));
@@ -854,6 +862,8 @@ ChartCaretFace EditorController::Impl::chartCaretFace() const
     return chartFaceShown(caret->face, chartCaretObject()) ? caret->face : ChartCaretFace::Mark;
 }
 
+// Arms the caret at a slot and face and selects what it lands on. Rationale lives on the
+// declaration in editor_controller_impl.h.
 void EditorController::Impl::armChartCaret(
     common::core::GridPosition position, int string, ChartCaretFace face,
     const std::optional<ChartSelectionKey>& object)
@@ -935,6 +945,7 @@ void EditorController::Impl::armLaneCaret(
         ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)});
 }
 
+// Whether an authored point stands on the lane row at exactly this slot.
 bool EditorController::Impl::lanePointAt(
     const AutomationLaneRow& row, const common::core::GridPosition& position)
 {
@@ -1301,6 +1312,7 @@ void EditorController::Impl::landGestureSelection(const std::optional<ChartEditL
         *landing);
 }
 
+// The selection a recorded focus names, as a landing; nothing where it names none.
 std::optional<EditorController::Impl::ChartEditLanding> EditorController::Impl::selectionLandingOf(
     const EditFocus& focus)
 {
@@ -1336,6 +1348,7 @@ void EditorController::Impl::landMarkerSelection(const MarkerSelection& marker)
     syncAudibleTone();
 }
 
+// Captures where the charter stands now, the focus both sides of a chart undo entry record.
 EditFocus EditorController::Impl::chartEditFocus() const
 {
     if (const auto* const hold = std::get_if<NoneHoldSelection>(&m_selection))
@@ -1656,6 +1669,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     updateView();
 }
 
+// The row keyboard focus stands on: the armed caret's, else the selected marker's, else none.
 std::optional<EditorController::Impl::FocusRow> EditorController::Impl::currentFocusRow() const
 {
     if (const ChartCaret* const caret = armedChartCaret())
@@ -1677,6 +1691,7 @@ std::optional<EditorController::Impl::FocusRow> EditorController::Impl::currentF
     return std::nullopt;
 }
 
+// Whether two rows share a reach group, the unit Ctrl's row step skips by.
 bool EditorController::Impl::sameReachGroup(const FocusRow& lhs, const FocusRow& rhs)
 {
     if (lhs.index() != rhs.index())
@@ -1689,6 +1704,7 @@ bool EditorController::Impl::sameReachGroup(const FocusRow& lhs, const FocusRow&
     return marker == nullptr || marker->row == std::get<MarkerFocusRow>(rhs).row;
 }
 
+// Every row the row walk can reach at a column, top to bottom as the editor draws them.
 std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowStack(
     const int string_count, const common::core::GridPosition& column) const
 {
@@ -1830,6 +1846,8 @@ common::core::GridPosition EditorController::Impl::pausedCursorPosition(
     return nearestTempoGridPosition(session().song().tempo_map, quantum, m_transport.position());
 }
 
+// The one landing for every row: arms the caret on a point row, selects the marker on a marker
+// row. Rationale lives on the declaration in editor_controller_impl.h.
 void EditorController::Impl::landOnRow(
     const FocusRow& row, const std::optional<common::core::GridPosition> column,
     const ChartCaretFace face, const std::optional<ChartSelectionKey>& object)
@@ -2064,6 +2082,7 @@ common::core::GridPosition EditorController::Impl::focusColumn() const
     return pausedCursorPosition(common::core::g_tick_quantum_note_value);
 }
 
+// The rows a focus jump names: one, or both hold rows for the hold jump.
 std::vector<EditorController::Impl::FocusRow> EditorController::Impl::focusRowsFor(
     const FocusRowJump jump)
 {
@@ -3219,6 +3238,7 @@ EditorController::Impl::ChartFretEntry::Retype EditorController::Impl::chartRety
     };
 }
 
+// The notes and keyframes a retype addresses, as one selection's keys.
 std::vector<ChartSelectionKey> EditorController::Impl::chartRetypeKeys(
     const ChartFretEntry::Retype& retype)
 {
@@ -4468,6 +4488,8 @@ bool EditorController::Impl::settle()
     return settled;
 }
 
+// The settle sweep: flattens every legato claim the chart no longer justifies. Rationale lives on
+// the declaration in editor_controller_impl.h.
 bool EditorController::Impl::settleChartClaims()
 {
     // The fret entry settles FIRST at every settle point the sweep owns: commit the typed value,

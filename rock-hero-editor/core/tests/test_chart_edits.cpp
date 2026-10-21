@@ -61,6 +61,7 @@ using rock_hero::common::core::testing::anchor;
     };
 }
 
+// The slot key naming the note at a position on a string.
 [[nodiscard]] ChartSlotKey keyAt(common::core::GridPosition position, int string)
 {
     return ChartSlotKey{.position = position, .string = string};
@@ -115,6 +116,7 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
     return ChartSustainStep{.note_value = note_value, .grow = grow};
 }
 
+// One sustain step of the finest quantum, the tick.
 [[nodiscard]] ChartSustainStep tickStep(bool grow)
 {
     return ChartSustainStep{.note_value = common::core::g_tick_quantum_note_value, .grow = grow};
@@ -248,6 +250,7 @@ void applyAndValidate(
     return keys;
 }
 
+// Retypes exactly the base notes, with no keyframes in the operand.
 [[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> retypeNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const ChartFretWrite write)
@@ -255,6 +258,7 @@ void applyAndValidate(
     return planRetypeFrets(chart, tempo_map, base, slotsOf(base), {}, write);
 }
 
+// Moves the keyed notes alone, with no keyframes in the operand.
 [[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> moveNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, common::core::Fraction whole_note_delta,
@@ -2733,6 +2737,8 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     }
 }
 
+// A slide-out the ring grows past stays put as a pitched keyframe, and the gesture stepping back
+// to its start reports NoChange so the controller retires the grow entry rather than refusing.
 TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "[core][chart]")
 {
     common::core::Chart chart = makeSteppedGlideChart();

@@ -83,6 +83,7 @@ struct SpanRowEditor
     };
     core::EditorViewState state{makeLoadedEditorState(4.0)};
 
+    // Shows the span-row chart, its chord span held or derived as asked, with marker edits open.
     explicit SpanRowEditor(const bool held)
     {
         view.setBounds(0, 0, 1280, 800);
@@ -91,6 +92,7 @@ struct SpanRowEditor
         view.setState(state);
     }
 
+    // Republishes the state with this chart selection.
     void select(const core::ChartEditViewState& edit)
     {
         state.chart_edit = edit;

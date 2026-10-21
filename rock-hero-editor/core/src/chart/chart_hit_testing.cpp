@@ -90,6 +90,7 @@ struct PressLayer
 
 } // namespace
 
+// Resolves a press to the one target it reaches, front layer first, then heads before faces.
 std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
     float y, const common::ui::TabPresence& presence)
@@ -176,6 +177,7 @@ std::optional<ChartHitTarget> chartHitTarget(
     return std::nullopt;
 }
 
+// Collects every target whose drawn box a rubber-band box intersects.
 std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
     float left, float top, float right, float bottom, const common::ui::TabPresence& presence)

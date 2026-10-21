@@ -161,6 +161,7 @@ constexpr int g_track_viewport_min_height{80};
     return common::core::juceFileFromPath(suggested_file);
 }
 
+// An undo or redo command's menu text, naming the entry's label when it has one.
 [[nodiscard]] juce::String editCommandText(
     const char* command_name, const std::optional<std::string>& label)
 {
@@ -474,6 +475,7 @@ public:
         getLookAndFeel().getIdealPopupMenuItemSize(m_text, false, -1, ideal_width, ideal_height);
     }
 
+    // Draws the row with the look-and-feel's own item painter, highlight included.
     void paint(juce::Graphics& g) override
     {
         getLookAndFeel().drawPopupMenuItem(
@@ -1638,6 +1640,7 @@ void EditorView::flashRefusal(core::RefusalFlash flash)
     }
 }
 
+// The toolbar button of a lock, which a refusal that lock caused glows.
 ModeToggleButton& EditorView::lockButton(const core::LockControl lock)
 {
     switch (lock)
@@ -4018,11 +4021,13 @@ void EditorView::onToneAutomationLaneAddRequested(std::string instance_id, std::
     m_controller.onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
 }
 
+// Forwards a lane's remove-menu choice to the controller.
 void EditorView::onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id)
 {
     m_controller.onToneAutomationLaneRemoveRequested(std::move(instance_id), std::move(param_id));
 }
 
+// Forwards an automation-point selection to the controller.
 void EditorView::onToneAutomationPointSelectRequested(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {
@@ -4030,31 +4035,37 @@ void EditorView::onToneAutomationPointSelectRequested(
         std::move(instance_id), std::move(param_id), position);
 }
 
+// Forwards a lane hover to the controller, which owns the insert ghost.
 void EditorView::onToneAutomationPointerMove(const core::ToneAutomationPointerEvent& event)
 {
     m_controller.onToneAutomationPointerMove(event);
 }
 
+// Forwards the end of a lane hover to the controller.
 void EditorView::onToneAutomationPointerExit()
 {
     m_controller.onToneAutomationPointerExit();
 }
 
+// Forwards a lane press to the controller's point gesture.
 void EditorView::onToneAutomationPointerDown(const core::ToneAutomationPointerEvent& event)
 {
     m_controller.onToneAutomationPointerDown(event);
 }
 
+// Forwards a lane drag to the controller's point gesture.
 void EditorView::onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event)
 {
     m_controller.onToneAutomationPointerDrag(event);
 }
 
+// Forwards a lane release so the controller commits its point gesture.
 void EditorView::onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event)
 {
     m_controller.onToneAutomationPointerUp(event);
 }
 
+// Forwards a lane's replacement point list to the controller.
 void EditorView::onToneAutomationPointsEditRequested(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)
@@ -4083,6 +4094,7 @@ void EditorView::onTempoAnchorMoveRequested(
     m_controller.onTempoAnchorMoveRequested(position, milliseconds);
 }
 
+// Forwards a tempo-chip drag's release, which commits the held move.
 void EditorView::onTempoAnchorDragReleased()
 {
     m_controller.onTempoAnchorDragReleased();

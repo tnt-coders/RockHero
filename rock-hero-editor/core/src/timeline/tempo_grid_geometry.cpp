@@ -416,6 +416,7 @@ void seekNearestGridLine(MeasureGridWalker& walker, common::core::TimePosition t
 
 } // namespace
 
+// Snaps a time to the nearest grid line's time under the tempo map.
 common::core::TimePosition nearestTempoGridTime(
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
     common::core::TimePosition target)
@@ -425,6 +426,8 @@ common::core::TimePosition nearestTempoGridTime(
     return common::core::TimePosition{walker.lineSeconds()};
 }
 
+// Snaps a time to the nearest grid line's exact musical address, the same walk as
+// nearestTempoGridTime().
 common::core::GridPosition nearestTempoGridPosition(
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
     common::core::TimePosition target)

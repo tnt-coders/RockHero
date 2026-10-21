@@ -6,11 +6,13 @@
 namespace rock_hero::editor::core
 {
 
+// Adds one target to light.
 void RefusalLight::add(RefusalTarget target)
 {
     targets.push_back(std::move(target));
 }
 
+// Merges every target another light holds, after this light's own.
 void RefusalLight::add(const RefusalLight& light)
 {
     targets.insert(targets.end(), light.targets.begin(), light.targets.end());

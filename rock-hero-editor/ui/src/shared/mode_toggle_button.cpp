@@ -54,6 +54,7 @@ void ModeToggleButton::paintButton(
         g_ring_thickness);
 }
 
+// Dims the ring and glyph together while the button is disabled.
 void ModeToggleButton::enablementChanged()
 {
     juce::DrawableButton::enablementChanged();

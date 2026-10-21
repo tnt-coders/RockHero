@@ -9,6 +9,8 @@
 namespace rock_hero::editor::core
 {
 
+// Ends the open run so a merged count reaches the log on exit. A destructor must not throw, so a
+// failing write drops the run instead.
 RefusalLog::~RefusalLog()
 {
     try
@@ -21,6 +23,7 @@ RefusalLog::~RefusalLog()
     }
 }
 
+// Records a refused timeline-marker edit under the verb's undo label.
 void RefusalLog::markerEdit(const std::string_view label, const std::string_view detail)
 {
     write(
@@ -31,6 +34,7 @@ void RefusalLog::markerEdit(const std::string_view label, const std::string_view
         });
 }
 
+// Records a refused chart edit, naming the notes or keyframes it would have changed.
 void RefusalLog::chartEdit(const std::string_view subject, const std::string_view detail)
 {
     write(
@@ -41,6 +45,7 @@ void RefusalLog::chartEdit(const std::string_view subject, const std::string_vie
         });
 }
 
+// Records an action a lock refused before any verb ran, with the lock's sentence as the detail.
 void RefusalLog::lockedAction(const std::string_view action, const std::string_view detail)
 {
     write(
@@ -51,6 +56,8 @@ void RefusalLog::lockedAction(const std::string_view action, const std::string_v
         });
 }
 
+// Counts a record that repeats the open run; any other record closes the run, is written at once
+// and opens the next run.
 void RefusalLog::write(Record record)
 {
     if (m_run.has_value())
@@ -67,6 +74,7 @@ void RefusalLog::write(Record record)
     m_run = Run{.record = std::move(record), .repeats = 0};
 }
 
+// Closes the open run, writing its count line only when the record repeated after its first line.
 void RefusalLog::endRun()
 {
     const std::optional<Run> run = std::exchange(m_run, std::nullopt);

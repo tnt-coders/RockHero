@@ -68,11 +68,13 @@ struct OutlineCorner
 
 } // namespace
 
+// The one overlay stroke width, scaled with the traced mark's size and never under 1.5 px.
 float overlayRingStroke(const float extent) noexcept
 {
     return std::max(1.0f, extent / 15.0f) * 1.5f;
 }
 
+// Grows the box by half the ring's stroke, so the ring stroked on it covers none of the box's fill.
 MarkOutline boxRingOutline(const juce::Rectangle<float> box, const float corner_radius)
 {
     const float stroke = overlayRingStroke(box.getHeight());
@@ -131,6 +133,7 @@ MarkOutline spanRowOutline(const juce::Rectangle<float> chip, const juce::Rectan
         }));
 }
 
+// Strokes the selection ring on the mark's outline at the shared overlay stroke.
 void strokeMarkRing(juce::Graphics& g, const MarkOutline& mark, const juce::Colour colour)
 {
     g.setColour(colour);

@@ -54,6 +54,7 @@ std::optional<int> drawTimelineCursor(
     return column;
 }
 
+// Maps a content x to the nearest placement-grid line's exact musical position.
 std::optional<common::core::GridPosition> musicalGridPositionForX(
     const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum,
     common::core::TimeRange visible_timeline, int width, float content_x)

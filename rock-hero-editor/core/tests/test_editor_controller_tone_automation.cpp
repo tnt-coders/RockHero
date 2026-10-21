@@ -46,6 +46,7 @@ constexpr const char* g_instance = "plugin-instance-1";
 constexpr const char* g_plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b";
 constexpr const char* g_param = "gain";
 
+// A point position on a beat, or `numerator` halves of a beat past it.
 [[nodiscard]] common::core::GridPosition pointAt(int measure, int beat, int numerator = 0)
 {
     return common::core::GridPosition{
@@ -77,6 +78,7 @@ constexpr const char* g_param = "gain";
     return song;
 }
 
+// The continuous gain parameter the automation cases here author.
 [[nodiscard]] common::audio::AutomatableParamInfo makeParam()
 {
     return common::audio::AutomatableParamInfo{
@@ -150,6 +152,7 @@ constexpr int g_pointer_content_width = 400;
 constexpr float g_pointer_band_top = 5.0F;
 constexpr float g_pointer_band_height = 40.0F;
 
+// The visible range pointer events carry: the song's first four seconds.
 [[nodiscard]] common::core::TimeRange pointerVisibleTimeline()
 {
     return common::core::TimeRange{

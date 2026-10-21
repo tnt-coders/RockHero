@@ -40,6 +40,8 @@ const juce::Colour g_tone_region_selection_outline{juce::Colours::white};
 
 } // namespace
 
+// Binds the row to its listener, both tempo maps and the transport; the vblank tick reports
+// playback frames and steps the refusal flash.
 ToneTrackView::ToneTrackView(
     Listener& listener, const common::core::TempoMap& tempo_map,
     const common::core::TempoMap& content_map, const common::audio::ITransport& transport)
@@ -53,6 +55,7 @@ ToneTrackView::ToneTrackView(
     })
 {}
 
+// Stores the visible timeline range region spans map across.
 void ToneTrackView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
     if (m_visible_timeline == visible_timeline)
@@ -70,6 +73,7 @@ bool ToneTrackView::gestureActive() const noexcept
     return m_drag.has_value() || m_insert_drag.has_value();
 }
 
+// Applies a new render state, stashing it while a drag holds indices into the previous one.
 void ToneTrackView::setState(const core::ToneTrackViewState& state)
 {
     // A drag reads m_state for its region indices, so a push mid-drag is stashed and adopted when
@@ -119,6 +123,7 @@ void ToneTrackView::adoptPendingState()
     applyState(pending);
 }
 
+// Records the visible left edge, where region labels pin so the active tone stays readable.
 void ToneTrackView::setVisibleContentLeft(int content_left_x)
 {
     if (m_visible_content_left == content_left_x)
@@ -132,6 +137,7 @@ void ToneTrackView::setVisibleContentLeft(int content_left_x)
     repaint();
 }
 
+// Sets the note value edge drags and inserts snap to.
 void ToneTrackView::setPlacementQuantum(common::core::Fraction placement_quantum)
 {
     m_placement_quantum = placement_quantum;
@@ -159,11 +165,13 @@ void ToneTrackView::setMarkerEditsEnabled(const bool marker_edits_enabled)
     }
 }
 
+// Installs the sink for the transient edge-drag snap guide.
 void ToneTrackView::setSnapGuideCallback(SnapGuideCallback on_snap_guide)
 {
     m_on_snap_guide = std::move(on_snap_guide);
 }
 
+// True over an interactive region, so the cursor overlay passes those clicks through.
 bool ToneTrackView::wantsPointerAt(juce::Point<int> local_point) const
 {
     return hitAt(local_point).has_value();
@@ -187,6 +195,7 @@ void ToneTrackView::stepRefusalFlash()
     }
 }
 
+// Paints the row divider and the tone regions.
 void ToneTrackView::paint(juce::Graphics& g)
 {
     // The row draws no background of its own: the canvas paints its band and the shared
@@ -354,6 +363,7 @@ void ToneTrackView::paint(juce::Graphics& g)
     }
 }
 
+// Updates the pointer cursor and the Alt-held insert ghost.
 void ToneTrackView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<RegionHit> hit = hitAt(event.getPosition());
@@ -396,6 +406,7 @@ void ToneTrackView::mouseMove(const juce::MouseEvent& event)
     }
 }
 
+// Clears the insert ghost once the pointer leaves the row.
 void ToneTrackView::mouseExit(const juce::MouseEvent& /*event*/)
 {
     // A drag keeps its preview (JUCE keeps delivering drag events); a plain hover that leaves
@@ -406,6 +417,7 @@ void ToneTrackView::mouseExit(const juce::MouseEvent& /*event*/)
     }
 }
 
+// Begins an edge drag or Alt-insert placement, or arms a body click for selection.
 void ToneTrackView::mouseDown(const juce::MouseEvent& event)
 {
     m_drag.reset();
@@ -516,6 +528,7 @@ void ToneTrackView::showRegionContextMenu(
         });
 }
 
+// Previews the snapped position and reports the snap guide while a drag runs.
 void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
 {
     // An insert placement drags its ghost boundary; holding it inside the pressed region keeps
@@ -589,6 +602,7 @@ void ToneTrackView::mouseUp(const juce::MouseEvent& event)
     adoptPendingState();
 }
 
+// Ends the press's gesture and emits its intent; every exit adopts a stashed state here.
 void ToneTrackView::finishGesture(const juce::MouseEvent& event)
 {
     if (m_insert_drag.has_value())
@@ -639,6 +653,7 @@ void ToneTrackView::finishGesture(const juce::MouseEvent& event)
     m_pending_select.reset();
 }
 
+// The selected region's label where its region starts; a label pinned at the edge has none.
 std::optional<juce::Rectangle<float>> ToneTrackView::selectedRegionLabelBounds() const
 {
     const auto selected = std::ranges::find_if(
@@ -672,6 +687,7 @@ std::optional<juce::Rectangle<float>> ToneTrackView::selectedRegionLabelBounds()
     return label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f);
 }
 
+// Opens the rename prompt for the tone of the region under the pointer.
 void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
 {
     const std::optional<RegionHit> hit = hitAt(event.getPosition());
@@ -693,6 +709,7 @@ void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
     m_listener.onToneRenamePromptRequested(region.tone_document_ref);
 }
 
+// The row's one time-to-x seam: re-timed to the content map, then mapped across the visible range.
 std::optional<float> ToneTrackView::xForTime(common::core::TimePosition position) const
 {
     return core::timelineXForPosition(
@@ -815,6 +832,7 @@ void ToneTrackView::setInsertGhostX(std::optional<float> ghost_x)
     repaint_strip(m_insert_ghost_x);
 }
 
+// Abandons the gesture in flight without committing, for Esc; reports whether one was running.
 bool ToneTrackView::cancelActiveGesture()
 {
     if (!m_drag.has_value() && !m_insert_drag.has_value())

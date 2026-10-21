@@ -75,6 +75,7 @@ struct ToneDesignerHarness
         }
     };
 
+    // Empties the resting rig, attaches the view and runs the startup restore.
     ToneDesignerHarness()
     {
         // The designer's resting rig is empty; the fake's default one-plugin result would

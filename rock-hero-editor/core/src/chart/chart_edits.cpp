@@ -366,6 +366,8 @@ template <typename Element>
 
 } // namespace
 
+// The gate every note planner ends at: normalizes the candidate and its holds, refuses what the
+// document reader would, and diffs the rest against the base.
 std::expected<JudgedChartPlan, PlanRefusal> finalizePlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, const std::string_view label)
@@ -433,6 +435,8 @@ std::expected<JudgedChartPlan, PlanRefusal> finalizePlan(
     return judgedPlan(base, tempo_map, std::move(plan), std::move(normal));
 }
 
+// The gate every hold verb ends at: refuses a hold stream the reader would refuse or one that does
+// not fit its notes, never normalizing it, and plans the rest.
 std::expected<JudgedChartPlan, PlanRefusal> finalizeShapeHoldPlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ShapeHold>& candidate, const std::string_view label)
@@ -672,6 +676,8 @@ SteppedShapeHoldEdge planSteppedShapeHoldEdge(
     };
 }
 
+// Moves one hold edge and carves the result into the other holds, refusing a neighbour pushed to
+// nothing.
 std::expected<std::vector<common::core::ShapeHold>, PlanRefusal> movedShapeHolds(
     const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& moved,
     const ShapeHoldEdge edge, const common::core::GridPosition& value)
@@ -710,6 +716,7 @@ std::expected<std::vector<common::core::ShapeHold>, PlanRefusal> movedShapeHolds
         others, ShapeHoldExtent{.start = edged.start, .end = edged.end}, edged.grip);
 }
 
+// Plans a hold edge move: the holds movedShapeHolds() leaves, judged by the hold gate.
 std::expected<JudgedChartPlan, PlanRefusal> planMoveShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
@@ -721,6 +728,8 @@ std::expected<JudgedChartPlan, PlanRefusal> planMoveShapeHoldEdge(
         });
 }
 
+// A hold stating the grip over exactly a derived span's extent, the start of a span-to-hold
+// conversion.
 common::core::ShapeHold shapeHoldOverSpan(
     const common::core::ChartShape& span, const common::core::TempoMap& tempo_map,
     common::core::HoldGrip grip)
@@ -747,6 +756,8 @@ namespace
 // disagree about the no-op test.
 using NoteWrite = std::expected<void, std::string>;
 
+// The skeleton above: writes each keyed note, skips no-ops, refuses what cannot take the write, and
+// hands the candidate to the shared finalize.
 template <typename Write>
 [[nodiscard]] ChartSelectionPlan planNoteWrite(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -1077,6 +1088,8 @@ struct HeldRing
 
 } // namespace
 
+// Plans one note on a free slot, ringing to the next grid line within its string's bound; an
+// occupied slot is the gate's refusal, never a replace.
 std::expected<JudgedChartPlan, PlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, const common::core::Fraction grid_note_value)
@@ -1098,6 +1111,7 @@ std::expected<JudgedChartPlan, PlanRefusal> planInsertNote(
     return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Note");
 }
 
+// The ring covering a slot, read from the string's last onset strictly before it, or nothing.
 std::optional<ChartPathTail> chartPathTailAt(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const common::core::GridPosition position, const int string)
@@ -1122,6 +1136,7 @@ std::optional<ChartPathTail> chartPathTailAt(
     };
 }
 
+// Plans stating one keyframe fret along a ring, leaving every bound on it to the shared finalize.
 std::expected<JudgedChartPlan, PlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
@@ -1154,6 +1169,8 @@ std::expected<JudgedChartPlan, PlanRefusal> planInsertKeyframe(
     return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Keyframe");
 }
 
+// Plans a note struck inside a ring: the ring divides at the offset and a fresh head takes the
+// remainder.
 std::expected<JudgedChartPlan, PlanRefusal> planCutRing(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
@@ -1199,6 +1216,8 @@ std::expected<JudgedChartPlan, PlanRefusal> planCutRing(
     return finalizePlan(chart, tempo_map, std::move(candidate), "Cut Ring");
 }
 
+// The fret a value-less key states at a slot: the ring's stop there, else the string's last
+// pitched stop before it.
 int chartFretInForceAt(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& slot)
@@ -1233,6 +1252,8 @@ int chartFretInForceAt(
     return latest != nullptr ? common::core::fretBeforeEnd(*latest) : 0;
 }
 
+// Plans deleting the selected notes and keyframes through the shared finalize; broken claims wait
+// for the next settle.
 std::expected<JudgedChartPlan, PlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
@@ -1333,6 +1354,7 @@ std::expected<JudgedChartPlan, PlanRefusal> planDeleteSelection(
     return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
 }
 
+// Replays a move gesture's presses from a walking anchor into the one delta they add up to.
 ChartMoveDelta chartMoveGestureDelta(
     const common::core::TempoMap& tempo_map, const std::vector<ChartSlotKey>& note_keys,
     const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps)
@@ -1389,6 +1411,7 @@ ChartMoveDelta chartMoveGestureDelta(
     return delta;
 }
 
+// Where a stepped keyframe lands along its ring, a slide-out held at the ring's own bound.
 common::core::Fraction chartSteppedKeyframeOffset(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartKeyframeKey& keyframe, const common::core::Fraction whole_note_delta)
@@ -1414,6 +1437,8 @@ common::core::Fraction chartSteppedKeyframeOffset(
     return common::core::ringEndWithinBound(chart.notes, *note, tempo_map, stepped);
 }
 
+// Plans one whole-note delta and string shift over the selection: notes by slot, keyframes by
+// offset, in one undo entry.
 std::expected<JudgedChartPlan, PlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
@@ -1645,6 +1670,8 @@ std::expected<JudgedChartPlan, PlanRefusal> planMoveGesture(
         base, tempo_map, note_keys, keyframe_keys, delta.whole_notes, delta.strings, label);
 }
 
+// Plans retyping the addressed stops toward a typed fret, transposing the shape or setting every
+// stop exactly.
 std::expected<JudgedChartPlan, PlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
@@ -1794,6 +1821,7 @@ std::expected<JudgedChartPlan, PlanRefusal> planRetypeFrets(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
+// Plans the keyed notes' sustains by replaying the whole gesture over each pre-gesture ring.
 std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const common::core::Chart& base, const std::vector<ChartSlotKey>& keys,
@@ -2125,6 +2153,7 @@ ChartSelectionPlan planSetLegato(
     };
 }
 
+// Turns the legato claims the chart no longer justifies into one flattening undo entry.
 ChartEditPlan planSettleChart(
     const common::core::Chart& chart, const std::span<const std::size_t> unjustified,
     const common::core::Chart& base, const std::string_view label)
@@ -2150,6 +2179,8 @@ ChartEditPlan planSettleChart(
     return plan;
 }
 
+// The plan with both sides in written form and re-diffed, so no history entry holds a silent
+// keyframe.
 ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
 {
     // Both sides are slot-ordered subsequences of slot-ordered streams, which is all diffNotes
@@ -2172,6 +2203,7 @@ ChartEditPlan writtenChartPlan(const ChartEditPlan& plan)
     return written;
 }
 
+// Plans the keyed notes' attack, with the pick-slide entry and exit rewriting the note's path.
 ChartSelectionPlan planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const common::core::NoteAttack attack,
@@ -2258,6 +2290,7 @@ ChartSelectionPlan planSetAttack(
         });
 }
 
+// Plans one boolean technique on the eligible keyed notes, leaving their other flags alone.
 ChartSelectionPlan planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const ChartNoteFlag which, const bool value,
@@ -2285,6 +2318,8 @@ ChartSelectionPlan planSetNoteFlag(
         });
 }
 
+// Plans Shift+L: splits at every selected keyframe and joins at every selected head, in one undo
+// entry.
 std::expected<ChartJunctionPlan, PlanRefusal> planToggleJunctions(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& head_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
@@ -2419,6 +2454,8 @@ std::expected<ChartJunctionPlan, PlanRefusal> planToggleJunctions(
     return ChartJunctionPlan{.plan = std::move(*plan), .selection = std::move(selection)};
 }
 
+// The one writer of the vibrato channel: sets one state on every selected leg, a note's first leg
+// or the leg a keyframe begins.
 ChartSelectionPlan planSetVibrato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
@@ -2455,6 +2492,7 @@ ChartSelectionPlan planSetVibrato(
         });
 }
 
+// Plans one bend amount at every anchor the keys name, or takes the statement away.
 ChartSelectionPlan planSetBend(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
@@ -2508,6 +2546,7 @@ ChartSelectionPlan planSetBend(
         });
 }
 
+// Plans one value of the emphasis axis on the keyed notes, so ghost and accent replace each other.
 ChartSelectionPlan planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const common::core::NoteEmphasis value,
@@ -2586,6 +2625,7 @@ namespace
 
 } // namespace
 
+// The nodes the note's own fret names on the open string that the note can also reach.
 std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
     const common::core::ChartNote& note, const common::core::ChartTuning& tuning,
     const common::core::TempoMap& tempo_map)
@@ -2625,6 +2665,7 @@ std::vector<common::core::HarmonicNodeCandidate> chartHarmonicNodeCandidates(
     return candidates;
 }
 
+// Plans the fret-hand harmonic: each keyed note's fret becomes the node its finger touches.
 ChartSelectionPlan planSetHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::optional<int> chosen_partial,
@@ -2666,6 +2707,7 @@ ChartSelectionPlan planSetHarmonic(
         });
 }
 
+// Plans pressing where each fret-hand carrier was touching, dropping its node; pinches are left.
 ChartSelectionPlan planClearHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label)
@@ -2694,6 +2736,7 @@ ChartSelectionPlan planClearHarmonic(
         });
 }
 
+// Plans returning each pinch to the plain pick it was picked as, the thumb's node going with it.
 ChartSelectionPlan planClearPinchHarmonic(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& keys, const std::string_view label)
@@ -2717,6 +2760,7 @@ ChartSelectionPlan planClearPinchHarmonic(
         });
 }
 
+// True for any node whose attack keeps it on the neck, the fret-hand verb's one notion of carries.
 bool carriesNeckHarmonic(const common::core::ChartNote& note) noexcept
 {
     return note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack);
@@ -2855,6 +2899,7 @@ template <common::core::NoteAttack Attack>
 
 } // namespace
 
+// The set-or-clear law for each uniformly planned technique; Legato has its own planner.
 ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
 {
     // Each row binds a noun, the "already carries it" test, and the planner. The flag rows ask
@@ -3070,6 +3115,8 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
     std::unreachable();
 }
 
+// Applies a plan to a copy of the chart, discarding it at the first failed precondition so the
+// caller's chart never sees half an apply.
 std::expected<common::core::Chart, EditorUndoFailureCode> chartWithPlanApplied(
     common::core::Chart chart, const ChartEditPlan& plan)
 {
@@ -3137,21 +3184,25 @@ namespace
 
 } // namespace
 
+// Replays the reversed plan against the session chart.
 std::expected<void, EditorUndoFailureCode> ChartEdit::undo(EditorEditContext& context) const
 {
     return applyToSessionChart(context, plan.reversed());
 }
 
+// Replays the plan against the session chart.
 std::expected<void, EditorUndoFailureCode> ChartEdit::redo(EditorEditContext& context) const
 {
     return applyToSessionChart(context, plan);
 }
 
+// The plan's own label names the undo entry.
 std::string ChartEdit::label() const
 {
     return plan.label;
 }
 
+// Where the charter stood before the edit for an undo, after it for a redo.
 EditFocus ChartEdit::focus(const EditorUndoDirection direction) const
 {
     return direction == EditorUndoDirection::Undo ? before : after;

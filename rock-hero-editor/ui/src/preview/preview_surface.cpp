@@ -70,6 +70,7 @@ LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param,
 
 } // namespace
 
+// Stores the clock sources and the initial look; the render stack waits for attach().
 PreviewSurface::PreviewSurface(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
     const common::ui::LoadedHighwayTheme& theme, const common::ui::StringColorPalette& palette)
@@ -87,6 +88,7 @@ PreviewSurface::PreviewSurface(
     setWantsKeyboardFocus(true);
 }
 
+// Tears the render stack down before the component goes.
 PreviewSurface::~PreviewSurface()
 {
     detach();
@@ -243,17 +245,20 @@ void PreviewSurface::detach()
 #endif
 }
 
+// Stores the new content and marks it for the renderer at the next frame.
 void PreviewSurface::setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state)
 {
     m_state = std::move(state);
     m_state_dirty = true;
 }
 
+// Defers the re-frame to the next frame, after any pending state swap.
 void PreviewSurface::resetCamera()
 {
     m_camera_reset_pending = true;
 }
 
+// Keeps the options for the next bring-up and hands them to a live renderer now.
 void PreviewSurface::setDisplayOptions(const common::core::HighwayDisplayOptions options)
 {
     m_display_options = options;
@@ -287,16 +292,19 @@ void PreviewSurface::setLook(
     bringUpRenderer();
 }
 
+// Stores the timeline's paused mark, which the frame reads while the transport is paused.
 void PreviewSurface::setPausedMarkSeconds(const std::optional<double> seconds)
 {
     m_paused_mark_seconds = seconds;
 }
 
+// Keeps the embedded child window over this component.
 void PreviewSurface::resized()
 {
     updateChildBounds();
 }
 
+// Keeps the embedded child window over this component when it moves.
 void PreviewSurface::moved()
 {
     updateChildBounds();
@@ -309,6 +317,8 @@ void PreviewSurface::paint(juce::Graphics& graphics)
     graphics.fillAll(juce::Colours::black);
 }
 
+// A monitor-scale change keeps the logical bounds, so resized() and moved() never fire; this is the
+// one signal to recompute the physical child rect and backbuffer.
 void PreviewSurface::nativeScaleFactorChanged(const double /*new_scale_factor*/)
 {
     updateChildBounds();

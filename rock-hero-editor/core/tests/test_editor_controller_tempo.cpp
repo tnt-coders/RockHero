@@ -135,6 +135,7 @@ struct TempoEditor : SongEditorHarness
         lockTempo();
     }
 
+    // The chart's authored hand positions, empty without a chart.
     [[nodiscard]] std::vector<common::core::FretHandPosition> placements() const
     {
         const common::core::Chart* const chart = chartOrNull(controller);

@@ -123,16 +123,19 @@ void CursorOverlay::setHitTestPassThrough(std::function<bool(juce::Point<int>)> 
     m_hit_test_pass_through = std::move(pass_through);
 }
 
+// Hides the paused line while a chart shows the position as its caret instead.
 void CursorOverlay::setPausedCursorHidden(bool hidden) noexcept
 {
     m_paused_cursor_hidden = hidden;
 }
 
+// Pins the cursor to a held tempo-chip drag's time, or releases it to the transport when empty.
 void CursorOverlay::setDragCursor(const std::optional<double> seconds) noexcept
 {
     m_drag_cursor_seconds = seconds;
 }
 
+// Limits click-to-seek to the highway band, so the tone strip and lanes keep their own clicks.
 void CursorOverlay::setSeekBandHeight(int height) noexcept
 {
     m_seek_band_height = height;

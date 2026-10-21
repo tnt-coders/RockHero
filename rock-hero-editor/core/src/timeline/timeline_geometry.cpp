@@ -59,6 +59,7 @@ std::optional<common::core::TimePosition> timelinePositionForX(
         std::clamp(static_cast<double>(x), 0.0, drawing_width), visible_timeline, drawing_width)};
 }
 
+// Rounds a subpixel x to its pixel column, holding the visible end inside the last column.
 int timelineColumnForX(float x, int width) noexcept
 {
     return std::min(static_cast<int>(std::round(x)), width - 1);

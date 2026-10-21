@@ -209,6 +209,8 @@ private:
 
 } // namespace
 
+// Binds the row to its listener, both tempo maps and the automation port; the vblank tick tracks
+// moved anchors and republishes the caret mask.
 ToneAutomationLanesView::ToneAutomationLanesView(
     Listener& listener, const common::core::TempoMap& tempo_map,
     const common::core::TempoMap& content_map,
@@ -256,6 +258,7 @@ void ToneAutomationLanesView::repaintMovedAnchorLanes()
     }
 }
 
+// Where a lane's curve begins: the port's live pre-automation read, else the published value.
 float ToneAutomationLanesView::anchorValueFor(const core::ToneAutomationLaneViewState& lane) const
 {
     if (const auto baseline = m_tone_automation.readParameterBaselineNormValue(
@@ -268,6 +271,7 @@ float ToneAutomationLanesView::anchorValueFor(const core::ToneAutomationLaneView
     return lane.anchor_norm_value;
 }
 
+// Sets the timeline range the full content width represents.
 void ToneAutomationLanesView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
     // Equality-gated like the sibling views' setters: view assembly pushes this every state
@@ -280,6 +284,7 @@ void ToneAutomationLanesView::setVisibleTimeline(common::core::TimeRange visible
     repaint();
 }
 
+// Pins the lane name chips and the "+" chip to the visible left edge.
 void ToneAutomationLanesView::setVisibleContentLeft(int content_left_x)
 {
     if (m_visible_content_left == content_left_x)
@@ -290,11 +295,13 @@ void ToneAutomationLanesView::setVisibleContentLeft(int content_left_x)
     repaint();
 }
 
+// Sets the note value point placement snaps to.
 void ToneAutomationLanesView::setPlacementQuantum(common::core::Fraction placement_quantum)
 {
     m_placement_quantum = placement_quantum;
 }
 
+// Applies a pushed state, or stashes it while a lane resize holds the lane it would shift.
 void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& state)
 {
     // A lane-resize drag reads m_state for its lane keys, so a state push mid-resize (the engine
@@ -311,6 +318,7 @@ void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& stat
     applyState(state);
 }
 
+// Replaces the model at once and clears any transient overlay; never runs while a resize is held.
 void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& state)
 {
     // Unchanged pushes repaint nothing (the TabView equality gate): plugin-state notifications
@@ -362,6 +370,7 @@ void ToneAutomationLanesView::setMarkerEditsEnabled(const bool marker_edits_enab
     m_marker_edits_enabled = marker_edits_enabled;
 }
 
+// Sets the selected region's span, the window edits clamp inside.
 void ToneAutomationLanesView::setEditableWindow(common::core::TimeRange window)
 {
     // Equality-gated like every sibling setter here: the editor re-pushes the whole state on every
@@ -375,16 +384,19 @@ void ToneAutomationLanesView::setEditableWindow(common::core::TimeRange window)
     repaint();
 }
 
+// Installs the shared snap-guide sink point drags report to.
 void ToneAutomationLanesView::setSnapGuideCallback(SnapGuideCallback callback)
 {
     m_snap_guide_callback = std::move(callback);
 }
 
+// Installs the sink told when the row's total height changes.
 void ToneAutomationLanesView::setHeightsChangedCallback(HeightsChangedCallback callback)
 {
     m_heights_changed_callback = std::move(callback);
 }
 
+// Installs the sink told when the lane caret's paused-column cut-out changes.
 void ToneAutomationLanesView::setCaretMaskCallback(CaretMaskCallback callback)
 {
     m_caret_mask_callback = std::move(callback);
@@ -413,16 +425,19 @@ void ToneAutomationLanesView::publishCaretMask()
     }
 }
 
+// Republishes the caret mask, whose content-coordinate span shifts with the row.
 void ToneAutomationLanesView::moved()
 {
     publishCaretMask();
 }
 
+// Republishes the caret mask, whose lane geometry shifts with the row's size.
 void ToneAutomationLanesView::resized()
 {
     publishCaretMask();
 }
 
+// Every lane's height plus the trailing "+" lane.
 int ToneAutomationLanesView::totalHeight() const
 {
     if (m_state.tone_document_ref.empty())
@@ -437,6 +452,7 @@ int ToneAutomationLanesView::totalHeight() const
     return height + g_plus_lane_height;
 }
 
+// True over interactive lane content, so the cursor overlay passes those presses through.
 bool ToneAutomationLanesView::wantsPointerAt(juce::Point<int> local_point) const
 {
     // Alt only reorders the pinned chip against the lane area beneath it, and both orderings agree
@@ -445,6 +461,7 @@ bool ToneAutomationLanesView::wantsPointerAt(juce::Point<int> local_point) const
     return hitAt(local_point, false).has_value();
 }
 
+// The lane extents in display order, then the trailing "+" lane's.
 std::vector<ToneAutomationLanesView::LaneExtent> ToneAutomationLanesView::laneExtents() const
 {
     std::vector<LaneExtent> extents;
@@ -460,6 +477,7 @@ std::vector<ToneAutomationLanesView::LaneExtent> ToneAutomationLanesView::laneEx
     return extents;
 }
 
+// The lane's configured height, or the default when none is set.
 int ToneAutomationLanesView::laneHeight(
     const std::string& instance_id, const std::string& param_id) const
 {
@@ -577,6 +595,7 @@ std::optional<float> ToneAutomationLanesView::xForSeconds(double seconds) const
         core::TimelinePositionClamping::ExtendPastVisibleRange);
 }
 
+// Snaps a stepped parameter's value to its nearest state; a continuous lane's passes unchanged.
 float ToneAutomationLanesView::snappedValueForLane(
     float raw_value, const core::ToneAutomationLaneViewState& lane)
 {
@@ -592,6 +611,7 @@ float ToneAutomationLanesView::snappedValueForLane(
     return static_cast<float>(nearest) / static_cast<float>(steps);
 }
 
+// The one value-band geometry inside a lane, shared by paint, hit tests, masks and pointer events.
 ToneAutomationLanesView::ValueBand ToneAutomationLanesView::valueBandFor(const LaneExtent& extent)
 {
     // Inset from the lane's outer bounds by the value-band inset above and the resize band
@@ -602,6 +622,7 @@ ToneAutomationLanesView::ValueBand ToneAutomationLanesView::valueBandFor(const L
     };
 }
 
+// Maps a normalized value into the band, 1 at its top and 0 at its bottom.
 float ToneAutomationLanesView::valueBandY(const ValueBand& band, float norm_value)
 {
     return static_cast<float>(band.top) + (1.0f - norm_value) * static_cast<float>(band.height);
@@ -631,6 +652,7 @@ std::optional<juce::Rectangle<float>> ToneAutomationLanesView::laneCaretSquare()
     };
 }
 
+// The selected point's handle, kept on screen by selection verbs; none during a drag.
 std::optional<juce::Rectangle<float>> ToneAutomationLanesView::selectedPointBounds() const
 {
     // The readout already resolves the selected point to its drawn centre; the handle is the same
@@ -649,6 +671,7 @@ std::optional<juce::Rectangle<float>> ToneAutomationLanesView::selectedPointBoun
     };
 }
 
+// The lane caret square's outer vertical span, for the paused-column cut-out.
 std::optional<juce::Range<float>> ToneAutomationLanesView::caretMaskYRange() const
 {
     const std::optional<juce::Rectangle<float>> square = laneCaretSquare();
@@ -661,6 +684,7 @@ std::optional<juce::Range<float>> ToneAutomationLanesView::caretMaskYRange() con
     return juce::Range<float>{square->getY() - 1.0f, square->getBottom() + 1.0f};
 }
 
+// The lane's derived anchor as the curve's first sample, at the timeline origin.
 core::ToneAutomationCurveSample ToneAutomationLanesView::laneAnchorSample(
     const core::ToneAutomationLaneViewState& lane) const
 {
@@ -670,6 +694,7 @@ core::ToneAutomationCurveSample ToneAutomationLanesView::laneAnchorSample(
     };
 }
 
+// The lane's authored points as curve samples, in ascending time.
 std::vector<core::ToneAutomationCurveSample> ToneAutomationLanesView::laneCurveSamples(
     const core::ToneAutomationLaneViewState& lane)
 {
@@ -686,6 +711,7 @@ std::vector<core::ToneAutomationCurveSample> ToneAutomationLanesView::laneCurveS
     return samples;
 }
 
+// The drawn curve's value at a time, through the one core evaluation paint and the backend share.
 float ToneAutomationLanesView::curveValueAt(
     const core::ToneAutomationLaneViewState& lane, double seconds) const
 {
@@ -699,6 +725,7 @@ float ToneAutomationLanesView::curveValueAt(
         laneAnchorSample(lane), laneCurveSamples(lane), seconds, lane.is_discrete);
 }
 
+// A content x as an exact position on the placement lattice.
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
     float content_x) const
 {
@@ -706,6 +733,7 @@ std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositi
         m_tempo_map, m_placement_quantum, m_visible_timeline, getWidth(), content_x);
 }
 
+// Whether a point lies in the drawn anchor's grab circle, which outranks the marks pinned over it.
 bool ToneAutomationLanesView::withinAnchorGrab(
     const core::ToneAutomationLaneViewState& lane, const LaneExtent& extent,
     juce::Point<int> local_point) const
@@ -732,6 +760,7 @@ bool ToneAutomationLanesView::withinAnchorGrab(
         local_point, *anchor_x, valueBandY(valueBandFor(extent), anchorValueFor(lane)));
 }
 
+// The lane row a hit belongs to; empty only for the "+" chip.
 std::optional<std::size_t> ToneAutomationLanesView::laneIndexOf(const Hit& hit)
 {
     return std::visit(
@@ -748,6 +777,7 @@ std::optional<std::size_t> ToneAutomationLanesView::laneIndexOf(const Hit& hit)
         hit);
 }
 
+// The one zone resolver hover and press share, so the cursor always names what a click would hit.
 std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
     juce::Point<int> local_point, bool alt_down) const
 {
@@ -863,6 +893,7 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
     return std::nullopt;
 }
 
+// Paints every lane with its curve and points, the insert ghost, and the "+" lane.
 void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 {
     if (m_state.tone_document_ref.empty())
@@ -1205,6 +1236,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
     paintValueReadout(graphics);
 }
 
+// Updates the hover cursor and readout, and forwards the hover for the insert ghost.
 void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
@@ -1296,6 +1328,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
     }
 }
 
+// Opens a menu or the picker, starts a lane resize, or forwards an editing press to the controller.
 void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
@@ -1370,6 +1403,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     }
 }
 
+// Advances a lane resize, or forwards the drag to the controller's point gesture.
 void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
 {
     // A lane-resize drag is view-owned; advance it here. Everything else is a controller-owned
@@ -1396,6 +1430,7 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
     applyDragPreviewReadout(event.getPosition());
 }
 
+// Ends a lane resize, or forwards the release so the controller commits its gesture.
 void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& event)
 {
     // A lane-resize drag ends view-side: drop it and adopt any state deferred during it. Everything
@@ -1416,6 +1451,8 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& event)
     m_listener.onToneAutomationPointerUp(makePointerEvent(event, std::nullopt));
 }
 
+// Cancels only a view-owned lane resize, restoring its height; point gestures cancel in the
+// controller.
 bool ToneAutomationLanesView::cancelActiveGesture()
 {
     // Only the view-owned lane resize cancels here — restoring its starting height. The
@@ -1538,11 +1575,13 @@ bool ToneAutomationLanesView::beginCaretValueEntry(int digit)
     return true;
 }
 
+// Watches the owning lanes view, whose movement is what moves the callout's anchor.
 ToneAutomationLanesView::CallOutFollower::CallOutFollower(ToneAutomationLanesView& owner)
     : juce::ComponentMovementWatcher(&owner)
     , m_owner(owner)
 {}
 
+// Launches the callout on the desktop at the anchor and remembers how to find the anchor again.
 void ToneAutomationLanesView::CallOutFollower::launch(
     std::unique_ptr<juce::Component> content, std::function<juce::Rectangle<int>()> local_anchor)
 {
@@ -1551,15 +1590,18 @@ void ToneAutomationLanesView::CallOutFollower::launch(
         std::move(content), m_owner.localAreaToGlobal(m_local_anchor()), nullptr);
 }
 
+// Re-aims the box whenever the lanes view moves or resizes.
 void ToneAutomationLanesView::CallOutFollower::componentMovedOrResized(
     const bool /*was_moved*/, const bool /*was_resized*/)
 {
     reposition();
 }
 
+// Required by the watcher; a peer change alone moves no anchor.
 void ToneAutomationLanesView::CallOutFollower::componentPeerChanged()
 {}
 
+// Required by the watcher; visibility alone moves no anchor.
 void ToneAutomationLanesView::CallOutFollower::componentVisibilityChanged()
 {}
 
@@ -1580,6 +1622,7 @@ void ToneAutomationLanesView::CallOutFollower::reposition()
             ->userBounds.getLargestIntegerWithin());
 }
 
+// Opens the typed exact-value editor for a double-clicked point.
 void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
@@ -1603,6 +1646,7 @@ void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
     showPointValueEditor(*point_hit);
 }
 
+// Clears the hover readout and ends the hover, clearing the insert ghost.
 void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
 {
     // A resize or a controller-owned point drag keeps its overlays even when the pointer leaves the
@@ -1615,6 +1659,7 @@ void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
     }
 }
 
+// Every displayed lane's value band, carried on pointer events so the controller maps y to value.
 std::vector<core::ToneAutomationLaneExtent> ToneAutomationLanesView::laneValueBandExtents() const
 {
     // The band is the drawable region a point rides — inset from the lane's outer bounds by the
@@ -1635,6 +1680,7 @@ std::vector<core::ToneAutomationLaneExtent> ToneAutomationLanesView::laneValueBa
     return bands;
 }
 
+// Packs the raw pixels and geometry the controller re-derives snap, value and hits from.
 core::ToneAutomationPointerEvent ToneAutomationLanesView::makePointerEvent(
     const juce::MouseEvent& event, std::optional<std::size_t> lane_index) const
 {
@@ -1664,6 +1710,7 @@ core::ToneAutomationPointerEvent ToneAutomationLanesView::makePointerEvent(
     return pointer_event;
 }
 
+// Shows the controller's published drag preview as the readout at the pointer; no preview, no-op.
 void ToneAutomationLanesView::applyDragPreviewReadout(juce::Point<int> anchor)
 {
     if (!m_state.drag_preview.has_value() ||
@@ -1696,6 +1743,7 @@ void ToneAutomationLanesView::openParameterPicker()
     showParameterPicker(juce::PopupMenu::Options{}.withTargetScreenArea(localAreaToGlobal(anchor)));
 }
 
+// Opens the "+" parameter picker asynchronously, grouped per chain plugin.
 void ToneAutomationLanesView::showParameterPicker(const juce::PopupMenu::Options& placement)
 {
     juce::PopupMenu menu;
@@ -1785,6 +1833,7 @@ void ToneAutomationLanesView::showParameterPicker(const juce::PopupMenu::Options
         });
 }
 
+// Opens the remove menu for a right-clicked lane row.
 void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
 {
     if (lane_index >= m_state.lanes.size())
@@ -1821,6 +1870,7 @@ void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
         });
 }
 
+// Opens the delete menu for a right-clicked point.
 void ToneAutomationLanesView::showPointMenu(const PointHit& hit)
 {
     const core::ToneAutomationLaneViewState& lane = m_state.lanes[hit.lane_index];
@@ -2031,6 +2081,7 @@ std::optional<ToneAutomationLanesView::SelectedPoint> ToneAutomationLanesView::
     };
 }
 
+// Publishes the snap guide, or clears it when empty.
 void ToneAutomationLanesView::publishSnapGuide(std::optional<TimelineSnapGuide> guide)
 {
     if (m_snap_guide_callback)
@@ -2039,6 +2090,7 @@ void ToneAutomationLanesView::publishSnapGuide(std::optional<TimelineSnapGuide> 
     }
 }
 
+// The readout's position and value text, the value in the parameter's own units.
 juce::String ToneAutomationLanesView::readoutTextFor(
     const common::core::GridPosition& position, const core::ToneAutomationLaneViewState& lane,
     float norm_value) const
@@ -2055,6 +2107,7 @@ juce::String ToneAutomationLanesView::readoutTextFor(
     return text;
 }
 
+// Places the readout chip beside its anchor, flipped to stay inside the component.
 juce::Rectangle<int> ToneAutomationLanesView::readoutBounds(const ValueReadout& readout) const
 {
     const juce::Font font{juce::FontOptions{g_readout_font_height}};
@@ -2076,6 +2129,7 @@ juce::Rectangle<int> ToneAutomationLanesView::readoutBounds(const ValueReadout& 
     return juce::Rectangle<int>{x, y, width, g_readout_height};
 }
 
+// Sets or clears the readout, repainting only the vacated and newly covered chip areas.
 void ToneAutomationLanesView::setValueReadout(std::optional<ValueReadout> readout)
 {
     if (m_value_readout == readout)
@@ -2127,12 +2181,14 @@ std::optional<ToneAutomationLanesView::ValueReadout> ToneAutomationLanesView::se
     };
 }
 
+// The readout to show now: the drag's while one runs, else the selected point's.
 std::optional<ToneAutomationLanesView::ValueReadout> ToneAutomationLanesView::activeValueReadout()
     const
 {
     return m_value_readout.has_value() ? m_value_readout : selectedPointReadout();
 }
 
+// Paints the readout chip when one is active.
 void ToneAutomationLanesView::paintValueReadout(juce::Graphics& graphics) const
 {
     const std::optional<ValueReadout> readout = activeValueReadout();
@@ -2148,6 +2204,7 @@ void ToneAutomationLanesView::paintValueReadout(juce::Graphics& graphics) const
     graphics.drawText(readout->text, bounds, juce::Justification::centred);
 }
 
+// The readout text shown next to the cursor, for tests.
 std::optional<juce::String> ToneAutomationLanesView::valueReadoutTextForTest() const
 {
     const std::optional<ValueReadout> readout = activeValueReadout();

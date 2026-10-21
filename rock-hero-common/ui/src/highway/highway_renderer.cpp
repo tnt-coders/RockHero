@@ -177,6 +177,7 @@ draws.
     return (2.0 * metrics.note_half_width) / static_cast<double>(layout.cell_size);
 }
 
+// The height half of the pair: world height of one head-art texel.
 [[nodiscard]] double headArtTexelHeight(
     const common::core::HighwayMetrics& metrics, const HighwayAtlasLayout& layout)
 {
@@ -487,6 +488,7 @@ struct PosColorGlowVertex
     return g_layout;
 }
 
+// Position, color and one texture coordinate: the textured passes' layout.
 [[nodiscard]] const bgfx::VertexLayout& posColorUvLayout()
 {
     static const bgfx::VertexLayout g_layout = [] {
@@ -521,6 +523,7 @@ constexpr std::array<std::array<float, 3>, 3> g_present_triangle{{
     {-1.0F, 3.0F, 0.0F},
 }};
 
+// The glow layout: position, color, the fragment's local offset and the GlowShape parameters.
 [[nodiscard]] const bgfx::VertexLayout& posColorGlowLayout()
 {
     static const bgfx::VertexLayout g_layout = [] {
@@ -549,6 +552,7 @@ constexpr std::array<std::array<float, 3>, 3> g_present_triangle{{
     };
 }
 
+// The textured vertex maker.
 [[nodiscard]] PosColorUvVertex makeUvVertex(
     const double x, const double y, const double z, const std::uint32_t abgr, const float u,
     const float v)
@@ -582,6 +586,7 @@ struct GlowShape
     bool rhombus{};
 };
 
+// The glow vertex maker, packing the fragment's local position and the shape it lights around.
 [[nodiscard]] PosColorGlowVertex makeGlowVertex(
     const double x, const double y, const double z, const std::uint32_t abgr, const double local_x,
     const double local_y, const GlowShape& shape)
@@ -690,6 +695,8 @@ the core climbs, and the falloff decides where each fragment sits along the ramp
 */
 constexpr double g_glow_spectral_floor = 0.18;
 
+// Lifts the color's darker channels toward its own peak by the spectral floor above, so a pure hue
+// can whiten as its gain climbs.
 [[nodiscard]] ArgbColor emitterSpectrum(const ArgbColor argb)
 {
     const ArgbColor peak = std::max({(argb >> 16U) & 0xFFU, (argb >> 8U) & 0xFFU, argb & 0xFFU});
@@ -1179,6 +1186,8 @@ void pushTailGlowSegment(
     const RibbonEnd& a, const RibbonEnd& b, const ArgbColor color, const double alpha_a,
     const double alpha_b, std::vector<double>& columns)
 {
+    // One end of the segment as the glow band reads it: half width, centre, fade run, place and
+    // alpha.
     struct TailGlowEnd
     {
         double half;
@@ -1742,6 +1751,7 @@ struct FrameScratch
     std::vector<TailShadeSums> tail_shade_sums;
     std::vector<ArgbColor> tail_shaded;
 
+    // Hands a furniture pass the shared untextured buffers, cleared.
     [[nodiscard]] FrameBatch<PosColorVertex> colorBatch()
     {
         pass_color_vertices.clear();
@@ -1752,6 +1762,7 @@ struct FrameScratch
         };
     }
 
+    // Hands a furniture pass the shared textured buffers, cleared.
     [[nodiscard]] FrameBatch<PosColorUvVertex> texturedBatch()
     {
         pass_textured_vertices.clear();
@@ -1762,6 +1773,8 @@ struct FrameScratch
         };
     }
 
+    // Empties every per-frame buffer while keeping its capacity, so a warmed-up frame allocates
+    // nothing.
     void clearForFrame()
     {
         depth_vertices.clear();
@@ -1835,6 +1848,8 @@ struct FrameContext
     std::span<const common::core::ShapeViewState> visible_shapes;
 };
 
+// Everything the renderer owns: the GPU programs, uniforms and textures, the per-frame buffers
+// reused so a frame allocates nothing, and the camera, state and options each frame reads.
 struct HighwayRenderer::Impl
 {
     // Shader programs, one per HighwayShaderSet member.
@@ -2246,6 +2261,7 @@ struct HighwayRenderer::Impl
     {
         return metrics.string_grid_base_y;
     }
+    // The top of that extent, half a string above the top displayed lane.
     [[nodiscard]] double faceTopY() const noexcept
     {
         return common::core::highwayStringGridTopY(displayed_count, metrics);
@@ -2354,6 +2370,8 @@ struct HighwayRenderer::Impl
     }
 };
 
+// Validates the art against the texture contract, then links the programs and uploads the
+// textures; any failure refuses with what broke.
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     const HighwayShaderSet& shaders, const HighwayTextureSet& textures,
     const std::span<const std::byte> marks_png, HighwayTheme theme, StringColorPalette palette,
@@ -2490,6 +2508,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     return HighwayRenderer{std::move(impl)};
 }
 
+// Adopts the GPU state create() built.
 HighwayRenderer::HighwayRenderer(std::unique_ptr<Impl> impl) noexcept
     : m_impl{std::move(impl)}
 {}
@@ -2498,6 +2517,8 @@ HighwayRenderer::~HighwayRenderer() = default;
 HighwayRenderer::HighwayRenderer(HighwayRenderer&& other) noexcept = default;
 HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = default;
 
+// Shares the published state, rebuilding the board face only when the displayed lane count moves;
+// the camera keeps gliding.
 void HighwayRenderer::setViewState(std::shared_ptr<const common::core::HighwayViewState> state)
 {
     assert(state != nullptr);
@@ -2529,11 +2550,13 @@ void HighwayRenderer::setViewState(std::shared_ptr<const common::core::HighwayVi
     }
 }
 
+// Makes the next frame's camera snap to its target instead of gliding there.
 void HighwayRenderer::resetCamera() noexcept
 {
     m_impl->camera.reset();
 }
 
+// The smoothed pose the last frame drew from.
 common::core::HighwayCameraPose HighwayRenderer::cameraPose() const noexcept
 {
     return m_impl->camera.pose(m_impl->metrics);
@@ -2570,6 +2593,8 @@ void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette, c
     m_impl->rebuildBoardFace();
 }
 
+// Resolves the displayed lane count and the extra lanes below the chart; reports whether the count
+// moved.
 bool HighwayRenderer::Impl::seatLanes()
 {
     const int count = common::core::displayedStringCount(
@@ -2634,6 +2659,8 @@ void HighwayRenderer::Impl::rebuildBoardFace()
     face_index_count = static_cast<std::uint32_t>(indices.size());
 }
 
+// One frame: advances the camera, sets up this frame's views and submits every pass. A zero-sized
+// backbuffer draws nothing.
 void HighwayRenderer::Impl::draw(
     const double now_seconds, const double dt_seconds, const std::uint32_t width,
     const std::uint32_t height)

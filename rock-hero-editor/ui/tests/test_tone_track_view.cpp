@@ -200,6 +200,7 @@ struct ToneTrackHarness
     StubTransport transport;
     ToneTrackView view{listener, tempo_map, tempo_map, transport};
 
+    // Sizes the row over eight seconds on a quarter-note grid with the marker plane open.
     ToneTrackHarness()
     {
         view.setSize(800, 40);

@@ -279,6 +279,7 @@ std::string EditorController::Impl::toneNameForRef(const std::string& tone_docum
     return common::core::toneNameFor(*arrangement, tone_document_ref);
 }
 
+// The display name of the tone the rig currently sounds.
 std::string EditorController::Impl::activeToneName() const
 {
     return toneNameForRef(activeToneDocumentRef());
@@ -420,6 +421,7 @@ void EditorController::Impl::syncAudibleTone()
     }
 }
 
+// Selects a tone region through the action gate.
 void EditorController::Impl::onToneRegionSelected(std::string region_id)
 {
     runAction(EditorAction::SelectToneRegion{std::move(region_id)});
@@ -481,6 +483,7 @@ void EditorController::Impl::onPlaybackFrameAdvanced()
     updateView();
 }
 
+// Creates a tone region at the position through the action gate.
 void EditorController::Impl::onToneRegionCreateRequested(
     common::core::GridPosition position, std::string new_region_id, std::string tone_document_ref)
 {
@@ -490,16 +493,19 @@ void EditorController::Impl::onToneRegionCreateRequested(
         });
 }
 
+// Deletes a tone region through the action gate.
 void EditorController::Impl::onToneRegionDeleteRequested(std::string region_id)
 {
     runAction(EditorAction::DeleteToneRegion{std::move(region_id)});
 }
 
+// Renames a tone document through the action gate.
 void EditorController::Impl::onToneRenameRequested(std::string tone_document_ref, std::string name)
 {
     runAction(EditorAction::RenameTone{std::move(tone_document_ref), std::move(name)});
 }
 
+// Points a region at an existing tone through the action gate.
 void EditorController::Impl::onToneRegionToneRequested(
     std::string region_id, std::string tone_document_ref)
 {
@@ -519,12 +525,14 @@ void EditorController::Impl::onToneRegionNewToneRequested(std::string region_id,
         });
 }
 
+// Moves the boundary a region opens through the action gate.
 void EditorController::Impl::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::GridPosition position)
 {
     runAction(EditorAction::MoveToneBoundary{std::move(right_region_id), position});
 }
 
+// Creates a new tone at the position through the action gate.
 void EditorController::Impl::onToneCreateNewRequested(
     common::core::GridPosition position, std::string name)
 {
@@ -606,6 +614,7 @@ void EditorController::Impl::onToneAutomationLaneRemoveRequested(
     updateView();
 }
 
+// Replaces one automation lane's points through the action gate.
 void EditorController::Impl::onToneAutomationPointsEditRequested(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)

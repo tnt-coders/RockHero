@@ -71,18 +71,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::SongSectionAt
     showMarkerPrompt(InsertSectionTarget{.position = position});
 }
 
+// Selects a section chip, or deselects with no position, through the action gate.
 void EditorController::Impl::onSongSectionSelected(
     std::optional<common::core::GridPosition> position)
 {
     runAction(EditorAction::SelectSongSection{.position = position});
 }
 
+// Inserts the prompt's named section through the action gate.
 void EditorController::Impl::onSongSectionInsertRequested(
     const common::core::GridPosition position, std::string name)
 {
     runAction(EditorAction::InsertSongSection{.position = position, .name = std::move(name)});
 }
 
+// Renames the section at the position through the action gate.
 void EditorController::Impl::onSongSectionRenameRequested(
     common::core::GridPosition position, std::string name)
 {

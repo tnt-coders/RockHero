@@ -84,6 +84,8 @@ constexpr float g_junction_x{80.0f};
     return view.shown_bend_pickers.size() > pickers;
 }
 
+// A controller with a chart loaded and a recording view, so a case can drive the bend verb and
+// read the picker and prompts it asked for.
 struct BendFixture
 {
     FakeTransport transport;
@@ -99,6 +101,7 @@ struct BendFixture
     };
     FakeEditorView view;
 
+    // Attaches the view and loads the chart, the glide chart unless a case gives its own.
     explicit BendFixture(common::core::Chart chart = makeGlideChart())
     {
         controller.attachView(view);
@@ -117,6 +120,7 @@ struct BendFixture
                    : std::optional<ChartBendPicker>{view.shown_bend_pickers.back()};
     }
 
+    // The undo history's length as last published, zero before any publish.
     [[nodiscard]] std::size_t undoEntries() const
     {
         const EditorViewState* const state = stateOrNull(view.last_state);

@@ -177,6 +177,7 @@ constexpr float g_floating_chip_padding{3.0f};
     return juce::Colour{darkerColor(color.getARGB())};
 }
 
+// The multiply half of the wrappers above.
 [[nodiscard]] juce::Colour charterMultiply(juce::Colour color, double multiplier)
 {
     return juce::Colour{multiplyColor(color.getARGB(), multiplier)};
@@ -230,6 +231,7 @@ struct StringStyle
         return inks.at(static_cast<std::size_t>(ink));
     }
 
+    // Derives every ink from one base string color through the shared lane-style authority.
     explicit StringStyle(juce::Colour base)
         : StringStyle(StringLaneStyle{base.getARGB()})
     {}
@@ -280,6 +282,7 @@ private:
     }
 };
 
+// Dark plate with light ink for the picking hand, the reverse for the fretting hand.
 PlatePalette platePalette(const StringStyle& style, const Hand hand)
 {
     return hand == Hand::Picking
@@ -333,6 +336,7 @@ struct LaneStyles
     }
 };
 
+// Derives one style per possible chart string once per paint, so every drawer indexes it.
 [[nodiscard]] LaneStyles makeLaneStyles(const TabLaneMetrics& metrics)
 {
     LaneStyles styles;
@@ -363,6 +367,7 @@ struct LabelChip
     bool opaque_ink;
 };
 
+// One string's arpeggio bracket, laid out once so the draw pass only reads its columns and text.
 struct ArpeggioBracket
 {
     common::core::ShapeStringViewState note;
@@ -581,6 +586,7 @@ struct TailFade
     float end_x{0.0f};
 };
 
+// The fade a note's tail ink takes, or nothing for a revealed note.
 [[nodiscard]] std::optional<TailFade> tailFade(
     const TabLaneMetrics& metrics, const common::core::NoteViewState& note, const bool revealed)
 {
@@ -2463,6 +2469,7 @@ juce::Colour TabLaneMetrics::baseColor(int chart_string) const
         common::core::displayedLane(chart_string, extra_lanes), displayed_count, palette);
 }
 
+// Builds the lane geometry plus the fonts and inks every drawer of one paint call reads.
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
     int chart_string_count, StringColorPalette palette, TabShapeInks shape_inks,

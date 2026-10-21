@@ -144,6 +144,7 @@ namespace
     };
 }
 
+// The slot key on a measure's downbeat on a string.
 [[nodiscard]] ChartSlotKey slotAt(const int measure, const int string)
 {
     return ChartSlotKey{

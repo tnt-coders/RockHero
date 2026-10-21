@@ -4,6 +4,7 @@
 namespace rock_hero::editor::core
 {
 
+// Names each marker verb once: its undo entry, refusal records, prompt title and direct menu row.
 std::string markerVerbLabel(const MarkerVerb verb)
 {
     switch (verb)
@@ -120,11 +121,14 @@ std::string markerVerbLabel(const MarkerVerb verb)
     return {};
 }
 
+// The verb's label with the ellipsis a menu row carries when it opens a prompt.
 std::string markerVerbPromptRow(const MarkerVerb verb)
 {
     return markerVerbLabel(verb) + "...";
 }
 
+// The Scale Tempo label, saying whether the Note Lock keeps notes at their times or lets them
+// follow the beat.
 std::string scaleTempoLabel(const bool note_lock)
 {
     return markerVerbLabel(MarkerVerb::ScaleTempo) +

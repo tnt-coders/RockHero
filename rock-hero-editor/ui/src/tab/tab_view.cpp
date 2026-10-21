@@ -172,11 +172,13 @@ void TabView::setColors(
     repaint();
 }
 
+// Installs the sink for the lane's chart pointer intents.
 void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
 {
     m_on_pointer_event = std::move(on_pointer_event);
 }
 
+// Installs the caret-mask sink and seeds it with the current mask.
 void TabView::setCaretMaskCallback(CaretMaskCallback callback)
 {
     m_caret_mask_callback = std::move(callback);
@@ -186,16 +188,19 @@ void TabView::setCaretMaskCallback(CaretMaskCallback callback)
     publishCaretMask();
 }
 
+// Installs the sink that raises the keybind-discovery menu, which the editor shell builds.
 void TabView::setContextMenuCallback(ContextMenuCallback callback)
 {
     m_context_menu_callback = std::move(callback);
 }
 
+// Installs the sink a press on a fret-hand chip selects through.
 void TabView::setFretHandChipCallback(FretHandChipCallback callback)
 {
     m_fret_hand_chip_callback = std::move(callback);
 }
 
+// Installs the sink a press on a span's or a none hold's rails reaches.
 void TabView::setSpanRowMarksCallback(SpanRowMarksCallback callback)
 {
     m_span_row_marks_callback = std::move(callback);
@@ -499,6 +504,7 @@ bool TabView::wantsNotationAt(juce::Point<int> local_point) const
     return wantsPointerAt(local_point) && !pinnedChromeBounds().contains(local_point);
 }
 
+// Claims pointer events exactly where wantsPointerAt() does.
 bool TabView::hitTest(int x, int y)
 {
     return wantsPointerAt({x, y});
@@ -529,6 +535,8 @@ std::optional<core::ChartPointerEvent> TabView::makePointerEvent(
     };
 }
 
+// Routes a press on the notation: the popup gesture to the discovery menu, a chip or rails to
+// their sinks, anything else to the controller as a Down.
 void TabView::mouseDown(const juce::MouseEvent& event)
 {
     if (!wantsNotationAt(event.getPosition()))
@@ -624,6 +632,7 @@ TabView::Rails TabView::noneHoldRails(const DrawableLane& lane, const std::size_
         common::ui::tabSpanStopX(lane.metrics.x(holds[index].end_seconds), next_start_x));
 }
 
+// The span whose rails hold a lane-local point, on the rectangles the paint draws.
 std::optional<std::size_t> TabView::spanAt(const juce::Point<float> local_point) const
 {
     // Bound to a local so the presence test and every read are provably one object.
@@ -641,6 +650,7 @@ std::optional<std::size_t> TabView::spanAt(const juce::Point<float> local_point)
         [this, &drawable](const std::size_t index) { return spanRails(drawable, index); });
 }
 
+// The none hold whose rails, gaps included, hold a lane-local point.
 std::optional<std::size_t> TabView::noneHoldAt(const juce::Point<float> local_point) const
 {
     // Bound to a local so the presence test and every read are provably one object.
@@ -703,6 +713,7 @@ std::optional<std::size_t> TabView::fretHandChipAt(const juce::Point<float> loca
     return std::nullopt;
 }
 
+// Forwards held-button movement as a Drag intent.
 void TabView::mouseDrag(const juce::MouseEvent& event)
 {
     // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
@@ -714,6 +725,7 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
     }
 }
 
+// Forwards the release as an Up intent.
 void TabView::mouseUp(const juce::MouseEvent& event)
 {
     if (const std::optional<core::ChartPointerEvent> pointer = makePointerEvent(event);
@@ -1549,11 +1561,13 @@ void TabView::publishCaretMask()
     }
 }
 
+// Republishes the caret mask, whose content-coordinate span shifts with the lane.
 void TabView::moved()
 {
     publishCaretMask();
 }
 
+// Re-derives the lane metrics and legend column, then republishes the caret mask.
 void TabView::resized()
 {
     invalidateLaneMetrics();
@@ -1595,6 +1609,7 @@ std::optional<DrawnSpanRow> TabView::selectedSpanRow() const
     return std::nullopt;
 }
 
+// One span's rails as drawn, by projection index; nothing while the lane cannot draw.
 std::optional<DrawnSpanRow> TabView::drawnSpanRow(const std::size_t span) const
 {
     // Bound to a local so the presence test and every read are provably one object.
@@ -1614,6 +1629,7 @@ std::optional<DrawnSpanRow> TabView::drawnSpanRow(const std::size_t span) const
     });
 }
 
+// One none hold's rails as drawn, by projection index; nothing while the lane cannot draw.
 std::optional<DrawnSpanRow> TabView::drawnNoneHoldRow(const std::size_t none_hold) const
 {
     // Bound to a local so the presence test and every read are provably one object.

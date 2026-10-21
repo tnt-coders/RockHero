@@ -45,6 +45,7 @@ using testing::checkTimesHeld;
 // anchor at 3:1 selected.
 struct NoteLockEditor : SongEditorHarness
 {
+    // Builds the three-tempo map described above and opens the song under it.
     NoteLockEditor()
     {
         common::core::Song song = makeEightMeasureSong();
@@ -124,6 +125,7 @@ struct NoteLockEditor : SongEditorHarness
 // edit, off.
 struct DenseNoteLockEditor : SongEditorHarness
 {
+    // Opens the song, then flips both locks and requires the state described above.
     explicit DenseNoteLockEditor(common::core::Song song = makeDenseSong())
     {
         open(std::move(song));

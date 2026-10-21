@@ -52,6 +52,7 @@ using common::core::testing::beatAt;
 // another.
 struct ScaleEditor : SongEditorHarness
 {
+    // Opens the song, sets the Note Lock as asked, turns the Tempo Lock off and requires both.
     explicit ScaleEditor(const bool note_lock, common::core::Song song = makeEightMeasureSong())
     {
         open(std::move(song));
@@ -64,6 +65,7 @@ struct ScaleEditor : SongEditorHarness
         REQUIRE_FALSE(state().tempo_lock);
     }
 
+    // The loaded chart, failing the test when the arrangement has none.
     [[nodiscard]] const common::core::Chart& chart() const
     {
         const common::core::Chart* const loaded = chartOrNull(controller);

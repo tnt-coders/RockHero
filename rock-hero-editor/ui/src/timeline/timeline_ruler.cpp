@@ -375,6 +375,8 @@ void TimelineRuler::resized()
     refreshRulerGeometry();
 }
 
+// The selected chip's bounds where a row placed it at its marker; a pinned chip proves nothing and
+// has none.
 std::optional<juce::Rectangle<int>> TimelineRuler::selectedChipBounds() const
 {
     // One selection editor-wide, so at most one row holds a selected chip.
@@ -759,6 +761,7 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::tempoRows(
     return rows;
 }
 
+// Builds the tempo row's menu with the rows that apply at the click, selecting nothing.
 juce::PopupMenu TimelineRuler::tempoMenuAt(const juce::Point<float> click) const
 {
     return markerMenu(
@@ -829,6 +832,7 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::signatureRows(
     return rows;
 }
 
+// Builds the signature row's menu with the rows that apply at the click, selecting nothing.
 juce::PopupMenu TimelineRuler::signatureMenuAt(const juce::Point<float> click) const
 {
     return markerMenu(signatureRows(
@@ -924,6 +928,7 @@ void TimelineRuler::flashRefusal(std::vector<core::RulerChipKey> chips)
     }
 }
 
+// The running refusal flash's level when it lights this chip, else nothing.
 std::optional<float> TimelineRuler::chipRefusalLevel(const core::RulerChipKey& chip) const
 {
     if (!m_chip_refusal.has_value() ||
@@ -981,6 +986,8 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
     return local_x;
 }
 
+// The local x of a time even off the ruler's bounds, for a mark whose anchor scrolled away while
+// part of it still shows.
 std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) const noexcept
 {
     const auto content_x = core::timelineXForPosition(
@@ -1416,6 +1423,7 @@ void TimelineRuler::drawMeasureLabels(juce::Graphics& g)
     }
 }
 
+// A placed chip's box on its row: the label's span at the shared chip height.
 juce::Rectangle<float> TimelineRuler::chipBounds(const RulerChip& chip, const int row_y) const
 {
     return juce::Rectangle<float>{
@@ -1426,6 +1434,7 @@ juce::Rectangle<float> TimelineRuler::chipBounds(const RulerChip& chip, const in
     };
 }
 
+// Fills one chip and leaves the label color set, so the label draws into the same bounds next.
 void TimelineRuler::drawChipFill(
     juce::Graphics& g, const juce::Rectangle<float> bounds, const juce::Colour fill)
 {

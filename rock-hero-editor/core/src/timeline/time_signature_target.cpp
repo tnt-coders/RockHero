@@ -6,6 +6,8 @@
 namespace rock_hero::editor::core
 {
 
+// States the reign that starts on the beat, else inserts one where a marker may start, else
+// targets nothing.
 TimeSignatureTarget timeSignatureTargetAt(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition beat)
 {

@@ -101,6 +101,7 @@ struct HoldEditor
     };
     FakeEditorView view;
 
+    // Loads the chart on a beat grid and requires its holds to fit before any case acts.
     explicit HoldEditor(common::core::Chart chart)
     {
         controller.attachView(view);
@@ -113,6 +114,7 @@ struct HoldEditor
         REQUIRE(holdsFit());
     }
 
+    // The latest published view state, failing the test when none exists.
     [[nodiscard]] const EditorViewState& state() const
     {
         const EditorViewState* const published = stateOrNull(view.last_state);

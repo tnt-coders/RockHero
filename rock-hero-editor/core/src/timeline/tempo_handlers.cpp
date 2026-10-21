@@ -218,6 +218,7 @@ std::optional<SetTempoTarget> EditorController::Impl::selectedTempoTarget() cons
     return SetTempoTarget{.position = anchor->position, .bpm_text = std::move(*bpm_text)};
 }
 
+// Inserts a tempo anchor at the position through the action gate.
 void EditorController::Impl::onTempoAnchorInsertRequested(const common::core::GridPosition position)
 {
     runAction(EditorAction::InsertTempoAnchor{.position = position});
@@ -395,6 +396,7 @@ void EditorController::Impl::moveSelectedTempoAnchor(
             (direction == ChartStepDirection::Left ? -step : step));
 }
 
+// Sends one tempo-chip drag event through the action gate.
 void EditorController::Impl::onTempoAnchorMoveRequested(
     const common::core::GridPosition position, const std::int64_t milliseconds)
 {
@@ -486,6 +488,7 @@ void EditorController::Impl::onTempoLockToggleRequested()
     runAction(EditorAction::ToggleTempoLock{});
 }
 
+// Flips the session-only Tempo Lock and republishes.
 void EditorController::Impl::performActionImpl(EditorAction::ToggleTempoLock /*action*/)
 {
     m_grid_session.tempo_lock = !m_grid_session.tempo_lock;
@@ -574,6 +577,8 @@ void EditorController::Impl::syncTempoDerivedAudio()
     pushTempoDerivedAudio();
 }
 
+// Brings everything the audio side derives from the tempo map up to the song's current map: the
+// tone curves, the engine's mirrored tempo and the cached copy that detects the next change.
 void EditorController::Impl::pushTempoDerivedAudio()
 {
     const common::core::TempoMap& tempo_map = session().song().tempo_map;

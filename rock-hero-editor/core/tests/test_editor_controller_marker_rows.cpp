@@ -135,6 +135,7 @@ struct MarkerRowEditor
         controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     }
 
+    // The latest published view state, failing the test when none exists.
     [[nodiscard]] const EditorViewState& state() const
     {
         const EditorViewState* const published = stateOrNull(view.last_state);

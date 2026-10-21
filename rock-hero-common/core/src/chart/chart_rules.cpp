@@ -176,6 +176,8 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
 
 } // namespace
 
+// Strips every stated keyframe fret and the slide-out, the one spelling of "this note does not
+// travel".
 void dropNotePath(ChartNote& note)
 {
     static_cast<void>(stripKeyframeChannels(note, [](Keyframe& keyframe) {
@@ -192,6 +194,8 @@ bool objectCanStartAt(const GridPosition& position, const TempoMap& tempo_map)
     return isValidGridPosition(position, tempo_map) && position < terminalGridPosition(tempo_map);
 }
 
+// Every chart rule except hand-position coverage, for a caller whose normalization already dropped
+// the uncovering positions.
 std::expected<void, ChartError> validateChartStructure(
     const Chart& chart, const TempoMap& tempo_map)
 {
@@ -443,6 +447,7 @@ std::vector<ChartConversion> dropUncoveringFretHandPositions(
     return conversions;
 }
 
+// Refuses the first authored position that leaves a note it should cover uncovered.
 std::expected<void, ChartError> validateFretHandCoverage(
     const ChartResolutions& notes_layer, const std::vector<FretHandPosition>& positions,
     const TempoMap& tempo_map)
@@ -456,6 +461,7 @@ std::expected<void, ChartError> validateFretHandCoverage(
     return std::unexpected{fretHandCoverageError(uncovering.front(), positions)};
 }
 
+// The user-facing sentence for each repair kind, saying what changed and why.
 std::string_view chartRepairText(const ChartRepair repair)
 {
     switch (repair)
@@ -546,11 +552,13 @@ std::string_view chartRepairText(const ChartRepair repair)
     return "chart repaired";
 }
 
+// The repair's sentence followed by the place it fired at.
 std::string chartConversionText(const ChartConversion& conversion)
 {
     return std::string{chartRepairText(conversion.repair)} + " at " + conversion.where;
 }
 
+// Demotes an attack with nothing to strike to a plain pick (technique rule 4); reports whether.
 bool flattenStrandedStrike(ChartNote& note)
 {
     if (!nothingToStrike(note))
@@ -617,6 +625,8 @@ bool clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
     return shedEndStatementVibrato(note) || lost;
 }
 
+// The distance to the next onset on the note's own string, or empty when the string is not struck
+// again.
 std::optional<Fraction> sustainBoundOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
 {
@@ -651,6 +661,7 @@ std::vector<ChartNote>::const_iterator lastNoteOnStringBefore(
     return found == before.end() ? notes.end() : std::prev(found.base());
 }
 
+// Clamps a wanted ring end to the note's sustain bound.
 Fraction ringEndWithinBound(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map,
     const Fraction target)
@@ -658,6 +669,8 @@ Fraction ringEndWithinBound(
     return heldWithinBound(target, sustainBoundOf(notes, note, tempo_map));
 }
 
+// Truncates one note's tail at its sustain bound, for a caller that knows which bounds an edit
+// moved.
 std::optional<TailTruncation> normalizeSustainOverlapAt(
     std::vector<ChartNote>& notes, const std::size_t index, const TempoMap& tempo_map)
 {
@@ -690,6 +703,8 @@ std::vector<TailTruncation> normalizeSustainOverlaps(
     return truncated;
 }
 
+// Applies every single-note repair in its numbered order, so later steps read earlier results;
+// the per-note validator asks this as its fixpoint.
 std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& tuning)
 {
     std::vector<ChartRepair> repairs;
@@ -869,6 +884,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     return repairs;
 }
 
+// Fits a fret-hand window onto the playable board above the capo, reporting each repair.
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
@@ -900,6 +916,8 @@ std::vector<ChartRepair> normalizeFretHandPosition(
     return repairs;
 }
 
+// The one load normalizer: repairs every note, position and stream rule in place and reports each
+// repair with its place.
 std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_map)
 {
     std::vector<ChartConversion> conversions;
@@ -973,6 +991,8 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     return conversions;
 }
 
+// The highest node this note can carry: the neck's last fret when the fretting finger touches it,
+// the harmonic cap otherwise.
 double harmonicNodeCeiling(const ChartNote& note)
 {
     // A finger on the fretboard cannot be past the last fret, so where the FRETTING finger is the
@@ -980,6 +1000,7 @@ double harmonicNodeCeiling(const ChartNote& note)
     return frettingFingerOnNode(note) ? static_cast<double>(g_max_fret) : g_max_harmonic_node;
 }
 
+// Every rule a single note can break without reading its neighbours.
 std::expected<void, ChartError> validateChartNoteAlone(
     const ChartNote& note, const ChartTuning& tuning, const TempoMap& tempo_map)
 {
@@ -1201,6 +1222,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     return std::expected<void, ChartError>{};
 }
 
+// Refuses two stream-adjacent notes out of strictly ascending slot order.
 std::expected<void, ChartError> validateChartNotePair(
     const ChartNote& previous, const ChartNote& note)
 {
@@ -1215,6 +1237,7 @@ std::expected<void, ChartError> validateChartNotePair(
     return std::expected<void, ChartError>{};
 }
 
+// Walks the stream once: each note's own rules, then its pair with the note before it.
 std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map)
 {

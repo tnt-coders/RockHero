@@ -769,11 +769,13 @@ std::optional<ActionUnavailableReason> whyUnavailable(
     return whyUnavailableWhenIdle(action, conditions);
 }
 
+// True when whyUnavailable() names no reason, so the two can never disagree.
 bool isActionAvailable(EditorAction::Id action, const ActionConditions& conditions) noexcept
 {
     return !whyUnavailable(action, conditions).has_value();
 }
 
+// Names each refusal reason with a stable kebab-case tag for the action log.
 std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noexcept
 {
     switch (reason)

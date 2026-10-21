@@ -460,6 +460,7 @@ void TrackViewport::setTabCaretMask(std::optional<juce::Range<float>> mask)
     updateRulerCursor();
 }
 
+// Stores the lanes view's caret cut-out and refreshes the ruler cursor only when it changed.
 void TrackViewport::setAutomationCaretMask(std::optional<juce::Range<float>> mask)
 {
     if (mask == m_automation_caret_mask)
@@ -537,6 +538,7 @@ void TrackViewport::stepSpanRowRefusal()
     }
 }
 
+// The viewport's visible view area in this component's coordinates, scrollbars excluded.
 juce::Rectangle<int> TrackViewport::visibleViewArea() const noexcept
 {
     return m_viewport.getBounds().withSize(m_viewport.getViewWidth(), m_viewport.getViewHeight());
@@ -566,6 +568,8 @@ std::optional<TrackViewport::SpanRowBoxes> TrackViewport::spanRowBoxes(
     return boxes;
 }
 
+// Visits the shown boxes of each span-row mark the running refusal lights; a walk, so a paint
+// allocates nothing.
 template <typename Visit> void TrackViewport::forEachRefusedSpanRow(const Visit& visit) const
 {
     if (!m_span_row_refusal.has_value())
@@ -636,6 +640,7 @@ void TrackViewport::setZoomChangedCallback(std::function<void(double)> on_zoom_c
     m_on_zoom_changed = std::move(on_zoom_changed);
 }
 
+// Installs the sink for Alt-modified wheels, which drive selection verbs and never zoom.
 void TrackViewport::setSelectionWheelCallback(
     std::function<bool(const juce::MouseEvent&, const juce::MouseWheelDetails&)> on_selection_wheel)
 {
@@ -1242,6 +1247,7 @@ void TrackViewport::centerOnTime(const double seconds)
         static_cast<double>(*x) - static_cast<double>(m_viewport.getViewWidth()) / 2.0);
 }
 
+// Where the window settles: an in-flight glide's reachable target, else the current left edge.
 int TrackViewport::settledViewPositionX() const noexcept
 {
     if (m_window_shift.has_value())
@@ -1270,6 +1276,7 @@ void TrackViewport::setViewportLeft(int requested_x)
     m_viewport.setViewPosition(reachableViewportLeft(requested_x), m_viewport.getViewPositionY());
 }
 
+// Clamps a requested left edge to where the viewport can actually scroll.
 int TrackViewport::reachableViewportLeft(const int requested_x) const noexcept
 {
     const int max_x = std::max(0, m_content.getWidth() - m_viewport.getViewWidth());

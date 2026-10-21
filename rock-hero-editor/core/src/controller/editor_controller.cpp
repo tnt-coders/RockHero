@@ -76,6 +76,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// The action's stable name in log lines, spelled as its enumerator.
 [[nodiscard]] std::string_view actionIdText(EditorAction::Id action) noexcept
 {
     switch (action)
@@ -453,6 +454,7 @@ namespace
     return "Unknown";
 }
 
+// Logs an action entering the pipeline, before availability or locks judge it.
 void logEditorActionRequested(EditorAction::Id action)
 {
     RH_LOG_INFO("editor.controller", "Action requested action={:?}", actionIdText(action));
@@ -528,6 +530,7 @@ void logEditorActionRequested(EditorAction::Id action)
     return std::nullopt;
 }
 
+// Logs an action the availability gate refused, with the reason's tag.
 void logEditorActionAvailabilityRejected(EditorAction::Id action, std::string_view reason)
 {
     RH_LOG_INFO(
@@ -537,16 +540,19 @@ void logEditorActionAvailabilityRejected(EditorAction::Id action, std::string_vi
         reason);
 }
 
+// Logs an action that passed every gate and is about to run.
 void logEditorActionStarted(EditorAction::Id action)
 {
     RH_LOG_INFO("editor.controller", "Action started action={:?}", actionIdText(action));
 }
 
+// Logs an action whose dispatch returned; deferred work it started may still be running.
 void logEditorActionDispatchCompleted(EditorAction::Id action)
 {
     RH_LOG_INFO("editor.controller", "Action dispatch completed action={:?}", actionIdText(action));
 }
 
+// The undo direction's log token.
 [[nodiscard]] std::string_view undoDirectionText(EditorUndoDirection direction) noexcept
 {
     switch (direction)
@@ -564,6 +570,7 @@ void logEditorActionDispatchCompleted(EditorAction::Id action)
     return "unknown";
 }
 
+// The undo transition status's log token.
 [[nodiscard]] std::string_view undoTransitionStatusText(EditorUndoTransitionStatus status) noexcept
 {
     switch (status)
@@ -585,6 +592,7 @@ void logEditorActionDispatchCompleted(EditorAction::Id action)
     return "unknown";
 }
 
+// The undo failure code's log token.
 [[nodiscard]] std::string_view undoFailureCodeText(EditorUndoFailureCode failure_code) noexcept
 {
     switch (failure_code)
@@ -634,6 +642,7 @@ void logEditorActionDispatchCompleted(EditorAction::Id action)
     return "unknown";
 }
 
+// The undo event type's log token.
 [[nodiscard]] std::string_view undoEventTypeText(EditorUndoEventType type) noexcept
 {
     switch (type)
@@ -691,6 +700,7 @@ void logEditorActionDispatchCompleted(EditorAction::Id action)
     return "unknown";
 }
 
+// Logs how an undo or redo transition ended, including whether it must fault the session.
 void logEditorUndoTransitionResult(
     std::string_view context, const EditorUndoTransitionResult& result)
 {
@@ -806,6 +816,7 @@ EditorController::EditorController(
           audio_ports, services, std::move(exit_function), EditorController::ProjectOperations{})
 {}
 
+// Builds the pimpl with the given project operations, which tests replace with seams.
 EditorController::EditorController(
     EditorController::AudioPorts audio_ports, const EditorController::Services& services,
     EditorController::ExitFunction exit_function,
@@ -1749,6 +1760,8 @@ EditorController::ProjectOperationProgress EditorController::Impl::makeBusyProje
     };
 }
 
+// Builds the scan's progress callback, which may fire off the message thread: it posts each
+// snapshot over, dropping it once the controller is gone or the busy token has moved on.
 common::audio::PluginCatalogScanProgressCallback EditorController::Impl::
     makePluginCatalogScanProgress(std::uint64_t token)
 {
@@ -2112,6 +2125,7 @@ void EditorController::Impl::performAction(EditorAction::Action action)
         [this](auto&& a) { performActionImpl(std::forward<decltype(a)>(a)); }, std::move(action));
 }
 
+// Asks the running busy operation to cancel.
 void EditorController::Impl::performActionImpl(EditorAction::CancelBusyOperation /*action*/)
 {
     cancelBusyOperation();
@@ -2277,6 +2291,7 @@ void EditorController::Impl::completeUndoTransition(
     updateView();
 }
 
+// Selects and moves onto what an undo or redo left, unless playback owns the view.
 void EditorController::Impl::focusUndoTransition(const EditFocus& focus)
 {
     if (m_transport.state().playing || std::holds_alternative<std::monostate>(focus))
@@ -2420,6 +2435,8 @@ const common::core::FretHandResolutions& EditorController::Impl::fretHandResolut
     return m_fret_hand_resolutions;
 }
 
+// Lands a chart focus: the recorded objects become the selection, under an armed caret when there
+// is at most one, else with the passive cursor on the slot.
 void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
 {
     // One object or none: the caret stands on the slot, naming the object (a head and a keyframe
@@ -2441,6 +2458,7 @@ void EditorController::Impl::applyEditFocus(const ChartEditFocus& focus)
     moveCursorTo(focus.slot.position);
 }
 
+// Lands a marker focus: selects the recorded marker, or nothing where the transition removed it.
 void EditorController::Impl::applyEditFocus(const MarkerEditFocus& focus)
 {
     // Bound once so the guard and the read are provably the same optional.
@@ -2458,6 +2476,7 @@ void EditorController::Impl::applyEditFocus(const MarkerEditFocus& focus)
     moveCursorTo(focus.start);
 }
 
+// Lands an automation focus: the lane caret arms on the recorded slot.
 void EditorController::Impl::applyEditFocus(const AutomationEditFocus& focus)
 {
     // The lane caret selects the point standing at the slot, or nothing where the transition
@@ -2667,6 +2686,7 @@ void EditorController::Impl::clearUndoHistoryAfterUntrackedEdit(std::string_view
     resetUndoHistory(context);
 }
 
+// Pauses in place while playing; otherwise plays from the marker after settling the burst.
 void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*/)
 {
     if (!hasLoadedArrangement())
@@ -2711,6 +2731,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
     }
 }
 
+// Stops the transport and rests the marker passive wherever the transport resets to.
 void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
 {
     // Stop rests the marker passive wherever the transport resets to; a stopped-while-paused
@@ -3436,6 +3457,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     return state;
 }
 
+// Logs a failed settings write without failing the action that made it.
 void EditorController::Impl::recordSettingsResultBestEffort(
     std::expected<void, EditorSettingsError> result, std::string_view context)
 {
@@ -3445,6 +3467,7 @@ void EditorController::Impl::recordSettingsResultBestEffort(
     }
 }
 
+// Logs a failed audio-config write without failing the action that made it.
 void EditorController::Impl::recordAudioConfigResultBestEffort(
     std::expected<void, common::audio::AudioConfigError> result, std::string_view context)
 {
@@ -3454,6 +3477,7 @@ void EditorController::Impl::recordAudioConfigResultBestEffort(
     }
 }
 
+// Unloads the engine's active arrangement, logging rather than propagating a failure.
 void EditorController::Impl::clearActiveArrangementBestEffort(std::string_view context)
 {
     auto cleared = m_song_audio.clearActiveArrangement();
@@ -3596,6 +3620,7 @@ void EditorController::Impl::finishBusyOperation()
     m_busy.finish();
 }
 
+// Drops the view and its busy presentation, so nothing publishes to a view being torn down.
 void EditorController::Impl::detachView()
 {
     m_busy.detachPresentation();

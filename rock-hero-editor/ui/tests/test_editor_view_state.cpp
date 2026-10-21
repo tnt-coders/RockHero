@@ -634,6 +634,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         return juce::KeyPress{key_code, juce::ModifierKeys{modifier_flags}, 0};
     };
 
+    // One command's locked registry entry: its id, its persisted hex value and its default chords.
     struct ExpectedCommand final
     {
         EditorCommandId id;

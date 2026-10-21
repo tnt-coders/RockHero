@@ -10,6 +10,8 @@
 namespace rock_hero::common::core
 {
 
+// Walks the regions in order, returning the first broken id, start, coverage, ordering or tone
+// reference rule.
 std::expected<void, ToneTrackError> validateToneTrackRules(
     const ToneTrack& tone_track, const TempoMap& tempo_map)
 {

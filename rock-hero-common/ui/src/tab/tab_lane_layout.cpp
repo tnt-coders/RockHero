@@ -52,6 +52,7 @@ float TabLaneGeometry::x(double seconds) const noexcept
                           drawn_seconds, visible_timeline, static_cast<double>(bounds_width)));
 }
 
+// Undoes the lane's retime, mapping a drawn time back to the time its content was handed.
 double TabLaneGeometry::publishedSeconds(double drawn_seconds) const noexcept
 {
     if (!retime.has_value())
@@ -61,6 +62,7 @@ double TabLaneGeometry::publishedSeconds(double drawn_seconds) const noexcept
     return TempoRetime{.from = retime->to, .to = retime->from}(drawn_seconds);
 }
 
+// The timeline seconds one horizontal pixel spans, the inverse of x()'s scale.
 double TabLaneGeometry::secondsPerPixel() const noexcept
 {
     return visible_timeline.duration().seconds / static_cast<double>(bounds_width);
@@ -98,6 +100,7 @@ float TabLaneGeometry::laneY(int chart_string) const noexcept
         bounds_height);
 }
 
+// Derives every size of one displayed lane from its bounds, timeline and string counts.
 TabLaneGeometry makeTabLaneGeometry(
     float bounds_x, float bounds_y, float bounds_width, float bounds_height,
     common::core::TimeRange visible_timeline, int displayed_count, int chart_string_count,
@@ -134,6 +137,7 @@ TabLaneGeometry makeTabLaneGeometry(
     return geometry;
 }
 
+// The sustain tail's whole envelope, rails included, symmetric about the string line.
 TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
 {
     // The tail's whole outer envelope, rails included, symmetric about the string line. Charter
@@ -150,6 +154,7 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
     };
 }
 
+// The tail's envelope less its two rails.
 TailInterior tailInterior(const TabLaneGeometry& geometry, const float center_y) noexcept
 {
     const TailSpan span = tailSpan(geometry, center_y);
@@ -158,6 +163,8 @@ TailInterior tailInterior(const TabLaneGeometry& geometry, const float center_y)
     };
 }
 
+// Places a bend amount in the tail's interior by the string's physical travel: rest on the floor,
+// the ceiling amount on the roof, anything past it clamped there.
 float bendCurveY(
     const TabLaneGeometry& geometry, const float center_y, const double semitones) noexcept
 {
@@ -170,6 +177,7 @@ float bendCurveY(
     return rest_y - static_cast<float>(share) * (rest_y - full_y);
 }
 
+// The drawn polyline's height at an instant: straight legs between the points, flat past the last.
 float bendCurveYAt(
     const TabLaneGeometry& geometry, const float center_y,
     const std::vector<common::core::BendPointViewState>& curve, const double seconds) noexcept

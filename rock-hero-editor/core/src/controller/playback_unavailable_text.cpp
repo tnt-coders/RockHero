@@ -3,6 +3,7 @@
 namespace rock_hero::editor::core
 {
 
+// Names, in the tooltip's words, why the shared transport gate refused Play and Stop.
 std::string playbackUnavailableText(ActionUnavailableReason reason)
 {
     switch (reason)

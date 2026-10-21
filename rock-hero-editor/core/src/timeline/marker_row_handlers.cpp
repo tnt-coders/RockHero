@@ -151,6 +151,7 @@ std::optional<common::core::GridPosition> EditorController::Impl::markerClose(
     std::unreachable();
 }
 
+// The marker holding a position on a gapless row: the last start at or before it, else the first.
 std::size_t EditorController::Impl::markerHolderIndex(
     const std::vector<common::core::GridPosition>& starts,
     const common::core::GridPosition& position)
@@ -182,6 +183,7 @@ std::optional<std::size_t> EditorController::Impl::markerHolderAt(
     return holder;
 }
 
+// The row and index of the selected marker, or nothing while the selection holds no marker.
 std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::selectedMarker() const
 {
     // Every kind but the tone region is identified by its start; a region by its id, whose index is
@@ -232,6 +234,7 @@ std::optional<EditorController::Impl::SelectedMarker> EditorController::Impl::se
     return std::nullopt;
 }
 
+// The selection naming a row's marker by index, selectedMarker()'s inverse.
 MarkerSelection EditorController::Impl::markerSelectionAt(
     const MarkerRow row, const std::size_t index) const
 {
@@ -276,6 +279,7 @@ MarkerSelection EditorController::Impl::markerSelectionAt(
     std::unreachable();
 }
 
+// The one marker select every pointer and keyboard path shares.
 void EditorController::Impl::selectMarker(const MarkerSelection& marker)
 {
     // The marker becomes the whole selection, and the caret goes with it: an armed caret is where
@@ -286,6 +290,7 @@ void EditorController::Impl::selectMarker(const MarkerSelection& marker)
     setSelection(std::visit([](const auto& kind) -> EditorSelection { return kind; }, marker));
 }
 
+// Moves the cursor to the selected marker's start when a pointer select left it outside the span.
 void EditorController::Impl::moveCursorIntoSelectedMarker()
 {
     const std::optional<SelectedMarker> selected = selectedMarker();
@@ -307,6 +312,8 @@ void EditorController::Impl::moveCursorIntoSelectedMarker()
     }
 }
 
+// Where the keyboard stands, for the view to keep in sight: the caret, a time selection's moving
+// edge, or the paused cursor.
 std::optional<common::core::GridPosition> EditorController::Impl::keyboardPosition() const
 {
     if (const ChartCaret* const caret = armedChartCaret(); caret != nullptr)
@@ -338,6 +345,7 @@ common::core::TimePosition EditorController::Impl::keyboardTimePosition() const
     return m_transport.position();
 }
 
+// The first member of what a selection verb acts on, for the view to centre when it is off screen.
 std::optional<common::core::GridPosition> EditorController::Impl::selectionStart() const
 {
     // A chart selection made without a caret (a marquee, a plain click on a note) may stand far
@@ -395,6 +403,8 @@ bool EditorController::Impl::markerSelectionNamesNothing() const
     return selected.has_value() && !selected->index.has_value();
 }
 
+// The tail both marker funnels share once a model lands: drop a stale selection, re-derive the
+// tone and tempo caches, publish.
 void EditorController::Impl::finishMarkerCommit()
 {
     releaseMarkerSelectionNamingNothing();
@@ -412,12 +422,15 @@ void EditorController::Impl::refuseMarkerVerb(
     flashRefusalLight(lit, reason);
 }
 
+// Refuses a marker verb aimed at or past the song's end, lighting nothing: the closing barline
+// draws no chip.
 void EditorController::Impl::refuseAtSongEnd(const MarkerVerb verb)
 {
     refuseMarkerVerb(
         markerVerbLabel(verb), "nothing can start at or past the end of the song", RefusalLight{});
 }
 
+// Hands a marker verb's prompt to the view, dropping it while no view is attached.
 void EditorController::Impl::showMarkerPrompt(const MarkerPrompt& prompt)
 {
     if (m_view != nullptr)
@@ -426,16 +439,20 @@ void EditorController::Impl::showMarkerPrompt(const MarkerPrompt& prompt)
     }
 }
 
+// Selects a tempo chip through the action gate.
 void EditorController::Impl::onTempoAnchorSelected(const common::core::GridPosition position)
 {
     runAction(EditorAction::SelectTempoAnchor{.position = position});
 }
 
+// Selects a time-signature chip through the action gate.
 void EditorController::Impl::onTimeSignatureSelected(const int measure)
 {
     runAction(EditorAction::SelectTimeSignature{.measure = measure});
 }
 
+// Selects the row's marker starting exactly at a position, the select a chip click names; reports
+// whether one stood there.
 bool EditorController::Impl::selectMarkerStartingAt(
     const MarkerRow row, const common::core::GridPosition& start)
 {
@@ -448,6 +465,7 @@ bool EditorController::Impl::selectMarkerStartingAt(
     return true;
 }
 
+// Selects the row's marker by projection index, the select a lane press names, then publishes.
 void EditorController::Impl::selectMarkerAt(const MarkerRow row, const std::size_t index)
 {
     if (index < markerStarts(row).size())
@@ -527,6 +545,7 @@ std::optional<RenameSectionTarget> EditorController::Impl::selectedSectionTarget
     return RenameSectionTarget{.position = section->position, .name = standing->name};
 }
 
+// The selected tone region and the tone it sounds, or nothing when none is selected or it is gone.
 std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget() const
 {
     const auto* const selected = std::get_if<ToneRegionSelection>(&m_selection);
