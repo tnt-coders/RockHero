@@ -109,7 +109,7 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
     }
     if (after == before)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     return JudgedMarkerModel<Snapshot>{
         .model = std::move(after),

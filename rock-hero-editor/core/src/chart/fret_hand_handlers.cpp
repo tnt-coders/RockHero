@@ -256,8 +256,7 @@ void EditorController::Impl::refuseDerivedFretHandPosition(
 
 void EditorController::Impl::flashFretHandChip(const common::core::GridPosition& position)
 {
-    flashRefusalLight(
-        ChartRefusalLight{.notes = {}, .keyframes = {}, .fret_hand_position = position});
+    flashRefusalLight(lightOf(FretHandPositionSelection{.position = position}));
 }
 
 // Steps the selected placement one placement-quantum line, the tone change's step. Refused rather
@@ -307,7 +306,7 @@ void EditorController::Impl::moveSelectedFretHandPosition(
 // over the stream with the one fret replaced, so the red box refuses exactly what the settle would
 // — a start retyped above an authored end included. On a derived position the plan authors it first
 // (statedPlacement), so the one commit states both.
-std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> EditorController::Impl::
+std::expected<EditorController::Impl::ChartFretHandPlan, PlanRefusal> EditorController::Impl::
     planFretHandFret(
         const common::core::GridPosition& position, const FretHandEdge edge, const int fret) const
 {
@@ -317,7 +316,7 @@ std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> Edito
         statedPlacement(after.placements, session(), fretHandResolutions().events, position);
     if (match == after.placements.end())
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     *match = retyped(*match, edge, fret);
     std::expected<JudgedMarkerModel<FretHandPositionsSnapshot>, MarkerModelRefusal> judged =
@@ -327,12 +326,12 @@ std::expected<EditorController::Impl::ChartFretHandPlan, ChartPlanRefusal> Edito
         // The funnel's refusal, made the entry's: a refused retype lights the placement's chip.
         if (auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
         {
-            return std::unexpected{ChartPlanInvalid{
+            return std::unexpected{PlanRefused{
                 .reason = std::move(invalid->reason),
-                .lit = {.notes = {}, .keyframes = {}, .fret_hand_position = position},
+                .lit = lightOf(FretHandPositionSelection{.position = position}),
             }};
         }
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     return ChartFretHandPlan{.placements = std::move(judged->model), .edge = edge};
 }

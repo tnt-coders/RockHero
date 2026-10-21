@@ -5,45 +5,12 @@
 
 #pragma once
 
-#include <cstdint>
 #include <functional>
-#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::core
 {
-
-/*! \brief A chip row of the timeline ruler. */
-enum class RulerChipRow : std::uint8_t
-{
-    /*! \brief The section row. */
-    Section,
-
-    /*! \brief The tempo-anchor row. */
-    Tempo,
-
-    /*! \brief The time-signature row. */
-    TimeSignature,
-};
-
-/*! \brief A ruler chip, named by its row and its marker's start. */
-struct RulerChipKey
-{
-    /*! \brief The row the chip stands in. */
-    RulerChipRow row{RulerChipRow::Section};
-
-    /*! \brief Where the chip's marker starts; a meter reign's chip names its first downbeat. */
-    common::core::GridPosition start{};
-
-    /*!
-    \brief Compares two chip names.
-    \param lhs Left-hand chip.
-    \param rhs Right-hand chip.
-    \return True when both name the same chip.
-    */
-    friend bool operator==(const RulerChipKey& lhs, const RulerChipKey& rhs) = default;
-};
 
 /*!
 \brief Project-owned boundary for applying editor state and transient effects to a view.
@@ -139,28 +106,17 @@ public:
     virtual void showChartHoldPicker(ChartHoldPicker picker) = 0;
 
     /*!
-    \brief Asks the view to flash the elements a chart edit refused: they glow red a couple of times
-    and stay as they were.
+    \brief Asks the view to flash what an edit's refusal lights: every target glows red a couple of
+    times, on whichever surface draws it, and stays as it was.
 
     A one-shot effect rather than view state: the pulse has a lifetime of its own, and a refusal
     changes nothing a re-derivation could compare. Why the edit was refused goes to the log, never
     to the view. With no view attached the flash is dropped.
 
-    \param flash The refused elements, in the current tab projection's indices.
+    \param flash The refused targets, never all empty; the tab lane's in the current projection's
+           indices.
     */
-    virtual void flashChartRefusal(ChartRefusalFlash flash) = 0;
-
-    /*!
-    \brief Asks the view to flash a ruler chip whose verb was refused: the chip glows red a couple
-    of times and stays as it was.
-
-    The same one-shot refusal flash as \ref flashChartRefusal, on the ruler: a section, tempo or
-    time-signature chip whose move, delete or restate was refused. Why the verb was refused goes to
-    the log, never to the view. With no view attached the flash is dropped.
-
-    \param chip The refused chip.
-    */
-    virtual void flashRulerChipRefusal(RulerChipKey chip) = 0;
+    virtual void flashRefusal(RefusalFlash flash) = 0;
 
     /*!
     \brief Asks the view to flash the measure numbers a landed time-signature edit renumbered:

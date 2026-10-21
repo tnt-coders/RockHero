@@ -2026,6 +2026,9 @@ TEST_CASE("A cut inside a scrape refuses", "[core][chart]")
                 CHECK(slot->string == 3);
             }
         }
+        // The scrape the digit would have divided flashes beside the box.
+        REQUIRE(fixture.view.refusal_flashes.size() == 1);
+        CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
     }
 
     SECTION("Insert flashes the scrape")

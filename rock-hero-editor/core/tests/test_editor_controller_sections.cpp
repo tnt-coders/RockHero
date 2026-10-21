@@ -458,7 +458,7 @@ TEST_CASE("Section rename refuses an empty name", "[core][sections]")
     CHECK(editor.sections().front().name == "Verse");
     CHECK_FALSE(editor.undoAvailable());
     CHECK(
-        editor.view.ruler_chip_refusal_flashes ==
+        flashedRulerChips(editor.view) ==
         std::vector{RulerChipKey{.row = RulerChipRow::Section, .start = downbeat(2)}});
 
     // A position no section starts at names nothing to rename.
@@ -553,7 +553,7 @@ TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][s
     CHECK(editor.sections()[0].position == downbeat(2));
     CHECK(editor.sections()[1].position == GridPosition{.measure = 2, .beat = 2});
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
-    CHECK(editor.view.ruler_chip_refusal_flashes == std::vector{section_chip(downbeat(2))});
+    CHECK(flashedRulerChips(editor.view) == std::vector{section_chip(downbeat(2))});
 
     // Beat 4 of measure 4 is the last slot that can carry a section, ten quarter lines on from 2:2;
     // 5:1 is the closing barline, and the step onto it is refused.
@@ -573,7 +573,7 @@ TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][s
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.sections()[0].position == downbeat(1));
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(editor.view.ruler_chip_refusal_flashes.back() == section_chip(downbeat(1)));
+    CHECK(flashedRulerChips(editor.view).back() == section_chip(downbeat(1)));
 }
 
 // Delete removes the selected section and round-trips exactly through undo and redo.

@@ -238,14 +238,7 @@ void EditorController::Impl::refuseTimeSignatureVerb(
     const TimeSignatureSelection& selection, const MarkerVerb verb, const std::string& reason)
 {
     m_refusal_log.markerEdit(markerVerbLabel(verb), reason);
-    if (m_view != nullptr)
-    {
-        m_view->flashRulerChipRefusal(
-            RulerChipKey{
-                .row = RulerChipRow::TimeSignature,
-                .start = common::core::measureDownbeat(selection.measure),
-            });
-    }
+    flashRefusalLight(lightOf(selection));
 }
 
 // Deletes the selected time signature (the Delete-key dispatch for the meter alternative): the
@@ -347,14 +340,7 @@ void EditorController::Impl::moveSelectedTimeSignature(
             markerVerbLabel(verb),
             TimeSignatureSelection{.measure = landed}))
     {
-        if (m_view != nullptr)
-        {
-            m_view->flashRulerChipRefusal(
-                RulerChipKey{
-                    .row = RulerChipRow::TimeSignature,
-                    .start = common::core::measureDownbeat(selection.measure),
-                });
-        }
+        flashRefusalLight(lightOf(selection));
         return;
     }
     followMovedMarker(common::core::measureDownbeat(landed));

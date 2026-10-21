@@ -179,12 +179,23 @@ std::optional<ShapeHoldExtent> EditorController::Impl::selectedHoldExtent() cons
     };
 }
 
-// Logged under the verb's label, as every marker verb's refusal is; the flash is the refusal's own.
-void EditorController::Impl::refuseShapeHoldVerb(
-    const MarkerVerb verb, const ChartPlanInvalid& refusal)
+// Logged under the verb's label, as every marker verb's refusal is. The flash is the refusal's own
+// light with the selected span or none hold the verb acted on, the subject this controller holds:
+// a run replays from its start, so the refusal names the hold as it stood then, and only the
+// selection names it where it stands now.
+void EditorController::Impl::refuseShapeHoldVerb(const MarkerVerb verb, const PlanRefused& refusal)
 {
     m_refusal_log.markerEdit(markerVerbLabel(verb), refusal.reason);
-    flashRefusalLight(refusal.lit);
+    RefusalLight lit = refusal.lit;
+    if (const auto* const span = std::get_if<SpanSelection>(&m_selection))
+    {
+        lit.add(*span);
+    }
+    else if (const auto* const none_hold = std::get_if<NoneHoldSelection>(&m_selection))
+    {
+        lit.add(*none_hold);
+    }
+    flashRefusalLight(lit);
 }
 
 // The choice lands on the hold the carve leaves at the extent's start, merged or not: a none hold
@@ -202,11 +213,11 @@ void EditorController::Impl::commitHoldChoice(
     const common::core::Chart& chart = *arrangement->chart;
     const std::vector<common::core::ShapeHold> holds =
         carvedShapeHolds(chart.shape_holds, extent, grip);
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
+    std::expected<JudgedChartPlan, PlanRefusal> plan =
         finalizeShapeHoldPlan(chart, session().song().tempo_map, holds, markerVerbLabel(verb));
     if (!plan.has_value())
     {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
+        if (const auto* const invalid = std::get_if<PlanRefused>(&plan.error()))
         {
             refuseShapeHoldVerb(verb, *invalid);
         }
@@ -324,7 +335,7 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
     if (!stepped.plan.has_value())
     {
         // NoChange is the run stepped back to where it began, which the commit retires.
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&stepped.plan.error()))
+        if (const auto* const invalid = std::get_if<PlanRefused>(&stepped.plan.error()))
         {
             refuseShapeHoldVerb(verb, *invalid);
             return;
@@ -342,10 +353,9 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
         gesture,
         // The hold the run leaves standing at its moved start, read off the same holds the plan
         // judges, so a none hold the run merged into a neighbour lands selected whole.
-        [&landed, &gesture, &tempo_map](
-            const common::core::Chart& pre_gesture) -> ChartEditLanding {
-            const std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> holds =
-                movedShapeHolds(pre_gesture, tempo_map, gesture.base, gesture.edge, gesture.value);
+        [&landed, &gesture](const common::core::Chart& pre_gesture) -> ChartEditLanding {
+            const std::expected<std::vector<common::core::ShapeHold>, PlanRefusal> holds =
+                movedShapeHolds(pre_gesture.shape_holds, gesture.base, gesture.edge, gesture.value);
             return selectionOfHoldAt(holds.value_or(pre_gesture.shape_holds), landed);
         }));
 }

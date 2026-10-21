@@ -697,7 +697,7 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
             std::string::npos);
         REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
         CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{4, 5});
-        CHECK_FALSE(editor.view.refusal_flashes.back().fret_hand_position.has_value());
+        CHECK(editor.view.refusal_flashes.back().fret_hand_positions.empty());
     }
 }
 
@@ -756,7 +756,8 @@ TEST_CASE("The edge keys convert a derived span to a hold", "[core][holds]")
         CHECK(editor.entries() == entries);
         REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
         CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 1, 2});
-        CHECK_FALSE(editor.view.refusal_flashes.back().fret_hand_position.has_value());
+        CHECK(editor.view.refusal_flashes.back().spans == std::vector<std::size_t>{0});
+        CHECK(editor.view.refusal_flashes.back().fret_hand_positions.empty());
         CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
     }
 }
@@ -833,7 +834,8 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
         // Every candidate later than 4:1 lies at or past the neighbour's end, so each would push it
         // to nothing: none fits, and the press is refused with the nearest candidate's own
         // refusal, which names the neighbour — as it stood when the run began, since every press
-        // replays from the run's start chart — and lights its notes.
+        // replays from the run's start chart. The neighbour no longer starts there, so what lights
+        // is the selected hold the press was on.
         const std::size_t flashes = editor.view.refusal_flashes.size();
         const LogCapture capture;
         editor.endKey(true);
@@ -843,7 +845,8 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
             contents.find("the edge would push shape hold 3:3 to 4:2 to nothing") !=
             std::string::npos);
         REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
-        CHECK_FALSE(editor.view.refusal_flashes.back().notes.empty());
+        CHECK(editor.view.refusal_flashes.back().spans == std::vector<std::size_t>{0});
+        CHECK(editor.view.refusal_flashes.back().notes.empty());
         CHECK(
             editor.holds() ==
             std::vector{unnamedHold(at(3, 1), at(4, 1)), unnamedHold(at(4, 1), at(4, 2))});
@@ -874,8 +877,9 @@ TEST_CASE("The end key pushes the next hold and a step back restores it", "[core
 
 // The start key moved into the previous hold pushes that hold's end back with it. A press whose
 // every candidate would push the neighbour to nothing is refused with the nearest one's refusal,
-// which names the neighbour as the run began and lights its notes: 3:1, where the neighbour
-// starts, is the nearest, and every grid line before it pushes the neighbour out as well.
+// which names the neighbour as the run began: 3:1, where the neighbour starts, is the nearest, and
+// every grid line before it pushes the neighbour out as well. The flash lights the neighbour's span
+// and the selected one the press was on.
 TEST_CASE("The start key pushes the previous hold", "[core][holds]")
 {
     HoldEditor editor{twoHeldHalves()};
@@ -900,10 +904,39 @@ TEST_CASE("The start key pushes the previous hold", "[core][holds]")
     CHECK(
         contents.find("the edge would push shape hold 3:1 to 3:3 to nothing") != std::string::npos);
     REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
-    CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 1, 2, 3});
+    CHECK(editor.view.refusal_flashes.back().spans == std::vector<std::size_t>{0, 1});
+    CHECK(editor.view.refusal_flashes.back().notes.empty());
 
     editor.controller.onUndoRequested();
     CHECK(editor.holds() == twoHeldHalves().shape_holds);
+}
+
+// A single press pushing the next hold to nothing at every later candidate flashes the moved hold
+// and the neighbour standing in its way, as the spans they state rather than the notes under them.
+TEST_CASE("A push to nothing flashes the moved hold and the neighbour", "[core][holds]")
+{
+    // Two E-string notes under the first hold, and a short hold over silence touching its end:
+    // every candidate later than 1:3 lies at or past the neighbour's end at 1:4.
+    HoldEditor editor{chartOf(
+        {{makeTestNote(at(1, 1), 1, 5, Fraction{1, 4}),
+          makeTestNote(at(1, 2), 1, 7, Fraction{1, 4})}},
+        {unnamedHold(at(1, 1), at(1, 3)), unnamedHold(at(1, 3), at(1, 4))})};
+    REQUIRE(editor.spanCount() == 2);
+    editor.press(0, std::nullopt);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    const LogCapture capture;
+    editor.endKey(true);
+    const std::string contents = capture.text();
+    INFO(contents);
+    CHECK(
+        contents.find("the edge would push shape hold 1:3 to 1:4 to nothing") != std::string::npos);
+    CHECK(editor.entries() == entries);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().spans == std::vector<std::size_t>{0, 1});
+    CHECK(editor.view.refusal_flashes.back().notes.empty());
 }
 
 // Where no note lies before a span, its start steps back over the silence a grid line at a time,

@@ -265,7 +265,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The plan one step of a coalescing gesture produces: the WHOLE run replayed over the chart
     // state that run started from.
-    using ChartGestureReplan = std::function<std::expected<JudgedChartPlan, ChartPlanRefusal>(
+    using ChartGestureReplan = std::function<std::expected<JudgedChartPlan, PlanRefusal>(
         const common::core::Chart& pre_gesture)>;
 
     // Where a chart edit leaves the selection when its verb says: exactly these chart keys, or the
@@ -326,7 +326,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // A selected placement's fret entry, planned: its stream with the placement at `position`
     // taking `fret` at `edge`, judged by the marker funnel's own front half
     // (fret_hand_handlers.cpp).
-    [[nodiscard]] std::expected<ChartFretHandPlan, ChartPlanRefusal> planFretHandFret(
+    [[nodiscard]] std::expected<ChartFretHandPlan, PlanRefusal> planFretHandFret(
         const common::core::GridPosition& position, FretHandEdge edge, int fret) const;
     // Commits a settled placement fret through the marker funnel; the placement stays selected.
     void commitFretHandFret(ChartFretHandPlan plan);
@@ -380,7 +380,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // value; every other action settles first. Stated here so the prologue names no verb.
     [[nodiscard]] bool chartFretEntryContinuedBy(const EditorAction::Action& action) const;
     // One authority for what a pending entry would apply, run in full on every keystroke.
-    [[nodiscard]] std::expected<ChartFretEntryPlan, ChartPlanRefusal> replanChartFretEntry(
+    [[nodiscard]] std::expected<ChartFretEntryPlan, PlanRefusal> replanChartFretEntry(
         const ChartFretEntry& entry) const;
     // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
@@ -422,7 +422,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // that describes exactly the plan already on that entry moved nothing and is NOT recorded, so a
     // press into a bound costs nothing to come back from. True when the chart moved; the gate's
     // refusal is the caller's to report, against the subject its verb acts on.
-    std::expected<bool, ChartPlanInvalid> commitChartGestureStep(
+    std::expected<bool, PlanRefused> commitChartGestureStep(
         bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
         const ChartGestureLanding& landing = {});
     // The chart a gesture's steps replay from: the live chart on a press that starts a run, or the
@@ -583,7 +583,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // selection, or the operand a modifying key took from the caret — and is what a refusal names
     // in the log and flashes.
     bool applyChartEditPlan(
-        std::expected<JudgedChartPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
+        std::expected<JudgedChartPlan, PlanRefusal> plan, const ChartSelection& subject,
         std::optional<ChartEditLanding> landing = std::nullopt);
     // The same apply for a per-note verb's outcome, whose notes refused one by one are reported
     // whether or not the rest applied.
@@ -752,10 +752,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Deletes the selected time signature (the Delete-key dispatch for the meter alternative).
     void deleteSelectedTimeSignature(const TimeSignatureSelection& selection);
     // THE refusal of a verb on a selected time-signature chip: logged under the verb, and the chip
-    // glows red (IEditorView::flashRulerChipRefusal).
+    // glows red (IEditorView::flashRefusal).
     void refuseTimeSignatureVerb(
         const TimeSignatureSelection& selection, MarkerVerb verb, const std::string& reason);
-    // Glows a refused section chip red (IEditorView::flashRulerChipRefusal), for every refused
+    // Glows a refused section chip red (IEditorView::flashRefusal), for every refused
     // verb on a selected section: the move off the song's ends and each commit the section rules
     // refuse.
     void flashSongSectionChip(const SongSectionSelection& selection);
@@ -803,8 +803,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         MarkerVerb verb, const ShapeHoldExtent& extent,
         const std::optional<common::core::HoldGrip>& grip);
     // A refused hold verb: its log record under the verb's label, and the refusal flash on what the
-    // refusal lights.
-    void refuseShapeHoldVerb(MarkerVerb verb, const ChartPlanInvalid& refusal);
+    // refusal lights together with the selected span or none hold the verb acted on.
+    void refuseShapeHoldVerb(MarkerVerb verb, const PlanRefused& refusal);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).
     void deleteSelectedMarker();
@@ -1127,17 +1127,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void requestChartHoldPicker(ChartHoldPicker picker);
     // THE REFUSAL REPORT: each reason goes to the log beside the subject it refused, and what the
     // refusal lights flashes red. A whole plan refused is logged against its subject — what the
-    // verb planned over — and flashes what its refusal names (ChartPlanInvalid::lit); a NoChange
-    // is an honest no-op and reports nothing. Per-note refusals name and flash only the notes
-    // refused. Called after any apply, because the flash is addressed in the projection the view
-    // is showing.
-    void reportChartPlanRefusal(const ChartPlanRefusal& refusal, const ChartSelection& subject);
+    // verb planned over — and flashes the subject together with what the refusing site lit
+    // (PlanRefused::lit); a NoChange is an honest no-op and reports nothing. A per-note refusal
+    // flashes the note with what stood in its way (ChartRefusedNote::lit). Called after any
+    // apply, because the flash is addressed in the projection the view is showing.
+    void reportChartPlanRefusal(const PlanRefusal& refusal, const ChartSelection& subject);
     void reportChartRefusedNotes(std::span<const ChartRefusedNote> refused);
-    // The flash's one path: a refusal's light resolved to the lane's projection indices — the
-    // keys through the two authorities resolvedChartEdit reads the selection by, the hand chip
-    // through its row's marker index — and handed to the view as one flash. Nothing where
-    // nothing resolves.
-    void flashRefusalLight(const ChartRefusalLight& lit);
+    // The flash's one path: every target of a light resolved through the authority its surface
+    // draws it by — the note and keyframe keys through the two resolvedChartEdit reads the
+    // selection by, a span, none hold or hand chip through its row's marker index, a ruler chip by
+    // its row and start, a tone region by its id — and handed to the view as one flash. Nothing
+    // where nothing resolves.
+    void flashRefusalLight(const RefusalLight& lit);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
@@ -1427,14 +1428,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
         // std::expected's value-state default, which would be an empty-but-valid plan.
-        std::expected<ChartFretEntryPlan, ChartPlanRefusal> plan{
-            std::unexpected{ChartPlanNoChange{}}
-        };
+        std::expected<ChartFretEntryPlan, PlanRefusal> plan{std::unexpected{PlanNoChange{}}};
         // Whether the typed value is REFUSED — the red box's one question, and the entry's open
         // error state: a refused entry pends until a further digit, Esc or another intent ends it.
         [[nodiscard]] bool refused() const
         {
-            return !plan.has_value() && std::holds_alternative<ChartPlanInvalid>(plan.error());
+            return !plan.has_value() && std::holds_alternative<PlanRefused>(plan.error());
         }
         // Tick of the arming keystroke: the injected clock is the authority for the window, so
         // a wake that fires early (an immediate test scheduler) no-ops instead of settling.
@@ -1499,6 +1498,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // on — the slot of an insert or a cut, the point a ring digit would plant, the objects a retype
     // addresses, or the hand position whose fret it retypes.
     [[nodiscard]] std::string chartFretEntrySubject(const ChartFretEntry& entry) const;
+    // What an entry was typed on, as a refusal lights it: the ring a cut or a point divides, the
+    // objects a retype addresses, the placement whose fret it retypes; an insert at an empty slot
+    // has nothing standing there to light.
+    [[nodiscard]] static RefusalLight fretEntryTargetLight(
+        const decltype(ChartFretEntry::target)& target);
+    // A refused entry's report: the log record under its subject (chartFretEntrySubject), and the
+    // flash on what it was typed on together with what its refusal lit. Nothing for a plan or a
+    // NoChange.
+    void reportChartFretEntryRefusal(const ChartFretEntry& entry);
     // The slot an offset along a ring lands on — the inverse of the whole-note distance that
     // measured it, so a site named as (note, offset) can name its own slot for the selection it
     // plants and the box it draws without either re-deriving it.
@@ -1893,8 +1901,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
 
     // Why the funnel's judge returned no model: a model equal to the one it would replace is a
-    // valid no-op, kept apart from a refusal exactly as ChartPlanRefusal keeps its two.
-    using MarkerModelRefusal = std::variant<ChartPlanNoChange, MarkerModelInvalid>;
+    // valid no-op, kept apart from a refusal exactly as PlanRefusal keeps its two.
+    using MarkerModelRefusal = std::variant<PlanNoChange, MarkerModelInvalid>;
 
     // Hands the memo the displayed arrangement's notes layer a landed model's normalization
     // derived, so the projection derives nothing the funnel already did; nothing where it derived

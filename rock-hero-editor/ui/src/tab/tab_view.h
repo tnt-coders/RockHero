@@ -182,17 +182,18 @@ public:
     void setEditState(core::ChartEditViewState edit);
 
     /*!
-    \brief Flashes the elements a chart edit refused: their selection ring glows red a couple of
-    times, then the lane stands as it was.
+    \brief Flashes what a refusal lights in the lane: each refused mark's selection ring glows red a
+    couple of times, then the lane stands as it was.
 
     A flash arriving while one runs joins it on the running clock, so a held key reads as one pulse
     train rather than restarting it. It runs on the clock whether or not the lane is on screen, so
     a lane shown late never plays it late, and a new projection drops it, since its indices name
-    other notes.
+    other notes. A refusal lighting nothing in the lane starts no pulse, so it never cuts short the
+    pulse a later refusal in the lane would join.
 
-    \param flash The refused elements, in the current projection's indices.
+    \param flash The refused targets, the lane's in the current projection's indices.
     */
-    void flashRefusal(core::ChartRefusalFlash flash);
+    void flashRefusal(core::RefusalFlash flash);
 
     /*!
     \brief Turns the whole-lane ring reveal on or off; repaints only when it changes.
@@ -562,7 +563,7 @@ private:
 
     // The refusal flash while it runs: every refused element it has joined, and its pulse. Its
     // indices address m_tab, so a new projection drops it.
-    std::optional<PulsedFlash<core::ChartRefusalFlash>> m_refusal{};
+    std::optional<PulsedFlash<core::RefusalFlash>> m_refusal{};
 
     // The string colors every lane surface derives from.
     common::ui::StringColorPalette m_string_colors;

@@ -112,17 +112,17 @@ struct FixtureChart
 
 // The whole-stream gate the touched-set gate must agree with: the same production authorities,
 // each run over every note of the candidate. Answers the normalized candidate, or the refusal.
-[[nodiscard]] std::expected<std::vector<ChartNote>, ChartPlanRefusal> wholeStreamGate(
+[[nodiscard]] std::expected<std::vector<ChartNote>, PlanRefusal> wholeStreamGate(
     const Chart& chart, const TempoMap& tempo_map, const std::vector<ChartNote>& base,
     std::vector<ChartNote> candidate)
 {
     // The twin judges reasons only: what a refusal lights is the gate's own, asserted elsewhere.
-    const ChartRefusalLight unlit{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
+    const RefusalLight unlit{};
     if (std::ranges::any_of(
             common::core::normalizeSustainOverlaps(candidate, tempo_map),
             &common::core::TailTruncation::statement_lost))
     {
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = "the edit would cut an authored statement off a ring it shortens",
             .lit = unlit,
         }};
@@ -141,11 +141,11 @@ struct FixtureChart
             common::core::validateChartNotes(saved_form, chart.tuning, tempo_map);
         !valid.has_value())
     {
-        return std::unexpected{ChartPlanInvalid{.reason = valid.error().message, .lit = unlit}};
+        return std::unexpected{PlanRefused{.reason = valid.error().message, .lit = unlit}};
     }
     if (candidate == base)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     return candidate;
 }
@@ -166,25 +166,25 @@ void requireSameAnswer(
     const Chart& chart, const TempoMap& tempo_map, const std::vector<ChartNote>& base,
     const std::vector<ChartNote>& candidate, Outcomes& outcomes)
 {
-    const std::expected<std::vector<ChartNote>, ChartPlanRefusal> whole =
+    const std::expected<std::vector<ChartNote>, PlanRefusal> whole =
         wholeStreamGate(chart, tempo_map, base, candidate);
     Chart based = chart;
     based.notes = base;
-    const std::expected<JudgedChartPlan, ChartPlanRefusal> touched =
+    const std::expected<JudgedChartPlan, PlanRefusal> touched =
         finalizePlan(based, tempo_map, candidate, "Gate");
     REQUIRE(touched.has_value() == whole.has_value());
     if (!whole.has_value())
     {
-        const ChartPlanRefusal& expected_refusal = whole.error();
-        const ChartPlanRefusal& refusal = touched.error();
+        const PlanRefusal& expected_refusal = whole.error();
+        const PlanRefusal& refusal = touched.error();
         REQUIRE(refusal.index() == expected_refusal.index());
-        const auto* const expected_invalid = std::get_if<ChartPlanInvalid>(&expected_refusal);
+        const auto* const expected_invalid = std::get_if<PlanRefused>(&expected_refusal);
         if (expected_invalid == nullptr)
         {
             ++outcomes.unchanged;
             return;
         }
-        CHECK(std::get<ChartPlanInvalid>(refusal).reason == expected_invalid->reason);
+        CHECK(std::get<PlanRefused>(refusal).reason == expected_invalid->reason);
         ++outcomes.refused;
         if (expected_invalid->reason.starts_with("the edit would cut"))
         {
@@ -346,11 +346,10 @@ TEST_CASE("finalizePlan answers every edit exactly as the whole-stream gate", "[
             // chart, and every live chart is the gate's fixpoint (load and every edit leave one),
             // so a fixture that is not names itself here instead of testing an unreachable state.
             INFO("fixture " << fixture.name << " must be a fixpoint of the plan gate");
-            const std::expected<std::vector<ChartNote>, ChartPlanRefusal> fixpoint =
+            const std::expected<std::vector<ChartNote>, PlanRefusal> fixpoint =
                 wholeStreamGate(chart, tempo_map, chart.notes, chart.notes);
             REQUIRE(
-                (!fixpoint.has_value() &&
-                 std::holds_alternative<ChartPlanNoChange>(fixpoint.error())));
+                (!fixpoint.has_value() && std::holds_alternative<PlanNoChange>(fixpoint.error())));
             for (const std::vector<ChartNote>& candidate : editScript(chart))
             {
                 requireSameAnswer(chart, tempo_map, chart.notes, candidate, outcomes);

@@ -1120,4 +1120,44 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     CHECK(note(2).attack == common::core::NoteAttack::Legato);
 }
 
+// A refused claim flashes the note pressed AND the ring that stood in its way: the predecessor's
+// ring stops short, and its tail is a slide-out's authored exit the assist may not spend.
+TEST_CASE(
+    "EditorController legato refusal flashes the pressed note and its predecessor", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{1, 8}),
+        makeTestNote({.measure = 2, .beat = 3}, 1, 7),
+    };
+    common::core::setSlideOut(chart.notes[0], 5);
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
+
+    // The second note, at 2:3 (three seconds, x = 60) on string 1.
+    click(controller, 60.0f, 220.0f);
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
+    CHECK(
+        controller.session().currentArrangement()->chart->notes[1].attack ==
+        common::core::NoteAttack::Pick);
+    REQUIRE(view.refusal_flashes.size() == 1);
+    CHECK(view.refusal_flashes[0].notes == std::vector<std::size_t>{0, 1});
+}
+
 } // namespace rock_hero::editor::core

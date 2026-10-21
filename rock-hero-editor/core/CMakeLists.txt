@@ -49,6 +49,8 @@ target_sources(
             src/controller/marker_model_edit.h
             src/controller/playback_unavailable_text.cpp
             src/controller/playback_unavailable_text.h
+            src/controller/refusal_light.cpp
+            src/controller/refusal_light.h
             src/highway/highway_handlers.cpp
             src/input_calibration/input_calibration_controller.cpp
             src/input_calibration/input_calibration_handlers.cpp

@@ -77,6 +77,20 @@ namespace
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
+// A refusal flash lighting the given notes and nothing else.
+[[nodiscard]] core::RefusalFlash notesRefusal(std::vector<std::size_t> notes)
+{
+    return core::RefusalFlash{
+        .notes = std::move(notes),
+        .spans = {},
+        .none_holds = {},
+        .fret_hand_positions = {},
+        .keyframes = {},
+        .ruler_chips = {},
+        .tone_regions = {},
+    };
+}
+
 // Pushes the fixture, the way the controller publishes it.
 void setFixtureState(TabView& view)
 {
@@ -892,7 +906,7 @@ TEST_CASE("TabView glows a refused head red until the projection changes", "[ui]
     };
     const juce::Colour plain = render();
 
-    view.flashRefusal(core::ChartRefusalFlash{.notes = {0}, .keyframes = {}});
+    view.flashRefusal(notesRefusal({0}));
     CHECK(render().getRed() > plain.getRed());
 
     setFixtureState(view);
@@ -933,8 +947,14 @@ TEST_CASE("TabView glows a refused fret-hand chip red", "[ui][tab-view]")
     const int plain = red_beside_chip();
 
     view.flashRefusal(
-        core::ChartRefusalFlash{
-            .notes = {}, .keyframes = {}, .fret_hand_position = std::size_t{1}
+        core::RefusalFlash{
+            .notes = {},
+            .spans = {},
+            .none_holds = {},
+            .fret_hand_positions = {1},
+            .keyframes = {},
+            .ruler_chips = {},
+            .tone_regions = {},
         });
     CHECK(red_beside_chip() > plain);
 }
@@ -979,7 +999,7 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
     };
     const juce::Colour caret_only = render();
 
-    view.flashRefusal(core::ChartRefusalFlash{.notes = {0}, .keyframes = {}});
+    view.flashRefusal(notesRefusal({0}));
     CHECK(render().getGreen() < caret_only.getGreen());
 }
 
@@ -1004,7 +1024,7 @@ TEST_CASE("TabView glows a refused head once however often it is reported", "[ui
         view.setVisibleContentLeft(180);
         for (int report = 0; report < reports; ++report)
         {
-            view.flashRefusal(core::ChartRefusalFlash{.notes = {0}, .keyframes = {}});
+            view.flashRefusal(notesRefusal({0}));
         }
         juce::Graphics graphics{image};
         view.paint(graphics);

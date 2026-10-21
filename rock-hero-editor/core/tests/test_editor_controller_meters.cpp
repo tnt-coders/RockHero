@@ -572,13 +572,11 @@ TEST_CASE("Delete and the move refuse a derived short bar", "[core][meters]")
     REQUIRE(editor.state().selected_time_signature_measure == std::optional{4});
     editor.controller.onSelectionDeleteRequested();
     CHECK(editor.timeline() == authored);
-    CHECK(editor.view.ruler_chip_refusal_flashes == std::vector{meterChip(4)});
+    CHECK(flashedRulerChips(editor.view) == std::vector{meterChip(4)});
     editor.pressAlt(ChartStepDirection::Right);
     editor.pressAlt(ChartStepDirection::Left);
     CHECK(editor.timeline() == authored);
-    CHECK(
-        editor.view.ruler_chip_refusal_flashes ==
-        std::vector{meterChip(4), meterChip(4), meterChip(4)});
+    CHECK(flashedRulerChips(editor.view) == std::vector{meterChip(4), meterChip(4), meterChip(4)});
     CHECK(editor.undoEntryCount() == entries);
     CHECK(editor.state().selected_time_signature_measure == std::optional{4});
 }
@@ -649,7 +647,7 @@ TEST_CASE("A meter move refuses a reign too short and the song's end", "[core][m
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == two);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(editor.view.ruler_chip_refusal_flashes == std::vector{meterChip(4), meterChip(3)});
+    CHECK(flashedRulerChips(editor.view) == std::vector{meterChip(4), meterChip(3)});
 
     // 2/4 from measure 8 (whole note 7) steps three quarter notes to 8:4; the fourth step would
     // land on the terminal's whole note 8. The last bar before the terminal is a cut, never a

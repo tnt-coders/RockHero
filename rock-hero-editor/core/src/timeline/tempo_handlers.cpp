@@ -505,11 +505,7 @@ bool EditorController::Impl::refuseLockedTempoAnchorMove(
         markerVerbLabel(MarkerVerb::MoveTempoAnchor),
         "Tempo Lock is on: " + std::string{gesture} + " the tempo anchor at " +
             common::core::formatGridPositionToken(selection.position) + " is blocked");
-    if (m_view != nullptr)
-    {
-        m_view->flashRulerChipRefusal(
-            RulerChipKey{.row = RulerChipRow::Tempo, .start = selection.position});
-    }
+    flashRefusalLight(lightOf(selection));
     return true;
 }
 

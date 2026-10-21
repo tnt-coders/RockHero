@@ -422,16 +422,17 @@ public:
         std::optional<int> signature_measure);
 
     /*!
-    \brief Flashes the ruler chip whose verb was refused: it glows red a couple of times, then the
-    row stands as it was.
+    \brief Flashes the ruler chips a refusal lights: each glows red a couple of times, then the
+    rows stand as they were.
 
     A flash arriving while one runs joins it on the running pulse, so a drag or a held key reads as
-    one pulse train. The chip is found by its row and its marker's start at paint time, so a chip
-    out of view draws no glow.
+    one pulse train. A chip is found by its row and its marker's start at paint time, so a chip out
+    of view draws no glow. A refusal lighting no chip starts no pulse, so it never cuts short the
+    pulse a later chip refusal would join.
 
-    \param chip The refused chip.
+    \param chips The refused chips; empty when the refusal lights none on the ruler.
     */
-    void flashRulerChipRefusal(core::RulerChipKey chip);
+    void flashRefusal(std::vector<core::RulerChipKey> chips);
 
     /*!
     \brief Flashes the measure numbers a time-signature edit renumbered: every number from a

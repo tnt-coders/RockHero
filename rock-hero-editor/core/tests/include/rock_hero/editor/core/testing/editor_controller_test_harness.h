@@ -143,15 +143,9 @@ public:
     }
 
     // Records each refusal flash, in request order.
-    void flashChartRefusal(ChartRefusalFlash flash) override
+    void flashRefusal(RefusalFlash flash) override
     {
         refusal_flashes.push_back(std::move(flash));
-    }
-
-    // Records each ruler-chip refusal flash, in request order.
-    void flashRulerChipRefusal(const RulerChipKey chip) override
-    {
-        ruler_chip_refusal_flashes.push_back(chip);
     }
 
     // Records each renumber flash, in request order.
@@ -238,8 +232,7 @@ public:
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
     std::vector<ChartHoldPicker> shown_hold_pickers{};
-    std::vector<ChartRefusalFlash> refusal_flashes{};
-    std::vector<RulerChipKey> ruler_chip_refusal_flashes{};
+    std::vector<RefusalFlash> refusal_flashes{};
     std::vector<int> renumber_flashes{};
     int timeline_start_reveal_count{0};
 
@@ -509,6 +502,21 @@ player's defaults. Tests that pick build their own store over their own file and
 [[nodiscard]] inline const BusyViewState* busyOrNull(const EditorViewState& state) noexcept
 {
     return state.busy.has_value() ? &*state.busy : nullptr;
+}
+
+/*!
+\brief Every ruler chip the view was asked to flash, flash by flash in request order.
+\param view The fake view that recorded the flashes.
+\return The chips, a flash naming none contributing nothing.
+*/
+[[nodiscard]] inline std::vector<RulerChipKey> flashedRulerChips(const FakeEditorView& view)
+{
+    std::vector<RulerChipKey> chips;
+    for (const RefusalFlash& flash : view.refusal_flashes)
+    {
+        chips.insert(chips.end(), flash.ruler_chips.begin(), flash.ruler_chips.end());
+    }
+    return chips;
 }
 
 /*!

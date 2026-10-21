@@ -167,11 +167,8 @@ public:
     /*! \copydoc core::IEditorView::showChartHoldPicker */
     void showChartHoldPicker(core::ChartHoldPicker picker) override;
 
-    /*! \copydoc core::IEditorView::flashChartRefusal */
-    void flashChartRefusal(core::ChartRefusalFlash flash) override;
-
-    /*! \copydoc core::IEditorView::flashRulerChipRefusal */
-    void flashRulerChipRefusal(core::RulerChipKey chip) override;
+    /*! \copydoc core::IEditorView::flashRefusal */
+    void flashRefusal(core::RefusalFlash flash) override;
 
     /*! \copydoc core::IEditorView::flashRenumberedMeasures */
     void flashRenumberedMeasures(int from_measure) override;

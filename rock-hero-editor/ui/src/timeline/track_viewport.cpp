@@ -480,10 +480,10 @@ void TrackViewport::setSelectedTempoMapChips(
     m_timeline_ruler.setSelectedTempoMapChips(tempo_anchor, signature_measure);
 }
 
-// Forwards a refused ruler-chip verb to the ruler, which draws the chip that flashes.
-void TrackViewport::flashRulerChipRefusal(const core::RulerChipKey chip)
+// Forwards a refusal's ruler chips to the ruler, which draws the chips that flash.
+void TrackViewport::flashRefusal(const core::RefusalFlash& flash)
 {
-    m_timeline_ruler.flashRulerChipRefusal(chip);
+    m_timeline_ruler.flashRefusal(flash.ruler_chips);
 }
 
 // Forwards a landed time-signature edit to the ruler, which draws the measure numbers.

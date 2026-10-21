@@ -221,11 +221,7 @@ void EditorController::Impl::deleteSelectedSongSection(const SongSectionSelectio
 // The commit has already logged the refusal; the chip glows red to say it was this one.
 void EditorController::Impl::flashSongSectionChip(const SongSectionSelection& selection)
 {
-    if (m_view != nullptr)
-    {
-        m_view->flashRulerChipRefusal(
-            RulerChipKey{.row = RulerChipRow::Section, .start = selection.position});
-    }
+    flashRefusalLight(lightOf(selection));
 }
 
 } // namespace rock_hero::editor::core

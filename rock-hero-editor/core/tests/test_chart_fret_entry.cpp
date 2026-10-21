@@ -487,6 +487,9 @@ TEST_CASE("EditorController keeps an invalid immediate digit pending red", "[cor
         CHECK(state->chart_edit.pending_fret->text == "4");
         CHECK_FALSE(state->chart_edit.pending_fret->valid);
     }
+    // The red box says THAT it cannot land, and the note it was typed on flashes beside it.
+    REQUIRE(view.refusal_flashes.size() == 1);
+    CHECK(view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
 
     // Esc cancels the problem: the value discards and the caret survives.
     controller.onChartEscapePressed();

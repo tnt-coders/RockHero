@@ -1621,16 +1621,12 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
         });
 }
 
-// The refusal flash belongs to the lane that draws the refused elements.
-void EditorView::flashChartRefusal(core::ChartRefusalFlash flash)
+// One refusal flashes on every surface that draws one of its targets: the ruler its chips, the
+// tab lane the rest. Each glows what it draws, so the two pulse as one refusal.
+void EditorView::flashRefusal(core::RefusalFlash flash)
 {
+    m_track_viewport->flashRefusal(flash);
     m_tab_view.flashRefusal(std::move(flash));
-}
-
-// A refused verb on a ruler chip flashes on the ruler, the surface that draws its chips.
-void EditorView::flashRulerChipRefusal(const core::RulerChipKey chip)
-{
-    m_track_viewport->flashRulerChipRefusal(chip);
 }
 
 // A landed meter edit flashes on the ruler, the surface that draws the measure numbers.

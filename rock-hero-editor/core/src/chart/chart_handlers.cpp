@@ -88,6 +88,48 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
         chartSlotText(key.note));
 }
 
+// Hands `visit` every element a whole-stream change drops or rewrites: each one its stream held
+// before and no longer holds after. Nothing where the plan leaves that stream alone.
+template <typename Element, typename Visit>
+void forEachReplaced(const std::optional<StreamChange<Element>>& change, const Visit& visit)
+{
+    if (!change.has_value())
+    {
+        return;
+    }
+    // Bound once, so the optional-access check sees the guard reach the loop below.
+    const StreamChange<Element>& stream = *change;
+    for (const Element& element : stream.before)
+    {
+        // A predicate rather than a value find, which under clang the MSVC STL may send down a
+        // vectorized path that cannot take the element.
+        if (std::ranges::none_of(
+                stream.after, [&element](const Element& kept) { return kept == element; }))
+        {
+            visit(element);
+        }
+    }
+}
+
+// What a plan would take from its base, as a refusal lights it: the notes it removes or rewrites,
+// and the holds and positions its whole-stream rewrites drop or change — what a lock froze.
+[[nodiscard]] RefusalLight planBaseLight(const ChartEditPlan& plan)
+{
+    RefusalLight light;
+    for (const common::core::ChartNote& note : plan.removed)
+    {
+        light.add(ChartNoteKey{.slot = chartSlotKeyOf(note)});
+    }
+    forEachReplaced(plan.shape_holds, [&light](const common::core::ShapeHold& hold) {
+        light.add(holdTarget(hold));
+    });
+    forEachReplaced(
+        plan.fret_hand_positions, [&light](const common::core::FretHandPosition& position) {
+            light.add(FretHandPositionSelection{.position = position.position});
+        });
+    return light;
+}
+
 // The SUBJECT of a chart refusal record: what was refused, beside the planner's reason for it. One
 // object is named outright; several by their count and their first and last in the selection's
 // own order (notes, then keyframes), which keeps a marquee's line short and still says where it
@@ -136,52 +178,106 @@ const common::core::ChartViewState* EditorController::Impl::currentTabProjection
     return m_tab_view_state.get();
 }
 
-// Rationale lives on the declaration in editor_controller_impl.h.
-void EditorController::Impl::flashRefusalLight(const ChartRefusalLight& lit)
+// Rationale lives on the declaration in editor_controller_impl.h. The note and keyframe keys are
+// gathered first and resolved in one merge each, which takes them in the chart's own order; every
+// marker resolves through its row on its own.
+void EditorController::Impl::flashRefusalLight(const RefusalLight& lit)
 {
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (m_view == nullptr || arrangement == nullptr || !arrangement->chart.has_value())
+    if (m_view == nullptr || lit.empty())
     {
         return;
     }
-    const std::vector<common::core::ChartNote>& chart_notes = arrangement->chart->notes;
-    ChartRefusalFlash flash{
-        .notes = slotIndicesForKeys(chart_notes, lit.notes),
-        .keyframes = {},
-        .fret_hand_position = {},
+    RefusalFlash flash;
+    std::vector<ChartSlotKey> notes;
+    std::vector<ChartKeyframeKey> keyframes;
+    // A marker its row no longer holds lights nothing, as a key the projection cannot resolve.
+    const auto mark = [this](
+                          std::vector<std::size_t>& into,
+                          const MarkerRow row,
+                          const common::core::GridPosition& start) {
+        if (const std::optional<std::size_t> index = markerIndex(row, start); index.has_value())
+        {
+            into.push_back(*index);
+        }
     };
-    if (m_tab_view_state != nullptr)
+    for (const RefusalTarget& target : lit.targets)
     {
-        flash.keyframes =
-            keyframeIndicesForKeys(chart_notes, m_tab_view_state->notes, lit.keyframes);
+        std::visit(
+            common::core::Overloaded{
+                [&notes](const ChartNoteKey& note) { notes.push_back(note.slot); },
+                [&keyframes](const ChartKeyframeKey& keyframe) { keyframes.push_back(keyframe); },
+                [&flash, &mark](const SpanSelection& span) {
+                    mark(flash.spans, MarkerRow::Span, span.start);
+                },
+                [&flash, &mark](const NoneHoldSelection& hold) {
+                    mark(flash.none_holds, MarkerRow::NoneHold, hold.start);
+                },
+                [&flash, &mark](const FretHandPositionSelection& hand) {
+                    mark(flash.fret_hand_positions, MarkerRow::FretHandPosition, hand.position);
+                },
+                [&flash](const SongSectionSelection& section) {
+                    flash.ruler_chips.push_back(
+                        RulerChipKey{.row = RulerChipRow::Section, .start = section.position});
+                },
+                [&flash](const TempoAnchorSelection& anchor) {
+                    flash.ruler_chips.push_back(
+                        RulerChipKey{.row = RulerChipRow::Tempo, .start = anchor.position});
+                },
+                [&flash](const TimeSignatureSelection& meter) {
+                    flash.ruler_chips.push_back(
+                        RulerChipKey{
+                            .row = RulerChipRow::TimeSignature,
+                            .start = common::core::measureDownbeat(meter.measure),
+                        });
+                },
+                [&flash](const ToneRegionSelection& region) {
+                    flash.tone_regions.push_back(region.region_id);
+                },
+            },
+            target);
     }
-    if (lit.fret_hand_position.has_value())
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement != nullptr && arrangement->chart.has_value())
     {
-        flash.fret_hand_position =
-            markerIndex(MarkerRow::FretHandPosition, *lit.fret_hand_position);
+        const std::vector<common::core::ChartNote>& chart_notes = arrangement->chart->notes;
+        std::ranges::sort(notes);
+        flash.notes = slotIndicesForKeys(chart_notes, notes);
+        if (m_tab_view_state != nullptr)
+        {
+            std::ranges::sort(keyframes);
+            flash.keyframes =
+                keyframeIndicesForKeys(chart_notes, m_tab_view_state->notes, keyframes);
+        }
     }
-    if (!flash.notes.empty() || !flash.keyframes.empty() || flash.fret_hand_position.has_value())
+    std::ranges::sort(flash.spans);
+    std::ranges::sort(flash.none_holds);
+    std::ranges::sort(flash.fret_hand_positions);
+    if (flash.notes.empty() && flash.spans.empty() && flash.none_holds.empty() &&
+        flash.fret_hand_positions.empty() && flash.keyframes.empty() && flash.ruler_chips.empty() &&
+        flash.tone_regions.empty())
     {
-        m_view->flashChartRefusal(std::move(flash));
+        return;
     }
+    m_view->flashRefusal(std::move(flash));
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
 void EditorController::Impl::reportChartPlanRefusal(
-    const ChartPlanRefusal& refusal, const ChartSelection& subject)
+    const PlanRefusal& refusal, const ChartSelection& subject)
 {
-    const auto* const invalid = std::get_if<ChartPlanInvalid>(&refusal);
+    const auto* const invalid = std::get_if<PlanRefused>(&refusal);
     if (invalid == nullptr)
     {
         return;
     }
     m_refusal_log.chartEdit(
         chartSubjectText(subject.notes(), subject.keyframes()), invalid->reason);
-    flashRefusalLight(invalid->lit);
+    RefusalLight lit = lightOf(subject);
+    lit.add(invalid->lit);
+    flashRefusalLight(lit);
 }
 
-// Rationale lives on the declaration in editor_controller_impl.h. The refused notes arrive in the
-// planner's walk order, which is the chart's slot order the index resolution merges against.
+// Rationale lives on the declaration in editor_controller_impl.h.
 void EditorController::Impl::reportChartRefusedNotes(
     const std::span<const ChartRefusedNote> refused)
 {
@@ -189,12 +285,12 @@ void EditorController::Impl::reportChartRefusedNotes(
     {
         return;
     }
-    ChartRefusalLight lit{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
-    lit.notes.reserve(refused.size());
+    RefusalLight lit;
     for (const ChartRefusedNote& note : refused)
     {
         m_refusal_log.chartEdit(chartSlotText(note.note), note.reason);
-        lit.notes.push_back(note.note);
+        lit.add(ChartNoteKey{.slot = note.note});
+        lit.add(note.lit);
     }
     flashRefusalLight(lit);
 }
@@ -1041,7 +1137,7 @@ bool EditorController::Impl::applyChartEditPlan(
 // subject the caller planned it over: a caller that wants to distinguish NoChange from Invalid for
 // its own behavior still branches before handing the plan over.
 bool EditorController::Impl::applyChartEditPlan(
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan, const ChartSelection& subject,
+    std::expected<JudgedChartPlan, PlanRefusal> plan, const ChartSelection& subject,
     std::optional<ChartEditLanding> landing)
 {
     if (!plan.has_value())
@@ -1070,14 +1166,9 @@ bool EditorController::Impl::applyChartEditPlan(
         }
         ChartSelection subject;
         subject.replaceWith(rewritten);
-        // The lock names nothing on the lane, so the refusal lights the notes it froze.
+        // The lock names nothing on the lane, so the refusal lights what it froze.
         reportChartPlanRefusal(
-            ChartPlanInvalid{
-                .reason = std::move(*locked),
-                .lit =
-                    {.notes = subject.notes(), .keyframes = {}, .fret_hand_position = std::nullopt},
-            },
-            subject);
+            PlanRefused{.reason = std::move(*locked), .lit = planBaseLight(plan.plan)}, subject);
         return false;
     }
 
@@ -2491,7 +2582,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     }
     // The gesture is COPIED into the window rather than moved: the replan reads it while the arming
     // argument is being evaluated, and a moved-from list would replay nothing.
-    const std::expected<bool, ChartPlanInvalid> committed = commitChartGestureStep(
+    const std::expected<bool, PlanRefused> committed = commitChartGestureStep(
         live != nullptr,
         [this, &delta, &gesture, label](const common::core::Chart& pre_gesture) {
             return planMoveSelection(
@@ -2767,14 +2858,14 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
 // head it planted, the ring site it struck or pointed, the objects it retyped — so the settle
 // never reads the target again. A hand placement's retype is the one whose plan is not a
 // note-stream change: its stream with one of the placement's frets replaced (planFretHandFret).
-std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> EditorController::Impl::
+std::expected<EditorController::Impl::ChartFretEntryPlan, PlanRefusal> EditorController::Impl::
     replanChartFretEntry(const ChartFretEntry& entry) const
 {
-    using Planned = std::expected<ChartFretEntryPlan, ChartPlanRefusal>;
+    using Planned = std::expected<ChartFretEntryPlan, PlanRefusal>;
     // Pairs a note-stream plan, or its refusal, with the selection its settle leaves.
-    const auto selecting = [](std::expected<JudgedChartPlan, ChartPlanRefusal> plan,
-                              std::vector<ChartSelectionKey>
-                                  select) -> Planned {
+    const auto selecting =
+        [](std::expected<JudgedChartPlan, PlanRefusal> plan, std::vector<ChartSelectionKey> select)
+        -> Planned {
         if (!plan.has_value())
         {
             return std::unexpected{plan.error()};
@@ -2785,35 +2876,15 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, ChartPlanRefusal> Edit
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
         // No chart, so nothing to light.
-        return std::unexpected{ChartPlanInvalid{
-            .reason = "no chart is loaded",
-            .lit = {.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt},
-        }};
+        return std::unexpected{PlanRefused{.reason = "no chart is loaded", .lit = {}}};
     }
     // Refused at the plan, not only at the settle, so the pending box is red while the value is
     // typed: what the commit would refuse is what the box shows. The lock names nothing on the
-    // lane, so its refusal lights what the entry would have written through: the ring a cut or a
-    // point divides, the objects a retype addresses, the placement whose fret it retypes; an insert
-    // at an empty slot has nothing standing there to light.
+    // lane, so its refusal lights what the entry would have written through.
     if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
     {
-        ChartRefusalLight lit{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
-        std::visit(
-            common::core::Overloaded{
-                [](const ChartFretEntry::InsertAt&) {},
-                [&lit](const ChartFretEntry::Cut& cut) { lit.notes = {cut.note}; },
-                [&lit](const ChartFretEntry::CreateKeyframe& create) { lit.notes = {create.note}; },
-                [&lit](const ChartFretEntry::Retype& retype) {
-                    lit.notes = retype.keys;
-                    lit.keyframes = retype.keyframe_keys;
-                },
-                [&lit](const ChartFretEntry::RetypeHandFret& hand) {
-                    lit.fret_hand_position = hand.position;
-                },
-            },
-            entry.target);
         return std::unexpected{
-            ChartPlanInvalid{.reason = std::move(*locked), .lit = std::move(lit)}
+            PlanRefused{.reason = std::move(*locked), .lit = fretEntryTargetLight(entry.target)}
         };
     }
     const common::core::Chart& chart = *arrangement->chart;
@@ -2912,14 +2983,8 @@ void EditorController::Impl::settleChartFretEntry(ChartFretEntry entry)
 // valid value settles in the same keystroke.
 void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
 {
-    // The red box says THAT the value cannot land; the log says why.
-    if (!entry.plan.has_value())
-    {
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
-        {
-            m_refusal_log.chartEdit(chartFretEntrySubject(entry), invalid->reason);
-        }
-    }
+    // The red box says THAT the value cannot land; the log says why, and the flash what refused it.
+    reportChartFretEntryRefusal(entry);
     if (entry.refused() || chartFretValueExtendable(entry.value))
     {
         armChartFretEntry(std::move(entry));
@@ -3278,6 +3343,50 @@ std::string EditorController::Impl::chartFretEntrySubject(const ChartFretEntry& 
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
+RefusalLight EditorController::Impl::fretEntryTargetLight(
+    const decltype(ChartFretEntry::target)& target)
+{
+    RefusalLight light;
+    std::visit(
+        common::core::Overloaded{
+            [](const ChartFretEntry::InsertAt&) {},
+            [&light](const ChartFretEntry::Cut& cut) { light.add(ChartNoteKey{.slot = cut.note}); },
+            [&light](const ChartFretEntry::CreateKeyframe& create) {
+                light.add(ChartNoteKey{.slot = create.note});
+            },
+            [&light](const ChartFretEntry::Retype& retype) {
+                ChartSelection addressed;
+                addressed.replaceWith(chartRetypeKeys(retype));
+                light = lightOf(addressed);
+            },
+            [&light](const ChartFretEntry::RetypeHandFret& hand) {
+                light.add(FretHandPositionSelection{.position = hand.position});
+            },
+        },
+        target);
+    return light;
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. The entry's target is the subject
+// the controller holds; the plan's refusal adds what stood in its way.
+void EditorController::Impl::reportChartFretEntryRefusal(const ChartFretEntry& entry)
+{
+    if (entry.plan.has_value())
+    {
+        return;
+    }
+    const auto* const invalid = std::get_if<PlanRefused>(&entry.plan.error());
+    if (invalid == nullptr)
+    {
+        return;
+    }
+    m_refusal_log.chartEdit(chartFretEntrySubject(entry), invalid->reason);
+    RefusalLight lit = fretEntryTargetLight(entry.target);
+    lit.add(invalid->lit);
+    flashRefusalLight(lit);
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h.
 //
 // Settled in this keystroke rather than armed: the value arrives WHOLE, so there is no digit left
 // to widen it and no provisional value to show — which is also why a refusal shows no red box
@@ -3306,15 +3415,11 @@ void EditorController::Impl::insertAtChartCaret(const ChartEntryPlane plane)
     const int fret =
         chartFretInForceAt(arrangement->chart->notes, session().song().tempo_map, *slot);
     ChartFretEntry entry = plannedChartFretEntry(fret, std::move(*target), m_now_milliseconds());
-    if (!entry.plan.has_value())
+    // No red box shows the refusal here, so the report is all the key leaves behind.
+    if (entry.refused())
     {
-        // No red box shows the refusal here, so it flashes what the plan's refusal lights.
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&entry.plan.error()))
-        {
-            m_refusal_log.chartEdit(chartFretEntrySubject(entry), invalid->reason);
-            flashRefusalLight(invalid->lit);
-            return;
-        }
+        reportChartFretEntryRefusal(entry);
+        return;
     }
     settleChartFretEntry(std::move(entry));
 }
@@ -3459,7 +3564,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     //
     // No select_exactly: a duration step rewrites its notes IN PLACE, so every key stays where it
     // was and the plan's own follow is exactly right.
-    if (const std::expected<bool, ChartPlanInvalid> stepped = commitChartGestureStep(
+    if (const std::expected<bool, PlanRefused> stepped = commitChartGestureStep(
             live != nullptr,
             [this, &live_chart, &gesture](const common::core::Chart& pre_gesture) {
                 return planAdjustSustain(
@@ -3524,7 +3629,7 @@ const common::core::Chart* EditorController::Impl::gestureBaseChart(
 // the plan's default follow to it, which is right for every verb that rewrites in place. Asked of
 // the pre-gesture chart, exactly like the replan, because a landing a bound HELD is a fact about
 // that same state.
-std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGestureStep(
+std::expected<bool, PlanRefused> EditorController::Impl::commitChartGestureStep(
     const bool continues, const ChartGestureReplan& replan, ChartVerbWindowVerb verb,
     const ChartGestureLanding& landing)
 {
@@ -3551,7 +3656,7 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
     {
         select_exactly = landing(*pre_gesture);
     }
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan = replan(*pre_gesture);
+    std::expected<JudgedChartPlan, PlanRefusal> plan = replan(*pre_gesture);
     if (!plan.has_value())
     {
         // Invalid is the gate refusing the result, so this step never happened: it is not recorded
@@ -3565,7 +3670,7 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
         // from the current values rather than paying back steps that never moved anything; a
         // running gesture RETIRES the entry it pushed, because an entry describing nothing is a
         // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
-        if (std::holds_alternative<ChartPlanNoChange>(plan.error()) && burst != nullptr)
+        if (std::holds_alternative<PlanNoChange>(plan.error()) && burst != nullptr)
         {
             // The selection goes back with the chart, landed once it is written: to the selection
             // the run's entry recorded before its first step, whatever the steps re-keyed or
@@ -3579,7 +3684,7 @@ std::expected<bool, ChartPlanInvalid> EditorController::Impl::commitChartGesture
             // follow exactly as it follows any other: a caret riding the lone object rides it home.
             return true;
         }
-        if (const auto* const invalid = std::get_if<ChartPlanInvalid>(&plan.error()))
+        if (const auto* const invalid = std::get_if<PlanRefused>(&plan.error()))
         {
             return std::unexpected{*invalid};
         }
@@ -4032,7 +4137,7 @@ void EditorController::Impl::commitChartHarmonic(const std::optional<int> partia
     // The notes the choice refused, reported once the step has published the chart they are named
     // against.
     std::vector<ChartRefusedNote> refused;
-    if (const std::expected<bool, ChartPlanInvalid> stepped = commitChartGestureStep(
+    if (const std::expected<bool, PlanRefused> stepped = commitChartGestureStep(
             continues,
             [this, &keys, partial, &refused](const common::core::Chart& pre_gesture) {
                 ChartSelectionPlan planned =
@@ -4242,7 +4347,7 @@ void EditorController::Impl::toggleChartLegato(const ChartSelection& operand)
     };
     // A claim that resolved sets, and a gate refusal of one is a refused press: only a press with
     // nothing left to claim means clear.
-    if (planned.plan.has_value() || std::holds_alternative<ChartPlanInvalid>(planned.plan.error()))
+    if (planned.plan.has_value() || std::holds_alternative<PlanRefused>(planned.plan.error()))
     {
         if (applyChartEditPlan(std::move(planned), operand, operand.keys()))
         {
@@ -4298,7 +4403,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartJu
     {
         return;
     }
-    std::expected<ChartJunctionPlan, ChartPlanRefusal> toggled = planToggleJunctions(
+    std::expected<ChartJunctionPlan, PlanRefusal> toggled = planToggleJunctions(
         *arrangement->chart,
         session().song().tempo_map,
         chartSelection().notes(),

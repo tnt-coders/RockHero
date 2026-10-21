@@ -16,6 +16,7 @@ by construction.
 
 #include "chart/chart_selection.h"
 #include "controller/editor_undo_history.h"
+#include "controller/refusal_light.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -146,64 +147,6 @@ struct [[nodiscard]] ChartEditPlan
     }
 };
 
-/*! \brief The edit would change nothing a document records — legal, just empty. */
-struct ChartPlanNoChange
-{
-};
-
-/*!
-\brief What a refusal lights in the tab lane: the elements the refusal names, as the keys the
-selection is published by, plus the chip of a fret-hand position where one is named.
-
-Keys rather than projection indices, because a refusal is decided by a planner that sees the chart
-and never the projection; the controller resolves them exactly as it resolves the selection. A key
-the current projection cannot resolve (a note the refused plan would have created) lights nothing,
-which is right: there is no mark for it yet.
-*/
-struct ChartRefusalLight
-{
-    /*! \brief The notes to light, by slot. */
-    std::vector<ChartSlotKey> notes;
-
-    /*! \brief The keyframes to light. */
-    std::vector<ChartKeyframeKey> keyframes;
-
-    /*! \brief The fret-hand position whose chip to light, by the position that names it. */
-    std::optional<common::core::GridPosition> fret_hand_position;
-};
-
-/*!
-\brief The result would break a chart rule or a planner's own bound, so the whole plan is refused,
-never clamped: why, and what the refusal lights, both decided where it refuses.
-
-A refusal lights what it names. Where another authored thing stands in the way, that is the
-culprit — the note a move would land on, the ring whose statement an edit would cut off, the
-neighbour hold a push would empty, the stretch a hold runs on past — and where nothing does, the
-refused elements themselves. The light is stated at
-every refusing site, never defaulted: a site that can light nothing (an empty slot, no chart) says
-so with an empty light.
-*/
-struct ChartPlanInvalid
-{
-    /*! \brief Why, in words for the log: the rule's own message, or the planner's bound. */
-    std::string reason;
-
-    /*! \brief What the refusal flash lights. */
-    ChartRefusalLight lit;
-};
-
-/*!
-\brief Why a planner returned no plan: a valid no-op is not a refusal.
-
-The two emptinesses are kept apart because sharing one `std::nullopt` makes every refusal in the
-editor silent — no caller can tell "this edit is not allowed" from "this edit changes nothing", so
-nothing can report the former without lying about the latter. The pending fret entry is the
-consumer that needs the split: a provisional value that plans to a no-op is VALID and must not
-paint red. A sum rather than a kind beside a string, so only a refusal can carry a reason; the
-reason goes to the log, and what the screen shows is the refusal flash.
-*/
-using ChartPlanRefusal = std::variant<ChartPlanNoChange, ChartPlanInvalid>;
-
 /*!
 \brief A plan the gate passed (\ref finalizePlan), with the derivation of the chart it lands and
 what the normal form rewrote to land it.
@@ -304,7 +247,7 @@ the ring's end (\ref planMoveSelection).
         NoChange when the normalized candidate equals `base`, Invalid with the rule's own message
         when the gate refuses it.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> finalizePlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, std::string_view label);
 
@@ -319,10 +262,10 @@ hold's edges are walls the spans beside it close at. An authored position never 
 the spans the holds give no longer cover is dropped into the plan, as the note gate drops it
 (\ref common::core::dropUncoveringFretHandPositions).
 
-A hold is lit as the notes sounding inside it — struck in it, or ringing into it — since a ring
-carried through a stretch is part of what a hold over it grips. A hold that does not fit lights the
-stretch between its stated end and where its shape closes; one the normalizer would drop lights
-itself; a stream the reader would refuse lights the holds the candidate changed.
+A hold is lit as its own mark (\ref holdTarget). A hold that does not fit lights the stretch
+between its stated end and where its shape closes, as the notes sounding inside it — struck in it,
+or ringing into it — since no mark but theirs covers that stretch; one the normalizer would drop
+lights itself; a stream the reader would refuse lights the holds the candidate changed.
 
 \param base The chart the plan is diffed against, a fixpoint of every gate.
 \param tempo_map Tempo map placing the notes and the holds.
@@ -331,7 +274,7 @@ itself; a stream the reader would refuse lights the holds the candidate changed.
 \return The plan with the notes layer of the chart it lands and the positions it dropped; NoChange
         when the holds are the base's, Invalid naming the first rule the holds break.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> finalizeShapeHoldPlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ShapeHold>& candidate, std::string_view label);
 
@@ -388,7 +331,7 @@ struct SteppedShapeHoldEdge
     refusal, or, where no candidate lies that way at all, one naming the direction and lighting
     the moved hold.
     */
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan;
+    std::expected<JudgedChartPlan, PlanRefusal> plan;
 };
 
 /*!
@@ -434,8 +377,7 @@ neighbour pushed to nothing is refused, lighting that neighbour, as is the moved
 length, lighting the moved hold. `moved` is the hold as the run began, so a run that steps back
 restores the neighbour it pushed: every press replays from the run's start chart.
 
-\param base The chart the run began from: its holds are moved, its notes light a refusal.
-\param tempo_map Tempo map placing the notes a refusal lights.
+\param holds The holds of the chart the run began from, ascending.
 \param moved The hold being moved as the run began: one of the base's holds, which the result
        replaces, or a derived span's extent as an unnamed hold, which the result adds.
 \param edge The edge moved.
@@ -443,10 +385,9 @@ restores the neighbour it pushed: every press replays from the run's start chart
 \return The holds; NoChange where the edge stands where the run began, which leaves a derived span
         unconverted, Invalid naming the rule broken.
 */
-[[nodiscard]] std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShapeHolds(
-    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    const common::core::ShapeHold& moved, ShapeHoldEdge edge,
-    const common::core::GridPosition& value);
+[[nodiscard]] std::expected<std::vector<common::core::ShapeHold>, PlanRefusal> movedShapeHolds(
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& moved,
+    ShapeHoldEdge edge, const common::core::GridPosition& value);
 
 /*!
 \brief Plans a hold edge key's run: the holds it leaves (\ref movedShapeHolds), judged by the hold
@@ -461,7 +402,7 @@ gate (\ref finalizeShapeHoldPlan).
 \return The plan; NoChange where the edge stands where the run began, Invalid naming the rule
         broken.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planMoveShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const common::core::ShapeHold& moved, ShapeHoldEdge edge,
     const common::core::GridPosition& value, std::string_view label);
@@ -500,7 +441,7 @@ never the placement quantum: snap decides where things go, never how long they a
 tick-long default ring would be absurd.
 \return The plan; NoChange when the placement changes nothing, Invalid when the gate refuses it.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertNote(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, common::core::Fraction grid_note_value);
 
@@ -582,7 +523,7 @@ no scrape.
 \param fret Fret the point states.
 \return The plan; Invalid when the gate refuses it.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, common::core::Fraction offset, int fret);
 
@@ -612,7 +553,7 @@ adjacent (\ref planInsertNote).
 \param fret Fret the new head is struck at.
 \return The plan; Invalid when the walk or the gate refuses it.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planCutRing(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, common::core::Fraction offset, int fret);
 
@@ -661,7 +602,7 @@ binary-search this precondition); keys with no matching note are skipped.
 keyframe are skipped.
 \return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planDeleteSelection(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 
@@ -854,7 +795,7 @@ so a note carried across a meter change keeps its real length and stays on the t
 \return The plan; NoChange when nothing moves or changes, Invalid when a destination leaves the
         neck, collides, or fails the gate.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     common::core::Fraction whole_note_delta, int string_delta, std::string_view label);
@@ -919,7 +860,7 @@ naming no keyframe, or one stating no fret, are skipped.
         The split is what lets the pending entry paint a refused value red without painting a valid
         no-op red.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
     const std::vector<ChartKeyframeKey>& keyframe_keys, ChartFretWrite write);
@@ -1037,7 +978,7 @@ binary-search this precondition).
         with one that describes nothing; Invalid when the gate refuses the result. A step that moved
         no ring returns the PLAN the step before it returned, which is how the caller recognises it.
 */
-[[nodiscard]] std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const common::core::Chart& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps);
@@ -1050,6 +991,12 @@ struct ChartRefusedNote
 
     /*! \brief Why, in words for the log: the rule's own message, or the verb's. */
     std::string reason;
+
+    /*!
+    \brief What stood in the note's way, where something did: the culprit the refusal lights beside
+    the note itself, which the controller adds as the refusal's subject.
+    */
+    RefusalLight lit;
 };
 
 /*!
@@ -1068,7 +1015,7 @@ second pass, and no count in a corner could name them.
 struct [[nodiscard]] ChartSelectionPlan
 {
     /*! \brief The planned change, or why there is none. */
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan;
+    std::expected<JudgedChartPlan, PlanRefusal> plan;
 
     /*! \brief The selected notes refused one by one, in the planner's walk order. */
     std::vector<ChartRefusedNote> refused;
@@ -1591,7 +1538,7 @@ no keyframe are skipped.
         result (a scrape, whose terminal the origin would lose; a destination slot another note
         holds).
 */
-[[nodiscard]] std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
+[[nodiscard]] std::expected<ChartJunctionPlan, PlanRefusal> planToggleJunctions(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& head_keys, const std::vector<ChartKeyframeKey>& keyframe_keys);
 

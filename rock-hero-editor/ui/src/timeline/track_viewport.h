@@ -421,10 +421,10 @@ public:
         std::optional<int> signature_measure);
 
     /*!
-    \brief Forwards a refused verb on a ruler chip to the pinned ruler, which flashes the chip.
-    \param chip The refused chip.
+    \brief Forwards a refusal's ruler chips to the pinned ruler, which flashes them.
+    \param flash The refusal's targets; only its ruler chips are this surface's.
     */
-    void flashRulerChipRefusal(core::RulerChipKey chip);
+    void flashRefusal(const core::RefusalFlash& flash);
 
     /*!
     \brief Forwards a landed time-signature edit to the pinned ruler, which flashes the measure

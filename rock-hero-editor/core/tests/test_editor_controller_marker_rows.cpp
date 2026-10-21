@@ -359,6 +359,12 @@ struct MarkerRowEditor
     return chart;
 }
 
+// A chip index as the refusal flash lists it: the one index, or none.
+[[nodiscard]] std::vector<std::size_t> chipIndices(const std::optional<std::size_t>& chip)
+{
+    return chip.has_value() ? std::vector{*chip} : std::vector<std::size_t>{};
+}
+
 } // namespace
 
 // Up off the top string walks the ruler's rows by selection — time signature, tempo, section — and
@@ -1881,14 +1887,14 @@ TEST_CASE("Delete and the move refuse a derived position", "[core][marker-rows]"
     CHECK(editor.undoEntryCount() == entries_before);
     CHECK(editor.selectedChip() == derived);
     REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
-    CHECK(editor.view.refusal_flashes.back().fret_hand_position == derived);
+    CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(derived));
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
     CHECK(editor.undoEntryCount() == entries_before);
     CHECK(editor.selectedChip() == derived);
     REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 2);
-    CHECK(editor.view.refusal_flashes.back().fret_hand_position == derived);
+    CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(derived));
 }
 
 // The prune drops every stored position the derivation reproduces and keeps the rest, as one undo
@@ -1973,7 +1979,7 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
         CHECK(editor.undoEntryCount() == entries_before);
         CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
         REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
-        CHECK(editor.view.refusal_flashes.back().fret_hand_position == chip);
+        CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(chip));
         const std::string contents = capture.text();
         INFO(contents);
         CHECK(contents.find("does not cover fret 3 gripped from 2:1") != std::string::npos);

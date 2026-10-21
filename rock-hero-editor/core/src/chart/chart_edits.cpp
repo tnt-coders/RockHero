@@ -226,48 +226,32 @@ enum class StrandedStrikeRepair : std::uint8_t
     return affected;
 }
 
-// The light of a refusal naming one note.
-[[nodiscard]] ChartRefusalLight noteLight(const ChartSlotKey& note)
+// The light on the targets a refusal names, each added once.
+[[nodiscard]] RefusalLight lightOn(const std::initializer_list<RefusalTarget> targets)
 {
-    return ChartRefusalLight{.notes = {note}, .keyframes = {}, .fret_hand_position = std::nullopt};
-}
-
-// The light of a refusal naming one keyframe.
-[[nodiscard]] ChartRefusalLight keyframeLight(const ChartKeyframeKey& keyframe)
-{
-    return ChartRefusalLight{
-        .notes = {}, .keyframes = {keyframe}, .fret_hand_position = std::nullopt
-    };
-}
-
-// The light of a refusal naming a set of notes.
-[[nodiscard]] ChartRefusalLight notesLight(std::vector<ChartSlotKey> notes)
-{
-    return ChartRefusalLight{
-        .notes = std::move(notes), .keyframes = {}, .fret_hand_position = std::nullopt
-    };
-}
-
-// The light of a refusal naming the notes in `stream` at `indices`, as the stream's own slots.
-[[nodiscard]] ChartRefusalLight streamLight(
-    const std::vector<common::core::ChartNote>& stream, std::initializer_list<std::size_t> indices)
-{
-    std::vector<ChartSlotKey> notes;
-    for (const std::size_t index : indices)
+    RefusalLight light;
+    for (const RefusalTarget& target : targets)
     {
-        notes.push_back(chartSlotKeyOf(stream[index]));
+        light.add(target);
     }
-    return notesLight(std::move(notes));
+    return light;
+}
+
+// The target a refusal names a note in a stream by: its slot.
+[[nodiscard]] ChartNoteKey noteTarget(const common::core::ChartNote& note)
+{
+    return ChartNoteKey{.slot = chartSlotKeyOf(note)};
 }
 
 // The light of a refusal naming a stretch `[start, end)` of the chart: the notes sounding inside
 // it — struck in it, or struck before it and ringing into it — since a ring carried through a
-// stretch is part of what a hold over it grips.
-[[nodiscard]] ChartRefusalLight stretchLight(
+// stretch is part of what a hold over it grips. The one place notes stand for a stretch: the fit
+// overrun, where no mark but the notes covers the stretch the hold runs on past.
+[[nodiscard]] RefusalLight stretchLight(
     const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
     const common::core::GridPosition& start, const common::core::GridPosition& end)
 {
-    std::vector<ChartSlotKey> sounding;
+    RefusalLight sounding;
     for (const common::core::ChartNote& note : notes)
     {
         if (!(note.position < end))
@@ -277,18 +261,10 @@ enum class StrandedStrikeRepair : std::uint8_t
         if (!(note.position < start) || start < common::core::advanceGridPositionByWholeNotes(
                                                     tempo_map, note.position, note.sustain))
         {
-            sounding.push_back(chartSlotKeyOf(note));
+            sounding.add(noteTarget(note));
         }
     }
-    return notesLight(std::move(sounding));
-}
-
-// The light of a refusal naming a hold: the notes sounding inside its extent (stretchLight).
-[[nodiscard]] ChartRefusalLight holdLight(
-    const std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map,
-    const common::core::ShapeHold& hold)
-{
-    return stretchLight(notes, tempo_map, hold.start, hold.end);
+    return sounding;
 }
 
 // Where both gates end: the plan with the notes layer of the chart it lands, the holds' rewrites
@@ -338,7 +314,7 @@ template <typename Element>
 // with the same inputs, so the first refusal — and its message — is the whole walk's. The order
 // rule reads slots alone, which saving never changes, so it reads the candidate as it stands. A
 // refusal lights the note or the pair the rule judged.
-[[nodiscard]] std::expected<void, ChartPlanInvalid> validateAffected(
+[[nodiscard]] std::expected<void, PlanRefused> validateAffected(
     const std::vector<common::core::ChartNote>& candidate, const std::vector<std::size_t>& affected,
     const common::core::ChartTuning& tuning, const common::core::TempoMap& tempo_map)
 {
@@ -350,9 +326,9 @@ template <typename Element>
                     common::core::savedChartNote(candidate[index]), tuning, tempo_map);
             !alone.has_value())
         {
-            return std::unexpected{ChartPlanInvalid{
+            return std::unexpected{PlanRefused{
                 .reason = std::move(alone.error().message),
-                .lit = streamLight(candidate, {index}),
+                .lit = lightOn({noteTarget(candidate[index])}),
             }};
         }
         if (index > 0)
@@ -361,9 +337,10 @@ template <typename Element>
                     common::core::validateChartNotePair(candidate[index - 1], candidate[index]);
                 !pair.has_value())
             {
-                return std::unexpected{ChartPlanInvalid{
+                return std::unexpected{PlanRefused{
                     .reason = std::move(pair.error().message),
-                    .lit = streamLight(candidate, {index - 1, index}),
+                    .lit =
+                        lightOn({noteTarget(candidate[index - 1]), noteTarget(candidate[index])}),
                 }};
             }
         }
@@ -376,9 +353,9 @@ template <typename Element>
                     common::core::validateChartNotePair(candidate[index], candidate[next]);
                 !pair.has_value())
             {
-                return std::unexpected{ChartPlanInvalid{
+                return std::unexpected{PlanRefused{
                     .reason = std::move(pair.error().message),
-                    .lit = streamLight(candidate, {index, next}),
+                    .lit = lightOn({noteTarget(candidate[index]), noteTarget(candidate[next])}),
                 }};
             }
         }
@@ -388,7 +365,7 @@ template <typename Element>
 
 } // namespace
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
+std::expected<JudgedChartPlan, PlanRefusal> finalizePlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, const std::string_view label)
 {
@@ -421,12 +398,9 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
             assert(
                 bound != candidate.end() &&
                 "a truncated ring is bounded by a later onset on its string");
-            return std::unexpected{ChartPlanInvalid{
+            return std::unexpected{PlanRefused{
                 .reason = "the edit would cut an authored statement off a ring it shortens",
-                .lit = streamLight(
-                    candidate,
-                    {truncation->index,
-                     static_cast<std::size_t>(std::distance(candidate.begin(), bound))}),
+                .lit = lightOn({noteTarget(candidate[truncation->index]), noteTarget(*bound)}),
             }};
         }
     }
@@ -437,7 +411,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     {
         static_cast<void>(common::core::flattenStrandedStrike(candidate[index]));
     }
-    if (std::expected<void, ChartPlanInvalid> valid =
+    if (std::expected<void, PlanRefused> valid =
             validateAffected(candidate, affected, base.tuning, tempo_map);
         !valid.has_value())
     {
@@ -448,7 +422,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     ChartEditPlan plan = diffNotes(base.notes, candidate, label);
     if (plan.empty())
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     // Whole-chart rather than over the affected notes: a span is derived from its whole figure, so
     // an edit can move a hold's close or what the hand grips far from the notes it touched. Derived
@@ -460,13 +434,13 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizePlan(
     return judgedPlan(base, tempo_map, std::move(plan), std::move(normal));
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
+std::expected<JudgedChartPlan, PlanRefusal> finalizeShapeHoldPlan(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ShapeHold>& candidate, const std::string_view label)
 {
     if (candidate == base.shape_holds)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     if (std::expected<void, common::core::ChartError> valid =
             common::core::validateShapeHolds(candidate, tempo_map);
@@ -475,18 +449,16 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
         // The rule names a place, not a hold, so the refusal lights every hold the candidate
         // changed: the carve and the edge move keep the stream in order, so what the reader would
         // refuse is among what the verb wrote.
-        ChartRefusalLight changed{.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt};
+        RefusalLight changed;
         for (const common::core::ShapeHold& hold : candidate)
         {
             if (std::ranges::find(base.shape_holds, hold) == base.shape_holds.end())
             {
-                std::ranges::copy(
-                    holdLight(base.notes, tempo_map, hold).notes,
-                    std::back_inserter(changed.notes));
+                changed.add(holdTarget(hold));
             }
         }
         return std::unexpected{
-            ChartPlanInvalid{.reason = std::move(valid.error().message), .lit = std::move(changed)}
+            PlanRefused{.reason = std::move(valid.error().message), .lit = std::move(changed)}
         };
     }
     // The holds are accepted exactly when they are their own normal form, the normalizer being the
@@ -501,14 +473,14 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> finalizeShapeHoldPlan(
     {
         if (normalized == published.end() || normalized->start != stated->start)
         {
-            return std::unexpected{ChartPlanInvalid{
+            return std::unexpected{PlanRefused{
                 .reason = common::core::formatShapeHoldToken(*stated) + " would hold nothing",
-                .lit = holdLight(base.notes, tempo_map, *stated),
+                .lit = lightOn({holdTarget(*stated)}),
             }};
         }
         // The normalizer moves only an end, so the stretch between the two is never empty: the
         // notes that carry the shape on past the stated end, or the conflict that closes it short.
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = common::core::formatShapeHoldToken(*stated) +
                       " does not fit its notes: its shape closes at " +
                       common::core::formatGridPositionToken(normalized->end),
@@ -662,12 +634,12 @@ SteppedShapeHoldEdge planSteppedShapeHoldEdge(
         adjacentShapeHoldNoteBoundary(base.notes, tempo_map, from, later);
     std::optional<common::core::GridPosition> line =
         gridLineBeyond(tempo_map, grid_note_value, from, later);
-    std::optional<ChartPlanRefusal> nearest;
+    std::optional<PlanRefusal> nearest;
     while (const std::optional<common::core::GridPosition> stop = nearer(boundary, line, later))
     {
-        std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
+        std::expected<JudgedChartPlan, PlanRefusal> plan =
             planMoveShapeHoldEdge(base, tempo_map, moved, edge, *stop, label);
-        if (plan.has_value() || std::holds_alternative<ChartPlanNoChange>(plan.error()))
+        if (plan.has_value() || std::holds_alternative<PlanNoChange>(plan.error()))
         {
             return SteppedShapeHoldEdge{.value = *stop, .plan = std::move(plan)};
         }
@@ -693,18 +665,17 @@ SteppedShapeHoldEdge planSteppedShapeHoldEdge(
     }
     return SteppedShapeHoldEdge{
         .value = from,
-        .plan = std::unexpected{ChartPlanInvalid{
+        .plan = std::unexpected{PlanRefused{
             .reason =
                 std::string{"no note boundary or grid line"} + (later ? " later" : " earlier"),
-            .lit = holdLight(base.notes, tempo_map, moved),
+            .lit = lightOn({holdTarget(moved)}),
         }},
     };
 }
 
-std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShapeHolds(
-    const common::core::Chart& base, const common::core::TempoMap& tempo_map,
-    const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
-    const common::core::GridPosition& value)
+std::expected<std::vector<common::core::ShapeHold>, PlanRefusal> movedShapeHolds(
+    const std::vector<common::core::ShapeHold>& holds, const common::core::ShapeHold& moved,
+    const ShapeHoldEdge edge, const common::core::GridPosition& value)
 {
     common::core::ShapeHold edged = moved;
     (edge == ShapeHoldEdge::Start ? edged.start : edged.end) = value;
@@ -712,27 +683,27 @@ std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShape
     // an edge that actually moved converts a span.
     if (edged == moved)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     if (!(edged.start < edged.end))
     {
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = common::core::formatShapeHoldToken(moved) + " would hold nothing",
-            .lit = holdLight(base.notes, tempo_map, moved),
+            .lit = lightOn({holdTarget(moved)}),
         }};
     }
     // Holds never overlap, so a value names at most one of them, and a derived span's extent as an
     // unnamed hold names none: no unnamed hold states it, or the span would be held.
-    std::vector<common::core::ShapeHold> others = base.shape_holds;
+    std::vector<common::core::ShapeHold> others = holds;
     std::erase_if(others, [&moved](const common::core::ShapeHold& hold) { return hold == moved; });
     for (const common::core::ShapeHold& other : others)
     {
         if (!(other.start < edged.start) && !(edged.end < other.end))
         {
-            return std::unexpected{ChartPlanInvalid{
+            return std::unexpected{PlanRefused{
                 .reason = "the edge would push " + common::core::formatShapeHoldToken(other) +
                           " to nothing",
-                .lit = holdLight(base.notes, tempo_map, other),
+                .lit = lightOn({holdTarget(other)}),
             }};
         }
     }
@@ -740,12 +711,12 @@ std::expected<std::vector<common::core::ShapeHold>, ChartPlanRefusal> movedShape
         others, ShapeHoldExtent{.start = edged.start, .end = edged.end}, edged.grip);
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveShapeHoldEdge(
+std::expected<JudgedChartPlan, PlanRefusal> planMoveShapeHoldEdge(
     const common::core::Chart& base, const common::core::TempoMap& tempo_map,
     const common::core::ShapeHold& moved, const ShapeHoldEdge edge,
     const common::core::GridPosition& value, const std::string_view label)
 {
-    return movedShapeHolds(base, tempo_map, moved, edge, value)
+    return movedShapeHolds(base.shape_holds, moved, edge, value)
         .and_then([&base, &tempo_map, label](const std::vector<common::core::ShapeHold>& holds) {
             return finalizeShapeHoldPlan(base, tempo_map, holds, label);
         });
@@ -795,7 +766,8 @@ template <typename Write>
         common::core::ChartNote written = note;
         if (NoteWrite wrote = write(std::as_const(note), written); !wrote.has_value())
         {
-            refused.push_back({.note = chartSlotKeyOf(note), .reason = std::move(wrote.error())});
+            refused.push_back(
+                {.note = chartSlotKeyOf(note), .reason = std::move(wrote.error()), .lit = {}});
             continue;
         }
         if (common::core::savedChartNote(written) == common::core::savedChartNote(note))
@@ -812,7 +784,9 @@ template <typename Write>
             !valid.has_value())
         {
             refused.push_back(
-                {.note = chartSlotKeyOf(note), .reason = std::move(valid.error().message)});
+                {.note = chartSlotKeyOf(note),
+                 .reason = std::move(valid.error().message),
+                 .lit = {}});
             continue;
         }
         note = std::move(written);
@@ -820,7 +794,7 @@ template <typename Write>
     }
     if (!changed)
     {
-        return {.plan = std::unexpected{ChartPlanNoChange{}}, .refused = std::move(refused)};
+        return {.plan = std::unexpected{PlanNoChange{}}, .refused = std::move(refused)};
     }
     return {
         .plan = finalizePlan(chart, tempo_map, std::move(candidate), label),
@@ -918,7 +892,7 @@ struct AddressedStop
 // Instants must be strictly inside the ring and strictly ascending; one at the ring's END is not a
 // split at all (the ring already stops there) and is refused, which is also why the junction
 // toggle cannot split at a keyframe on the ring's end: it has no remainder to hand over.
-[[nodiscard]] std::expected<void, ChartPlanRefusal> splitNoteIntoProducts(
+[[nodiscard]] std::expected<void, PlanRefusal> splitNoteIntoProducts(
     const common::core::TempoMap& tempo_map, const common::core::ChartNote& note,
     const std::vector<common::core::Fraction>& instants,
     std::vector<common::core::ChartNote>& products)
@@ -929,18 +903,17 @@ struct AddressedStop
     // A refusal lights the note and the junctions asked of it: the junction toggle's keyframes
     // resolve to marks, a cut's instant to none, so each caller sees what it pointed at lit.
     const auto lit = [&note, &instants] {
-        ChartRefusalLight light = noteLight(chartSlotKeyOf(note));
+        RefusalLight light = lightOn({noteTarget(note)});
         for (const common::core::Fraction& instant : instants)
         {
-            light.keyframes.push_back(
-                ChartKeyframeKey{.note = chartSlotKeyOf(note), .offset = instant});
+            light.add(ChartKeyframeKey{.note = chartSlotKeyOf(note), .offset = instant});
         }
         return light;
     };
     if (common::core::isScrape(note.attack))
     {
         return std::unexpected{
-            ChartPlanInvalid{.reason = "a scrape has no junction to split", .lit = lit()}
+            PlanRefused{.reason = "a scrape has no junction to split", .lit = lit()}
         };
     }
     for (const common::core::Fraction& instant : instants)
@@ -948,7 +921,7 @@ struct AddressedStop
         if (!(common::core::Fraction{0, 1} < instant) || !(instant < note.sustain))
         {
             return std::unexpected{
-                ChartPlanInvalid{.reason = "the split instant is not inside the ring", .lit = lit()}
+                PlanRefused{.reason = "the split instant is not inside the ring", .lit = lit()}
             };
         }
     }
@@ -1020,7 +993,7 @@ struct AddressedStop
 // which is the whole of what makes split-then-join an exact round trip, with no "did this point
 // retreat?" equality test and no spelling-based distinction between a retreated arrival and a
 // charter's own point at the clearance.
-[[nodiscard]] std::expected<common::core::Fraction, ChartPlanRefusal> joinHeadIntoPath(
+[[nodiscard]] std::expected<common::core::Fraction, PlanRefusal> joinHeadIntoPath(
     const common::core::TempoMap& tempo_map, common::core::ChartNote& predecessor,
     const common::core::ChartNote& head)
 {
@@ -1041,18 +1014,18 @@ struct AddressedStop
         common::core::fretHandHarmonic(predecessor))
     {
         // The predecessor is what stands in the way, so it is what the refusal lights.
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = "the ring before this head has no stop to hand to a point",
-            .lit = noteLight(chartSlotKeyOf(predecessor)),
+            .lit = lightOn({noteTarget(predecessor)}),
         }};
     }
     // A scrape is not a fretted stop, so its ring is no path a point could continue; and a point
     // states frets and channels, never a harmonic node.
     if (common::core::isScrape(head.attack) || head.harmonic_node.has_value())
     {
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = "a scrape or harmonic head cannot become a point on a ring",
-            .lit = noteLight(chartSlotKeyOf(head)),
+            .lit = lightOn({noteTarget(head)}),
         }};
     }
 
@@ -1096,7 +1069,7 @@ struct AddressedStop
 
 } // namespace
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertNote(
+std::expected<JudgedChartPlan, PlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, const common::core::Fraction grid_note_value)
 {
@@ -1141,7 +1114,7 @@ std::optional<ChartPathTail> chartPathTailAt(
     };
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
+std::expected<JudgedChartPlan, PlanRefusal> planInsertKeyframe(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
 {
@@ -1153,9 +1126,9 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
     if (target == candidate.end())
     {
         // Nothing stands at the slot, so there is nothing to light.
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = "no note stands at that slot",
-            .lit = {.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt},
+            .lit = {},
         }};
     }
     // Inserted at its sorted place and never merged onto a record already there: a second keyframe
@@ -1173,7 +1146,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planInsertKeyframe(
     return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Keyframe");
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
+std::expected<JudgedChartPlan, PlanRefusal> planCutRing(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const ChartSlotKey& note, const common::core::Fraction offset, const int fret)
 {
@@ -1184,13 +1157,13 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planCutRing(
     if (origin == chart.notes.end())
     {
         // Nothing stands at the slot, so there is nothing to light.
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = "no note stands at that slot",
-            .lit = {.notes = {}, .keyframes = {}, .fret_hand_position = std::nullopt},
+            .lit = {},
         }};
     }
     std::vector<common::core::ChartNote> products;
-    const std::expected<void, ChartPlanRefusal> walked =
+    const std::expected<void, PlanRefusal> walked =
         splitNoteIntoProducts(tempo_map, *origin, {offset}, products);
     if (!walked.has_value())
     {
@@ -1252,7 +1225,7 @@ int chartFretInForceAt(
     return latest != nullptr ? common::core::fretBeforeEnd(*latest) : 0;
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planDeleteSelection(
+std::expected<JudgedChartPlan, PlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
 {
@@ -1319,7 +1292,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planDeleteSelection(
     }
     if (deleted_notes == 0 && deleted_keyframes == 0 && stripped_frets == 0)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     // The label names what was actually deleted rather than counting one kind for both: a mixed
     // burst has no honest noun, so it names the selection instead of claiming a count of notes.
@@ -1433,7 +1406,7 @@ common::core::Fraction chartSteppedKeyframeOffset(
     return common::core::ringEndWithinBound(chart.notes, *note, tempo_map, stepped);
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
+std::expected<JudgedChartPlan, PlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     common::core::Fraction whole_note_delta, int string_delta, std::string_view label)
@@ -1441,7 +1414,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     if ((note_keys.empty() && keyframe_keys.empty()) ||
         (whole_note_delta.numerator == 0 && string_delta == 0))
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
 
     const int string_count = static_cast<int>(chart.tuning.strings.size());
@@ -1524,10 +1497,10 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
                     const common::core::Fraction stepped = keyframe.offset + whole_note_delta;
                     if (!(stepped < end))
                     {
-                        return std::unexpected{ChartPlanInvalid{
+                        return std::unexpected{PlanRefused{
                             .reason = "the move would stand a point on or past its ring's end",
-                            .lit = keyframeLight(
-                                ChartKeyframeKey{.note = slot, .offset = keyframe.offset}),
+                            .lit = lightOn(
+                                {ChartKeyframeKey{.note = slot, .offset = keyframe.offset}}),
                         }};
                     }
                     keyframe.offset = stepped;
@@ -1541,15 +1514,21 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     {
         if (!stepped_keyframe)
         {
-            return std::unexpected{ChartPlanNoChange{}};
+            return std::unexpected{PlanNoChange{}};
         }
         return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
     }
     if (!moveKeyedNotes(tempo_map, notes.keyed, whole_note_delta, string_delta, string_count))
     {
-        return std::unexpected{ChartPlanInvalid{
+        // Nothing else stands in the way, so the refusal lights the notes the move carries.
+        RefusalLight moved;
+        for (const ChartSlotKey& slot : note_keys)
+        {
+            moved.add(ChartNoteKey{.slot = slot});
+        }
+        return std::unexpected{PlanRefused{
             .reason = "the move would leave the neck or the grid",
-            .lit = notesLight(note_keys),
+            .lit = std::move(moved),
         }};
     }
 
@@ -1564,18 +1543,19 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     {
         target_keys.push_back(chartSlotKeyOf(note));
     }
-    std::vector<ChartSlotKey> occupied;
-    std::ranges::copy_if(
-        notes.rest | std::views::transform(chartSlotKeyOf),
-        std::back_inserter(occupied),
-        [&target_keys](const ChartSlotKey& slot) {
-            return std::ranges::binary_search(target_keys, slot);
-        });
+    RefusalLight occupied;
+    for (const common::core::ChartNote& note : notes.rest)
+    {
+        if (std::ranges::binary_search(target_keys, chartSlotKeyOf(note)))
+        {
+            occupied.add(noteTarget(note));
+        }
+    }
     if (!occupied.empty())
     {
-        return std::unexpected{ChartPlanInvalid{
+        return std::unexpected{PlanRefused{
             .reason = "a moved note would land on a note that stays",
-            .lit = notesLight(std::move(occupied)),
+            .lit = std::move(occupied),
         }};
     }
     // Both halves are in slot order and hold no slot in common, so one merge restores the stream.
@@ -1586,14 +1566,14 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planMoveSelection(
     return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
+std::expected<JudgedChartPlan, PlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& note_keys,
     const std::vector<ChartKeyframeKey>& keyframe_keys, const ChartFretWrite write)
 {
     if (base.empty())
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     // Null for a shift, which names no value of its own.
     const ChartFretSet* const set = std::get_if<ChartFretSet>(&write);
@@ -1618,9 +1598,9 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
             // leaving it looking typed. Restating a node is press `H`, type, press `H`.
             if (common::core::fretHandHarmonic(note))
             {
-                return std::unexpected{ChartPlanInvalid{
+                return std::unexpected{PlanRefused{
                     .reason = "a fret-hand harmonic has no stop to retype",
-                    .lit = noteLight(chartSlotKeyOf(note)),
+                    .lit = lightOn({noteTarget(note)}),
                 }};
             }
             addressed.push_back(
@@ -1735,7 +1715,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planRetypeFrets(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
+std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const common::core::Chart& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps)
@@ -1744,7 +1724,7 @@ std::expected<JudgedChartPlan, ChartPlanRefusal> planAdjustSustain(
     // NoChange anyway, so say it up front.
     if (steps.empty())
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     // The candidate starts from the LIVE stream because a floored note keeps the ring it currently
     // has; every note the replay does reach is then rebuilt WHOLE from its pre-gesture value, which
@@ -1875,7 +1855,7 @@ ChartSelectionPlan planSetLegato(
     std::vector<ChartRefusedNote> refused;
     if (keys.empty())
     {
-        return ChartSelectionPlan{.plan = std::unexpected{ChartPlanNoChange{}}, .refused = {}};
+        return ChartSelectionPlan{.plan = std::unexpected{PlanNoChange{}}, .refused = {}};
     }
 
     // Connections of the ORIGINAL stream, in the SAVED form the gate validates: the original so
@@ -1904,6 +1884,7 @@ ChartSelectionPlan planSetLegato(
                 ChartRefusedNote{
                     .note = chartSlotKeyOf(note),
                     .reason = "the picking hand strikes it, so no connection describes it",
+                    .lit = {},
                 });
             continue;
         }
@@ -1959,6 +1940,13 @@ ChartSelectionPlan planSetLegato(
         }
         if (resolved == common::core::LegatoMotion::Unjustified)
         {
+            // The ring the claim would continue stands in its way wherever there is one: it stops
+            // short of this onset, or its stop and this one admit no connection.
+            RefusalLight culprit;
+            if (predecessor.has_value())
+            {
+                culprit.add(noteTarget(predecessor->note));
+            }
             refused.push_back(
                 ChartRefusedNote{
                     .note = chartSlotKeyOf(note),
@@ -1967,6 +1955,7 @@ ChartSelectionPlan planSetLegato(
                               : hold_was_the_only_blocker
                                   ? "the ring before it stops short and cannot be grown to reach it"
                                   : "no connection between the two stops",
+                    .lit = std::move(culprit),
                 });
             continue;
         }
@@ -1982,7 +1971,7 @@ ChartSelectionPlan planSetLegato(
     if (!changed)
     {
         return ChartSelectionPlan{
-            .plan = std::unexpected{ChartPlanNoChange{}}, .refused = std::move(refused)
+            .plan = std::unexpected{PlanNoChange{}}, .refused = std::move(refused)
         };
     }
     // A gate refusal is forwarded as one: claims that resolved but cannot be kept are a refused
@@ -2153,7 +2142,7 @@ ChartSelectionPlan planSetNoteFlag(
         });
 }
 
-std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
+std::expected<ChartJunctionPlan, PlanRefusal> planToggleJunctions(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& head_keys, const std::vector<ChartKeyframeKey>& keyframe_keys)
 {
@@ -2182,10 +2171,11 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
                 // interpolated travel. The other half of that rule — a keyframe at the ring's end,
                 // with no remainder to hand over — is the walk's own range refusal below and is not
                 // restated here.
-                return std::unexpected{ChartPlanInvalid{
+                return std::unexpected{PlanRefused{
                     .reason = "a head must sit on a stated fret",
-                    .lit = keyframeLight(
-                        ChartKeyframeKey{.note = chartSlotKeyOf(note), .offset = keyframe.offset}),
+                    .lit = lightOn({ChartKeyframeKey{
+                        .note = chartSlotKeyOf(note), .offset = keyframe.offset
+                    }}),
                 }};
             }
             // The instant is all this verb supplies: the keyframe the cut consumes states its own
@@ -2200,7 +2190,7 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
         }
         split_any = true;
         const std::size_t first_product = split.size();
-        const std::expected<void, ChartPlanRefusal> walked =
+        const std::expected<void, PlanRefusal> walked =
             splitNoteIntoProducts(tempo_map, note, splits, split);
         if (!walked.has_value())
         {
@@ -2244,12 +2234,12 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
             if (predecessor == common::core::g_no_chart_predecessor)
             {
                 // Nothing holds this string, so there is no path for the point to join.
-                return std::unexpected{ChartPlanInvalid{
+                return std::unexpected{PlanRefused{
                     .reason = "nothing earlier on the string holds a path to join",
-                    .lit = noteLight(chartSlotKeyOf(note)),
+                    .lit = lightOn({noteTarget(note)}),
                 }};
             }
-            const std::expected<common::core::Fraction, ChartPlanRefusal> at =
+            const std::expected<common::core::Fraction, PlanRefusal> at =
                 joinHeadIntoPath(tempo_map, joined[predecessor], note);
             if (!at.has_value())
             {
@@ -2271,13 +2261,13 @@ std::expected<ChartJunctionPlan, ChartPlanRefusal> planToggleJunctions(
 
     if (!split_any && !join_any)
     {
-        return std::unexpected{ChartPlanNoChange{}};
+        return std::unexpected{PlanNoChange{}};
     }
     // The label is the walk's answer, not the caller's: only this pass knows which halves a mixed
     // selection actually ran.
     const std::string_view label =
         split_any ? (join_any ? "Split and Join" : "Split Note") : "Join Notes";
-    std::expected<JudgedChartPlan, ChartPlanRefusal> plan =
+    std::expected<JudgedChartPlan, PlanRefusal> plan =
         finalizePlan(chart, tempo_map, std::move(joined), label);
     if (!plan.has_value())
     {

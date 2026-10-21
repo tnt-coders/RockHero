@@ -605,7 +605,7 @@ TEST_CASE("The tempo lock refuses moves under the Note Lock", "[core][tempo][not
     editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(editor.view.ruler_chip_refusal_flashes.size() == 2);
+    CHECK(flashedRulerChips(editor.view).size() == 2);
 }
 
 // During a drag the song is not written: the grid's preview map is published beside the session's,

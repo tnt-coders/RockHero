@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
@@ -932,25 +933,70 @@ struct ChartHoldPicker
     std::vector<ChartHoldChoice> choices{};
 };
 
-/*!
-\brief The elements a refused chart edit turned down, for the view to flash red.
+/*! \brief A chip row of the timeline ruler. */
+enum class RulerChipRow : std::uint8_t
+{
+    /*! \brief The section row. */
+    Section,
 
-In the same projection indices the lane draws the selection by (\ref ChartEditViewState), and valid
-for the same \ref EditorViewState::tab instance they were derived with.
+    /*! \brief The tempo-anchor row. */
+    Tempo,
+
+    /*! \brief The time-signature row. */
+    TimeSignature,
+};
+
+/*! \brief A ruler chip, named by its row and its marker's start. */
+struct RulerChipKey
+{
+    /*! \brief The row the chip stands in. */
+    RulerChipRow row{RulerChipRow::Section};
+
+    /*! \brief Where the chip's marker starts; a meter reign's chip names its first downbeat. */
+    common::core::GridPosition start{};
+
+    /*!
+    \brief Compares two chip names.
+    \param lhs Left-hand chip.
+    \param rhs Right-hand chip.
+    \return True when both name the same chip.
+    */
+    friend bool operator==(const RulerChipKey& lhs, const RulerChipKey& rhs) = default;
+};
+
+/*!
+\brief Everything a refused edit lights, for the view to flash red as one: the thing the edit tried
+to change and the thing that stood in its way, on whichever surfaces draw them.
+
+One flash type across every lane, so a refusal naming a note and the hold beside it, or a chip and
+the notes under it, glows as one pulse. Each surface glows the fields it draws and never knows which
+target was the subject and which the culprit. The tab-lane fields are indices into the projections
+\ref EditorViewState::tab carries (the same object as the highway's chart), valid for the instance
+they were derived with, exactly as the selection's are (\ref ChartEditViewState); the ruler chips
+and the tone regions are named as their surfaces resolve them.
 */
-struct ChartRefusalFlash
+struct RefusalFlash
 {
     /*! \brief Ascending indices of the refused notes in the tab projection's note order. */
     std::vector<std::size_t> notes{};
 
+    /*! \brief Ascending indices of the refused spans in the tab projection's span order. */
+    std::vector<std::size_t> spans{};
+
+    /*! \brief Ascending indices of the refused none holds in the tab projection's order. */
+    std::vector<std::size_t> none_holds{};
+
+    /*! \brief Ascending indices of the refused fret-hand position chips in placement order. */
+    std::vector<std::size_t> fret_hand_positions{};
+
     /*! \brief The refused keyframes as projected positions. */
     std::vector<ChartKeyframeRef> keyframes{};
 
-    /*!
-    \brief Index of the refused fret-hand position's chip in the tab projection's placement order:
-    a derived position a verb needing a stored one was asked of.
-    */
-    std::optional<std::size_t> fret_hand_position{};
+    /*! \brief The refused ruler chips, which the ruler finds by row and start as it draws them. */
+    std::vector<RulerChipKey> ruler_chips{};
+
+    /*! \brief The refused tone regions, by region id. */
+    std::vector<std::string> tone_regions{};
 };
 
 /*!

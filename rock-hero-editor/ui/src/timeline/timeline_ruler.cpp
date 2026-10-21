@@ -905,9 +905,13 @@ void TimelineRuler::setSelectedTempoMapChips(
 }
 
 // Rationale lives on the declaration in timeline_ruler.h.
-void TimelineRuler::flashRulerChipRefusal(const core::RulerChipKey chip)
+void TimelineRuler::flashRefusal(std::vector<core::RulerChipKey> chips)
 {
-    flashOrJoinRefusal(m_chip_refusal, std::vector{chip}, joinRefused<core::RulerChipKey>);
+    if (chips.empty())
+    {
+        return;
+    }
+    flashOrJoinRefusal(m_chip_refusal, std::move(chips), joinRefused<core::RulerChipKey>);
     repaint();
 }
 

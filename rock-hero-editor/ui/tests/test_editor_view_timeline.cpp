@@ -1006,17 +1006,21 @@ TEST_CASE("TimelineRuler glows a refused tempo chip", "[ui][timeline-ruler]")
         ruler.createComponentSnapshot(ruler.getLocalBounds()).getPixelAt(1, 21) ==
         editorTheme().tempo_chip);
 
-    ruler.flashRulerChipRefusal(
-        core::RulerChipKey{
-            .row = core::RulerChipRow::Tempo,
-            .start = common::core::GridPosition{.measure = 3, .beat = 1}
+    ruler.flashRefusal(
+        std::vector{
+            core::RulerChipKey{
+                .row = core::RulerChipRow::Tempo,
+                .start = common::core::GridPosition{.measure = 3, .beat = 1}
+            },
         });
     CHECK(probe() == plain);
 
-    ruler.flashRulerChipRefusal(
-        core::RulerChipKey{
-            .row = core::RulerChipRow::Tempo,
-            .start = common::core::GridPosition{.measure = 1, .beat = 1}
+    ruler.flashRefusal(
+        std::vector{
+            core::RulerChipKey{
+                .row = core::RulerChipRow::Tempo,
+                .start = common::core::GridPosition{.measure = 1, .beat = 1}
+            },
         });
     CHECK(probe().getRed() > plain.getRed());
 }
