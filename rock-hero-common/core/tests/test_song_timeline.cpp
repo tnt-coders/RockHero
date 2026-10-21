@@ -73,11 +73,11 @@ TEST_CASE("Song timeline rules validate every arrangement's tone slices", "[core
     const auto track_result = validateSongTimelineRules(bad_track);
     REQUIRE_FALSE(track_result.has_value());
     REQUIRE(std::holds_alternative<ArrangementRuleError>(track_result.error()));
-    const ArrangementRuleError& track_error = std::get<ArrangementRuleError>(track_result.error());
+    const auto& track_error = std::get<ArrangementRuleError>(track_result.error());
     CHECK(track_error.arrangement_id == "lead");
     CHECK(track_error.code() == ArrangementRuleErrorCode::ToneTrackRule);
     REQUIRE(std::holds_alternative<ToneTrackError>(track_error.cause));
-    const ToneTrackError& tone_track_error = std::get<ToneTrackError>(track_error.cause);
+    const auto& tone_track_error = std::get<ToneTrackError>(track_error.cause);
     CHECK(tone_track_error.code == ToneTrackErrorCode::InvalidRegionId);
     CHECK(tone_track_error.region_ids == std::vector<std::string>{"not-a-uuid"});
     // The text is the cause's own diagnostic, prefixed with the arrangement.
@@ -90,13 +90,11 @@ TEST_CASE("Song timeline rules validate every arrangement's tone slices", "[core
     const auto automation_result = validateSongTimelineRules(bad_automation);
     REQUIRE_FALSE(automation_result.has_value());
     REQUIRE(std::holds_alternative<ArrangementRuleError>(automation_result.error()));
-    const ArrangementRuleError& automation_error =
-        std::get<ArrangementRuleError>(automation_result.error());
+    const auto& automation_error = std::get<ArrangementRuleError>(automation_result.error());
     CHECK(automation_error.arrangement_id == "lead");
     CHECK(automation_error.code() == ArrangementRuleErrorCode::ToneAutomationRule);
     REQUIRE(std::holds_alternative<InvalidToneAutomationEntry>(automation_error.cause));
-    const InvalidToneAutomationEntry& entry =
-        std::get<InvalidToneAutomationEntry>(automation_error.cause);
+    const auto& entry = std::get<InvalidToneAutomationEntry>(automation_error.cause);
     CHECK(entry.plugin_id == "plugin");
     // The one diagnostic composed here rather than carried by the cause.
     CHECK(
@@ -147,7 +145,7 @@ TEST_CASE("Song timeline rules report a tempo-map violation as the tempo map's",
     const auto result = validateSongTimelineRules(short_reign);
     REQUIRE_FALSE(result.has_value());
     REQUIRE(std::holds_alternative<TempoMapError>(result.error()));
-    const TempoMapError& tempo_error = std::get<TempoMapError>(result.error());
+    const auto& tempo_error = std::get<TempoMapError>(result.error());
     CHECK(tempo_error.code == TempoMapErrorCode::ReignTooShort);
     CHECK(tempo_error.meter_places == std::vector<Fraction>{Fraction{}, Fraction{1, 2}});
     CHECK(songTimelineErrorText(result.error()) == tempo_result.error().message);
