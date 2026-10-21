@@ -55,7 +55,7 @@ std::optional<std::string> SongTimelineSnapshot::validate(const MarkerJudgeConte
             common::core::validateSongTimelineRules(timeline, context.normalized_layers);
         !valid.has_value())
     {
-        return valid.error();
+        return common::core::songTimelineErrorText(valid.error());
     }
     return std::nullopt;
 }

@@ -8,8 +8,10 @@
 #include <cstdint>
 #include <expected>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -57,6 +59,20 @@ struct [[nodiscard]] TempoMapError
 
     /*! \brief Human-readable diagnostic suitable for UI display or logs. */
     std::string message;
+
+    /*!
+    \brief The anchors the violation involves, by position, wherever the rule knows them: the
+    anchor refused, or the out-of-order pair in stored order. Empty where no anchor is involved.
+    */
+    std::vector<GridPosition> anchor_positions{};
+
+    /*!
+    \brief The time signatures the violation involves, by place on the whole-note axis, wherever
+    the rule knows them: the change refused, the out-of-order pair, or the governing change and the
+    one that cuts its reign short, each pair in stored order. Empty where no time signature is
+    involved.
+    */
+    std::vector<Fraction> meter_places{};
 };
 
 /*!

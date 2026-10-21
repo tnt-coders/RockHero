@@ -5,16 +5,22 @@
 
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <span>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -101,6 +107,63 @@ refused whole rather than half-applied.
 [[nodiscard]] bool writeSongTimeline(Song& song, SongTimeline timeline);
 
 /*!
+\brief A tone automation entry that breaks the entry rules (\ref isValidToneParameterAutomation),
+named by the plugin and parameter it is keyed by: the rule answers only whether an entry passes.
+*/
+struct InvalidToneAutomationEntry
+{
+    /*! \brief Durable id of the plugin that owns the entry's parameter. */
+    std::string plugin_id;
+
+    /*! \brief Parameter id within the plugin. */
+    std::string param_id;
+};
+
+/*! \brief Which slice of an arrangement breaks a rule. */
+enum class ArrangementRuleErrorCode : std::uint8_t
+{
+    /*! \brief The arrangement's chart breaks a chart rule. */
+    ChartRule,
+
+    /*! \brief The arrangement's tone track breaks a tone-track rule. */
+    ToneTrackRule,
+
+    /*! \brief One of the arrangement's tone automation entries breaks the entry rules. */
+    ToneAutomationRule,
+};
+
+/*!
+\brief A rule an arrangement's slice of the timeline breaks, carrying the slice's own error so a
+caller reads the records it names.
+
+Its diagnostic is \ref songTimelineErrorText's, built from the cause, so no text is stored twice.
+*/
+struct [[nodiscard]] ArrangementRuleError
+{
+    /*! \brief The id of the arrangement whose slice breaks the rule. */
+    std::string arrangement_id;
+
+    /*! \brief The error the breaking slice's own validator reports. */
+    std::variant<ChartError, ToneTrackError, InvalidToneAutomationEntry> cause;
+
+    /*!
+    \brief Names the slice that breaks the rule, read from the cause.
+    \return The stable code callers branch on.
+    */
+    [[nodiscard]] ArrangementRuleErrorCode code() const;
+};
+
+/*! \brief The first rule a song timeline breaks, as the slice that breaks it reports it. */
+using SongTimelineError = std::variant<TempoMapError, SongSectionError, ArrangementRuleError>;
+
+/*!
+\brief Renders a timeline violation as one diagnostic line, an arrangement's prefixed with its id.
+\param error Violation to render.
+\return Text suitable for UI display or logs.
+*/
+[[nodiscard]] std::string songTimelineErrorText(const SongTimelineError& error);
+
+/*!
 \brief Validates every slice of a timeline against the rules the package reader enforces.
 
 Asks each slice's own validator rather than restating a rule: the tempo-map rules, the section
@@ -108,9 +171,9 @@ rules, and for every arrangement its chart rules, its tone-track rules and the s
 each tone automation entry.
 
 \param timeline Timeline to validate.
-\return Empty success, or the first violation's diagnostic, an arrangement's prefixed with its id.
+\return Empty success, or the first violation (\ref songTimelineErrorText renders it).
 */
-[[nodiscard]] std::expected<void, std::string> validateSongTimelineRules(
+[[nodiscard]] std::expected<void, SongTimelineError> validateSongTimelineRules(
     const SongTimeline& timeline);
 
 /*!
@@ -124,9 +187,9 @@ each chart once.
 \param notes_layers Each arrangement's notes layer, index-parallel to the timeline's arrangements:
        the layer of exactly that chart under the timeline's map, or nothing, where one is derived
        here.
-\return Empty success, or the first violation's diagnostic, an arrangement's prefixed with its id.
+\return Empty success, or the first violation (\ref songTimelineErrorText renders it).
 */
-[[nodiscard]] std::expected<void, std::string> validateSongTimelineRules(
+[[nodiscard]] std::expected<void, SongTimelineError> validateSongTimelineRules(
     const SongTimeline& timeline, std::span<const std::optional<ChartResolutions>> notes_layers);
 
 } // namespace rock_hero::common::core

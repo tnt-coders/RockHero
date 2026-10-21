@@ -5,6 +5,8 @@
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -60,6 +62,9 @@ TEST_CASE("Tone track rules reject overlapping regions", "[core][tone]")
     const auto result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::UnsortedOrOverlappingRegions);
+    CHECK(
+        result.error().region_ids ==
+        std::vector{std::string{g_verse_region_id}, std::string{g_chorus_region_id}});
 }
 
 // Verifies the first region must open at the song's first downbeat, or the lead-in has no tone.
@@ -74,6 +79,7 @@ TEST_CASE("Tone track rules reject a first region that misses the song start", "
     const auto result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::SongStartUncovered);
+    CHECK(result.error().region_ids == std::vector{std::string{g_verse_region_id}});
 }
 
 // Verifies a region starting at or past the terminal anchor is refused as empty.
@@ -89,6 +95,7 @@ TEST_CASE("Tone track rules reject regions past the terminal anchor", "[core][to
     const auto result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::RegionPastTerminalAnchor);
+    CHECK(result.error().region_ids == std::vector{std::string{g_chorus_region_id}});
 }
 
 // Verifies off-grid starts, non-canonical or repeated region ids, and non-canonical tone document
@@ -103,18 +110,21 @@ TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone
     auto result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::InvalidEndpoint);
+    CHECK(result.error().region_ids == std::vector{std::string{g_verse_region_id}});
 
     tone_track.regions.front().start = GridPosition{.measure = 1, .beat = 1};
     tone_track.regions.front().id = "not-a-uuid";
     result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::InvalidRegionId);
+    CHECK(result.error().region_ids == std::vector<std::string>{"not-a-uuid"});
 
     tone_track.regions.front().id = std::string{g_verse_region_id};
     tone_track.regions.front().tone_document_ref = "not/canonical.json";
     result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::InvalidToneDocumentRef);
+    CHECK(result.error().region_ids == std::vector{std::string{g_verse_region_id}});
 }
 
 // The range guard is written as a range the value must be INSIDE because every comparison against

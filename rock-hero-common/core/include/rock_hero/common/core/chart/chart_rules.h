@@ -774,9 +774,12 @@ struct UncoveredStop
     /*! \brief The fret demanded of the hand there. */
     int fret{};
 
+    /*! \brief The one-based string the stop is on, as \ref ChartNote::string counts it. */
+    int string{1};
+
     /*!
-    \brief Orders two stops by where they are gripped from, then by fret — the members' own order,
-    which is the order a refusal lists them in.
+    \brief Orders two stops by where they are gripped from, then by fret, then by string — the
+    members' own order, which is the order a refusal lists them in.
     \param lhs Left-hand stop.
     \param rhs Right-hand stop.
     \return Ordering of lhs relative to rhs.
@@ -788,7 +791,7 @@ struct UncoveredStop
     \brief Compares two stops for equal value.
     \param lhs Left-hand stop.
     \param rhs Right-hand stop.
-    \return True when both name the same fret gripped from the same place.
+    \return True when both name the same fret on the same string gripped from the same place.
     */
     friend constexpr bool operator==(const UncoveredStop& lhs, const UncoveredStop& rhs) noexcept =
         default;
@@ -805,7 +808,7 @@ struct UncoveringFretHandPosition
 
     /*!
     \brief Every stop gripped at the position's instant that its window does not cover, each once,
-    ascending by where it is gripped from and then by fret; never empty.
+    ascending by where it is gripped from, then by fret, then by string; never empty.
     */
     std::vector<UncoveredStop> stops;
 };

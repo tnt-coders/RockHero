@@ -28,9 +28,16 @@ namespace
            g_tick_quantum_denominator % denominator == 0;
 }
 
-[[nodiscard]] std::unexpected<TempoMapError> refuse(TempoMapErrorCode code, std::string message)
+[[nodiscard]] std::unexpected<TempoMapError> refuse(
+    TempoMapErrorCode code, std::string message, std::vector<GridPosition> anchor_positions,
+    std::vector<Fraction> meter_places)
 {
-    return std::unexpected{TempoMapError{.code = code, .message = std::move(message)}};
+    return std::unexpected{TempoMapError{
+        .code = code,
+        .message = std::move(message),
+        .anchor_positions = std::move(anchor_positions),
+        .meter_places = std::move(meter_places),
+    }};
 }
 
 // "the 7/8 at 6:1": how every signature rule names the change it refuses, where the charter sees
@@ -57,14 +64,18 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
     {
         return refuse(
             TempoMapErrorCode::MissingTimeSignature,
-            "time signatures must contain at least one entry");
+            "time signatures must contain at least one entry",
+            {},
+            {});
     }
 
     if (time_signatures.front().place != Fraction{})
     {
         return refuse(
             TempoMapErrorCode::FirstTimeSignatureLate,
-            "time signatures must start at the song's start");
+            "time signatures must start at the song's start",
+            {},
+            {time_signatures.front().place});
     }
 
     const TimeSignatureChange* previous = nullptr;
@@ -77,7 +88,9 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
                 TempoMapErrorCode::InvalidTimeSignature,
                 changeText(tempo_map, signature) +
                     " must have a positive numerator and a power-of-two denominator of at most "
-                    "256");
+                    "256",
+                {},
+                {signature.place});
         }
         if (!isOnMeterLattice(signature.place))
         {
@@ -85,7 +98,9 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
                 TempoMapErrorCode::InvalidTimeSignature,
                 changeText(tempo_map, signature) +
                     " must start a whole number of 1/256 notes from the song's start, so the "
-                    "measure it cuts short is itself a meter");
+                    "measure it cuts short is itself a meter",
+                {},
+                {signature.place});
         }
         if (previous != nullptr)
         {
@@ -95,7 +110,9 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
                     TempoMapErrorCode::InvalidTimeSignature,
                     "time signatures must be strictly ascending: " +
                         changeText(tempo_map, signature) + " does not follow " +
-                        changeText(tempo_map, *previous));
+                        changeText(tempo_map, *previous),
+                    {},
+                    {previous->place, signature.place});
             }
             // The reign fills whole measures and leaves a short bar; a reign shorter than one
             // measure has no whole measure to fill, and its chip and its short bar would stand at
@@ -105,7 +122,9 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
                 return refuse(
                     TempoMapErrorCode::ReignTooShort,
                     changeText(tempo_map, *previous) + " governs no whole measure before " +
-                        changeText(tempo_map, signature));
+                        changeText(tempo_map, signature),
+                    {},
+                    {previous->place, signature.place});
             }
         }
         previous = &signature;
@@ -115,12 +134,19 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
     if (anchors.size() < 2)
     {
         return refuse(
-            TempoMapErrorCode::MissingAnchors, "anchors must contain start and terminal anchors");
+            TempoMapErrorCode::MissingAnchors,
+            "anchors must contain start and terminal anchors",
+            {},
+            {});
     }
 
     if (anchors.front().position != measureDownbeat(1))
     {
-        return refuse(TempoMapErrorCode::FirstAnchorLate, "anchors must start at measure 1 beat 1");
+        return refuse(
+            TempoMapErrorCode::FirstAnchorLate,
+            "anchors must start at measure 1 beat 1",
+            {anchors.front().position},
+            {});
     }
 
     std::optional<BeatAnchor> previous_anchor;
@@ -131,7 +157,9 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
             return refuse(
                 TempoMapErrorCode::InvalidAnchor,
                 "anchors must stand on a valid grid position (beat inside its measure, offset in "
-                "[0, 1) on the tick lattice) at a non-negative time");
+                "[0, 1) on the tick lattice) at a non-negative time",
+                {anchor.position},
+                {});
         }
 
         // Grid positions order lexicographically, which is the timeline order once each position
@@ -141,7 +169,9 @@ std::expected<void, TempoMapError> validateTempoMapRules(const TempoMap& tempo_m
         {
             return refuse(
                 TempoMapErrorCode::UnorderedAnchors,
-                "anchors must be strictly ordered by position and time");
+                "anchors must be strictly ordered by position and time",
+                {previous_anchor->position, anchor.position},
+                {});
         }
 
         previous_anchor = anchor;

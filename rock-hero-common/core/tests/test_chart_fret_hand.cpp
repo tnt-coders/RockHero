@@ -131,7 +131,8 @@ struct SpanHolds
     const std::span<const FretHandHold> holds, const FretHandHold& expected)
 {
     return std::ranges::any_of(holds, [&expected](const FretHandHold& hold) {
-        return hold.from == expected.from && hold.to == expected.to && hold.fret == expected.fret;
+        return hold.from == expected.from && hold.to == expected.to && hold.fret == expected.fret &&
+               hold.string == expected.string;
     });
 }
 
@@ -377,9 +378,12 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
         CHECK(grip.size() == 3);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 7}));
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 5, .string = 1}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 7, .string = 2}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 9, .string = 3}));
     }
 
     SECTION("a pull-off source riding above the grip's stop")
@@ -397,11 +401,13 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
         CHECK(grip.size() == 2);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 5, .string = 1}));
         const std::span<const FretHandHold> rings =
             std::span{derived.holds}.first(derived.ring_holds);
         CHECK(containsHold(
-            rings, FretHandHold{.from = Fraction{1, 4}, .to = Fraction{1, 2}, .fret = 7}));
+            rings,
+            FretHandHold{.from = Fraction{1, 4}, .to = Fraction{1, 2}, .fret = 7, .string = 1}));
     }
 
     SECTION("a chord whose fingers slide off the grip")
@@ -425,14 +431,18 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         const Fraction slide = shape.place + Fraction{1, 8};
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = slide, .fret = 5}));
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = slide, .fret = 7}));
-        CHECK_FALSE(
-            containsHold(grip, FretHandHold{.from = shape.place, .to = Fraction{1, 4}, .fret = 5}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = slide, .fret = 5, .string = 1}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = slide, .fret = 7, .string = 2}));
+        CHECK_FALSE(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = Fraction{1, 4}, .fret = 5, .string = 1}));
         const std::span<const FretHandHold> rings =
             std::span{derived.holds}.first(derived.ring_holds);
-        CHECK(containsHold(rings, FretHandHold{.from = slide, .to = Fraction{1, 4}, .fret = 6}));
-        CHECK(containsHold(rings, FretHandHold{.from = slide, .to = Fraction{1, 4}, .fret = 8}));
+        CHECK(containsHold(
+            rings, FretHandHold{.from = slide, .to = Fraction{1, 4}, .fret = 6, .string = 1}));
+        CHECK(containsHold(
+            rings, FretHandHold{.from = slide, .to = Fraction{1, 4}, .fret = 8, .string = 2}));
     }
 
     SECTION("a tap on a joining string's stop before the fretting hand strikes it")
@@ -452,10 +462,14 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         const Fraction tap_onset{1, 4};
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = tap_onset, .fret = 9}));
-        CHECK_FALSE(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 7}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = tap_onset, .fret = 9, .string = 3}));
+        CHECK_FALSE(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 9, .string = 3}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 5, .string = 1}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 7, .string = 2}));
     }
 
     SECTION("a tap above a joining string's stop")
@@ -471,7 +485,8 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         const Fraction close = shape.place + shape.sustain;
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 9, .string = 3}));
     }
 
     SECTION("a fretting-hand restrike of a joining string's stop")
@@ -487,7 +502,8 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         const Fraction close = shape.place + shape.sustain;
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 9}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 9, .string = 3}));
     }
 
     SECTION("an open strike on a gripped string")
@@ -506,8 +522,10 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         CHECK(close == open_onset);
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 5}));
-        CHECK(containsHold(grip, FretHandHold{.from = shape.place, .to = close, .fret = 7}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 5, .string = 1}));
+        CHECK(containsHold(
+            grip, FretHandHold{.from = shape.place, .to = close, .fret = 7, .string = 2}));
     }
 }
 
@@ -601,10 +619,10 @@ TEST_CASE("A natural harmonic demands the fret nearest its node", "[core][chart]
 }
 
 // The coverage authority reports every breaking position once, ascending, with every demand it
-// misses, each once, by where it is gripped from and then by fret; a position's verdict reads the
-// notes alone, so its neighbours never change it. The error names them all in one sentence, the
-// stops grouped by where they are gripped from, and the drop removes exactly those positions,
-// reporting each with the same groups.
+// misses, each once, by where it is gripped from, then by fret, then by string; a position's
+// verdict reads the notes alone, so its neighbours never change it. The error names them all in
+// one sentence, the stops grouped by where they are gripped from, and the drop removes exactly
+// those positions, reporting each with the same groups.
 TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][chart]")
 {
     // The 1:2 position misses fret 3, ringing from 1:1, and fret 2, struck at 1:2 on another
@@ -627,8 +645,12 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
     CHECK(
         uncovering[0].stops ==
         std::vector{
-            UncoveredStop{.gripped_from = GridPosition{.measure = 1, .beat = 1}, .fret = 3},
-            UncoveredStop{.gripped_from = GridPosition{.measure = 1, .beat = 2}, .fret = 2},
+            UncoveredStop{
+                .gripped_from = GridPosition{.measure = 1, .beat = 1}, .fret = 3, .string = 1
+            },
+            UncoveredStop{
+                .gripped_from = GridPosition{.measure = 1, .beat = 2}, .fret = 2, .string = 2
+            },
         });
     CHECK(
         fretHandCoverageError(uncovering[0], positions).message ==
@@ -637,8 +659,12 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
     CHECK(
         uncovering[1].stops ==
         std::vector{
-            UncoveredStop{.gripped_from = GridPosition{.measure = 2, .beat = 1}, .fret = 9},
-            UncoveredStop{.gripped_from = GridPosition{.measure = 2, .beat = 1}, .fret = 10},
+            UncoveredStop{
+                .gripped_from = GridPosition{.measure = 2, .beat = 1}, .fret = 9, .string = 1
+            },
+            UncoveredStop{
+                .gripped_from = GridPosition{.measure = 2, .beat = 1}, .fret = 10, .string = 2
+            },
         });
     CHECK(
         fretHandCoverageError(uncovering[1], positions).message ==
@@ -658,6 +684,31 @@ TEST_CASE("Fret-hand coverage finds every position that breaks it", "[core][char
         dropped[0].where ==
         "hand position 1:2 (fret 3 gripped from 1:1 and fret 2 gripped from 1:2)");
     CHECK(dropped[1].where == "hand position 2:1 (frets 9 and 10 gripped from 2:1)");
+}
+
+// A missed stop names its string: one fret on two strings is two stops, while a pressed onset and
+// the ring hold it begins are one. The refusal names each fret once all the same.
+TEST_CASE("Fret-hand coverage names the string of every missed stop", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = {noteAt(1, 1, 1, 9), noteAt(1, 1, 2, 9)};
+    const std::vector<FretHandPosition> positions = {positionAt(1, 1, 5, 8)};
+    const TempoMap tempo_map = makeTempoMap();
+    const std::vector<UncoveringFretHandPosition> uncovering = uncoveringFretHandPositions(
+        chartResolutions(notes, {}, 0, tempo_map), positions, tempo_map);
+    REQUIRE(uncovering.size() == 1);
+    CHECK(
+        uncovering[0].stops ==
+        std::vector{
+            UncoveredStop{
+                .gripped_from = GridPosition{.measure = 1, .beat = 1}, .fret = 9, .string = 1
+            },
+            UncoveredStop{
+                .gripped_from = GridPosition{.measure = 1, .beat = 1}, .fret = 9, .string = 2
+            },
+        });
+    CHECK(
+        fretHandCoverageError(uncovering[0], positions).message ==
+        "hand position 1:1 does not cover fret 9 gripped from 1:1");
 }
 
 // Hand-position rule 1: an open string and a tap constrain nothing; the window is the fretted

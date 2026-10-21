@@ -6,6 +6,7 @@
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -24,6 +25,7 @@ namespace
         return std::unexpected{ToneTrackError{
             .code = ToneTrackErrorCode::RegionNotFound,
             .message = "tone region not found: " + region_id,
+            .region_ids = {region_id},
         }};
     }
     return static_cast<std::size_t>(std::distance(tone_track.regions.begin(), found));
@@ -57,9 +59,12 @@ std::expected<void, ToneTrackError> createToneRegion(
     const ToneRegion* const container = toneRegionAt(tone_track, position);
     if (container == nullptr || container->start == position)
     {
+        // The region whose own start was named is the one involved; outside the track, none is.
         return std::unexpected{ToneTrackError{
             .code = ToneTrackErrorCode::PositionOutsideAnyRegion,
             .message = "tone region create position must fall strictly inside a region",
+            .region_ids = container == nullptr ? std::vector<std::string>{}
+                                               : std::vector<std::string>{container->id},
         }};
     }
 
@@ -91,6 +96,7 @@ std::expected<void, ToneTrackError> deleteToneRegion(
         return std::unexpected{ToneTrackError{
             .code = ToneTrackErrorCode::CannotRemoveOnlyRegion,
             .message = "cannot remove the only tone region; the song must stay covered",
+            .region_ids = {region_id},
         }};
     }
 
@@ -133,18 +139,28 @@ std::expected<void, ToneTrackError> moveToneBoundary(
         return std::unexpected{ToneTrackError{
             .code = ToneTrackErrorCode::CannotMoveSongStart,
             .message = "the first tone region starts where the song does: " + region_id,
+            .region_ids = {region_id},
         }};
     }
 
-    // Strictly between the neighbors' starts, or a region would be emptied or reordered.
-    const bool below_previous = position <= tone_track.regions[*index - 1].start;
-    const bool above_next =
-        *index + 1 < tone_track.regions.size() && position >= tone_track.regions[*index + 1].start;
-    if (below_previous || above_next)
+    // Strictly between the neighbors' starts, or a region would be emptied or reordered; the
+    // refusal names the neighbor reached with the moved region.
+    const std::size_t next = *index + 1;
+    const ToneRegion* crossed = nullptr;
+    if (position <= tone_track.regions[*index - 1].start)
+    {
+        crossed = &tone_track.regions[*index - 1];
+    }
+    else if (next < tone_track.regions.size() && position >= tone_track.regions[next].start)
+    {
+        crossed = &tone_track.regions[next];
+    }
+    if (crossed != nullptr)
     {
         return std::unexpected{ToneTrackError{
             .code = ToneTrackErrorCode::UnsortedOrOverlappingRegions,
             .message = "tone boundary must stay strictly between its neighbors: " + region_id,
+            .region_ids = {region_id, crossed->id},
         }};
     }
 

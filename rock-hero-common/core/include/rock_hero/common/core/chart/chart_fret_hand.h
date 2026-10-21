@@ -105,6 +105,12 @@ struct FretHandHold
 
     /*! \brief The fret held. */
     int fret{0};
+
+    /*!
+    \brief The one-based string the hold is on, counted from the lowest-pitched string (as
+    \ref ChartNote::string): every hold is built per string.
+    */
+    int string{1};
 };
 
 /*! \brief Fretting fingers sliding into one instant: how far the hand travels with them. */
@@ -302,12 +308,12 @@ onset that also begins a hold is visited once per kind, which no reader can tell
 \param demands What the notes demand of the hand (\ref fretHandDemands); its capo is the one the
        onsets are read under.
 \param place Place on the whole-note axis.
-\param visit Called with each gripped stop's fret and where it was struck or began holding, the
-       onsets first, in no further promised order.
+\param visit Called with each gripped stop's fret, where it was struck or began holding, and its
+       one-based string, the onsets first, in no further promised order.
 */
 void forEachGrippedStop(
     const ChartConnections& connections, const FretHandDemands& demands, Fraction place,
-    const std::function<void(int fret, Fraction from)>& visit);
+    const std::function<void(int fret, Fraction from, int string)>& visit);
 
 /*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored: the

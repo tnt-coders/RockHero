@@ -29,13 +29,20 @@ using rock_hero::common::core::testing::metersAt;
     };
 }
 
-// Validates a map built from the given parts and returns the refusal code it must produce.
-[[nodiscard]] TempoMapErrorCode refusalOf(
+// Validates a map built from the given parts and returns the refusal it must produce.
+[[nodiscard]] TempoMapError errorOf(
     std::vector<TimeSignatureChange> signatures, std::vector<BeatAnchor> anchors)
 {
     const auto result = validateTempoMapRules(TempoMap{std::move(signatures), std::move(anchors)});
     REQUIRE_FALSE(result.has_value());
-    return result.error().code;
+    return result.error();
+}
+
+// The refusal code a map built from the given parts must produce.
+[[nodiscard]] TempoMapErrorCode refusalOf(
+    std::vector<TimeSignatureChange> signatures, std::vector<BeatAnchor> anchors)
+{
+    return errorOf(std::move(signatures), std::move(anchors)).code;
 }
 
 // The refusal a common-time map over the given anchors must produce.
@@ -220,6 +227,71 @@ TEST_CASE("Tempo map rules refuse sub-beat anchor violations", "[core][tempo-map
              anchor("1:2+1/2", 1000),
              anchor("1:3", 1000),
              anchor("3:1", 4000)}) == TempoMapErrorCode::UnorderedAnchors);
+}
+
+// Verifies a refusal names every record its rule knows, pairs in stored order, so a caller can
+// light them without re-deriving the rule; a rule about an absent record names none.
+TEST_CASE("Tempo map refusals name the records they involve", "[core][tempo-map]")
+{
+    const auto meter = [](const Fraction place, const int numerator, const int denominator) {
+        return TimeSignatureChange{
+            .place = place, .meter = {.numerator = numerator, .denominator = denominator}
+        };
+    };
+
+    const TempoMapError missing = errorOf({}, twoMeasureAnchors());
+    CHECK(missing.code == TempoMapErrorCode::MissingTimeSignature);
+    CHECK(missing.meter_places.empty());
+    CHECK(missing.anchor_positions.empty());
+
+    const TempoMapError late = errorOf({meter(Fraction{1}, 4, 4)}, twoMeasureAnchors());
+    CHECK(late.code == TempoMapErrorCode::FirstTimeSignatureLate);
+    CHECK(late.meter_places == std::vector<Fraction>{Fraction{1}});
+
+    const TempoMapError bad_meter = errorOf({meter({}, 4, 3)}, twoMeasureAnchors());
+    CHECK(bad_meter.code == TempoMapErrorCode::InvalidTimeSignature);
+    CHECK(bad_meter.meter_places == std::vector<Fraction>{Fraction{}});
+
+    const TempoMapError off_lattice =
+        errorOf({meter({}, 4, 4), meter(Fraction{4, 3}, 4, 4)}, twoMeasureAnchors());
+    CHECK(off_lattice.code == TempoMapErrorCode::InvalidTimeSignature);
+    CHECK(off_lattice.meter_places == std::vector<Fraction>{Fraction{4, 3}});
+
+    const TempoMapError descending = errorOf(
+        {meter({}, 4, 4), meter(Fraction{2}, 3, 4), meter(Fraction{1}, 5, 4)}, twoMeasureAnchors());
+    CHECK(descending.code == TempoMapErrorCode::InvalidTimeSignature);
+    CHECK(descending.meter_places == std::vector<Fraction>{Fraction{2}, Fraction{1}});
+
+    // A 4/4 half a whole note in cuts the opening 4/4's reign short of one measure.
+    const TempoMapError short_reign =
+        errorOf({meter({}, 4, 4), meter(Fraction{1, 2}, 4, 4)}, twoMeasureAnchors());
+    CHECK(short_reign.code == TempoMapErrorCode::ReignTooShort);
+    CHECK(short_reign.meter_places == std::vector<Fraction>{Fraction{}, Fraction{1, 2}});
+    CHECK(short_reign.anchor_positions.empty());
+
+    const TempoMapError one_anchor = errorOf(commonTime(), {anchor("1:1", 0)});
+    CHECK(one_anchor.code == TempoMapErrorCode::MissingAnchors);
+    CHECK(one_anchor.anchor_positions.empty());
+
+    const TempoMapError late_anchor =
+        errorOf(commonTime(), {anchor("1:2", 0), anchor("3:1", 4000)});
+    CHECK(late_anchor.code == TempoMapErrorCode::FirstAnchorLate);
+    CHECK(
+        late_anchor.anchor_positions ==
+        std::vector<GridPosition>{GridPosition{.measure = 1, .beat = 2}});
+
+    const TempoMapError bad_anchor =
+        errorOf(commonTime(), {anchor("1:1", 0), anchor("3:1", -1000)});
+    CHECK(bad_anchor.code == TempoMapErrorCode::InvalidAnchor);
+    CHECK(bad_anchor.anchor_positions == std::vector<GridPosition>{measureDownbeat(3)});
+
+    const TempoMapError unordered =
+        errorOf(commonTime(), {anchor("1:1", 1000), anchor("2:1", 1000)});
+    CHECK(unordered.code == TempoMapErrorCode::UnorderedAnchors);
+    CHECK(
+        unordered.anchor_positions ==
+        std::vector<GridPosition>{measureDownbeat(1), measureDownbeat(2)});
+    CHECK(unordered.meter_places.empty());
 }
 
 // Verifies the one seconds-to-milliseconds rounding: nearest, with halves away from zero, and a

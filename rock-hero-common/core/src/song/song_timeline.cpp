@@ -6,12 +6,14 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <span>
 #include <string>
 #include <utility>
+#include <variant>
 
 namespace rock_hero::common::core
 {
@@ -69,42 +71,51 @@ namespace
 // Every slice's rules, each chart judged by `chart_rules(index, chart)`: the one place the slices
 // are listed, whichever way the charts' notes layers are come by.
 template <typename ChartRules>
-[[nodiscard]] std::expected<void, std::string> validateTimeline(
+[[nodiscard]] std::expected<void, SongTimelineError> validateTimeline(
     const SongTimeline& timeline, const ChartRules& chart_rules)
 {
     const TempoMap& tempo_map = timeline.tempo_map;
     if (const auto valid = validateTempoMapRules(tempo_map); !valid.has_value())
     {
-        return std::unexpected{valid.error().message};
+        return std::unexpected{valid.error()};
     }
     if (const auto valid = validateSongSectionRules(timeline.sections, tempo_map);
         !valid.has_value())
     {
-        return std::unexpected{valid.error().message};
+        return std::unexpected{valid.error()};
     }
     for (std::size_t index = 0; index < timeline.arrangements.size(); ++index)
     {
         const ArrangementTimeline& arrangement = timeline.arrangements[index];
-        const std::string prefix = "arrangement " + arrangement.id + ": ";
         if (arrangement.chart.has_value())
         {
             if (const auto valid = chart_rules(index, *arrangement.chart); !valid.has_value())
             {
-                return std::unexpected{prefix + valid.error().message};
+                return std::unexpected{ArrangementRuleError{
+                    .arrangement_id = arrangement.id,
+                    .cause = valid.error(),
+                }};
             }
         }
         if (const auto valid = validateToneTrackRules(arrangement.tone_track, tempo_map);
             !valid.has_value())
         {
-            return std::unexpected{prefix + valid.error().message};
+            return std::unexpected{ArrangementRuleError{
+                .arrangement_id = arrangement.id,
+                .cause = valid.error(),
+            }};
         }
         for (const ToneParameterAutomation& automation : arrangement.tone_automation)
         {
             if (!isValidToneParameterAutomation(automation, tempo_map))
             {
-                return std::unexpected{
-                    prefix + "tone automation entry is invalid for plugin: " + automation.plugin_id
-                };
+                return std::unexpected{ArrangementRuleError{
+                    .arrangement_id = arrangement.id,
+                    .cause = InvalidToneAutomationEntry{
+                        .plugin_id = automation.plugin_id,
+                        .param_id = automation.param_id,
+                    },
+                }};
             }
         }
     }
@@ -113,14 +124,53 @@ template <typename ChartRules>
 
 } // namespace
 
-std::expected<void, std::string> validateSongTimelineRules(const SongTimeline& timeline)
+ArrangementRuleErrorCode ArrangementRuleError::code() const
+{
+    return std::visit(
+        Overloaded{
+            [](const ChartError& /*chart*/) { return ArrangementRuleErrorCode::ChartRule; },
+            [](const ToneTrackError& /*tone_track*/) {
+                return ArrangementRuleErrorCode::ToneTrackRule;
+            },
+            [](const InvalidToneAutomationEntry& /*automation*/) {
+                return ArrangementRuleErrorCode::ToneAutomationRule;
+            },
+        },
+        cause);
+}
+
+std::string songTimelineErrorText(const SongTimelineError& error)
+{
+    // An arrangement's cause keeps its own diagnostic, prefixed with the arrangement here.
+    const auto arrangement_text = [](const ArrangementRuleError& arrangement) {
+        const std::string cause_text = std::visit(
+            Overloaded{
+                [](const ChartError& chart) { return chart.message; },
+                [](const ToneTrackError& tone_track) { return tone_track.message; },
+                [](const InvalidToneAutomationEntry& automation) {
+                    return "tone automation entry is invalid for plugin: " + automation.plugin_id;
+                },
+            },
+            arrangement.cause);
+        return "arrangement " + arrangement.arrangement_id + ": " + cause_text;
+    };
+    return std::visit(
+        Overloaded{
+            [](const TempoMapError& tempo) { return tempo.message; },
+            [](const SongSectionError& section) { return section.message; },
+            arrangement_text,
+        },
+        error);
+}
+
+std::expected<void, SongTimelineError> validateSongTimelineRules(const SongTimeline& timeline)
 {
     return validateTimeline(timeline, [&timeline](std::size_t /*index*/, const Chart& chart) {
         return validateChartRules(chart, timeline.tempo_map);
     });
 }
 
-std::expected<void, std::string> validateSongTimelineRules(
+std::expected<void, SongTimelineError> validateSongTimelineRules(
     const SongTimeline& timeline,
     const std::span<const std::optional<ChartResolutions>> notes_layers)
 {

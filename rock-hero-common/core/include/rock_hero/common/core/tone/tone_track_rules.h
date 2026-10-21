@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -58,6 +59,14 @@ struct [[nodiscard]] ToneTrackError
 
     /*! \brief Human-readable diagnostic suitable for UI display or logs. */
     std::string message;
+
+    /*!
+    \brief The regions the violation involves, by id, wherever the rule knows them: the region a
+    per-region rule refuses, the out-of-order pair in stored order, the moved region and the
+    neighbor its boundary would reach, or the region whose own start a create named. Empty where
+    no region is involved, as for a create position before the first region.
+    */
+    std::vector<std::string> region_ids{};
 };
 
 /*!

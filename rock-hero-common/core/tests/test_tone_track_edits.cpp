@@ -3,6 +3,7 @@
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -119,15 +120,24 @@ TEST_CASE("createToneRegion rejects a position on a region start", "[core][tone]
     ToneTrack track;
     track.regions = {makeRegion("a", at(1), g_tone_x), makeRegion("b", at(3), g_tone_y)};
 
-    // A region start is that region's own tone change; there is nothing to split there. A position
-    // before the first region lies outside the track altogether.
-    for (const GridPosition position : {at(1), at(3)})
+    // A region start is that region's own tone change; there is nothing to split there, and the
+    // refusal names that region. A position before the first region lies outside the track
+    // altogether, and names none.
+    for (const auto& [position, owner] : {std::pair{at(1), "a"}, std::pair{at(3), "b"}})
     {
         const auto result = createToneRegion(track, position, "c", g_tone_x);
         REQUIRE_FALSE(result.has_value());
         CHECK(result.error().code == ToneTrackErrorCode::PositionOutsideAnyRegion);
+        CHECK(result.error().region_ids == std::vector<std::string>{owner});
     }
     CHECK(track.regions.size() == 2); // unchanged on failure
+
+    ToneTrack late;
+    late.regions = {makeRegion("a", at(2))};
+    const auto outside = createToneRegion(late, at(1), "c", g_tone_y);
+    REQUIRE_FALSE(outside.has_value());
+    CHECK(outside.error().code == ToneTrackErrorCode::PositionOutsideAnyRegion);
+    CHECK(outside.error().region_ids.empty());
 }
 
 // Verifies a split onto the tone already sounding coalesces straight back out.
@@ -217,6 +227,7 @@ TEST_CASE("deleteToneRegion refuses to remove the only region", "[core][tone]")
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::CannotRemoveOnlyRegion);
+    CHECK(result.error().region_ids == std::vector<std::string>{"a"});
     CHECK(track.regions.size() == 1);
 }
 
@@ -230,6 +241,7 @@ TEST_CASE("deleteToneRegion rejects an unknown region", "[core][tone]")
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::RegionNotFound);
+    CHECK(result.error().region_ids == std::vector<std::string>{"missing"});
     CHECK(track.regions.size() == 2);
 }
 
@@ -282,6 +294,7 @@ TEST_CASE("retoneToneRegion rejects an unknown region", "[core][tone]")
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::RegionNotFound);
+    CHECK(result.error().region_ids == std::vector<std::string>{"missing"});
     CHECK(track.regions == makeAlternatingTrack().regions);
 }
 
@@ -307,18 +320,23 @@ TEST_CASE("moveToneBoundary refuses the song start and a crossed neighbor", "[co
     const auto first = moveToneBoundary(track, "a", at(2));
     REQUIRE_FALSE(first.has_value());
     CHECK(first.error().code == ToneTrackErrorCode::CannotMoveSongStart);
+    CHECK(first.error().region_ids == std::vector<std::string>{"a"});
 
-    // Onto or past a neighbor's start, either side, would empty or reorder a region.
-    for (const GridPosition position : {at(1), at(5), at(6)})
+    // Onto or past a neighbor's start, either side, would empty or reorder a region; the refusal
+    // names the moved region and the neighbor it reached.
+    for (const auto& [position, neighbor] :
+         {std::pair{at(1), "a"}, std::pair{at(5), "c"}, std::pair{at(6), "c"}})
     {
         const auto crossed = moveToneBoundary(track, "b", position);
         REQUIRE_FALSE(crossed.has_value());
         CHECK(crossed.error().code == ToneTrackErrorCode::UnsortedOrOverlappingRegions);
+        CHECK(crossed.error().region_ids == std::vector<std::string>{"b", neighbor});
     }
 
     const auto unknown = moveToneBoundary(track, "missing", at(2));
     REQUIRE_FALSE(unknown.has_value());
     CHECK(unknown.error().code == ToneTrackErrorCode::RegionNotFound);
+    CHECK(unknown.error().region_ids == std::vector<std::string>{"missing"});
 
     CHECK(track.regions == makeAlternatingTrack().regions); // unchanged on every refusal
 }

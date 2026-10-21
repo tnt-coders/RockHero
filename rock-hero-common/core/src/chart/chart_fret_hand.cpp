@@ -392,7 +392,10 @@ std::vector<FretHandHold> fretHandHolds(
                 {
                     holds.push_back(
                         FretHandHold{
-                            .from = place + stretch.from, .to = place + stretch.to, .fret = *demand
+                            .from = place + stretch.from,
+                            .to = place + stretch.to,
+                            .fret = *demand,
+                            .string = note.string,
                         });
                 }
             });
@@ -415,8 +418,14 @@ std::vector<FretHandHold> fretHandHolds(
                 stringReleasesStopAt(connections, string_index, stop->fret, shape.place, close);
             if (shape.place < released)
             {
+                // A posture is indexed by the zero-based string (chartStringIndex).
                 holds.push_back(
-                    FretHandHold{.from = shape.place, .to = released, .fret = stop->fret});
+                    FretHandHold{
+                        .from = shape.place,
+                        .to = released,
+                        .fret = stop->fret,
+                        .string = static_cast<int>(string_index) + 1,
+                    });
             }
         }
     }
@@ -545,18 +554,18 @@ FretHandDemands fretHandDemands(
 // earlier hold can still stand past that point.
 void forEachGrippedStop(
     const ChartConnections& connections, const FretHandDemands& demands, const Fraction place,
-    const std::function<void(int fret, Fraction from)>& visit)
+    const std::function<void(int fret, Fraction from, int string)>& visit)
 {
     const auto [first, past] = std::ranges::equal_range(connections.places, place);
     for (auto onset = first; onset != past; ++onset)
     {
         const auto index =
             static_cast<std::size_t>(std::distance(connections.places.begin(), onset));
-        const std::optional<int> demand =
-            fretHandDemandAt(connections.saved_notes[index], Fraction{}, demands.capo);
+        const ChartNote& note = connections.saved_notes[index];
+        const std::optional<int> demand = fretHandDemandAt(note, Fraction{}, demands.capo);
         if (demand.has_value())
         {
-            visit(*demand, place);
+            visit(*demand, place, note.string);
         }
     }
     const std::vector<FretHandHold>& holds = demands.holds;
@@ -569,7 +578,7 @@ void forEachGrippedStop(
         const FretHandHold& hold = holds[begun - 1];
         if (place < hold.to)
         {
-            visit(hold.fret, hold.from);
+            visit(hold.fret, hold.from, hold.string);
         }
     }
 }
@@ -653,7 +662,10 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             {
                 int top = position.fret;
                 forEachGrippedStop(
-                    connections, demands, place, [&top](const int fret, const Fraction /*from*/) {
+                    connections,
+                    demands,
+                    place,
+                    [&top](const int fret, const Fraction /*from*/, const int /*string*/) {
                         top = std::max(top, fret);
                     });
                 std::size_t held = own;

@@ -163,7 +163,8 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
 
 // Every stop a position misses, grouped by where it is gripped from, which the record's order
 // already keeps together: "frets 5 and 7 gripped from 1:1". Each group names its frets and its
-// place once.
+// place once; one fret on two strings is one fret the hand misses, and the record's order keeps
+// those stops adjacent.
 [[nodiscard]] std::string uncoveredStopsText(const UncoveringFretHandPosition& uncovering)
 {
     std::vector<std::string> groups;
@@ -177,6 +178,8 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
         std::ranges::transform(stop, past, std::back_inserter(frets), [](const UncoveredStop& one) {
             return std::to_string(one.fret);
         });
+        const auto repeated = std::ranges::unique(frets);
+        frets.erase(repeated.begin(), repeated.end());
         groups.push_back(
             std::string{frets.size() == 1 ? "fret " : "frets "} + listedInProse(frets) +
             " gripped from " + formatGridPositionToken(stop->gripped_from));
@@ -412,19 +415,20 @@ std::vector<UncoveringFretHandPosition> uncoveringFretHandPositions(
             notes_layer.connections,
             notes_layer.hand_demands,
             tempo_map.wholeNotePositionAt(position.position),
-            [&](const int fret, const Fraction from) {
+            [&](const int fret, const Fraction from, const int string) {
                 if (!positionCovers(position, fret))
                 {
                     missed.push_back(
                         UncoveredStop{
                             .gripped_from = tempo_map.gridPositionAtWholeNote(from),
                             .fret = fret,
+                            .string = string,
                         });
                 }
             });
         if (!missed.empty())
         {
-            // A chord's strings and the hold begun by it can demand one fret twice.
+            // A pressed onset and the hold it begins demand one stop twice.
             std::ranges::sort(missed);
             const auto repeated = std::ranges::unique(missed);
             missed.erase(repeated.begin(), repeated.end());

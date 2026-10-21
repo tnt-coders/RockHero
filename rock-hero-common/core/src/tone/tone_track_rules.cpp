@@ -23,6 +23,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::InvalidRegionId,
                 .message = "tone region id must be a canonical UUIDv4: " + region.id,
+                .region_ids = {region.id},
             }};
         }
 
@@ -31,6 +32,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::InvalidRegionId,
                 .message = "duplicate tone region id: " + region.id,
+                .region_ids = {region.id},
             }};
         }
 
@@ -42,6 +44,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
                 .code = ToneTrackErrorCode::InvalidEndpoint,
                 .message = "tone region start is not a valid beat position: " +
                            formatGridPositionToken(region.start),
+                .region_ids = {region.id},
             }};
         }
 
@@ -55,6 +58,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
                 .code = ToneTrackErrorCode::SongStartUncovered,
                 .message =
                     "the first tone region must start at the song's first downbeat: " + region.id,
+                .region_ids = {region.id},
             }};
         }
 
@@ -66,6 +70,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
                 .code = ToneTrackErrorCode::RegionPastTerminalAnchor,
                 .message =
                     "tone region starts at or past the tempo-map terminal anchor: " + region.id,
+                .region_ids = {region.id},
             }};
         }
 
@@ -74,6 +79,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::UnsortedOrOverlappingRegions,
                 .message = "tone region starts must be strictly ascending: " + region.id,
+                .region_ids = {previous->id, region.id},
             }};
         }
 
@@ -83,6 +89,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
                 .code = ToneTrackErrorCode::InvalidToneDocumentRef,
                 .message = "tone region document path must be tones/<uuid>/tone.json: " +
                            region.tone_document_ref,
+                .region_ids = {region.id},
             }};
         }
 
