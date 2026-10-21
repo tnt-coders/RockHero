@@ -632,10 +632,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Bakes or clears the tone track's playback schedule (the definition states the ownership law).
     void publishToneSchedule(bool playing);
     // Refuses a typed tone name the produced catalog would then hold twice, reported to the refusal
-    // log under the verb's `label` and lighting nothing: the name came from a prompt, which has no
-    // subject on screen. Normalizes the snapshot first, so a tone this very edit prunes never
-    // blocks its own replacement's name. Returns whether it reported, which is the caller's signal
-    // to abandon the verb.
+    // log under the verb's `label` and lighting every region whose tone wears that name: the name
+    // came from a prompt, which has no subject on screen, so the clash is what lights. Normalizes
+    // the snapshot first, so a tone this very edit prunes never blocks its own replacement's name.
+    // Returns whether it reported, which is the caller's signal to abandon the verb.
     [[nodiscard]] bool reportedDuplicateToneName(ToneModelSnapshot& after, std::string_view label);
     // Rebuilds the sole tone region on a fresh empty "Default" tone (see the definition).
     void resetSoleToneRegion(const std::string& region_id);
@@ -796,7 +796,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         MarkerVerb verb, const ShapeHoldExtent& extent,
         const std::optional<common::core::HoldGrip>& grip);
     // A refused hold verb: its log record under the verb's label, and the refusal flash on what the
-    // refusal lights together with the selected span or none hold the verb acted on.
+    // refusal lights together with whatever was selected when the verb ran (selectionLight).
     void refuseShapeHoldVerb(MarkerVerb verb, const PlanRefused& refusal);
     // The Delete key over a selected marker of any row: deletes it through its row's verb, then
     // selects the marker before it on that row, as Shift+Tab would (src/chart/chart_handlers.cpp).

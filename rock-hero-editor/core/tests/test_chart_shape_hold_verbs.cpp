@@ -699,6 +699,24 @@ TEST_CASE("A new hold carves the holds it overlaps", "[core][holds]")
         CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{4, 5});
         CHECK(editor.view.refusal_flashes.back().fret_hand_positions.empty());
     }
+
+    // The same refusal over a note selection: the 1:1 note rings to 1:3, the extent the time
+    // selection above covered, and the flash lights that note, the subject, beside the stretch.
+    SECTION("a refusal over a note selection lights the selected note")
+    {
+        HoldEditor editor{chartOf(
+            {chordAt(at(1, 1), 5, 7, Fraction{1, 2}),
+             chordAt(at(1, 3), 7, 7, Fraction{1, 2}),
+             chordAt(at(2, 1), 6, 7, Fraction{1, 2})},
+            {unnamedHold(at(1, 1), at(2, 3))})};
+        editor.armAt(0.0);
+        REQUIRE(editor.state().chart_edit.selected_notes == std::vector<std::size_t>{0});
+        const std::size_t flashes = editor.view.refusal_flashes.size();
+        editor.holdShape();
+        CHECK(editor.holds() == std::vector{unnamedHold(at(1, 1), at(2, 3))});
+        REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0, 4, 5});
+    }
 }
 
 // The start key steps a derived span's start to the next candidate — here the 1:2 onset, a grid

@@ -108,15 +108,13 @@ refused whole rather than half-applied.
 
 /*!
 \brief A tone automation entry that breaks the entry rules (\ref isValidToneParameterAutomation),
-named by the plugin and parameter it is keyed by: the rule answers only whether an entry passes.
+named by the plugin that owns it, which is what its diagnostic reports: the rule answers only
+whether an entry passes.
 */
 struct InvalidToneAutomationEntry
 {
     /*! \brief Durable id of the plugin that owns the entry's parameter. */
     std::string plugin_id;
-
-    /*! \brief Parameter id within the plugin. */
-    std::string param_id;
 };
 
 /*! \brief Which slice of an arrangement breaks a rule. */

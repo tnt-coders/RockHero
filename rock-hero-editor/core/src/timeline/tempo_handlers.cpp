@@ -214,7 +214,10 @@ void EditorController::Impl::onTempoSpanBpmRequested(
     const std::optional<double> quarter_bpm = common::core::parseFiniteDecimal(text);
     if (!quarter_bpm.has_value())
     {
-        m_refusal_log.markerEdit(markerVerbLabel(MarkerVerb::SetTempo), "not a number: " + text);
+        refuseMarkerVerb(
+            markerVerbLabel(MarkerVerb::SetTempo),
+            "not a number: " + text,
+            lightOf(TempoAnchorSelection{.position = position}));
         return;
     }
     runAction(

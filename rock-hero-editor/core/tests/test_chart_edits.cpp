@@ -461,14 +461,13 @@ TEST_CASE("planInsertNote refuses an occupied slot", "[core][chart]")
     {
         // The refusal carries the rule's own words, which is what the log reports, and lights the
         // pair the order rule judged: the head that stands and the one that would land on it. Both
-        // name one slot, which the light holds once, and the standing head is what the charter sees
-        // lit.
+        // name one slot, which the flash makes one target, and the standing head is what the
+        // charter sees lit.
         const auto* const invalid = std::get_if<PlanRefused>(&plan.error());
         REQUIRE(invalid != nullptr);
         CHECK_FALSE(invalid->reason.empty());
-        CHECK(
-            invalid->lit.targets ==
-            std::vector<RefusalTarget>{ChartNoteKey{.slot = keyAt({.measure = 2, .beat = 1}, 1)}});
+        const ChartNoteKey standing{.slot = keyAt({.measure = 2, .beat = 1}, 1)};
+        CHECK(invalid->lit.targets == std::vector<RefusalTarget>{standing, standing});
     }
 }
 

@@ -153,6 +153,15 @@ void forEachReplaced(const std::optional<StreamChange<Element>>& change, const V
     return std::format("{} objects: {} .. {}", count, first, last);
 }
 
+// Puts a refusal's keys in ascending order, each once: a light may name one target twice (the
+// subject and a culprit), and the flash is a set.
+template <typename Key> void sortUnique(std::vector<Key>& keys)
+{
+    std::ranges::sort(keys);
+    const auto repeats = std::ranges::unique(keys);
+    keys.erase(repeats.begin(), repeats.end());
+}
+
 } // namespace
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -240,18 +249,20 @@ void EditorController::Impl::flashRefusalLight(const RefusalLight& lit)
     if (arrangement != nullptr && arrangement->chart.has_value())
     {
         const std::vector<common::core::ChartNote>& chart_notes = arrangement->chart->notes;
-        std::ranges::sort(notes);
+        sortUnique(notes);
         flash.notes = slotIndicesForKeys(chart_notes, notes);
         if (m_tab_view_state != nullptr)
         {
-            std::ranges::sort(keyframes);
+            sortUnique(keyframes);
             flash.keyframes =
                 keyframeIndicesForKeys(chart_notes, m_tab_view_state->notes, keyframes);
         }
     }
-    std::ranges::sort(flash.spans);
-    std::ranges::sort(flash.none_holds);
-    std::ranges::sort(flash.fret_hand_positions);
+    sortUnique(flash.spans);
+    sortUnique(flash.none_holds);
+    sortUnique(flash.fret_hand_positions);
+    sortUnique(flash.ruler_chips);
+    sortUnique(flash.tone_regions);
     if (flash.notes.empty() && flash.spans.empty() && flash.none_holds.empty() &&
         flash.fret_hand_positions.empty() && flash.keyframes.empty() && flash.ruler_chips.empty() &&
         flash.tone_regions.empty())
@@ -2879,13 +2890,12 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, PlanRefusal> EditorCon
         return std::unexpected{PlanRefused{.reason = "no chart is loaded", .lit = {}}};
     }
     // Refused at the plan, not only at the settle, so the pending box is red while the value is
-    // typed: what the commit would refuse is what the box shows. The lock names nothing on the
-    // lane, so its refusal lights what the entry would have written through.
+    // typed: what the commit would refuse is what the box shows. It names no culprit, as the
+    // funnel's lock refusal does: the lock is nothing on screen; the report lights what the entry
+    // was typed on.
     if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
     {
-        return std::unexpected{
-            PlanRefused{.reason = std::move(*locked), .lit = fretEntryTargetLight(entry.target)}
-        };
+        return std::unexpected{PlanRefused{.reason = std::move(*locked), .lit = {}}};
     }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;

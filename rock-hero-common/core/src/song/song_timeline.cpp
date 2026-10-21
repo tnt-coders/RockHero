@@ -113,7 +113,6 @@ template <typename ChartRules>
                     .arrangement_id = arrangement.id,
                     .cause = InvalidToneAutomationEntry{
                         .plugin_id = automation.plugin_id,
-                        .param_id = automation.param_id,
                     },
                 }};
             }

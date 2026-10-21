@@ -466,6 +466,23 @@ TEST_CASE(
     CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref) == "Rhythm");
 }
 
+// A rename onto a name the catalog already holds is refused, and lights every region wearing the
+// clashing name: the typed name has no subject on screen, so the clash is what the flash shows.
+TEST_CASE(
+    "EditorController flashes the regions a clashing tone rename collides with",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+
+    editor.controller.onToneRenameRequested(g_second_tone_ref, "Clean");
+
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_second_tone_ref) == "Dirty");
+    REQUIRE(editor.view.refusal_flashes.size() == 1);
+    CHECK(
+        editor.view.refusal_flashes.back().tone_regions ==
+        std::vector<std::string>{g_region_a, g_region_b});
+}
+
 // Repointing a region at another catalog tone relabels the drawn region, names the tone in the undo
 // label, and round-trips through undo and redo.
 TEST_CASE(
@@ -788,7 +805,7 @@ TEST_CASE(
     REQUIRE(editor.view.refusal_flashes.size() == 1);
     CHECK(
         editor.view.refusal_flashes.back().tone_regions ==
-        std::vector<std::string>{g_region_b, g_region_a});
+        std::vector<std::string>{g_region_a, g_region_b});
 }
 
 // A boundary move that would leave a region with no length is rejected.

@@ -217,6 +217,17 @@ TEST_CASE("A meter edit refuses bad text and records nothing", "[core][meters]")
     }
 }
 
+// Text that is not a meter is refused at the prompt, and lights the chip it was typed on.
+TEST_CASE("A meter prompt that is not a time signature flashes its chip", "[core][meters]")
+{
+    MeterEditor editor;
+
+    editor.set(downbeat(1), "x/8");
+
+    REQUIRE(editor.view.refusal_flashes.size() == 1);
+    CHECK(editor.view.refusal_flashes.back().ruler_chips == std::vector{meterChip(1)});
+}
+
 // Typing the prevailing meter on one of its own downbeats changes no measure, so the history holds
 // nothing — but the chip SHOWS, selected, so the charter can retype it: the chord that finds it
 // is the restate, and the retyped meter is one real change whose undo lands the song as it was,
@@ -650,7 +661,7 @@ TEST_CASE("A meter move refuses a reign too short and the song's end", "[core][m
     CHECK(editor.undoEntryCount() == entries);
     CHECK(
         flashedRulerChips(editor.view) ==
-        std::vector{meterChip(4), meterChip(3), meterChip(3), meterChip(4)});
+        std::vector{meterChip(3), meterChip(4), meterChip(3), meterChip(4)});
 
     // 2/4 from measure 8 (whole note 7) steps three quarter notes to 8:4; the fourth step would
     // land on the terminal's whole note 8. The last bar before the terminal is a cut, never a
@@ -688,7 +699,7 @@ TEST_CASE("A meter move refused for a short reign flashes the reign's meter", "[
     CHECK(editor.timeline() == stepped);
     REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
     CHECK(
-        editor.view.refusal_flashes.back().ruler_chips == std::vector{meterChip(2), meterChip(1)});
+        editor.view.refusal_flashes.back().ruler_chips == std::vector{meterChip(1), meterChip(2)});
 }
 
 // The meter edit's undo and redo restore the WHOLE song field-equal — the map, the sections and

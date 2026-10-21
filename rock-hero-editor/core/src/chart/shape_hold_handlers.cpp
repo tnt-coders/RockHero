@@ -180,21 +180,14 @@ std::optional<ShapeHoldExtent> EditorController::Impl::selectedHoldExtent() cons
 }
 
 // Logged under the verb's label, as every marker verb's refusal is. The flash is the refusal's own
-// light with the selected span or none hold the verb acted on, the subject this controller holds:
-// a run replays from its start, so the refusal names the hold as it stood then, and only the
-// selection names it where it stands now.
+// light with whatever was selected when the verb ran — the notes or keyframes it read, or the span
+// or none hold it acted on — the subject this controller holds: a run replays from its start, so
+// the refusal names a hold as it stood then, and only the selection names it where it stands now.
 void EditorController::Impl::refuseShapeHoldVerb(const MarkerVerb verb, const PlanRefused& refusal)
 {
     m_refusal_log.markerEdit(markerVerbLabel(verb), refusal.reason);
-    RefusalLight lit = refusal.lit;
-    if (const auto* const span = std::get_if<SpanSelection>(&m_selection))
-    {
-        lit.add(*span);
-    }
-    else if (const auto* const none_hold = std::get_if<NoneHoldSelection>(&m_selection))
-    {
-        lit.add(*none_hold);
-    }
+    RefusalLight lit = selectionLight(m_selection);
+    lit.add(refusal.lit);
     flashRefusalLight(lit);
 }
 

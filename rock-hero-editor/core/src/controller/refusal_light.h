@@ -30,7 +30,7 @@ using RefusalTarget = std::variant<
     SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ToneRegionSelection>;
 
 /*!
-\brief What a refusal lights: a SET of targets, of any kinds, which the view glows as one.
+\brief What a refusal lights: targets of any kinds, which the view glows as one set.
 
 A refusal lights the thing the edit tried to change and the thing that stood in its way. Each
 refusing site adds what it knows — the culprit a rule names, the hold a push would empty — and the
@@ -41,17 +41,22 @@ is no mark for it yet.
 */
 struct RefusalLight
 {
-    /*! \brief The targets, each once, in the order they were first added. */
+    /*!
+    \brief The targets, in the order they were added.
+
+    A target may repeat — the subject and a culprit can name the same object — and the flash makes
+    them a set where it resolves them.
+    */
     std::vector<RefusalTarget> targets{};
 
     /*!
-    \brief Adds one target, unless the light already holds an equal one.
+    \brief Adds one target.
     \param target Target to light.
     */
     void add(RefusalTarget target);
 
     /*!
-    \brief Adds every target another light holds: the union of the two.
+    \brief Adds every target another light holds.
     \param light Light to merge in.
     */
     void add(const RefusalLight& light);
@@ -76,6 +81,19 @@ struct RefusalLight
 \return A light naming that marker.
 */
 [[nodiscard]] RefusalLight lightOf(const MarkerSelection& selection);
+
+/*!
+\brief The light of the editor's one selection, whichever kind it holds: a chart selection's notes
+and keyframes, or the one marker.
+
+Not a `lightOf` overload: a single marker converts to both selection sums, so the call would be
+ambiguous. The kinds no refusal target names — nothing, an automation point, the "+" row, a time
+span — light nothing.
+
+\param selection Selection to light.
+\return A light naming every object the selection holds.
+*/
+[[nodiscard]] RefusalLight selectionLight(const EditorSelection& selection);
 
 /*!
 \brief The target a hold is lit as: the span an unnamed hold states, or the none hold itself.

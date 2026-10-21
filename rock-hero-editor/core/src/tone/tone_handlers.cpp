@@ -636,10 +636,10 @@ void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion ac
     updateView();
 }
 
-// Input validation for the three verbs that take a TYPED tone name, refused in the log under the
-// verb's label but lighting nothing: the name came from a prompt they can retype, which has no
-// subject on screen, and a name nothing offers is not a broken model. It is not part of the
-// commit's own rules for that reason.
+// Input validation for the three verbs that take a TYPED tone name, refused under the verb's label
+// and lighting every region that wears the clashing name: the name came from a prompt, which has no
+// subject on screen, so what stands in its way is all there is to light. A name nothing offers is
+// not a broken model, so this is not part of the commit's own rules.
 bool EditorController::Impl::reportedDuplicateToneName(
     ToneModelSnapshot& after, const std::string_view label)
 {
@@ -653,8 +653,16 @@ bool EditorController::Impl::reportedDuplicateToneName(
     {
         return false;
     }
-    m_refusal_log.markerEdit(
-        label, "A tone named \"" + *duplicate + "\" already exists in this arrangement.");
+    RefusalLight lit;
+    for (const common::core::ToneRegion& region : after.tone_track.regions)
+    {
+        if (toneNameIn(after.tones, region.tone_document_ref) == *duplicate)
+        {
+            lit.add(regionLight(region.id));
+        }
+    }
+    refuseMarkerVerb(
+        label, "A tone named \"" + *duplicate + "\" already exists in this arrangement.", lit);
     return true;
 }
 

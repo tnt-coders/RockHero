@@ -168,8 +168,10 @@ void EditorController::Impl::onTimeSignatureSetRequested(
     const std::optional<common::core::TimeSignature> meter = parseTimeSignatureText(text);
     if (!meter.has_value())
     {
-        m_refusal_log.markerEdit(
-            markerVerbLabel(MarkerVerb::SetTimeSignature), "not a time signature: " + text);
+        refuseMarkerVerb(
+            markerVerbLabel(MarkerVerb::SetTimeSignature),
+            "not a time signature: " + text,
+            lightOf(TimeSignatureSelection{.measure = position.measure}));
         return;
     }
     runAction(EditorAction::SetTimeSignature{.position = position, .meter = *meter});

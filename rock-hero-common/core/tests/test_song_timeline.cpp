@@ -94,7 +94,6 @@ TEST_CASE("Song timeline rules validate every arrangement's tone slices", "[core
     const InvalidToneAutomationEntry& entry =
         std::get<InvalidToneAutomationEntry>(automation_error.cause);
     CHECK(entry.plugin_id == "plugin");
-    CHECK(entry.param_id == "gain");
     // The one diagnostic composed here rather than carried by the cause.
     CHECK(
         songTimelineErrorText(automation_result.error()) ==

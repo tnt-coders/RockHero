@@ -314,6 +314,19 @@ TEST_CASE("A typed tempo ripples every later anchor", "[core][tempo]")
     CHECK(editor.undoEntryCount() == 4);
 }
 
+// Text that is not a number is refused at the prompt, and lights the chip it was typed on.
+TEST_CASE("A typed tempo that is not a number flashes its anchor", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    const std::size_t flashes_before = editor.view.refusal_flashes.size();
+
+    editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "fast");
+
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+    CHECK(editor.view.refusal_flashes.back().ruler_chips == std::vector{tempoChip(beatAt(3, 1))});
+}
+
 // The first anchor is refused, every map keeps it, and its chip flashes: the delete lands no
 // anchor, but the one it addressed still stands. A delete merges the two spans with both outer
 // anchors pinned, so undo restores the map exactly.

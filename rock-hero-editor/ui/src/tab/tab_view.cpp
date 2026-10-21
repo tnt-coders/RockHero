@@ -231,8 +231,6 @@ void TabView::flashRefusal(core::RefusalFlash flash)
             joinRefused(into.none_holds, from.none_holds);
             joinRefused(into.fret_hand_positions, from.fret_hand_positions);
             joinRefused(into.keyframes, from.keyframes);
-            joinRefused(into.ruler_chips, from.ruler_chips);
-            joinRefused(into.tone_regions, from.tone_regions);
         });
     repaint();
 }

@@ -956,12 +956,12 @@ struct RulerChipKey
     common::core::GridPosition start{};
 
     /*!
-    \brief Compares two chip names.
+    \brief Orders two chip names by row, then by start.
     \param lhs Left-hand chip.
     \param rhs Right-hand chip.
-    \return True when both name the same chip.
+    \return Ordering of lhs relative to rhs.
     */
-    friend bool operator==(const RulerChipKey& lhs, const RulerChipKey& rhs) = default;
+    friend auto operator<=>(const RulerChipKey& lhs, const RulerChipKey& rhs) = default;
 };
 
 /*!
@@ -977,25 +977,36 @@ and the tone regions are named as their surfaces resolve them.
 */
 struct RefusalFlash
 {
-    /*! \brief Ascending indices of the refused notes in the tab projection's note order. */
+    /*!
+    \brief Indices of the refused notes in the tab projection's note order, ascending, each once.
+    */
     std::vector<std::size_t> notes{};
 
-    /*! \brief Ascending indices of the refused spans in the tab projection's span order. */
+    /*!
+    \brief Indices of the refused spans in the tab projection's span order, ascending, each once.
+    */
     std::vector<std::size_t> spans{};
 
-    /*! \brief Ascending indices of the refused none holds in the tab projection's order. */
+    /*!
+    \brief Indices of the refused none holds in the tab projection's order, ascending, each once.
+    */
     std::vector<std::size_t> none_holds{};
 
-    /*! \brief Ascending indices of the refused fret-hand position chips in placement order. */
+    /*!
+    \brief Indices of the refused fret-hand position chips in placement order, ascending, each once.
+    */
     std::vector<std::size_t> fret_hand_positions{};
 
-    /*! \brief The refused keyframes as projected positions. */
+    /*! \brief The refused keyframes as projected positions, ascending, each once. */
     std::vector<ChartKeyframeRef> keyframes{};
 
-    /*! \brief The refused ruler chips, which the ruler finds by row and start as it draws them. */
+    /*!
+    \brief The refused ruler chips, ascending by row then start, each once; the ruler finds them by
+    row and start as it draws them.
+    */
     std::vector<RulerChipKey> ruler_chips{};
 
-    /*! \brief The refused tone regions, by region id. */
+    /*! \brief The refused tone regions by region id, ascending, each once. */
     std::vector<std::string> tone_regions{};
 };
 
