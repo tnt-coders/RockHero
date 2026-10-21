@@ -292,20 +292,6 @@ void showTwoSpans(TabView& view)
 }
 
 using testing::nearestColor;
-using testing::squaredColorDistance;
-
-// Whether any pixel in the window is classified as the refusal glow: nearer the theme's invalid
-// ink than the canvas the lane is drawn over is. The glow's level falls with time, so the class is
-// asked of a pixel the glow tints at all, which any level above zero gives — a slow runner cannot
-// flake it.
-[[nodiscard]] bool anyPixelGlowsInvalid(const juce::Image& image, const juce::Rectangle<int> window)
-{
-    const juce::Colour invalid = editorTheme().invalid;
-    const int canvas_distance = squaredColorDistance(g_canvas_ink, invalid);
-    return anyPixelIn(image, window, [&](const juce::Colour pixel) {
-        return squaredColorDistance(pixel, invalid) < canvas_distance;
-    });
-}
 
 } // namespace
 
