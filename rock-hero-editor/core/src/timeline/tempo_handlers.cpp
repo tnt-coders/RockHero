@@ -69,23 +69,13 @@ namespace
 // Rationale lives on the declaration in editor_controller_impl.h. Both branches land through one
 // `land`, so each verb states its commit once, whichever the toggle chose. The new map is built
 // from the session's map in both: a held nudge run needs no origin of its own, since a move states
-// its anchor's time absolutely, and under the lock the content's origin is the lock's. The verb's
-// subject is the anchor it moves or the one its grid commit lands — an insert's place, which lights
-// whatever anchor already holds it — and a refusal, the edit's or the funnel's, lights it with
-// whatever stood in its way.
+// its anchor's time absolutely, and under the lock the content's origin is the lock's. A refusal,
+// the edit's or the funnel's, lights the verb's subject with whatever stood in its way.
 template <typename Edit>
 void EditorController::Impl::commitTempoEdit(
-    const std::string_view verb, const Edit& edit, const TempoCommit& landing)
+    const std::string_view verb, const Edit& edit, const TempoCommit& landing, RefusalLight subject)
 {
     const auto* const moved = std::get_if<TempoAnchorSelection>(&landing);
-    const std::optional<common::core::GridPosition> subject_anchor =
-        moved != nullptr ? std::optional{moved->position}
-                         : std::get<TempoGridCommit>(landing).anchor;
-    RefusalLight subject;
-    if (subject_anchor.has_value())
-    {
-        subject.add(TempoAnchorSelection{.position = *subject_anchor});
-    }
     const auto land = [this, verb, moved, &landing, &subject](
                           auto before, auto after, const common::core::TempoMap& edited) {
         if (moved != nullptr)
@@ -254,7 +244,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertTempoAn
                 },
             .anchor = action.position,
             .focus = EntryFocus::FirstChange,
-        });
+        },
+        lightOf(TempoAnchorSelection{.position = action.position}));
 }
 
 // Types the tempo of the span an anchor opens: the anchor stays put and every later anchor ripples
@@ -280,7 +271,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
                 },
             .anchor = action.position,
             .focus = EntryFocus::FirstChange,
-        });
+        },
+        lightOf(TempoAnchorSelection{.position = action.position}));
 }
 
 // The prompt hands back raw text, so the parse is the core's: text that is not a factor, or one
@@ -323,7 +315,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
                 .label = [&label](const common::core::TempoMap& /*tempo_map*/) { return label; },
                 .anchor = std::nullopt,
                 .focus = EntryFocus::None,
-            });
+            },
+            // The whole map is its subject, which no chip draws: only what a rule names lights.
+            RefusalLight{});
         return;
     }
 
@@ -537,12 +531,14 @@ void EditorController::Impl::moveSelectedTempoAnchorTo(
         [&selection, milliseconds](const common::core::TempoMap& tempo_map) {
             return moveTempoAnchor(tempo_map, selection.position, milliseconds);
         },
-        selection);
+        selection,
+        lightOf(selection));
 }
 
 // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative): the two spans
 // beside it merge, their outer anchors staying pinned, so it is the exact inverse of an insert. The
-// first anchor and the terminal are refused; every map keeps both.
+// first anchor and the terminal are refused; every map keeps both. Nothing is left selected, so a
+// refusal lights the anchor the delete addressed, which still stands.
 void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelection& selection)
 {
     commitTempoEdit(
@@ -557,7 +553,8 @@ void EditorController::Impl::deleteSelectedTempoAnchor(const TempoAnchorSelectio
                 },
             .anchor = std::nullopt,
             .focus = EntryFocus::FirstChange,
-        });
+        },
+        lightOf(selection));
 }
 
 // THE one authority for keeping the engine's tempo-derived caches current: the seconds-domain tone

@@ -8,14 +8,18 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_timeline.h>
 #include <rock_hero/common/core/testing/tempo_map_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <rock_hero/editor/core/testing/song_timeline_fixtures.h>
 #include <string>
@@ -470,6 +474,130 @@ TEST_CASE("The Note Lock refuses every content edit", "[core][tempo][note-lock]"
 
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == entries);
+}
+
+// The lock names nothing on the lane, so a refused plan lights what it froze: a Shape over a time
+// selection would take the hold standing inside it, and that hold's span flashes.
+TEST_CASE(
+    "A Shape the Note Lock refuses flashes the hold it would take", "[core][chart][note-lock]")
+{
+    common::core::Song song = makeEightMeasureSong();
+    std::optional<common::core::Chart>& song_chart = song.arrangements.front().chart;
+    REQUIRE(song_chart.has_value());
+    if (!song_chart.has_value())
+    {
+        return;
+    }
+    common::core::Chart& chart = *song_chart;
+    const std::vector<common::core::ShapeHold> holds{common::core::ShapeHold{
+        .start = beatAt(6, 1),
+        .end = beatAt(7, 1),
+        .grip = common::core::UnnamedGrip{},
+    }};
+    chart.shape_holds = holds;
+    DenseNoteLockEditor editor{std::move(song)};
+    // A grid step is a beat, so the selection below is stated in beats: 5:1 to 8:1, over the hold.
+    editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
+    const std::shared_ptr<const common::core::ChartViewState> tab = editor.state().tab;
+    REQUIRE(tab != nullptr);
+    if (tab == nullptr)
+    {
+        return;
+    }
+    const auto held = std::ranges::find_if(
+        tab->shapes, [](const common::core::ShapeViewState& shape) { return shape.held; });
+    REQUIRE(held != tab->shapes.end());
+    const auto held_span = static_cast<std::size_t>(std::distance(tab->shapes.begin(), held));
+    editor.seek(8.0);
+    for (int beat = 0; beat < 12; ++beat)
+    {
+        editor.controller.onTimeSelectionExtendRequested(
+            TimeSelectionExtent::Grid, ChartStepDirection::Right);
+    }
+    const std::size_t entries = editor.undoEntryCount();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    // Ctrl+H, choosing Shape.
+    const std::size_t asked = editor.view.shown_hold_pickers.size();
+    editor.controller.onHoldRequested();
+    REQUIRE(editor.view.shown_hold_pickers.size() == asked + 1);
+    editor.controller.onHoldChoiceRequested(common::core::UnnamedGrip{});
+
+    const std::optional<common::core::Chart>& after =
+        editor.controller.session().song().arrangements.front().chart;
+    REQUIRE(after.has_value());
+    if (after.has_value())
+    {
+        CHECK(after->shape_holds == holds);
+    }
+    CHECK(editor.undoEntryCount() == entries);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    const std::vector<std::size_t>& spans = editor.view.refusal_flashes.back().spans;
+    CHECK(std::ranges::find(spans, held_span) != spans.end());
+}
+
+// A digit on a selected keyframe is refused at the plan, and each keystroke of the entry flashes
+// what it would have retyped: the first digit arms the red box and flashes the keyframe, and the
+// second, widening the same entry, flashes the same targets again — joining the pulse the first
+// started rather than lighting anything new.
+TEST_CASE(
+    "A fret entry the Note Lock refuses flashes its targets at each digit",
+    "[core][chart][note-lock]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, makeGlideChart());
+    REQUIRE(loaded);
+    // The glide's junction head, at 4.0 s on string 3: the click selects its keyframe alone.
+    click(controller, 80.0F, 140.0F);
+    controller.onNoteLockToggleRequested();
+    const EditorViewState* const locked = stateOrNull(view.last_state);
+    REQUIRE(locked != nullptr);
+    if (locked == nullptr)
+    {
+        return;
+    }
+    REQUIRE(locked->note_lock);
+    const std::vector<std::size_t> selected_notes = locked->chart_edit.selected_notes;
+    const std::vector<ChartKeyframeRef> selected_keyframes = locked->chart_edit.selected_keyframes;
+    REQUIRE(selected_keyframes.size() == 1);
+    const std::size_t flashes = view.refusal_flashes.size();
+
+    controller.onChartFretDigitTyped(1);
+    REQUIRE(view.refusal_flashes.size() == flashes + 1);
+    CHECK(view.refusal_flashes.back().keyframes == selected_keyframes);
+    CHECK(view.refusal_flashes.back().notes == selected_notes);
+
+    controller.onChartFretDigitTyped(2);
+    REQUIRE(view.refusal_flashes.size() == flashes + 2);
+    CHECK(view.refusal_flashes.back().keyframes == selected_keyframes);
+    CHECK(view.refusal_flashes.back().notes == selected_notes);
+    // The second digit widened the one entry rather than starting another.
+    const EditorViewState* const typed = stateOrNull(view.last_state);
+    REQUIRE(typed != nullptr);
+    if (typed == nullptr)
+    {
+        return;
+    }
+    const std::optional<ChartPendingFretViewState>& pending = typed->chart_edit.pending_fret;
+    REQUIRE(pending.has_value());
+    if (pending.has_value())
+    {
+        CHECK(pending->text == "12");
+        CHECK_FALSE(pending->valid);
+    }
 }
 
 // Off, the same verbs land: the refusal is the lock's and nothing else's.

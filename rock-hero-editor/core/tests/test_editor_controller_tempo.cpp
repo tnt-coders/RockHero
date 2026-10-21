@@ -314,7 +314,8 @@ TEST_CASE("A typed tempo ripples every later anchor", "[core][tempo]")
     CHECK(editor.undoEntryCount() == 4);
 }
 
-// The first anchor is refused, every map keeps it; a delete merges the two spans with both outer
+// The first anchor is refused, every map keeps it, and its chip flashes: the delete lands no
+// anchor, but the one it addressed still stands. A delete merges the two spans with both outer
 // anchors pinned, so undo restores the map exactly.
 TEST_CASE("Deleting a tempo anchor round-trips through undo", "[core][tempo]")
 {
@@ -325,6 +326,7 @@ TEST_CASE("Deleting a tempo anchor round-trips through undo", "[core][tempo]")
     editor.controller.onSelectionDeleteRequested();
     CHECK(editor.tempoMap() == original);
     CHECK(editor.undoEntryCount() == 0);
+    CHECK(flashedRulerChips(editor.view) == std::vector{tempoChip(beatAt(1, 1))});
 
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     const common::core::TempoMap inserted = editor.tempoMap();
@@ -973,11 +975,18 @@ TEST_CASE("The tempo lock refuses a tempo-chip drag", "[core][tempo][tempo-lock]
     editor.controller.onTempoAnchorSelected(beatAt(5, 1));
     editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8100);
     editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8300);
+    editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8500);
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(
-        flashedRulerChips(editor.view) ==
-        std::vector{tempoChip(beatAt(5, 1)), tempoChip(beatAt(5, 1))});
+    // One flash per event, each the dragged chip alone: the lock is not on the lane, so it names
+    // no culprit.
+    REQUIRE(editor.view.refusal_flashes.size() == 3);
+    for (const RefusalFlash& flash : editor.view.refusal_flashes)
+    {
+        CHECK(flash.ruler_chips == std::vector{tempoChip(beatAt(5, 1))});
+        CHECK(flash.notes.empty());
+        CHECK(flash.tone_regions.empty());
+    }
 }
 
 // The lock guards anchor TIMES only: inserting, typing a tempo and deleting all work while it is

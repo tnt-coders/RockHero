@@ -707,11 +707,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // content moves with its beat; with it on, the content the lock holds is laid under the new
     // map so every time holds (plan 66 decision 5; timeKeptSnapshot), and the cursor is carried
     // from its place now to the same time under the new map. A refused edit or re-address is
-    // logged under `verb` and lights the verb's subject — the moved anchor, or the one the grid
-    // commit lands — with whatever the broken rule names. Defined in tempo_handlers.cpp, its only
-    // user.
+    // logged under `verb` and lights `subject` — the anchor the verb acts on, which for an insert
+    // is its place and lights whatever anchor already holds it, and nothing for a whole-map verb —
+    // with whatever the broken rule names. The subject is the verb's to state, never read off the
+    // landing: a delete lands no anchor, yet a refused one has its anchor still standing to light.
+    // Defined in tempo_handlers.cpp, its only user.
     template <typename Edit>
-    void commitTempoEdit(std::string_view verb, const Edit& edit, const TempoCommit& landing);
+    void commitTempoEdit(
+        std::string_view verb, const Edit& edit, const TempoCommit& landing, RefusalLight subject);
     // Engages the Note Lock on the song's content as it stands and marks the history's base there:
     // what the toggle does, and what the two content writes the lock admits (the locked Scale
     // Tempo, the settle sweep) do once they have written, so the lock holds what the song shows.
