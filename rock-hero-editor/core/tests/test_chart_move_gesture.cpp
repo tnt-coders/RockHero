@@ -495,13 +495,17 @@ TEST_CASE("A move earlier from the song's start flashes the note", "[core][chart
 {
     const testing::LogCapture capture;
     MoveFixture fixture;
-    common::core::Chart chart;
-    chart.tuning.strings = common::core::testing::standardTuning();
+    const auto chart_with_note_on_beat = [](const int beat) {
+        common::core::Chart chart;
+        chart.tuning.strings = common::core::testing::standardTuning();
+        chart.notes = {makeTestNote({.measure = 1, .beat = beat}, 1, g_measure_3_fret)};
+        return chart;
+    };
     SECTION("inside a run")
     {
         // Measure 1 beat 3, at 1.0s (x = 20): two presses reach the start.
-        chart.notes = {makeTestNote({.measure = 1, .beat = 3}, 1, g_measure_3_fret)};
-        REQUIRE(fixture.load(std::move(chart)));
+        const bool loaded = fixture.load(chart_with_note_on_beat(3));
+        REQUIRE(loaded);
         click(fixture.controller, 20.0f, g_string_1_y);
         const std::size_t entries_before = fixture.undoEntryCount();
         fixture.step(ChartStepDirection::Left);
@@ -530,8 +534,8 @@ TEST_CASE("A move earlier from the song's start flashes the note", "[core][chart
     }
     SECTION("as the first press")
     {
-        chart.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, g_measure_3_fret)};
-        REQUIRE(fixture.load(std::move(chart)));
+        const bool loaded = fixture.load(chart_with_note_on_beat(1));
+        REQUIRE(loaded);
         click(fixture.controller, 0.0f, g_string_1_y);
         {
             const EditorViewState* const selected = stateOrNull(fixture.view.last_state);

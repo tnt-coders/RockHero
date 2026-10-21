@@ -1002,7 +1002,8 @@ TEST_CASE("A sustain gesture's hold rewrite reverses as it steps back", "[core][
         .grip = common::core::UnnamedGrip{},
     };
     chart.shape_holds = {hold};
-    REQUIRE(fixture.load(std::move(chart)));
+    const bool loaded = fixture.load(std::move(chart));
+    REQUIRE(loaded);
     const auto holds = [&fixture] {
         const common::core::Chart* const live = chartOrNull(fixture.controller);
         return live != nullptr ? live->shape_holds : std::vector<common::core::ShapeHold>{};
