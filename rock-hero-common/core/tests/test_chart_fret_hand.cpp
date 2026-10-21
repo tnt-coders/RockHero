@@ -118,12 +118,15 @@ struct SpanHolds
 // end of the first bar, which is the answer where it never does.
 [[nodiscard]] Fraction releaseOf(const ChartNote& note, const Fraction from, const int held_fret)
 {
-    return stringReleasesStopAt(
-        chartConnections({note}, makeTempoMap()),
-        chartStringIndex(note).value(),
-        held_fret,
-        from,
-        Fraction{1});
+    const std::optional<std::size_t> string_index = chartStringIndex(note);
+    REQUIRE(string_index.has_value());
+    return string_index.has_value() ? stringReleasesStopAt(
+                                          chartConnections({note}, makeTempoMap()),
+                                          *string_index,
+                                          held_fret,
+                                          from,
+                                          Fraction{1})
+                                    : Fraction{};
 }
 
 // Whether `holds` carries a hold of exactly `expected`'s fret over exactly its stretch.

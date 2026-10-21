@@ -1153,9 +1153,12 @@ TEST_CASE(
     // The second note, at 2:3 (three seconds, x = 60) on string 1.
     click(controller, 60.0f, 220.0f);
     controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
-    CHECK(
-        controller.session().currentArrangement()->chart->notes[1].attack ==
-        common::core::NoteAttack::Pick);
+    const common::core::Chart* const live = chartOrNull(controller);
+    REQUIRE(live != nullptr);
+    if (live != nullptr)
+    {
+        CHECK(live->notes[1].attack == common::core::NoteAttack::Pick);
+    }
     REQUIRE(view.refusal_flashes.size() == 1);
     CHECK(view.refusal_flashes[0].notes == std::vector<std::size_t>{0, 1});
 }
