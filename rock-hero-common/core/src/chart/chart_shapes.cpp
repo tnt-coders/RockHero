@@ -946,7 +946,7 @@ ChartShapes deriveChartShapes(
             const std::optional<ChartStop>& struck = slot.strikes[string_index];
             if (boundary == now && slot.place == now && striking.has_value() &&
                 struck.has_value() &&
-                gripStatement(saved_notes[*striking], planted_stops[*striking], *stop)
+                gripStatement(saved_notes[*striking], planted_stops[*striking], stop)
                         .value_or(*struck) == *stop)
             {
                 return false;
