@@ -508,7 +508,7 @@ public:
     /*! \copydoc IEditorController::onHoldChoiceRequested */
     void onHoldChoiceRequested(std::optional<common::core::HoldGrip> grip) override
     {
-        last_hold_choice = std::move(grip);
+        last_hold_choice = grip;
         hold_choice_count += 1;
     }
 

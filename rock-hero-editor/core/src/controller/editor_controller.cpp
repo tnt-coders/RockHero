@@ -1243,7 +1243,7 @@ void EditorController::onHoldRequested()
 
 void EditorController::onHoldChoiceRequested(std::optional<common::core::HoldGrip> grip)
 {
-    m_impl->runAction(EditorAction::SetHold{.grip = std::move(grip)});
+    m_impl->runAction(EditorAction::SetHold{.grip = grip});
 }
 
 void EditorController::onSpanRowMarksPressed(const SpanRowMarks& marks)

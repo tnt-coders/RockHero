@@ -737,7 +737,7 @@ common::core::ShapeHold shapeHoldOverSpan(
     return common::core::ShapeHold{
         .start = tempo_map.gridPositionAtWholeNote(span.place),
         .end = tempo_map.gridPositionAtWholeNote(span.place + span.sustain),
-        .grip = std::move(grip),
+        .grip = grip,
     };
 }
 
