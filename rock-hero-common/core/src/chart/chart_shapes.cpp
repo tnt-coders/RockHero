@@ -62,8 +62,9 @@ constexpr std::size_t g_parts_member_minimum = 3;
 // Whether a grip is too small to sound in parts (\ref g_parts_member_minimum).
 [[nodiscard]] bool tooFewForParts(const std::vector<std::optional<ChartStop>>& stops)
 {
-    return static_cast<std::size_t>(std::ranges::count_if(
-               stops, [](const auto& stop) { return stop.has_value(); })) < g_parts_member_minimum;
+    return std::cmp_less(
+        std::ranges::count_if(stops, [](const auto& stop) { return stop.has_value(); }),
+        g_parts_member_minimum);
 }
 
 } // namespace
