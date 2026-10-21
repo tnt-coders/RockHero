@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <compare>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/chart/head_margins.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -119,6 +121,31 @@ namespace
     return std::min(last_statement, ink_end);
 }
 
+// The next strike on a note's string after its own onset — whichever hand strikes and whatever it
+// sounds — as a place on the whole-note axis; nothing where the string is never struck again. Read
+// off the revision's one per-string index (\ref ChartConnections::string_notes).
+[[nodiscard]] std::optional<Fraction> nextStrikeOnString(
+    const ChartConnections& connections, const std::size_t index)
+{
+    const std::optional<std::size_t> string_index =
+        chartStringIndex(connections.saved_notes[index]);
+    if (!string_index.has_value())
+    {
+        return std::nullopt;
+    }
+    const std::vector<std::size_t>& string_notes = connections.string_notes[*string_index];
+    const auto place_of = [&connections](const std::size_t note) {
+        return connections.places[note];
+    };
+    const auto next = std::ranges::upper_bound(
+        string_notes, connections.places[index], std::ranges::less{}, place_of);
+    if (next == string_notes.end())
+    {
+        return std::nullopt;
+    }
+    return place_of(*next);
+}
+
 } // namespace
 
 // One walk over the onset groups — every note at one grid position, contiguous in the sorted
@@ -181,11 +208,14 @@ bool hasRestingRemainder(const std::optional<Fraction>& rested_from, const Fract
 }
 
 // The span convention IS the hold, and there is one rule: a LIVE fretting-hand member whose tail
-// draws nothing or RESTS, covered by a span, is held to the span's reach — while the grip is held,
-// the board pins what is held. Both take the same extension because they are the same physical
-// fact: under grip tenure a covered member's un-renewed death would have BROKEN the span, so
-// coverage past a member's ring IS the record that the finger never lifted (the restrike replaced
-// the sound, not the hand).
+// draws nothing or RESTS, covered by a span, is held to the span's reach, cut where its string is
+// struck again. The reach is the HAND's: under grip tenure a covered member's un-renewed death
+// would have BROKEN the span, so coverage past a member's ring IS the record that the finger never
+// lifted (the restrike replaced the sound, not the hand). The cut is the SOUND's: a pinned head
+// states what the string sounds, and the next strike on the string takes that whatever it sounds —
+// a repeat lands in the head's place and takes it over, a different stop lands beside it as it
+// dissolves. The finger may well stay planted under that strike (a pull-off's source does); the
+// span's rails state the hold, the head states the sound.
 //
 // Dead members (a dead chug is choked, not held), the other hand's onsets, and members whose tails
 // are still stating at their end state their own hold — their ribbon already says where the ring
@@ -203,23 +233,11 @@ std::vector<Fraction> chartNoteLengths(
     const std::vector<ChartNote>& notes = connections.saved_notes;
     const std::vector<Fraction>& places = connections.places;
 
-    std::vector<Fraction> held;
-    held.reserve(notes.size());
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        // The FLOOR, keyed on the HANDOVER alone. A handed-over member pins for exactly its stored
-        // ring, because a pinned head reflects the current SOUNDING state: the next strike on its
-        // string takes the sound, and the same-string clamp (\ref sustainBoundOf) plus the
-        // adjacency the claim itself required (\ref predecessorHoldReaches) make the stored ring
-        // end exactly on that takeover. Everyone else starts from the tail they draw.
-        //
-        // THE RESTING member deliberately does NOT floor here on its stored ring: under the
-        // universal curtain every plain note rests, so such a floor would run a LONE note's head
-        // pin out to its stored ring and into the next note's margin. The floor a resting member
-        // needs is SPAN COVERAGE, so it lives in the covered-group loop below.
-        held.push_back(
-            connections.hands_over[index] ? notes[index].sustain : presentation.ink_end[index]);
-    }
+    // Everyone starts from the tail they draw. THE RESTING member deliberately does NOT floor here
+    // on its stored ring: under the universal curtain every plain note rests, so such a floor would
+    // run a LONE note's head pin out to its stored ring and into the next note's margin. The floor
+    // a resting member needs is SPAN COVERAGE, so it lives in the covered-group loop below.
+    std::vector<Fraction> held = presentation.ink_end;
     // How far the covering furniture reaches, from the one authority both span-scoped display
     // rules ask (\ref SpanCover).
     const SpanCover cover{shapes};
@@ -238,15 +256,11 @@ std::vector<Fraction> chartNoteLengths(
         const std::optional<SpanCoverage> covering = cover.reaching(places[index]);
         if (covering.has_value())
         {
-            const Fraction span_hold = covering->end - places[index];
             for (std::size_t member = index; member < group_end; ++member)
             {
                 const ChartNote& note = notes[member];
-                // A HANDED-OVER member is excluded whole: its sound ends at its own stored ring,
-                // where the next strike on its string takes over (floored above), so the grip's
-                // tenure is not its to inherit.
                 const bool rests = presentation.rested_from[member].has_value();
-                if (rightHandOnset(note.attack) || note.dead || connections.hands_over[member] ||
+                if (rightHandOnset(note.attack) || note.dead ||
                     (presentation.ink_end[member].numerator > 0 && !rests))
                 {
                     continue;
@@ -260,9 +274,17 @@ std::vector<Fraction> chartNoteLengths(
                 {
                     held[member] = note.sustain;
                 }
-                if (held[member] < span_hold)
+                // The reach: the span's close, or the string's next strike where that comes first.
+                // A handed-over member needs no case of its own: the adjacency its claim required
+                // puts that strike exactly at its stored ring.
+                const Fraction reach =
+                    std::min(
+                        covering->end,
+                        nextStrikeOnString(connections, member).value_or(covering->end)) -
+                    places[member];
+                if (held[member] < reach)
                 {
-                    held[member] = span_hold;
+                    held[member] = reach;
                 }
             }
         }

@@ -282,14 +282,15 @@ that stretch; and one held past its ink end (a span-held strum, a
 handed-over member pinned to its stored ring) keeps its pin and fades by the same rule measured to
 the pin's end, gone exactly as the pin releases — so a head held until the next strum takes over is
 gone as the newcomer lands, and the two never stack. **A TAKE-OVER IN PLACE STAYS WHOLE**
-(ruled 2026-10-11): a string shows one head per stop, so the first later head struck on the same
-string at the stop this head ends on (`headEndFret`, `headSoundingStop`) while this head is still in
-play — pinned, or its ring still sounding — lands in its place: this head stays fully lit and pinned
-until that landing and is gone as it happens, so only the chain's last head fades. Whatever lands on
-the string in between is no part of it (ruled 2026-10-21): a shape keeps a stop planted while a
-higher fret of the same string sounds and is pulled off back to it, and the planted head hands over
-to the re-strike that comes back, never to the higher fret. Where a head ends is where its glide
-comes to rest, so a slide chains from
+(ruled 2026-10-11): a pinned head states what its string sounds, and the string's next head takes
+that as it lands. Struck at the stop this head ends on (`headEndFret`, `headSoundingStop`) while
+this head is still in play — held to that strike, or its ring sounding up to it — it lands in this
+head's place: this head stays fully lit and pinned until that landing and is gone as it happens, so
+only the chain's last head fades. Struck at another stop, it lands beside this head, which a span
+held exactly that far (the hold ends where the string is struck again, ruled 2026-10-21), so this
+head dissolves into the newcomer's landing: a planted 5 is gone as the 7 above it sounds, and the
+pull-off back onto 5 lands fresh. Where a head ends is where its glide comes to rest, so a slide
+chains from
 where it lands (ruled 2026-10-12): a slide from 5 to 7 chains into a repeat on 7, never into a note
 on 5, and a held bend chains from its own fret. It is judged
 per head, so a partial chord repeat chains only its repeated members; a repeat box's heads take over
@@ -452,19 +453,21 @@ rides at full ink outside it. It is the one distance-scoped draw decision the ex
 re-admits, and it modulates alpha only, never length — the verdict is published once for both
 surfaces, so neither decides tail suppression at its own draw site.
 
-**THE HOLD IS THE TENURE**: every live fretting-hand member covered by a span, whose tail rests or
-was never earned, is held to the span's reach — resting and tail-rule-2-emptied members alike,
-because under grip tenure coverage past a member's ring IS the renewal record: a re-strike replaces
-the sound, never the finger, so the note's own ring never cuts the hold short. (Keying on the ring
-instead releases the pins at every slow restrike while the faster chugs hold — a hold that works
-only sometimes.) A member whose tail STANDS — still stating at its own end — states its own hold,
-and so does one no span covers: every plain note outside any furniture rests, and it is held to its
-ink end rather than for its stored ring. Dead members and the other hand's onsets are never
-held at all. A HANDED-OVER member is the one exception the tenure carves out
-(`ChartConnections::hands_over`; pinned heads reflect the current SOUNDING state): a pull-off or
-hammer-on source's head pins only until its takeover — the next strike on its string, which sounds
-the destination there — never the grip's reach, because that head no longer sounds once the
-destination lands. That is what keeps a **repeat-box run** readable — the run's first strum shows
+**THE HOLD IS THE TENURE, CUT AT THE NEXT STRIKE**: every live fretting-hand member covered by a
+span, whose tail rests or was never earned, is held to the span's reach or until its string is
+struck again, whichever comes first — resting and tail-rule-2-emptied members alike, because under
+grip tenure coverage past a member's ring IS the renewal record: a re-strike replaces the sound,
+never the finger, so the note's own ring never cuts the hold short. (Keying on the ring instead
+releases the pins at every slow restrike while the faster chugs hold — a hold that works only
+sometimes.) The re-strike itself does cut it, whatever it sounds, because a pinned head states the
+current SOUNDING state while the span's rails state the hold: a pull-off or hammer-on source's
+head ends exactly where its destination lands (the adjacency the claim required puts that strike
+at its stored ring, so the handed-over member needs no case of its own), a stop kept planted under
+a higher fret of its string ends as that fret is struck, and a repeat of the same stop lands in the
+head's place and takes it over. A member whose tail STANDS — still stating at its own end — states
+its own hold, and so does one no span covers: every plain note outside any furniture rests, and it
+is held to its ink end rather than for its stored ring. Dead members and the other hand's onsets
+are never held at all. That is what keeps a **repeat-box run** readable — the run's first strum shows
 its heads in flight, every box after it draws none until it is struck, and heads go on standing at
 the fretboard underneath the boxes for the whole run, exactly as a plain chord box's duration keeps
 them. A repeat box's own heads take the fretboard over as it lands
@@ -472,9 +475,9 @@ them. A repeat box's own heads take the fretboard over as it lands
 wear the marks and emphasis of the strike now sounding: a palm-muted or ghosted repeat after a
 plain chord changes the heads at the fretboard, not just the box. The board projection clamps the
 pin with `HighwayChordGroupViewState::hold_cap_seconds`, the next strum's onset (dead chugs and
-single notes excluded), because that strum takes over the pinned display. That clamp and the repeat
-chain's in-place takeover above are the only hand-offs. Both are board-only presentation with no 2D
-counterpart to diverge from.
+single notes excluded), because that strum takes over the pinned display. That clamp, the cut at
+the string's next strike, and the in-place takeover above are the only hand-offs. All three are
+board-only presentation with no 2D counterpart to diverge from.
 
 **Which box a strum draws is the projection's answer, never the renderer's**
 (`HighwayChordGroupViewState::box_treatment`, one of None / Full / Repeat). **A BOX MARKS

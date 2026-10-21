@@ -1347,9 +1347,11 @@ struct ChartViewState
 
     How long a pinned head lasts: the note's onset plus its length, as \ref chartNoteLengths
     resolves it — the one statement of which notes a covering hand-shape span extends to its
-    musical close and which stand outside it. Under such a span the strum's heads stay pinned at
-    the hit line for as long as the posture is held, instead of vanishing the instant it is struck,
-    and they go on standing there while repeat boxes restate the same shape over them.
+    musical close, cut where the string is struck again, and which stand outside it. Under such a
+    span the strum's heads stay pinned at the hit line for as long as the posture is held and
+    nothing newer sounds on their strings, instead of vanishing the instant it is struck, and they
+    go on standing there while repeat boxes restate the same shape over them — each box's heads
+    taking theirs over in place as it lands.
 
     The CLOSE and not the drawn rails, shape rule 6's margin belonging to the projection: a note's
     length is how long it is still in play, and the margin is ink spacing. So a held head stands

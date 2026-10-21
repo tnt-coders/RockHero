@@ -954,12 +954,12 @@ TEST_CASE("Ink ends reproduce the import policy's pinned crops", "[core][chart]"
 }
 
 // The span-implied note length: a chug under a hand shape presents no tail at all, yet the shape is
-// what tells the player to keep holding it — so the SPAN is the whole answer and each member's own
-// ring does not cut it short. This is the repeat-chain shape: three identical strums under one
-// span, which is exactly the arrangement the board draws as one chord box followed by repeat boxes.
-// Capping at the ring would end the first strum's hold at the second strum's onset, and the boxes
-// that follow draw no heads of their own, so the pinned shape would vanish one box into the chain.
-TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
+// what tells the player to keep holding it — so the span holds each member past its own ring, up
+// to the next strike on its string, which takes the sound over. This is the repeat-chain shape:
+// three identical strums under one span, which is exactly the arrangement the board draws as one
+// chord box followed by repeat boxes. Each strum is held to the next one's onset, where the repeat
+// box's heads land in its heads' place, and the last strum is held to the span's close.
+TEST_CASE("A span holds a restruck chug until its string is struck again", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
     const std::vector<ChartNote> saved = {
@@ -970,8 +970,8 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
         note(at(1, 3), 1, Fraction{1, 8}),
         note(at(1, 3), 2, Fraction{1, 8}, 7),
     };
-    // The span ends a sixteenth into the third strum, so every strum's hold is its own distance
-    // to that one end.
+    // The span ends a sixteenth into the third strum, so only the last strum, whose strings are
+    // never struck again, is held to that end.
     const std::vector<ChartShape> shapes = {
         ChartShape{.place = Fraction{}, .sustain = Fraction{9, 16}},
     };
@@ -984,16 +984,47 @@ TEST_CASE("A span holds a restruck chug for the whole span", "[core][chart]")
     {
         CHECK(shown == Fraction{});
     }
-    // The first strum is held for the whole span — past its own eighth-note ring and past the two
-    // restrikes that cut it, because a restrike stops the string without releasing the shape.
-    CHECK(note_lengths[0] == Fraction{9, 16});
-    CHECK(note_lengths[1] == Fraction{9, 16});
-    // And the hold ends at the LAST restatement's end, not at the first's: every strum in the
-    // chain reaches the same span end, so each one's remainder is shorter than the last's.
-    CHECK(note_lengths[2] == Fraction{5, 16});
-    CHECK(note_lengths[3] == Fraction{5, 16});
+    // Each of the first two strums is held a quarter — past its own eighth-note ring, because the
+    // ring dying does not release the shape, and exactly to the restrike a quarter later, because
+    // that strike takes the string's sound over.
+    CHECK(note_lengths[0] == Fraction{1, 4});
+    CHECK(note_lengths[1] == Fraction{1, 4});
+    CHECK(note_lengths[2] == Fraction{1, 4});
+    CHECK(note_lengths[3] == Fraction{1, 4});
+    // The last strum has no strike after it, so the span's close is its end: a sixteenth on.
     CHECK(note_lengths[4] == Fraction{1, 16});
     CHECK(note_lengths[5] == Fraction{1, 16});
+}
+
+// THE RESTRIKE CUT asks only WHERE the string is struck, never WHAT it sounds: a pinned head states
+// what its string sounds, so a covered member is held to the next strike on its string even when
+// that strike stops a different fret, and the finger planted beneath it is the rails' to state,
+// not the head's. Its partner in the same strum, whose string nothing strikes again, is the
+// in-case control: the span's close is its whole answer.
+TEST_CASE("A span's hold ends where its string is struck again, at any stop", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    // A two-string strum of effect-free eighths, then string 1 alone struck again at fret 8 two
+    // quarters later, all under one span of four quarters. Every ring sits on the kept-sustain
+    // bound, so no tail draws and the span rule is the only thing that answers.
+    const std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{1, 8}),
+        note(at(1, 1), 2, Fraction{1, 8}, 7),
+        note(at(1, 3), 1, Fraction{1, 8}, 8),
+    };
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.place = Fraction{}, .sustain = Fraction{1}},
+    };
+
+    const std::vector<Fraction> note_lengths = noteLengthsUnderSpans(saved, shapes, map);
+    REQUIRE(note_lengths.size() == saved.size());
+    // The fret-5 member is held past its own eighth to the fret-8 strike two quarters on, and no
+    // further: the span's close two quarters beyond it is not its to reach.
+    CHECK(note_lengths[0] == Fraction{1, 2});
+    // Its partner's string is never struck again, so it is held to the span's close.
+    CHECK(note_lengths[1] == Fraction{1});
+    // And the restrike itself is the last strike on its string, so it too reaches the close.
+    CHECK(note_lengths[2] == Fraction{1, 2});
 }
 
 // The two cases the span-implied note length deliberately does NOT claim: drawn tails and chokes —
@@ -1100,12 +1131,12 @@ TEST_CASE("A tap is no part of the strum a span holds", "[core][chart]")
         {
             CHECK(shown == Fraction{});
         }
-        // The lone fretted member extends on its own account — four quarters from its onset to the
-        // span's close — while the tap beside it inherits nothing.
-        CHECK(note_lengths[0] == Fraction{1});
+        // The lone fretted member extends on its own account — a quarter, from its onset to the
+        // restrike of its string at beat two — while the tap beside it inherits nothing.
+        CHECK(note_lengths[0] == Fraction{1, 4});
         CHECK(note_lengths[1] == Fraction{});
-        // The pair at beat two extends the same way, three quarters to the same close: one rule, no
-        // strum count for the tap to pollute.
+        // The pair at beat two extends the same way, three quarters to the span's close, since
+        // neither string is struck again: one rule, no strum count for the tap to pollute.
         CHECK(note_lengths[2] == Fraction{3, 4});
         CHECK(note_lengths[3] == Fraction{3, 4});
     }
@@ -1762,13 +1793,14 @@ TEST_CASE("Emptiness the presentation rules own never enters the hidden set", "[
 // STORED RING at the least, never the ribbon the presentation rules sized for it.
 //
 // THE HOLD IS THE TENURE: while the grip is held the board pins what is held, so a hidden member
-// under a span is held to that span's reach — the restrike interior included, whose own ring the
-// restrike replaced without the finger ever lifting. In this lone figure the two answers coincide
-// (the ring dies where the span closes), and one load-bearing pin is left: the tail-rules-1-to-3
-// margin trim, which is the ribbon the member actually presents and therefore the number the
-// extension is likeliest to pick up. The COVERAGE key is what the universal curtain leaves
-// standing here: resting does not imply a span, so the stored-ring floor lives inside the covered
-// walk and a lone resting note keeps its drawn tail instead.
+// under a span is held to that span's reach — past its own ring wherever that dies first, and cut
+// only by the next strike on its string, which takes the sound over. In this lone figure the two
+// answers coincide (the ring dies where the span closes, and nothing strikes its string again),
+// and one load-bearing pin is left: the tail-rules-1-to-3 margin trim, which is the ribbon the
+// member actually presents and therefore the number the extension is likeliest to pick up. The
+// COVERAGE key is what the universal curtain leaves standing here: resting does not imply a span,
+// so the stored-ring floor lives inside the covered walk and a lone resting note keeps its drawn
+// tail instead.
 TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
 {
     const TempoMap map = fourFourMap();
@@ -1805,13 +1837,13 @@ TEST_CASE("A hidden member is held to its span's reach", "[core][chart]")
     CHECK(note_lengths[1] == Fraction{1, 4});
 }
 
-// THE HANDOVER UNPINS THE SOURCE (pinned heads reflect the current SOUNDING state): a note the next
-// strike on its string takes the sound from — a pull-off or a hammer-on source — holds for exactly
-// its stored ring, never the grip's tenure, because the destination's own head takes the display
-// over where it lands. The ring IS the takeover by construction (\ref sustainBoundOf caps it there,
-// \ref predecessorHoldReaches demands it reach there), so no second instant exists to compute. Both
-// legato directions, because the source is `hands_over` either way; the base grip beside it keeps
-// the full span pin.
+// THE HANDOVER UNPINS THE SOURCE (pinned heads reflect the current SOUNDING state): a pull-off or
+// hammer-on source is held only to the next strike on its string — the destination, which takes
+// the sound over where it lands — never for the grip's tenure. That strike IS the source's stored
+// ring by construction (\ref sustainBoundOf caps the ring there, \ref predecessorHoldReaches
+// demands it reach there), so the general restrike cut gives exactly the stored ring and no case
+// of its own. Both legato directions, because the cut does not ask what the strike sounds; the
+// base grip beside it, its string never struck again, keeps the full span pin.
 TEST_CASE("A handed-over source's head unpins at the takeover", "[core][chart]")
 {
     const TempoMap map = fourFourMap();

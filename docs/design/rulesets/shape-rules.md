@@ -236,9 +236,12 @@ takes the next one.
      its span's start, and the close is the earlier of two instants at or after the start. A span
      closing at its own front is not published.
    - **What the tenure holds.** A span shortens and hides no ring. The 3D board pins each covered
-     fretting-hand member whose tail rests for the rest of its span, floored at its own stored ring;
-     a handed-over member holds exactly its stored ring, a dead member is choked rather than held,
-     and an uncovered resting note holds to its ink end (`chartNoteLengths`). An onset at a seam
+     fretting-hand member whose tail rests for the rest of its span or until its string is struck
+     again, whichever comes first, floored at its own stored ring; a dead member is choked rather
+     than held, and an uncovered resting note holds to its ink end (`chartNoteLengths`). The cut
+     at the next strike is the sound's, not the hand's: the span's rails state the hold, a pinned
+     head states what its string sounds, so a pull-off's source ends where its destination lands
+     and a stop planted under a higher fret ends as that fret is struck. An onset at a seam
      stands in the grip that arrived (`SpanCover::reaching`).
 4. **A member's fret travel breaks the span at the landing, and the grip it lands in re-opens
    there.**

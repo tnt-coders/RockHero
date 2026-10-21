@@ -125,11 +125,13 @@ What that commits to:
    fades. On the board a played head goes WITH its tail by the same rule (ruled 2026-10-11:
    `headFade`, beside `tailFadeSeconds`): measured to the ink end where a tail is drawn, to the
    stored ring capped at the shortest tail (`g_tail_tip_fade_min_seconds`) where none is, so it
-   fades from the strike, and to the pin's end where the head is held past its ink. A head a later
-   head takes over in place — struck on its string at the stop the head ends on while the head is
-   still in play, whatever lands between them — does not fade at all (ruled 2026-10-11, widened
-   2026-10-21): it stays whole until that head lands in its place, so a chain fades only at its
-   last head (`HighwayViewState::head_ends`). Where a head ends is where its glide comes to rest
+   fades from the strike, and to the pin's end where the head is held past its ink; a span holds a
+   head only until its string is struck again (ruled 2026-10-21: the rails state the hold, the head
+   states the sound), so a planted 5 dissolves into the 7 struck above it. A head the string's
+   next head takes over in place — struck at the stop the head ends on while the head is still in
+   play — does not fade at all (ruled 2026-10-11): it stays whole until that head lands in its
+   place, so a chain fades only at its last head (`HighwayViewState::head_ends`). Where a head
+   ends is where its glide comes to rest
    (`headEndFret`), so a slide chains from where it lands (ruled 2026-10-12).
 6. **A reveal adds ink, never moves a mark.** `Alt`, the caret peek and the selection each extend
    a tail's ink, in full ink exactly as the `Alt` reveal draws today (never the ghost-note

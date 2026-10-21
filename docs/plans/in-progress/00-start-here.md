@@ -69,11 +69,11 @@ Delete the `sight-*` and unwanted `theme-*` folders in `%APPDATA%\Rock Hero\them
    still draw.
 4. **The head fade (ruled 2026-10-11/12):** a head fades with its tail at the tail's rate; a note
    with no drawn tail fades from the strike within 0.25 s (or its own length); a held head ends
-   its fade exactly as its hold releases; a later head struck at the same stop while the head is
-   still in play keeps the head lit until it lands in its place, whatever lands between them (a
-   slide chains from where it lands; a run of repeat boxes keeps the original head drawn; a planted
-   fret-5 head hands over to the pull-off that comes back to it, not to the 7 in between). Check
-   chugs, repeated chords, dead notes and Torn's 5-7-5 pull-offs.
+   its fade exactly as its hold releases, and a span's hold releases where the string is struck
+   again (a planted 5 is gone as the 7 above it sounds; the pull-off back onto 5 lands fresh); the
+   string's next head struck at the same stop while the head is still in play keeps the head lit
+   until it lands in its place (a slide chains from where it lands; a run of repeat boxes keeps the
+   original head drawn). Check chugs, repeated chords, dead notes and Torn's 5-7-5 pull-offs.
 5. **The chord-shape rails** end where the fret hand's next move begins (fixed `ba505cb7`; the
    user confirmed it in play).
 6. **Plan 69's display toggles:** View > Highway Display, flip Note Targets, Note Rotation and

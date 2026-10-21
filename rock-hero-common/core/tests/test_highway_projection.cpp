@@ -1090,9 +1090,9 @@ TEST_CASE("Both surfaces read the tail law's one end", "[core][highway]")
 // ends exactly where the next strike begins — and that adjacency is what merges the strums into ONE
 // hand-shape span and makes the later ones repeat boxes. A repeat box draws no heads in flight, so
 // heads have to stand at the fretboard for the whole chain, exactly as a plain chord box's duration
-// keeps its own: each strum's heads hand over to the next one's as it lands, so the standing heads
-// are always the sounding strike's, and the last strum's are held to the span's close. Capping that
-// hold at the note's own ring would drop the held shape at the last box's onset.
+// keeps its own: each strum is held to the next strike on its strings and its heads hand over to
+// the next one's as it lands, so the standing heads are always the sounding strike's, and the last
+// strum's are held to the span's close.
 TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
@@ -1157,18 +1157,20 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     CHECK(state.chart.shapes[0].start_seconds == Catch::Approx(0.0));
     CHECK(state.chart.shapes[0].drawn_end_seconds == Catch::Approx(0.75));
 
-    // The chain's end is the LAST box's, not the first's: 120 BPM 4/4 puts the third strum at
-    // 0.5 s and its eighth-note ring closes the span at 0.75 s, and every member of the chain
-    // resolves to that same one end. The value that would drop the shape mid-chain is 0.25 s —
-    // the first strum's own ring, which stops exactly where the second box begins.
+    // Each strum is held to the next strike on its strings, which takes their sound over: 120 BPM
+    // 4/4 puts the strums at 0.0 s, 0.25 s and 0.5 s, so the first two are held to 0.25 s and
+    // 0.5 s, while the third has nothing after it and is held to the span's close at 0.75 s, where
+    // its eighth-note ring ends. The shape stays on the board through the whole chain by the
+    // take-over in place below, not by any one strum's hold.
     REQUIRE(state.chart.note_length_ends.size() == state.chart.notes.size());
     CHECK(state.chart.notes[0].ink_end_seconds == Catch::Approx(0.0));
     CHECK(state.chart.notes[2].start_seconds == Catch::Approx(0.25));
-    for (std::size_t index = 0; index < 6; ++index)
-    {
-        CAPTURE(index);
-        CHECK(state.chart.note_length_ends[index] == Catch::Approx(0.75));
-    }
+    CHECK(state.chart.note_length_ends[0] == Catch::Approx(0.25));
+    CHECK(state.chart.note_length_ends[1] == Catch::Approx(0.25));
+    CHECK(state.chart.note_length_ends[2] == Catch::Approx(0.5));
+    CHECK(state.chart.note_length_ends[3] == Catch::Approx(0.5));
+    CHECK(state.chart.note_length_ends[4] == Catch::Approx(0.75));
+    CHECK(state.chart.note_length_ends[5] == Catch::Approx(0.75));
 
     // Each strum's take-over is the next strum, repeat boxes included, since a repeat's heads draw
     // once struck; the last box's is the fresh chord, well past the chain's end.
@@ -1336,14 +1338,15 @@ TEST_CASE(
         check_own(state, 0);
     }
 
-    SECTION("a planted stop hands over past a higher fret to the pull-off back onto it")
+    SECTION("a planted stop's head dissolves into a higher fret struck above it")
     {
         // The arpeggio figure: three strings accumulate a grip, string 1's 5 rings exactly into a
         // 7 picked above it, and the 7 is pulled off back onto the 5. The pull-off proves the 5
-        // stayed planted beneath the 7, so the span rides the ornament whole and holds the planted
-        // head past it. That head's ring ends on the 7 rather than on the pull-off, so the chain is
-        // found by stop, not by the ring ending on the next head: the pull-off lands in the planted
-        // head's place, and the 7 between them is no part of it.
+        // stayed planted beneath the 7, so the span rides the ornament whole — but a pinned head
+        // states what its string sounds, and the 7 takes string 1's sound. So the planted head is
+        // held only to the 7's strike and, the 7 being a different stop, fades into it rather than
+        // handing over; the pull-off back onto 5 lands fresh, and as the last strike on its string
+        // is held to the span's close.
         const GridPosition ornament_at{.measure = 1, .beat = 2, .offset = Fraction{1, 2}};
         const HighwayViewState state = board({
             note(3, 7, first, Fraction{3, 4}),
@@ -1362,22 +1365,32 @@ TEST_CASE(
         });
         REQUIRE(state.head_ends.size() == 5);
         REQUIRE(state.chart.note_length_ends.size() == 5);
+        REQUIRE(state.chart.shapes.size() == 1);
+        const NoteViewState& planted = state.chart.notes[2];
         const NoteViewState& ornament = state.chart.notes[3];
         const double release_onset = state.chart.notes[4].start_seconds;
+        CHECK(ornament.start_seconds == Catch::Approx(0.75));
         CHECK(release_onset == Catch::Approx(1.0));
-        // The span's hold is what keeps the planted head in play past the ornament's onset; were
-        // the head held only to its own ring, it would end on the 7 and nothing here would test the
-        // take-over.
-        REQUIRE(state.chart.note_length_ends[2] > ornament.start_seconds);
-        // The pin is the pull-off's onset, not the 7's: the 7 differs in stop and takes nothing
-        // over.
-        check_handed_over(state.head_ends[2], release_onset);
-        // The 7 is handed over by its pull-off, so it holds its stored ring, which ends exactly
-        // where the pull-off lands, and dissolves within that by the shared head rule.
+        // THE CUT: the span would otherwise hold the planted head to its close, past the 7 and the
+        // pull-off both; the 7's strike takes string 1's sound, so the hold ends exactly there.
+        REQUIRE(state.chart.note_length_ends[2] == Catch::Approx(ornament.start_seconds));
+        // Struck at a different stop, the 7 lands beside the planted head, which takes nothing
+        // over and so ends by its own rule: pinned to the 7's strike and dissolving into it.
+        const HighwayHeadEnd& planted_end = state.head_ends[2];
+        CHECK(planted_end.pin_end_seconds == Catch::Approx(ornament.start_seconds));
+        CHECK(planted_end.fade == headFade(planted, ornament.start_seconds));
+        CHECK(planted_end.fade.length_seconds > 0.0);
+        CHECK(planted_end.fade.end_seconds == Catch::Approx(ornament.start_seconds));
+        // The 7 is held to its own string's next strike, the pull-off, and the pull-off is a
+        // different stop too, so the 7 dissolves by the shared head rule by the time it lands.
         const HighwayHeadEnd& ornament_end = state.head_ends[3];
         CHECK(ornament_end.fade == headFade(ornament, ornament_end.pin_end_seconds));
         CHECK(ornament_end.fade.length_seconds > 0.0);
         CHECK(ornament_end.fade.end_seconds <= release_onset);
+        // The pull-off lands fresh, and nothing strikes string 1 after it, so the span holds it to
+        // its close.
+        CHECK(
+            state.chart.note_length_ends[4] == Catch::Approx(state.chart.shapes[0].close_seconds));
     }
 
     // A HEAD CHAINS FROM WHERE IT ENDS (headEndFret): a slide from where it lands, so a slide from

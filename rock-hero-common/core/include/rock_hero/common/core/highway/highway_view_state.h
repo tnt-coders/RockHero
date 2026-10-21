@@ -644,17 +644,17 @@ struct HighwayViewState
     line (\ref HighwayChordGroupViewState::hold_cap_seconds) and never before its ink end, then
     dissolves by the shared head rule (\ref headFade).
 
-    THE TAKE-OVER IN PLACE overrides that end. A string shows one head per stop: the first later
-    head struck on the same string at the stop this head ends on (\ref headEndFret,
-    \ref headSoundingStop), while this head is still in play — pinned at the line, or its ring
-    still sounding, which outlasts a tailed head's pin by the tail's crop margin — lands in its
-    place, so this head stays fully lit and pinned until that landing and is gone as it happens;
-    only the last head of such a chain fades. Whatever lands on the string in between is no part
-    of it: a shape keeps a stop planted while a higher fret of the same string sounds and is pulled
-    off back to it, and the planted head hands over to the re-strike that comes back, not to the
-    higher fret. A slide chains from where it lands, never from where it began. Per head, so a
-    partial chord repeat chains only its repeated members. A repeat box's heads take over too: they
-    draw nothing as they approach but stand at the hit line once struck
+    THE TAKE-OVER IN PLACE overrides that end. A pinned head states what its string sounds, and
+    the string's next head takes that as it lands: where it is struck at the stop this head ends
+    on (\ref headEndFret, \ref headSoundingStop) while this head is still in play — held to that
+    strike, or its ring sounding up to it, which outlasts a tailed head's pin by the tail's crop
+    margin — it lands in this head's place, so this head stays fully lit and pinned until that
+    landing and is gone as it happens; only the last head of such a chain fades. Struck at another
+    stop, it lands beside this head, which ends by its own rule — held to that strike where a span
+    held it (\ref ChartViewState::note_length_ends), so it dissolves into the newcomer's landing.
+    A slide chains from where it lands, never from where it began. Per head, so a partial chord
+    repeat chains only its repeated members. A repeat box's heads take over too: they draw nothing
+    as they approach but stand at the hit line once struck
     (\ref HighwayChordGroupViewState::showsNotes), so the held heads always wear the marks of the
     strike now sounding. The take-over replaces the head's own end outright, a hold included:
     whatever holds the head holds its successor to the same end, so a held run hands over at each

@@ -414,30 +414,32 @@ void clampStrikePops(
             .pin_end_seconds = pin_end_seconds,
             .fade = headFade(note, pin_end_seconds),
         };
-        // THE TAKE-OVER IN PLACE: the first later head struck on this string at the stop this head
-        // ends on, while this head is still in play — pinned at the line, or its ring still
-        // sounding (a tailed head's ring outlasts its pin by the tail's crop margin). Whatever
-        // lands on the string between them is no part of it: a shape keeps a stop planted while a
-        // higher fret of the same string sounds and is pulled off back to it, and the re-strike
-        // that comes back lands in the planted head's place. The successor replaces the head's own
-        // end outright, a hold included (whatever holds this head holds its successor to the same
-        // end), a repeat box's head included (it draws once struck): this one stays whole until
-        // it lands and is gone as it does — an empty window there.
+        // THE TAKE-OVER IN PLACE: the string's next head, where it is struck at the stop this head
+        // ends on while this head is still in play — held to that strike (a hold ends where its
+        // string is struck again, \ref chartNoteLengths) or its ring sounding up to it (a tailed
+        // head's ring outlasts its pin by the tail's crop margin). The successor replaces the
+        // head's own end outright, a hold included (whatever holds this head holds its successor
+        // to the same end), a repeat box's head included (it draws once struck): this one stays
+        // whole until it lands and is gone as it does — an empty window there. Struck at another
+        // stop, or after this head has gone, the next head takes nothing over, and this head ends
+        // by its own rule.
         const double in_play_end_seconds = std::max(pin_end_seconds, note.ring_end_seconds);
-        const ChartStop end_stop = headSoundingStop(note, headEndFret(note));
         for (std::size_t later = index + 1;
              later < notes.size() && notes[later].start_seconds <= in_play_end_seconds;
              ++later)
         {
             const NoteViewState& next = notes[later];
-            if (next.string != note.string || headSoundingStop(next, next.fret) != end_stop)
+            if (next.string != note.string)
             {
                 continue;
             }
-            ends[index] = HighwayHeadEnd{
-                .pin_end_seconds = next.start_seconds,
-                .fade = TipFade{.end_seconds = next.start_seconds, .length_seconds = 0.0},
-            };
+            if (headSoundingStop(next, next.fret) == headSoundingStop(note, headEndFret(note)))
+            {
+                ends[index] = HighwayHeadEnd{
+                    .pin_end_seconds = next.start_seconds,
+                    .fade = TipFade{.end_seconds = next.start_seconds, .length_seconds = 0.0},
+                };
+            }
             break;
         }
     }

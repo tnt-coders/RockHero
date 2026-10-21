@@ -112,25 +112,29 @@ length outlives the picture. The 2D lane spends none of this.
 
 `note_lengths[i]` is ONE RULE, and for a note inside a span it follows from the span, which
 holds the shape: a LIVE fretting-hand member whose tail does not stand AT REST, covered by a
-shape span, holds for the REST OF THE SPAN — while the grip is held, the board pins what is held.
-"At rest" is the VERDICT's question (\ref ChartPresentation::rested_from), not tail emptiness.
-Three populations stand outside. A DEAD member is choked rather than held. A RIGHT-HAND onset is no
-part of what a grip states (\ref rightHandOnset). A HANDED-OVER member (\ref
-ChartConnections::hands_over) holds for exactly its stored ring, which the same-string clamp and
-the adjacency the claim required end precisely where the pull-off or hammer-on lands. A member whose
-tail stands and never rests states its own hold. A COVERED RESTING member holds at least its own
-stored ring, raised to the span's reach where the ring falls short; a LONE resting note holds for
-the tail it draws — its ink end — because under the universal curtain every plain note rests, and a
-floor on its stored ring would run its head pin into the next note's margin.
+shape span, holds for the REST OF THE SPAN, or until its STRING IS STRUCK AGAIN where that comes
+first — while the grip is held, the board pins what is held, and a pinned head states what its
+string sounds. "At rest" is the VERDICT's question (\ref ChartPresentation::rested_from), not tail
+emptiness. Two populations stand outside. A DEAD member is choked rather than held. A RIGHT-HAND
+onset is no part of what a grip states (\ref rightHandOnset). A member whose tail stands and never
+rests states its own hold. A COVERED RESTING member holds at least its own stored ring, raised to
+the reach where the ring falls short; a LONE resting note holds for the tail it draws — its ink
+end — because under the universal curtain every plain note rests, and a floor on its stored ring
+would run its head pin into the next note's margin.
 
-The span is the WHOLE answer, and the note's own ring does not cap it: a ring shorter than the
-span's remainder can only be one the player's own re-strike cut, and a re-strike does not release
-the shape (\ref deriveChartShapes bounds a span by its members' ring chains).
+The note's own ring does not cap the span's reach: a ring shorter than the span's remainder can
+only be one the player's own re-strike cut, and a re-strike does not release the shape
+(\ref deriveChartShapes bounds a span by its members' ring chains). The re-strike itself does cap
+it, whatever it sounds: the next strike on the string takes the sound, so the head of a pull-off or
+hammer-on source ends exactly where its destination lands (the adjacency the claim required puts
+that strike at its stored ring), a repeat of the same stop lands in the head's place and takes it
+over, and a different stop lands beside the head as it dissolves. The finger may stay planted
+under that strike; the span's rails state the hold, the head states the sound.
 
 \param presentation The ink ends and the tail law's verdict (\ref chartPresentation).
 \param connections The resolved connections (\ref chartConnections): its `saved_notes` supply the
-                   stored ring a covered resting or handed-over member holds, and its `hands_over`
-                   marks the members whose pin ends at that ring.
+                   stored ring a covered resting member holds, and its `string_notes` the strike
+                   that ends each string's hold.
 \param shapes Hand-posture spans sorted by place.
 
 \return Per-note length in whole notes, sized like the inputs.
