@@ -7,10 +7,12 @@
 
 #include "controller/edit_focus.h"
 #include "controller/marker_judge_context.h"
+#include "controller/refusal_light.h"
 
 #include <optional>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <string>
 #include <vector>
 
@@ -66,9 +68,10 @@ struct ToneModelSnapshot
 
     \param context The funnel's context; its session supplies the tempo map the region starts
            address.
-    \return The violation to report, or empty when the model satisfies every rule.
+    \return The refusal to report, lighting the regions the broken rule names, or empty when the
+            model satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
+    [[nodiscard]] std::optional<PlanRefused> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The region an undo or redo landing on this model brings into focus.
@@ -90,5 +93,18 @@ struct ToneModelSnapshot
     */
     friend bool operator==(const ToneModelSnapshot& lhs, const ToneModelSnapshot& rhs) = default;
 };
+
+/*!
+\brief The culprits a tone-track rule names: each region the error names, by its id.
+
+The one reading of a tone-track error's records for every refusal that carries one — a tone verb's
+own edit, the tone model's commit and the song timeline's — so no verb restates a rule to find what
+stood in its way. A region of another arrangement than the one on screen lights nothing, as an
+unresolved target does.
+
+\param error The rule's error.
+\return The light naming every region the error carries.
+*/
+[[nodiscard]] RefusalLight toneTrackCulprits(const common::core::ToneTrackError& error);
 
 } // namespace rock_hero::editor::core

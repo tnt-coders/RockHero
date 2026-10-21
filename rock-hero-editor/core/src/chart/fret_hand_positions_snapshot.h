@@ -8,6 +8,7 @@ funnel.
 
 #include "controller/edit_focus.h"
 #include "controller/marker_judge_context.h"
+#include "controller/refusal_light.h"
 
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -55,11 +56,14 @@ struct FretHandPositionsSnapshot
     /*!
     \brief Reports the first rule this stream breaks: its own, or its coverage of the chart's notes.
 
+    A coverage refusal lights the breaking position's chip and every note it leaves uncovered; the
+    stream's own rules name no record, so they light nothing.
+
     \param context The funnel's context: its session supplies the chart's tuning and the tempo map
            the positions address, and its notes layer the notes the positions must cover.
-    \return The violation to report, or empty when the stream satisfies every rule.
+    \return The refusal to report, or empty when the stream satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
+    [[nodiscard]] std::optional<PlanRefused> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The placement an undo or redo landing on this stream brings into focus.

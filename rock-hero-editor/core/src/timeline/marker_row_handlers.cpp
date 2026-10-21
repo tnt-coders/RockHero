@@ -1,5 +1,6 @@
 #include "chart/chart_selection.h"
 #include "controller/editor_controller_impl.h"
+#include "controller/refusal_light.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -15,6 +16,7 @@
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -399,6 +401,15 @@ void EditorController::Impl::finishMarkerCommit()
     syncAudibleTone();
     syncTempoDerivedAudio();
     updateView();
+}
+
+// The sentence goes to the log and the light to the screen, so the painter never learns which
+// target was the subject and which stood in its way.
+void EditorController::Impl::refuseMarkerVerb(
+    const std::string_view label, const std::string_view reason, const RefusalLight& lit)
+{
+    m_refusal_log.markerEdit(label, reason);
+    flashRefusalLight(lit);
 }
 
 void EditorController::Impl::onTempoAnchorSelected(const common::core::GridPosition position)

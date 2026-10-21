@@ -69,17 +69,29 @@ namespace
 // Rationale lives on the declaration in editor_controller_impl.h. Both branches land through one
 // `land`, so each verb states its commit once, whichever the toggle chose. The new map is built
 // from the session's map in both: a held nudge run needs no origin of its own, since a move states
-// its anchor's time absolutely, and under the lock the content's origin is the lock's.
+// its anchor's time absolutely, and under the lock the content's origin is the lock's. The verb's
+// subject is the anchor it moves or the one its grid commit lands — an insert's place, which lights
+// whatever anchor already holds it — and a refusal, the edit's or the funnel's, lights it with
+// whatever stood in its way.
 template <typename Edit>
 void EditorController::Impl::commitTempoEdit(
     const std::string_view verb, const Edit& edit, const TempoCommit& landing)
 {
     const auto* const moved = std::get_if<TempoAnchorSelection>(&landing);
-    const auto land = [this, verb, moved, &landing](
+    const std::optional<common::core::GridPosition> subject_anchor =
+        moved != nullptr ? std::optional{moved->position}
+                         : std::get<TempoGridCommit>(landing).anchor;
+    RefusalLight subject;
+    if (subject_anchor.has_value())
+    {
+        subject.add(TempoAnchorSelection{.position = *subject_anchor});
+    }
+    const auto land = [this, verb, moved, &landing, &subject](
                           auto before, auto after, const common::core::TempoMap& edited) {
         if (moved != nullptr)
         {
-            if (commitMarkerMove(std::move(before), std::move(after), std::string{verb}, *moved))
+            if (commitMarkerMove(
+                    std::move(before), std::move(after), std::string{verb}, *moved, subject))
             {
                 followMovedMarker(moved->position);
             }
@@ -92,14 +104,16 @@ void EditorController::Impl::commitTempoEdit(
             grid.label(edited),
             MarkerRow::Tempo,
             grid.anchor,
-            grid.focus);
+            grid.focus,
+            subject);
     };
 
     const common::core::TempoMap& current = session().song().tempo_map;
     TempoMapEditResult edited = edit(current);
     if (!edited.has_value())
     {
-        m_refusal_log.markerEdit(verb, edited.error().message);
+        subject.add(edited.error().lit);
+        refuseMarkerVerb(verb, edited.error().message, subject);
         return;
     }
     const common::core::TempoMap tempo_map = std::move(*edited);
@@ -321,13 +335,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         m_refusal_log.markerEdit(label, scaled.error());
         return;
     }
+    // The whole song is its subject, which no chip draws: only what a rule names lights.
     const MarkerCommit committed = commitGridModel(
         std::move(before),
         SongTimelineSnapshot{.timeline = std::move(*scaled)},
         std::move(label),
         MarkerRow::Tempo,
         std::nullopt,
-        EntryFocus::None);
+        EntryFocus::None,
+        RefusalLight{});
     if (committed == MarkerCommit::Landed)
     {
         engageNoteLock();
@@ -390,8 +406,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
             moveTempoAnchor(session().song().tempo_map, action.position, action.milliseconds);
         !moved.has_value())
     {
-        m_refusal_log.markerEdit(
-            markerVerbLabel(MarkerVerb::MoveTempoAnchor), moved.error().message);
+        RefusalLight lit = lightOf(dragged);
+        lit.add(moved.error().lit);
+        refuseMarkerVerb(markerVerbLabel(MarkerVerb::MoveTempoAnchor), moved.error().message, lit);
         return;
     }
     m_held_tempo_anchor_milliseconds = action.milliseconds;
@@ -501,11 +518,11 @@ bool EditorController::Impl::refuseLockedTempoAnchorMove(
     {
         return false;
     }
-    m_refusal_log.markerEdit(
+    refuseMarkerVerb(
         markerVerbLabel(MarkerVerb::MoveTempoAnchor),
         "Tempo Lock is on: " + std::string{gesture} + " the tempo anchor at " +
-            common::core::formatGridPositionToken(selection.position) + " is blocked");
-    flashRefusalLight(lightOf(selection));
+            common::core::formatGridPositionToken(selection.position) + " is blocked",
+        lightOf(selection));
     return true;
 }
 

@@ -1,5 +1,7 @@
 #include "timeline/tempo_map_edits.h"
 
+#include "timeline/tempo_map_snapshot.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -19,10 +21,14 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// A refusal that names no record: nothing but the anchor the edit addressed stood in its way, so it
+// lights nothing beside the caller's subject.
 [[nodiscard]] std::unexpected<TempoMapEditError> refuse(
     TempoMapEditErrorCode code, std::string message)
 {
-    return std::unexpected{TempoMapEditError{.code = code, .message = std::move(message)}};
+    return std::unexpected{
+        TempoMapEditError{.code = code, .message = std::move(message), .lit = {}}
+    };
 }
 
 // Index of the anchor standing exactly at the position, if any — the terminal included, which the
@@ -40,14 +46,19 @@ namespace
 }
 
 // Builds the edited map and asks the shared rules of it, so every verb refuses exactly what the
-// package reader would and states no ordering or grid rule of its own.
+// package reader would and states no ordering or grid rule of its own; a broken rule lights the
+// records it names on the source map, the one on screen.
 [[nodiscard]] TempoMapEditResult validated(
     const common::core::TempoMap& source, std::vector<common::core::BeatAnchor> anchors)
 {
     common::core::TempoMap edited{source.timeSignatures(), std::move(anchors)};
     if (const auto rules = common::core::validateTempoMapRules(edited); !rules.has_value())
     {
-        return refuse(TempoMapEditErrorCode::BrokenRule, rules.error().message);
+        return std::unexpected{TempoMapEditError{
+            .code = TempoMapEditErrorCode::BrokenRule,
+            .message = rules.error().message,
+            .lit = tempoMapCulprits(rules.error(), source),
+        }};
     }
     return edited;
 }

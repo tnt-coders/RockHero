@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <rock_hero/common/core/song/song_section_rules.h>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -31,14 +32,16 @@ void SongSectionsSnapshot::normalize()
 
 // Every section rule lives in common core, where the package reader asks the same question, so this
 // only carries the diagnostic across: the commit funnel logs a refusal rather than branching on the
-// reason, which is what the stable code is there for elsewhere.
-std::optional<std::string> SongSectionsSnapshot::validate(const MarkerJudgeContext& context) const
+// reason, which is what the stable code is there for elsewhere. A section rule names no record, so
+// the refusal lights nothing of its own: the verb's subject is the section it acted on, and a
+// section a move or an insert collides with is the place the verb addressed.
+std::optional<PlanRefused> SongSectionsSnapshot::validate(const MarkerJudgeContext& context) const
 {
-    if (const auto valid =
+    if (auto valid =
             common::core::validateSongSectionRules(sections, context.session.song().tempo_map);
         !valid.has_value())
     {
-        return valid.error().message;
+        return PlanRefused{.reason = std::move(valid.error().message), .lit = {}};
     }
     return std::nullopt;
 }

@@ -146,6 +146,14 @@ struct InsertAt
 // What the fret-hand position chord does, or nothing.
 using FretHandPositionChordTarget = std::variant<std::monostate, RestateAt, InsertAt>;
 
+// Why a verb that needs a STORED position — Delete, the move — refuses a derived one, which stores
+// nothing to delete or move.
+[[nodiscard]] std::string derivedFretHandPositionRefusal(const FretHandPositionSelection& selection)
+{
+    return common::core::formatHandPositionToken(selection.position) +
+           " is derived, so nothing is stored there";
+}
+
 // THE fret-hand position chord's precedence, stated once: it authors at the cursor and never reads
 // the selection. A placement arriving exactly there is restated, which is what keeps a second
 // press from inserting a second placement on the first one's start; anywhere else a marker may
@@ -229,34 +237,20 @@ void EditorController::Impl::performActionImpl(
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     after.placements.push_back(insert->placement);
+    // The subject is the place the insert addressed, which lights the derived chip standing there.
     if (commitMarkerModel(
-            std::move(before), std::move(after), markerVerbLabel(MarkerVerb::AddHandPosition)) ==
+            std::move(before),
+            std::move(after),
+            markerVerbLabel(MarkerVerb::AddHandPosition),
+            lightOf(FretHandPositionSelection{.position = insert->placement.position})) ==
         MarkerCommit::Refused)
     {
-        flashFretHandChip(insert->placement.position);
         return;
     }
     // The insert selects what it made, and a selection made after the commit publishes with this
     // refresh: the commit's own publish ran before it existed.
     selectMarker(FretHandPositionSelection{.position = insert->placement.position});
     updateView();
-}
-
-// Refuses a verb that needs a STORED position on a derived one, which stores nothing to delete or
-// move: logged, and the refused chip glows red, the selection staying where it was.
-void EditorController::Impl::refuseDerivedFretHandPosition(
-    const FretHandPositionSelection& selection, const MarkerVerb verb)
-{
-    m_refusal_log.markerEdit(
-        markerVerbLabel(verb),
-        common::core::formatHandPositionToken(selection.position) +
-            " is derived, so nothing is stored there");
-    flashFretHandChip(selection.position);
-}
-
-void EditorController::Impl::flashFretHandChip(const common::core::GridPosition& position)
-{
-    flashRefusalLight(lightOf(FretHandPositionSelection{.position = position}));
 }
 
 // Steps the selected placement one placement-quantum line, the tone change's step. Refused rather
@@ -274,15 +268,14 @@ void EditorController::Impl::moveSelectedFretHandPosition(
     const auto match = findPlacement(after.placements, selection.position);
     if (match == after.placements.end())
     {
-        refuseDerivedFretHandPosition(selection, MarkerVerb::MoveHandPosition);
+        refuseMarkerVerb(label, derivedFretHandPositionRefusal(selection), lightOf(selection));
         return;
     }
     const std::optional<common::core::GridPosition> step =
         steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
     if (!step.has_value())
     {
-        m_refusal_log.markerEdit(label, "fret-hand position would leave the chart");
-        flashFretHandChip(selection.position);
+        refuseMarkerVerb(label, "fret-hand position would leave the chart", lightOf(selection));
         return;
     }
     const common::core::GridPosition target = *step;
@@ -292,9 +285,9 @@ void EditorController::Impl::moveSelectedFretHandPosition(
             std::move(before),
             std::move(after),
             label,
-            FretHandPositionSelection{.position = target}))
+            FretHandPositionSelection{.position = target},
+            lightOf(selection)))
     {
-        flashFretHandChip(selection.position);
         return;
     }
     // The position IS the placement's identity, so the commit selects the moved placement under its
@@ -319,25 +312,22 @@ std::expected<EditorController::Impl::ChartFretHandPlan, PlanRefusal> EditorCont
         return std::unexpected{PlanNoChange{}};
     }
     *match = retyped(*match, edge, fret);
-    std::expected<JudgedMarkerModel<FretHandPositionsSnapshot>, MarkerModelRefusal> judged =
+    std::expected<JudgedMarkerModel<FretHandPositionsSnapshot>, PlanRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
-        // The funnel's refusal, made the entry's: a refused retype lights the placement's chip.
-        if (auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
-        {
-            return std::unexpected{PlanRefused{
-                .reason = std::move(invalid->reason),
-                .lit = lightOf(FretHandPositionSelection{.position = position}),
-            }};
-        }
-        return std::unexpected{PlanNoChange{}};
+        // The funnel's refusal is the entry's as it stands: what the rule lit — the notes a
+        // narrowed window leaves uncovered — beside which the entry's report lights the chip.
+        return std::unexpected{std::move(judged.error())};
     }
     return ChartFretHandPlan{.placements = std::move(judged->model), .edge = edge};
 }
 
 // The settle of a placement's fret entry. Its selection names the placement by position, which the
-// fret does not move, so it stays selected with nothing to re-select.
+// fret does not move, so it stays selected with nothing to re-select. The plan was judged by the
+// funnel's own front half against the model it lands on — the settle prologue replans first — and
+// only a plan the judge passed settles, so the commit lands what was already judged and lights
+// nothing of its own.
 void EditorController::Impl::commitFretHandFret(ChartFretHandPlan plan)
 {
     static_cast<void>(commitMarkerModel(
@@ -345,7 +335,8 @@ void EditorController::Impl::commitFretHandFret(ChartFretHandPlan plan)
         std::move(plan.placements),
         markerVerbLabel(
             plan.edge == FretHandEdge::End ? MarkerVerb::SetHandPositionEndFret
-                                           : MarkerVerb::SetHandPositionStartFret)));
+                                           : MarkerVerb::SetHandPositionStartFret),
+        RefusalLight{}));
 }
 
 // The chip a pending fret entry draws: the position with the typed value at its edge, at the
@@ -396,7 +387,8 @@ void EditorController::Impl::performActionImpl(EditorAction::ClearFretHandEnd /*
     static_cast<void>(commitMarkerModel(
         std::move(before),
         std::move(after),
-        markerVerbLabel(MarkerVerb::ClearHandPositionEndFret)));
+        markerVerbLabel(MarkerVerb::ClearHandPositionEndFret),
+        lightOf(*selection)));
 }
 
 // Deletes the selected placement. Nothing refuses an authored one — a chart with no placement left
@@ -409,15 +401,15 @@ void EditorController::Impl::deleteSelectedFretHandPosition(
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     const auto match = findPlacement(after.placements, selection.position);
+    const std::string label = markerVerbLabel(MarkerVerb::DeleteHandPosition);
     if (match == after.placements.end())
     {
-        refuseDerivedFretHandPosition(selection, MarkerVerb::DeleteHandPosition);
+        refuseMarkerVerb(label, derivedFretHandPositionRefusal(selection), lightOf(selection));
         return;
     }
 
     after.placements.erase(match);
-    commitMarkerModel(
-        std::move(before), std::move(after), markerVerbLabel(MarkerVerb::DeleteHandPosition));
+    commitMarkerModel(std::move(before), std::move(after), label, lightOf(selection));
 }
 
 // The prune: every stored position the derivation does not need goes, as one undo entry; a chart
@@ -441,7 +433,9 @@ void EditorController::Impl::performActionImpl(EditorAction::PruneFretHandPositi
         m_refusal_log.markerEdit(label, "no stored hand position is redundant");
         return;
     }
-    static_cast<void>(commitMarkerModel(std::move(before), std::move(after), label));
+    // Every stored position is its subject, which no one chip draws: only what a rule names lights.
+    static_cast<void>(
+        commitMarkerModel(std::move(before), std::move(after), label, RefusalLight{}));
 }
 
 } // namespace rock_hero::editor::core

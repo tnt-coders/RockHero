@@ -378,6 +378,37 @@ TEST_CASE("A tempo anchor moves one pixel at the reported zoom", "[core][tempo]"
     CHECK(editor.undoEntryCount() == entries);
 }
 
+// A refused tempo edit lights its subject with what stood in its way: a step onto the next anchor's
+// time lights both anchors of the pair the ordering rule names, and an insert at a position an
+// anchor already holds lights that anchor, the place the insert addressed.
+TEST_CASE("A refused tempo edit flashes the anchors in its way", "[core][tempo]")
+{
+    TempoEditor editor;
+    editor.unlockTempo();
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 2));
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    REQUIRE(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4000});
+    REQUIRE(editor.anchorMilliseconds(beatAt(3, 2)) == std::optional<std::int64_t>{4500});
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+
+    // At two pixels per second a step is half a second: 3:1 would land on 3:2's 4.5 s.
+    editor.controller.onTimelineZoomChanged(2.0);
+    editor.pressAlt(ChartStepDirection::Right);
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
+    REQUIRE_FALSE(editor.view.refusal_flashes.empty());
+    CHECK(
+        editor.view.refusal_flashes.back().ruler_chips ==
+        std::vector{tempoChip(beatAt(3, 1)), tempoChip(beatAt(3, 2))});
+
+    const std::size_t flashes_before = editor.view.refusal_flashes.size();
+    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 2));
+    CHECK(editor.tempoMap() == inserted);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+    CHECK(editor.view.refusal_flashes.back().ruler_chips == std::vector{tempoChip(beatAt(3, 2))});
+}
+
 // A sub-beat anchor is addressed by its whole position: nudged, retyped and deleted as ITSELF,
 // never as the on-beat anchor of the beat it falls in.
 TEST_CASE("A sub-beat tempo anchor is edited as itself, never its beat-mate", "[core][tempo]")

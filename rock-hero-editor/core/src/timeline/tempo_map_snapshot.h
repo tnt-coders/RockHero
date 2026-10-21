@@ -7,10 +7,12 @@
 
 #include "controller/edit_focus.h"
 #include "controller/marker_judge_context.h"
+#include "controller/refusal_light.h"
 
 #include <optional>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -50,10 +52,11 @@ struct TempoMapSnapshot
 
     /*!
     \brief Reports the first structural rule this map breaks.
-    \param context Unused; the tempo-map rules need nothing beyond the map.
-    \return The violation to report, or empty when the map satisfies every rule.
+    \param context The funnel's context; its session's map is the one on screen, which the
+           culprits the rule names are lit on (\ref tempoMapCulprits).
+    \return The refusal to report, or empty when the map satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
+    [[nodiscard]] std::optional<PlanRefused> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The anchor an undo or redo landing on this map brings into focus.
@@ -75,5 +78,22 @@ struct TempoMapSnapshot
     */
     friend bool operator==(const TempoMapSnapshot& lhs, const TempoMapSnapshot& rhs) = default;
 };
+
+/*!
+\brief The culprits a tempo-map rule names, as the chips they are drawn by on the map standing on
+screen: each anchor the error names by its position, and each time signature by the first measure
+its place falls in under `standing`.
+
+The one reading of a tempo-map error's records for every refusal that carries one — a tempo edit's,
+the tempo map's commit and the song timeline's — so no verb restates a rule to find what stood in
+its way. A record the screen draws no chip for (the terminal anchor, a place in a measure no reign
+starts at) lights nothing, as an unresolved target does.
+
+\param error The rule's error.
+\param standing The map on screen, which the edit would replace.
+\return The light naming every record the error carries.
+*/
+[[nodiscard]] RefusalLight tempoMapCulprits(
+    const common::core::TempoMapError& error, const common::core::TempoMap& standing);
 
 } // namespace rock_hero::editor::core

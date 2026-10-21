@@ -1249,6 +1249,7 @@ TEST_CASE("EditorController brings an undone placement move into focus", "[core]
 
 // A move onto a start another placement holds, off the chart's start, or onto the song's closing
 // barline is refused whole: the stream, the selection and the history stay exactly as they were.
+// The move onto a held start lights the moved chip and the one holding the start it would land on.
 TEST_CASE("Fret-hand move refuses an occupied start and both chart ends", "[core][marker-rows]")
 {
     // The hand chart plus a placement on the last beat before the closing barline (21:1, the
@@ -1259,11 +1260,24 @@ TEST_CASE("Fret-hand move refuses an occupied start and both chart ends", "[core
     MarkerRowEditor editor{makeMarkerSections(), {}, std::move(chart)};
     editor.clickPlacement(2);
     const std::size_t entries_before = editor.undoEntryCount();
+    const std::optional<std::size_t> moved_chip = editor.handChipAt(downbeat(8));
+    const std::optional<std::size_t> holder_chip =
+        editor.handChipAt(GridPosition{.measure = 8, .beat = 2});
+    REQUIRE(moved_chip.has_value());
+    REQUIRE(holder_chip.has_value());
+    const std::size_t flashes_before = editor.view.refusal_flashes.size();
 
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.placements() == stream);
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{2});
     CHECK(editor.undoEntryCount() == entries_before);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+    if (moved_chip.has_value() && holder_chip.has_value())
+    {
+        CHECK(
+            editor.view.refusal_flashes.back().fret_hand_positions ==
+            std::vector{*moved_chip, *holder_chip});
+    }
 
     editor.clickPlacement(0);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
@@ -1962,7 +1976,8 @@ namespace
 // AN AUTHORED POSITION COVERS EVERY FRETTED NOTE GRIPPED AT ITS INSTANT, asked by the placement
 // commit: the notes are upstream of the position, so a move into the ring, or a retyped fret above
 // the note struck there, states something false and is refused whole, logged with the coverage
-// sentence, and the chip glows red; a move that keeps every gripped note covered lands.
+// sentence, and the chip glows red with the note it would leave uncovered; a move that keeps every
+// gripped note covered lands.
 TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[core][marker-rows]")
 {
     SECTION("a move into the ring")
@@ -1980,6 +1995,8 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
         CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
         REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
         CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(chip));
+        // The ringing note struck at 2:1, the chart's only one.
+        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0});
         const std::string contents = capture.text();
         INFO(contents);
         CHECK(contents.find("does not cover fret 3 gripped from 2:1") != std::string::npos);
@@ -1991,6 +2008,7 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
         chart.fret_hand_positions = {placementAt(downbeat(2), 3)};
         MarkerRowEditor editor{makeMarkerSections(), {}, chart};
         editor.clickPlacement(0);
+        const std::optional<std::size_t> chip = editor.selectedChip();
         const std::size_t entries_before = editor.undoEntryCount();
 
         editor.controller.onChartFretDigitTyped(4);
@@ -2003,6 +2021,10 @@ TEST_CASE("A fret-hand position refuses leaving a gripped note uncovered", "[cor
         }
         CHECK(editor.placements() == chart.fret_hand_positions);
         CHECK(editor.undoEntryCount() == entries_before);
+        // The retyped chip glows with the note its window would leave uncovered.
+        REQUIRE_FALSE(editor.view.refusal_flashes.empty());
+        CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(chip));
+        CHECK(editor.view.refusal_flashes.back().notes == std::vector<std::size_t>{0});
     }
 
     SECTION("a move that leaves the ring alone")

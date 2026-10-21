@@ -774,6 +774,23 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == beatAt(2, 1));
 }
 
+// A refused boundary move lights the region it moved and the neighbour its boundary would reach.
+TEST_CASE(
+    "EditorController flashes both regions of a boundary move onto its neighbour",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+
+    editor.controller.onToneBoundaryMoveRequested(g_region_b, beatAt(1, 1));
+
+    CHECK(editor.regions()[0].start == beatAt(1, 1));
+    CHECK(editor.regions()[1].start == beatAt(2, 1));
+    REQUIRE(editor.view.refusal_flashes.size() == 1);
+    CHECK(
+        editor.view.refusal_flashes.back().tone_regions ==
+        std::vector<std::string>{g_region_b, g_region_a});
+}
+
 // A boundary move that would leave a region with no length is rejected.
 TEST_CASE(
     "EditorController rejects a boundary move that empties a region", "[core][editor-controller]")

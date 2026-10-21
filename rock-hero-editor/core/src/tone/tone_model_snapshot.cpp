@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
+#include <string>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -52,26 +54,30 @@ void ToneModelSnapshot::normalize()
 // The track's own rules are the ones persistence enforces, asked of common core; the catalog
 // pairing below is the half those rules cannot see, because a ToneTrack does not carry the catalog
 // it references. Tone-name uniqueness is deliberately NOT here: a typed name is input the charter
-// can retype, so the verbs that take one report it to them rather than refusing a structurally
-// sound model.
-std::optional<std::string> ToneModelSnapshot::validate(const MarkerJudgeContext& context) const
+// can retype, so the verbs that take one refuse it themselves rather than the funnel refusing a
+// structurally sound model.
+std::optional<PlanRefused> ToneModelSnapshot::validate(const MarkerJudgeContext& context) const
 {
-    if (const auto valid =
+    if (auto valid =
             common::core::validateToneTrackRules(tone_track, context.session.song().tempo_map);
         !valid.has_value())
     {
-        return valid.error().message;
+        RefusalLight lit = toneTrackCulprits(valid.error());
+        return PlanRefused{.reason = std::move(valid.error().message), .lit = std::move(lit)};
     }
     // A region pointing at a tone the catalog does not hold would draw an unnamed region the
     // picker could never reach; the rules above cannot see the catalog, so the coverage pair is
-    // asked here.
+    // asked here, and that region is what it lights.
     for (const common::core::ToneRegion& region : tone_track.regions)
     {
         if (std::ranges::none_of(tones, [&region](const common::core::Tone& tone) {
                 return tone.tone_document_ref == region.tone_document_ref;
             }))
         {
-            return std::string{"tone is not in the arrangement catalog"};
+            return PlanRefused{
+                .reason = "tone is not in the arrangement catalog",
+                .lit = lightOf(ToneRegionSelection{.region_id = region.id}),
+            };
         }
     }
     return std::nullopt;
@@ -111,6 +117,16 @@ EditFocus ToneModelSnapshot::focusReplacing(const ToneModelSnapshot& replaced) c
         .marker = ToneRegionSelection{.region_id = region->id},
         .start = region->start,
     };
+}
+
+RefusalLight toneTrackCulprits(const common::core::ToneTrackError& error)
+{
+    RefusalLight lit;
+    for (const std::string& region_id : error.region_ids)
+    {
+        lit.add(ToneRegionSelection{.region_id = region_id});
+    }
+    return lit;
 }
 
 } // namespace rock_hero::editor::core

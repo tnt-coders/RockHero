@@ -4,6 +4,8 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -40,9 +42,11 @@ void FretHandPositionsSnapshot::normalize()
 // Every placement rule lives in common core, where the package reader asks the same questions of
 // the same stream, so this only carries the diagnostic across: the stream's own rules, then its
 // coverage of the chart's notes, read from the notes layer the context carries rather than derived
-// again. With no chart there is nothing to validate against and nothing to apply onto; the apply
-// reports that.
-std::optional<std::string> FretHandPositionsSnapshot::validate(
+// again. The coverage rule is asked for its breaking positions rather than its verdict, so the
+// first one's chip and the notes it leaves uncovered light beside the very words the verdict would
+// have given (fretHandCoverageError). With no chart there is nothing to validate against and
+// nothing to apply onto; the apply reports that.
+std::optional<PlanRefused> FretHandPositionsSnapshot::validate(
     const MarkerJudgeContext& context) const
 {
     const common::core::Arrangement* const arrangement = context.session.currentArrangement();
@@ -52,19 +56,31 @@ std::optional<std::string> FretHandPositionsSnapshot::validate(
     }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = context.session.song().tempo_map;
-    if (const auto valid =
-            common::core::validateFretHandPositions(placements, chart.tuning, tempo_map);
+    if (auto valid = common::core::validateFretHandPositions(placements, chart.tuning, tempo_map);
         !valid.has_value())
     {
-        return valid.error().message;
+        return PlanRefused{.reason = std::move(valid.error().message), .lit = {}};
     }
-    if (const auto covered =
-            common::core::validateFretHandCoverage(context.notes_layer, placements, tempo_map);
-        !covered.has_value())
+    const std::vector<common::core::UncoveringFretHandPosition> uncovering =
+        common::core::uncoveringFretHandPositions(context.notes_layer, placements, tempo_map);
+    if (uncovering.empty())
     {
-        return covered.error().message;
+        return std::nullopt;
     }
-    return std::nullopt;
+    const common::core::UncoveringFretHandPosition& first = uncovering.front();
+    RefusalLight lit;
+    lit.add(FretHandPositionSelection{.position = placements[first.position].position});
+    for (const common::core::UncoveredStop& stop : first.stops)
+    {
+        lit.add(
+            ChartNoteKey{
+                .slot = ChartSlotKey{.position = stop.gripped_from, .string = stop.string}
+            });
+    }
+    return PlanRefused{
+        .reason = common::core::fretHandCoverageError(first, placements).message,
+        .lit = std::move(lit),
+    };
 }
 
 EditFocus FretHandPositionsSnapshot::focusReplacing(const FretHandPositionsSnapshot& replaced) const

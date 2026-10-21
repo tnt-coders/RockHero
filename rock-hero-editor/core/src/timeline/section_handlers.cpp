@@ -111,8 +111,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSec
     SongSectionsSnapshot after = before;
     after.sections.push_back(common::core::SongSection{.position = action.position, .name = name});
 
-    if (commitMarkerModel(std::move(before), std::move(after), "Add " + name) !=
-        MarkerCommit::Refused)
+    // The subject is the place the insert addressed, which lights the section already holding it.
+    if (commitMarkerModel(
+            std::move(before),
+            std::move(after),
+            "Add " + name,
+            lightOf(SongSectionSelection{.position = action.position})) != MarkerCommit::Refused)
     {
         // The insert selects what it made, and a selection made after the commit publishes with
         // this refresh: the commit's own publish ran before it existed.
@@ -145,10 +149,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     if (commitMarkerModel(
             std::move(before),
             std::move(after),
-            markerVerbLabel(MarkerVerb::RenameSection) + " " + before_name + " to " + name) ==
-        MarkerCommit::Refused)
+            markerVerbLabel(MarkerVerb::RenameSection) + " " + before_name + " to " + name,
+            lightOf(section)) == MarkerCommit::Refused)
     {
-        flashSongSectionChip(section);
         return;
     }
     selectMarker(section);
@@ -179,17 +182,19 @@ void EditorController::Impl::moveSelectedSongSection(
         steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
     if (!step.has_value())
     {
-        m_refusal_log.markerEdit(label, "section would leave the song");
-        flashSongSectionChip(selection);
+        refuseMarkerVerb(label, "section would leave the song", lightOf(selection));
         return;
     }
     const common::core::GridPosition target = *step;
 
     match->position = target;
     if (!commitMarkerMove(
-            std::move(before), std::move(after), label, SongSectionSelection{.position = target}))
+            std::move(before),
+            std::move(after),
+            label,
+            SongSectionSelection{.position = target},
+            lightOf(selection)))
     {
-        flashSongSectionChip(selection);
         return;
     }
     // The position IS the section's identity, so the commit selects the moved section under its new
@@ -211,17 +216,7 @@ void EditorController::Impl::deleteSelectedSongSection(const SongSectionSelectio
 
     const std::string name = match->name;
     after.sections.erase(match);
-    if (commitMarkerModel(std::move(before), std::move(after), "Delete " + name) ==
-        MarkerCommit::Refused)
-    {
-        flashSongSectionChip(selection);
-    }
-}
-
-// The commit has already logged the refusal; the chip glows red to say it was this one.
-void EditorController::Impl::flashSongSectionChip(const SongSectionSelection& selection)
-{
-    flashRefusalLight(lightOf(selection));
+    commitMarkerModel(std::move(before), std::move(after), "Delete " + name, lightOf(selection));
 }
 
 } // namespace rock_hero::editor::core

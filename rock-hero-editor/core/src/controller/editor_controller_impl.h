@@ -631,11 +631,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void syncAudibleTone();
     // Bakes or clears the tone track's playback schedule (the definition states the ownership law).
     void publishToneSchedule(bool playing);
-    // Refuses a typed tone name the produced catalog would then hold twice, reporting it to the
-    // charter rather than logging it: the name came from a prompt they can retype. Normalizes the
-    // snapshot first, so a tone this very edit prunes never blocks its own replacement's name.
-    // Returns whether it reported, which is the caller's signal to abandon the verb.
-    [[nodiscard]] bool reportedDuplicateToneName(ToneModelSnapshot& after);
+    // Refuses a typed tone name the produced catalog would then hold twice, reported to the refusal
+    // log under the verb's `label` and lighting nothing: the name came from a prompt, which has no
+    // subject on screen. Normalizes the snapshot first, so a tone this very edit prunes never
+    // blocks its own replacement's name. Returns whether it reported, which is the caller's signal
+    // to abandon the verb.
+    [[nodiscard]] bool reportedDuplicateToneName(ToneModelSnapshot& after, std::string_view label);
     // Rebuilds the sole tone region on a fresh empty "Default" tone (see the definition).
     void resetSoleToneRegion(const std::string& region_id);
     void onToneRegionSelected(std::string region_id);
@@ -706,7 +707,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // content moves with its beat; with it on, the content the lock holds is laid under the new
     // map so every time holds (plan 66 decision 5; timeKeptSnapshot), and the cursor is carried
     // from its place now to the same time under the new map. A refused edit or re-address is
-    // logged under `verb`. Defined in tempo_handlers.cpp, its only user.
+    // logged under `verb` and lights the verb's subject — the moved anchor, or the one the grid
+    // commit lands — with whatever the broken rule names. Defined in tempo_handlers.cpp, its only
+    // user.
     template <typename Edit>
     void commitTempoEdit(std::string_view verb, const Edit& edit, const TempoCommit& landing);
     // Engages the Note Lock on the song's content as it stands and marks the history's base there:
@@ -731,8 +734,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
     void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
     // THE TEMPO LOCK's one refusal, asked by each move driver before it moves: while the lock is
-    // on it logs the move refused, naming the driving `gesture` ("dragging", "nudging"), flashes
-    // the anchor's chip and returns true; with the lock off it returns false and does nothing.
+    // on it refuses the move on the anchor's chip (refuseMarkerVerb), naming the driving `gesture`
+    // ("dragging", "nudging"), and returns true; with the lock off it returns false and does
+    // nothing.
     [[nodiscard]] bool refuseLockedTempoAnchorMove(
         const TempoAnchorSelection& selection, std::string_view gesture);
     // Time signatures (src/timeline/meter_handlers.cpp). Song-level like the tempo map they belong
@@ -751,14 +755,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const TimeSignatureSelection& selection, ChartStepDirection direction);
     // Deletes the selected time signature (the Delete-key dispatch for the meter alternative).
     void deleteSelectedTimeSignature(const TimeSignatureSelection& selection);
-    // THE refusal of a verb on a selected time-signature chip: logged under the verb, and the chip
-    // glows red (IEditorView::flashRefusal).
-    void refuseTimeSignatureVerb(
-        const TimeSignatureSelection& selection, MarkerVerb verb, const std::string& reason);
-    // Glows a refused section chip red (IEditorView::flashRefusal), for every refused
-    // verb on a selected section: the move off the song's ends and each commit the section rules
-    // refuse.
-    void flashSongSectionChip(const SongSectionSelection& selection);
     // Brings the engine's tempo-derived caches up to the session's map when it changed (see the
     // definition).
     void syncTempoDerivedAudio();
@@ -774,12 +770,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const FretHandPositionSelection& selection, ChartStepDirection direction);
     // Deletes the selected placement (the Delete-key dispatch for the fret-hand alternative).
     void deleteSelectedFretHandPosition(const FretHandPositionSelection& selection);
-    // Refuses `verb`, which needs a stored position, on a selected DERIVED one: the refusal log's
-    // record and the red glow on its chip, the selection left as it was.
-    void refuseDerivedFretHandPosition(const FretHandPositionSelection& selection, MarkerVerb verb);
-    // The red glow on the hand chip fronting at `position`, where one does: a refused hand verb's
-    // half of the refusal beside its log record.
-    void flashFretHandChip(const common::core::GridPosition& position);
     // Shape holds (src/chart/shape_hold_handlers.cpp), the verbs on a span or a none hold.
     // The selected span or none hold as a hold: the none hold as it stands, and a span's extent as
     // an unnamed hold, which for a held span IS the hold that states it (shape rule 9's normal
@@ -1139,6 +1129,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // its row and start, a tone region by its id — and handed to the view as one flash. Nothing
     // where nothing resolves.
     void flashRefusalLight(const RefusalLight& lit);
+    // THE refusal of a marker verb, the funnel's and every verb's own alike: the reason logged
+    // under the verb's label, and `lit` — the verb's subject with whatever stood in its way —
+    // flashed as one light.
+    void refuseMarkerVerb(std::string_view label, std::string_view reason, const RefusalLight& lit);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
@@ -1815,35 +1809,42 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The one landing every marker verb of every kind makes: the commit rules, the model applied
     // and one undo entry pushed, with nothing published; `focus` is what the entry's undo and redo
-    // bring into view. Defined in marker_model_commit.h, which is where the rules it enforces are
-    // written down.
+    // bring into view. `lit` is the verb's subject — the chip it acted on, or for an insert the
+    // place it addressed, which lights whatever holds that place — and a refusal flashes it
+    // together with what the refusing rule lit (refuseMarkerVerb). Defined in
+    // marker_model_commit.h, which is where the rules it enforces are written down.
     template <typename Snapshot>
     MarkerCommit landMarkerModel(
-        Snapshot before, Snapshot after, std::string label, EntryFocus focus);
+        Snapshot before, Snapshot after, std::string label, EntryFocus focus, RefusalLight lit);
 
     // The commit a marker verb ends in: landMarkerModel, then finishMarkerCommit where the model
-    // landed. Defined beside it in marker_model_commit.h, with the publish rule.
+    // landed. `lit` is the verb's subject, as landMarkerModel takes it. Defined beside it in
+    // marker_model_commit.h, with the publish rule.
     template <typename Snapshot>
-    MarkerCommit commitMarkerModel(Snapshot before, Snapshot after, std::string label);
+    MarkerCommit commitMarkerModel(
+        Snapshot before, Snapshot after, std::string label, RefusalLight lit);
 
     // The commit every marker MOVE verb ends in: commitMarkerModel, except that a press continuing
     // a held run widens the run's one entry instead of pushing another, and it leaves `landed`
-    // (the moved marker) selected itself. Returns false only for a refusal. Defined beside the
-    // funnel in marker_model_commit.h.
+    // (the moved marker) selected itself. A refusal lights `lit` (the moved chip) together with
+    // whatever stands where the move would land (`landed`, resolved on the grid as it stands).
+    // Returns false only for a refusal. Defined beside the funnel in marker_model_commit.h.
     template <typename Snapshot>
     bool commitMarkerMove(
-        Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed);
+        Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed,
+        RefusalLight lit);
 
     // The commit every whole-grid verb ends in (a tempo map, a meter list, Scale Tempo):
     // landMarkerModel, then the keyboard carried as the model's kind states
     // (carryKeyboardAcrossGrid), then the marker on `landed_row` starting at `landed` selected
     // where it still stands (else nothing), and one publish. `focus` is what the entry's undo and
-    // redo bring into view: nothing for a whole-song verb. Returns what the funnel did. Defined
-    // beside the funnel in marker_model_commit.h, where its order rule is written down.
+    // redo bring into view: nothing for a whole-song verb. `lit` is the verb's subject, as
+    // landMarkerModel takes it. Returns what the funnel did. Defined beside the funnel in
+    // marker_model_commit.h, where its order rule is written down.
     template <typename Snapshot>
     MarkerCommit commitGridModel(
         Snapshot before, Snapshot after, std::string label, MarkerRow landed_row,
-        std::optional<common::core::GridPosition> landed, EntryFocus focus);
+        std::optional<common::core::GridPosition> landed, EntryFocus focus, RefusalLight lit);
 
     // Carries the keyboard across a landing of a model that states the grid, from `place` (read at
     // the tick under `old_map`, before the landing; absent while the transport plays) onto the
@@ -1892,18 +1893,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         MarkerModelNormalization normalization;
     };
 
-    // A marker model the funnel refuses: why, for the log. It carries no light, because the funnel
-    // judges a model and never knows which chip the verb acted on; the verb that produced the model
-    // lights that chip beside the funnel's record.
-    struct MarkerModelInvalid
-    {
-        std::string reason;
-    };
-
-    // Why the funnel's judge returned no model: a model equal to the one it would replace is a
-    // valid no-op, kept apart from a refusal exactly as PlanRefusal keeps its two.
-    using MarkerModelRefusal = std::variant<PlanNoChange, MarkerModelInvalid>;
-
     // Hands the memo the displayed arrangement's notes layer a landed model's normalization
     // derived, so the projection derives nothing the funnel already did; nothing where it derived
     // none. Called right after the model is applied.
@@ -1912,10 +1901,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The funnel's front half, asked by the commit and by anything that must know in advance what
     // the commit would do with a model (a pending fret entry's red box): the produced model
-    // normalized, refused Invalid where it breaks a rule (with the rule's diagnostic), NoChange
-    // where it matches `before`. Defined beside the commit in marker_model_commit.h.
+    // normalized, Refused where it breaks a rule — the rule's diagnostic and the culprits its
+    // records name; the verb's subject is the verb's to add, since the funnel judges a model and
+    // never knows which chip the verb acted on — NoChange where it matches `before`. Defined beside
+    // the commit in marker_model_commit.h.
     template <typename Snapshot>
-    [[nodiscard]] std::expected<JudgedMarkerModel<Snapshot>, MarkerModelRefusal> judgeMarkerModel(
+    [[nodiscard]] std::expected<JudgedMarkerModel<Snapshot>, PlanRefusal> judgeMarkerModel(
         const Snapshot& before, Snapshot after) const;
 
     // THE one log of a conversion an edit's normalizer made, for every edit that lands one: a

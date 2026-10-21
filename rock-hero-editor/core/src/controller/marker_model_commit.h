@@ -11,6 +11,7 @@ member template needs its body where every marker handler translation unit can s
 #include "controller/editor_controller_impl.h"
 #include "controller/marker_judge_context.h"
 #include "controller/marker_model_edit.h"
+#include "controller/refusal_light.h"
 
 #include <expected>
 #include <memory>
@@ -83,29 +84,28 @@ template <typename Snapshot>
 // The funnel's front half: the produced model normalized, then validated, then compared with the
 // one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
 // about what the commit would refuse. The Note Lock's refusal comes first, since it refuses the
-// edit whatever model it produced.
+// edit whatever model it produced; it names no culprit, the lock being nothing on screen.
 template <typename Snapshot>
-std::expected<
-    EditorController::Impl::JudgedMarkerModel<Snapshot>, EditorController::Impl::MarkerModelRefusal>
-EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after) const
+std::expected<EditorController::Impl::JudgedMarkerModel<Snapshot>, PlanRefusal> EditorController::
+    Impl::judgeMarkerModel(const Snapshot& before, Snapshot after) const
 {
     if constexpr (!g_states_grid<Snapshot>)
     {
         if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
         {
-            return std::unexpected{MarkerModelInvalid{.reason = std::move(*locked)}};
+            return std::unexpected{PlanRefused{.reason = std::move(*locked), .lit = {}}};
         }
     }
     MarkerModelNormalization normalization = normalizedModel(after);
-    if (std::optional<std::string> violation = after.validate(
+    if (std::optional<PlanRefused> refused = after.validate(
             MarkerJudgeContext{
                 .session = session(),
                 .notes_layer = chartResolutions(),
                 .normalized_layers = normalization.notes_layers,
             });
-        violation.has_value())
+        refused.has_value())
     {
-        return std::unexpected{MarkerModelInvalid{.reason = std::move(*violation)}};
+        return std::unexpected{std::move(*refused)};
     }
     if (after == before)
     {
@@ -122,18 +122,20 @@ EditorController::Impl::judgeMarkerModel(const Snapshot& before, Snapshot after)
 // then validated, and a model that breaks a rule is REFUSED whole — verbs build their result on a
 // copy, so a refusal leaves the live model untouched by construction and needs no restore. A verb
 // that changed nothing records nothing, and so does one whose change writes as nothing
-// (writtenMarkerEdit): the live model moved, the history did not.
+// (writtenMarkerEdit): the live model moved, the history did not. A refusal flashes the verb's
+// subject together with what the rule lit, so neither the verb nor the rule restates the other.
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
-    Snapshot before, Snapshot after, std::string label, const EntryFocus focus)
+    Snapshot before, Snapshot after, std::string label, const EntryFocus focus, RefusalLight lit)
 {
-    std::expected<JudgedMarkerModel<Snapshot>, MarkerModelRefusal> judged =
+    std::expected<JudgedMarkerModel<Snapshot>, PlanRefusal> judged =
         judgeMarkerModel(before, std::move(after));
     if (!judged.has_value())
     {
-        if (const auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
+        if (const auto* const refused = std::get_if<PlanRefused>(&judged.error()))
         {
-            m_refusal_log.markerEdit(label, invalid->reason);
+            lit.add(refused->lit);
+            refuseMarkerVerb(label, refused->reason, lit);
             return MarkerCommit::Refused;
         }
         return MarkerCommit::Unchanged;
@@ -141,7 +143,7 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
 
     if (!judged->model.applyTo(m_session))
     {
-        m_refusal_log.markerEdit(label, "no model to apply onto");
+        refuseMarkerVerb(label, "no model to apply onto", lit);
         return MarkerCommit::Refused;
     }
     seedNormalizedNotesLayer(std::move(judged->normalization.notes_layers));
@@ -168,10 +170,14 @@ EditorController::Impl::MarkerCommit EditorController::Impl::landMarkerModel(
 // what it just made publishes that selection itself, afterwards.
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
-    Snapshot before, Snapshot after, std::string label)
+    Snapshot before, Snapshot after, std::string label, RefusalLight lit)
 {
     const MarkerCommit committed = landMarkerModel(
-        std::move(before), std::move(after), std::move(label), EntryFocus::FirstChange);
+        std::move(before),
+        std::move(after),
+        std::move(label),
+        EntryFocus::FirstChange,
+        std::move(lit));
     if (committed == MarkerCommit::Landed || committed == MarkerCommit::Silent)
     {
         finishMarkerCommit();
@@ -191,11 +197,15 @@ EditorController::Impl::MarkerCommit EditorController::Impl::commitMarkerModel(
 // because a selection change ends the run and only this commit may survive its own — and selected
 // BEFORE the landing publishes, because the landing select is a settle point and the moved marker
 // must be the one in focus when it settles. A refused press leaves the model, the entry and the run
-// exactly as they stood.
+// exactly as they stood, and lights the moved chip with whatever stands where it would land: the
+// landed marker resolved on the grid as it stands, which is the holder a move onto a taken start
+// collides with, and nothing where the place is free.
 template <typename Snapshot>
 bool EditorController::Impl::commitMarkerMove(
-    Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed)
+    Snapshot before, Snapshot after, std::string label, const MarkerSelection& landed,
+    RefusalLight lit)
 {
+    lit.add(lightOf(landed));
     // Held aside, so this press's own landing select below does not end the run it continues.
     const bool continues = markerMoveRunOrigin<Snapshot>() != nullptr;
     std::optional<MarkerModelSnapshot> held = std::exchange(m_marker_move_origin, std::nullopt);
@@ -204,8 +214,8 @@ bool EditorController::Impl::commitMarkerMove(
 
     if (origin == nullptr)
     {
-        const MarkerCommit committed =
-            landMarkerModel(before, std::move(after), std::move(label), EntryFocus::FirstChange);
+        const MarkerCommit committed = landMarkerModel(
+            before, std::move(after), std::move(label), EntryFocus::FirstChange, std::move(lit));
         if (committed == MarkerCommit::Refused)
         {
             return false;
@@ -222,13 +232,14 @@ bool EditorController::Impl::commitMarkerMove(
         return true;
     }
 
-    std::expected<JudgedMarkerModel<Snapshot>, MarkerModelRefusal> judged =
+    std::expected<JudgedMarkerModel<Snapshot>, PlanRefusal> judged =
         judgeMarkerModel(*origin, std::move(after));
     if (!judged.has_value())
     {
-        if (const auto* const invalid = std::get_if<MarkerModelInvalid>(&judged.error()))
+        if (const auto* const refused = std::get_if<PlanRefused>(&judged.error()))
         {
-            m_refusal_log.markerEdit(label, invalid->reason);
+            lit.add(refused->lit);
+            refuseMarkerVerb(label, refused->reason, lit);
             m_marker_move_origin = std::move(held);
             return false;
         }
@@ -237,7 +248,7 @@ bool EditorController::Impl::commitMarkerMove(
     const Snapshot* const landing = judged.has_value() ? &judged->model : origin;
     if (!landing->applyTo(m_session))
     {
-        m_refusal_log.markerEdit(label, "no model to apply onto");
+        refuseMarkerVerb(label, "no model to apply onto", lit);
         m_marker_move_origin = std::move(held);
         return false;
     }
@@ -288,14 +299,15 @@ bool EditorController::Impl::commitMarkerMove(
 template <typename Snapshot>
 EditorController::Impl::MarkerCommit EditorController::Impl::commitGridModel(
     Snapshot before, Snapshot after, std::string label, const MarkerRow landed_row,
-    const std::optional<common::core::GridPosition> landed, const EntryFocus focus)
+    const std::optional<common::core::GridPosition> landed, const EntryFocus focus,
+    RefusalLight lit)
 {
     static_assert(g_states_grid<Snapshot>, "a grid commit lands a model that states the grid");
     const std::optional<common::core::GridPosition> place =
         cursorPosition(common::core::g_tick_quantum_note_value);
     const common::core::TempoMap old_map = session().song().tempo_map;
-    const MarkerCommit committed =
-        landMarkerModel(std::move(before), std::move(after), std::move(label), focus);
+    const MarkerCommit committed = landMarkerModel(
+        std::move(before), std::move(after), std::move(label), focus, std::move(lit));
     if (committed == MarkerCommit::Refused)
     {
         return committed;

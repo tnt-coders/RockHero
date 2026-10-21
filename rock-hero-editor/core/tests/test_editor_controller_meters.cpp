@@ -640,14 +640,17 @@ TEST_CASE("A meter move refuses a reign too short and the song's end", "[core][m
     const std::size_t entries = editor.undoEntryCount();
 
     // One beat either way leaves the 2/4 a quarter note, less than one of its bars; each refusal
-    // flashes the chip that was stepped.
+    // flashes the chip that was stepped with the other meter of the pair the rule names: the 2/4
+    // left governing too little, then the 3/4 that would cut the stepped 2/4 short.
     editor.controller.onTimeSignatureSelected(4);
     editor.pressAlt(ChartStepDirection::Left);
     editor.controller.onTimeSignatureSelected(3);
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.timeline() == two);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(flashedRulerChips(editor.view) == std::vector{meterChip(4), meterChip(3)});
+    CHECK(
+        flashedRulerChips(editor.view) ==
+        std::vector{meterChip(4), meterChip(3), meterChip(3), meterChip(4)});
 
     // 2/4 from measure 8 (whole note 7) steps three quarter notes to 8:4; the fourth step would
     // land on the terminal's whole note 8. The last bar before the terminal is a cut, never a
@@ -663,6 +666,29 @@ TEST_CASE("A meter move refuses a reign too short and the song's end", "[core][m
     ending.pressAlt(ChartStepDirection::Right);
     CHECK(ending.timeline() == stepped);
     CHECK(ending.undoEntryCount() == 2);
+}
+
+// A refused move lights the moved chip and the meter whose reign it would leave governing no whole
+// measure. 2/4 from measure 3 steps back a quarter note at a time through measure 2 until the 4/4
+// before it governs exactly one bar; the next step would leave that 4/4 three beats, and the
+// refusal glows the stepped 2/4 — now drawn at measure 2 — and the measure-1 4/4.
+TEST_CASE("A meter move refused for a short reign flashes the reign's meter", "[core][meters]")
+{
+    MeterEditor editor;
+    editor.set(downbeat(3), "2/4");
+    editor.pressAlt(ChartStepDirection::Left, 4);
+    REQUIRE(
+        editor.meters() == metersAt(
+                               {{.at = "1:1", .numerator = 4, .denominator = 4},
+                                {.at = "2:1", .numerator = 2, .denominator = 4}}));
+    const common::core::SongTimeline stepped = editor.timeline();
+    const std::size_t flashes_before = editor.view.refusal_flashes.size();
+
+    editor.pressAlt(ChartStepDirection::Left);
+    CHECK(editor.timeline() == stepped);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+    CHECK(
+        editor.view.refusal_flashes.back().ruler_chips == std::vector{meterChip(2), meterChip(1)});
 }
 
 // The meter edit's undo and redo restore the WHOLE song field-equal — the map, the sections and

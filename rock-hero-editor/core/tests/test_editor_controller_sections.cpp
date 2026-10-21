@@ -401,6 +401,21 @@ TEST_CASE("Section insert refuses an empty name and a duplicate", "[core][sectio
     CHECK_FALSE(editor.undoAvailable());
 }
 
+// An insert's subject is the place it addressed, so a refused insert at a held position lights the
+// section holding it — the thing that stood in its way — and nothing else.
+TEST_CASE("Section insert at a held position flashes the section holding it", "[core][sections]")
+{
+    LoadedSectionEditor editor{makeSectionSong(
+        {SongSection{.position = downbeat(2), .name = "Verse"}})};
+
+    editor.controller.onSongSectionInsertRequested(downbeat(2), "Chorus");
+    REQUIRE(editor.sections().size() == 1);
+    REQUIRE(editor.view.refusal_flashes.size() == 1);
+    CHECK(
+        editor.view.refusal_flashes.back().ruler_chips ==
+        std::vector{RulerChipKey{.row = RulerChipRow::Section, .start = downbeat(2)}});
+}
+
 // Section insert refuses the song's closing barline rather than clamping it back into the song.
 TEST_CASE("Section insert refuses a measure past the song end", "[core][sections]")
 {
@@ -535,7 +550,8 @@ TEST_CASE("EditorController moves the selected section a placement line", "[core
 
 // A section move refuses rather than swapping or merging: a step onto a slot another section holds,
 // onto the terminal anchor, or earlier than the song's start leaves it in place, and each refusal
-// glows the section's chip, as a refused tempo, meter or hand-position chip does.
+// glows the section's chip, as a refused tempo, meter or hand-position chip does — together with
+// the section holding the slot, where one stood in the way.
 TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][sections]")
 {
     const auto section_chip = [](const GridPosition start) {
@@ -553,7 +569,11 @@ TEST_CASE("Section move refuses an occupied slot and the song's ends", "[core][s
     CHECK(editor.sections()[0].position == downbeat(2));
     CHECK(editor.sections()[1].position == GridPosition{.measure = 2, .beat = 2});
     CHECK_THAT(editor.transport.current_position.seconds, Catch::Matchers::WithinAbs(0.0, 1e-9));
-    CHECK(flashedRulerChips(editor.view) == std::vector{section_chip(downbeat(2))});
+    CHECK(
+        flashedRulerChips(editor.view) ==
+        std::vector{
+            section_chip(downbeat(2)), section_chip(GridPosition{.measure = 2, .beat = 2})
+        });
 
     // Beat 4 of measure 4 is the last slot that can carry a section, ten quarter lines on from 2:2;
     // 5:1 is the closing barline, and the step onto it is refused.

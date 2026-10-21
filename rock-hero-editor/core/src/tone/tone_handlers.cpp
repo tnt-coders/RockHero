@@ -51,25 +51,27 @@ namespace
     return region == tone_track.regions.end() ? nullptr : &*region;
 }
 
-// Moves the start of a region within a tone model, or logs why the tone track's rules refuse it —
-// the first region, whose start is the song's; a start reaching a neighbour's; a start outside the
-// song. The one boundary move the pointer drag and the keyboard share, so both refuse exactly the
-// same moves; each then commits it its own way.
-[[nodiscard]] bool movedToneBoundary(
-    ToneModelSnapshot& model, const std::string& region_id,
-    const common::core::GridPosition position)
+// The light of the region a tone verb addressed, by its id.
+[[nodiscard]] RefusalLight regionLight(const std::string& region_id)
 {
-    if (const auto moved = common::core::moveToneBoundary(model.tone_track, region_id, position);
-        !moved.has_value())
-    {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected tone boundary move region_id={:?} detail={:?}",
-            region_id,
-            moved.error().message);
-        return false;
-    }
-    return true;
+    return lightOf(ToneRegionSelection{.region_id = region_id});
+}
+
+// The light of the region holding a position, which is the one a split there changes; nothing
+// where no region holds it.
+[[nodiscard]] RefusalLight regionLightAt(
+    const common::core::ToneTrack& tone_track, const common::core::GridPosition& position)
+{
+    const common::core::ToneRegion* const region = common::core::toneRegionAt(tone_track, position);
+    return region != nullptr ? regionLight(region->id) : RefusalLight{};
+}
+
+// What a tone verb's refused track edit lights: its subject, with every region the rule names.
+[[nodiscard]] RefusalLight refusedToneEditLight(
+    RefusalLight subject, const common::core::ToneTrackError& error)
+{
+    subject.add(toneTrackCulprits(error));
+    return subject;
 }
 
 // Snaps a raw normalised value onto a discrete parameter's real states (k/(count-1)); a
@@ -634,10 +636,12 @@ void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion ac
     updateView();
 }
 
-// Input validation for the three verbs that take a TYPED tone name, reported to the charter rather
-// than logged like a structural refusal: the name came from a prompt they can retype, and a name
-// nothing offers is not a broken model. It is not part of the commit's own rules for that reason.
-bool EditorController::Impl::reportedDuplicateToneName(ToneModelSnapshot& after)
+// Input validation for the three verbs that take a TYPED tone name, refused in the log under the
+// verb's label but lighting nothing: the name came from a prompt they can retype, which has no
+// subject on screen, and a name nothing offers is not a broken model. It is not part of the
+// commit's own rules for that reason.
+bool EditorController::Impl::reportedDuplicateToneName(
+    ToneModelSnapshot& after, const std::string_view label)
 {
     // The catalog a commit produces is the pruned one, so the name is measured against that: a
     // retone that mints a replacement for the tone it drops may reuse the dropped tone's name.
@@ -649,7 +653,8 @@ bool EditorController::Impl::reportedDuplicateToneName(ToneModelSnapshot& after)
     {
         return false;
     }
-    reportError("A tone named \"" + *duplicate + "\" already exists in this arrangement.");
+    m_refusal_log.markerEdit(
+        label, "A tone named \"" + *duplicate + "\" already exists in this arrangement.");
     return true;
 }
 
@@ -661,16 +666,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
 {
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
+    const std::string tone_name = toneNameForRef(action.tone_document_ref);
+    const std::string label =
+        "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name);
+    // The subject is the region the insert splits: the one holding the place it addressed.
+    RefusalLight subject = regionLightAt(before.tone_track, action.position);
     if (const auto created = common::core::createToneRegion(
             after.tone_track, action.position, action.new_region_id, action.tone_document_ref);
         !created.has_value())
     {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected tone region create measure={} beat={} detail={:?}",
-            action.position.measure,
-            action.position.beat,
-            created.error().message);
+        refuseMarkerVerb(
+            label,
+            created.error().message,
+            refusedToneEditLight(std::move(subject), created.error()));
         return;
     }
 
@@ -680,11 +688,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     // open there, so the lookup below cannot come back empty.
     const std::string created_region_id =
         common::core::toneRegionAt(after.tone_track, action.position)->id;
-    const std::string tone_name = toneNameForRef(action.tone_document_ref);
-    if (commitMarkerModel(
-            std::move(before),
-            std::move(after),
-            "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name)) !=
+    if (commitMarkerModel(std::move(before), std::move(after), label, std::move(subject)) !=
         MarkerCommit::Refused)
     {
         // The insert selects what it made; a selection made after the commit publishes with this
@@ -719,15 +723,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
     }
 
     const std::string tone_name = toneNameForRef(region->tone_document_ref);
+    const std::string label =
+        "Delete " + (tone_name.empty() ? std::string{"Tone Region"} : tone_name);
     ToneModelSnapshot after = before;
     if (const auto deleted = common::core::deleteToneRegion(after.tone_track, action.region_id);
         !deleted.has_value())
     {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Tone region delete not applied region_id={:?} detail={:?}",
-            action.region_id,
-            deleted.error().message);
+        refuseMarkerVerb(
+            label,
+            deleted.error().message,
+            refusedToneEditLight(regionLight(action.region_id), deleted.error()));
         return;
     }
 
@@ -735,10 +740,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
     // Handing it to the absorbing neighbour would arm Delete at a region the charter never pointed
     // at, and the signal-chain panel needs no selected region to stay bound: it follows the ACTIVE
     // tone, which tracks the cursor, while "selected" is only the Delete target and its outline.
-    commitMarkerModel(
-        std::move(before),
-        std::move(after),
-        "Delete " + (tone_name.empty() ? std::string{"Tone Region"} : tone_name));
+    commitMarkerModel(std::move(before), std::move(after), label, regionLight(action.region_id));
 }
 
 // Deleting the only tone region is a reset, not a merge: the track must cover the whole song, so
@@ -761,15 +763,15 @@ void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
 
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
+    const std::string label = "Delete Tone Region";
     if (const auto retoned =
             common::core::retoneToneRegion(after.tone_track, region_id, new_tone_document_ref);
         !retoned.has_value())
     {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected sole tone region reset region_id={:?} detail={:?}",
-            region_id,
-            retoned.error().message);
+        refuseMarkerVerb(
+            label,
+            retoned.error().message,
+            refusedToneEditLight(regionLight(region_id), retoned.error()));
         return;
     }
     after.tones.push_back(
@@ -780,7 +782,7 @@ void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
     // No duplicate-name check, unlike the three verbs that take a TYPED name: the sole region was
     // the only reference any tone had, so the commit's prune leaves this freshly minted "Default"
     // alone in the catalog and there is nothing left for it to collide with.
-    if (commitMarkerModel(std::move(before), std::move(after), "Delete Tone Region") ==
+    if (commitMarkerModel(std::move(before), std::move(after), label, regionLight(region_id)) ==
         MarkerCommit::Refused)
     {
         return;
@@ -810,11 +812,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
         "Rename Tone " + (tone->name.empty() ? std::string{"<unknown>"} : tone->name) + " to " +
         (action.name.empty() ? std::string{"<unknown>"} : action.name);
     tone->name = action.name;
-    if (reportedDuplicateToneName(after))
+    if (reportedDuplicateToneName(after, label))
     {
         return;
     }
-    commitMarkerModel(std::move(before), std::move(after), label);
+    // A catalog tone is its subject, which no one chip draws: only what a rule names lights.
+    commitMarkerModel(std::move(before), std::move(after), label, RefusalLight{});
 }
 
 // The tone chord authors at the cursor and never reads the selection: a region starting EXACTLY at
@@ -894,17 +897,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
     }
 
     ToneModelSnapshot after = before;
-    if (const auto retoned =
-            common::core::retoneToneRegion(after.tone_track, action.region_id, after_ref);
-        !retoned.has_value())
-    {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected tone region retone region={:?} detail={:?}",
-            action.region_id,
-            retoned.error().message);
-        return;
-    }
     if (minted_tone)
     {
         after.tones.push_back(
@@ -912,24 +904,34 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
                 .tone_document_ref = after_ref,
                 .name = std::get<EditorAction::NewTone>(action.target).name,
             });
-        if (reportedDuplicateToneName(after))
-        {
-            return;
-        }
     }
-
     // The label names the tone the region comes to reference, which a mint has only just put in
     // the produced catalog — so the name is read from there rather than from the live one.
     const std::string after_name = toneNameIn(after.tones, after_ref);
+    const std::string label =
+        "Change Tone of Region to " + (after_name.empty() ? std::string{"tone"} : after_name);
+    if (const auto retoned =
+            common::core::retoneToneRegion(after.tone_track, action.region_id, after_ref);
+        !retoned.has_value())
+    {
+        refuseMarkerVerb(
+            label,
+            retoned.error().message,
+            refusedToneEditLight(regionLight(action.region_id), retoned.error()));
+        return;
+    }
+    if (minted_tone && reportedDuplicateToneName(after, label))
+    {
+        return;
+    }
+
     // A region always holds `start`: it is the start of a region that existed before the retone, so
     // the track's first region begins at or before it, and a retone never empties the track — it
     // can only coalesce neighbours, which keeps the earlier of each pair.
     const std::string surviving_region_id = common::core::toneRegionAt(after.tone_track, start)->id;
     if (commitMarkerModel(
-            std::move(before),
-            std::move(after),
-            "Change Tone of Region to " +
-                (after_name.empty() ? std::string{"tone"} : after_name)) == MarkerCommit::Refused)
+            std::move(before), std::move(after), label, regionLight(action.region_id)) ==
+        MarkerCommit::Refused)
     {
         return;
     }
@@ -956,13 +958,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneRegion
 // nothing.
 void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBoundary& action)
 {
+    const std::string label = "Move Tone Boundary";
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
-    if (!movedToneBoundary(after, action.right_region_id, action.position))
+    if (const auto moved = common::core::moveToneBoundary(
+            after.tone_track, action.right_region_id, action.position);
+        !moved.has_value())
     {
+        refuseMarkerVerb(
+            label,
+            moved.error().message,
+            refusedToneEditLight(regionLight(action.right_region_id), moved.error()));
         return;
     }
-    commitMarkerModel(std::move(before), std::move(after), "Move Tone Boundary");
+    commitMarkerModel(
+        std::move(before), std::move(after), label, regionLight(action.right_region_id));
 }
 
 // A region's start IS the tone change it opens, so the start is the marker a keyboard move
@@ -984,18 +994,24 @@ void EditorController::Impl::moveSelectedToneRegionStart(
     {
         return;
     }
+    const std::string label = "Move Tone Boundary";
     const std::optional<common::core::GridPosition> step =
         steppedNudgePosition(region->start, direction == ChartStepDirection::Right);
     if (!step.has_value())
     {
-        m_refusal_log.markerEdit("Move Tone Boundary", "tone change would leave the song");
+        refuseMarkerVerb(label, "tone change would leave the song", regionLight(region_id));
         return;
     }
     const common::core::GridPosition target = *step;
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
-    if (!movedToneBoundary(after, region_id, target))
+    if (const auto moved = common::core::moveToneBoundary(after.tone_track, region_id, target);
+        !moved.has_value())
     {
+        refuseMarkerVerb(
+            label,
+            moved.error().message,
+            refusedToneEditLight(regionLight(region_id), moved.error()));
         return;
     }
     // A region is identified by its id, which a move keeps, so the run's selection is the one the
@@ -1003,8 +1019,9 @@ void EditorController::Impl::moveSelectedToneRegionStart(
     if (commitMarkerMove(
             std::move(before),
             std::move(after),
-            "Move Tone Boundary",
-            ToneRegionSelection{.region_id = region_id}))
+            label,
+            ToneRegionSelection{.region_id = region_id},
+            regionLight(region_id)))
     {
         followMovedMarker(target);
     }
@@ -1033,23 +1050,24 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     const std::string new_tone_document_ref = std::move(*minted);
     const std::string new_region_id = common::core::generatePackageId();
 
+    const std::string label = "Add " + (action.name.empty() ? std::string{"Tone"} : action.name);
     ToneModelSnapshot before = ToneModelSnapshot::capture(session());
     ToneModelSnapshot after = before;
+    // The subject is the region the insert splits: the one holding the place it addressed.
+    RefusalLight subject = regionLightAt(before.tone_track, action.position);
     if (const auto created = common::core::createToneRegion(
             after.tone_track, action.position, new_region_id, new_tone_document_ref);
         !created.has_value())
     {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected new-tone create measure={} beat={} detail={:?}",
-            action.position.measure,
-            action.position.beat,
-            created.error().message);
+        refuseMarkerVerb(
+            label,
+            created.error().message,
+            refusedToneEditLight(std::move(subject), created.error()));
         return;
     }
     after.tones.push_back(
         common::core::Tone{.tone_document_ref = new_tone_document_ref, .name = action.name});
-    if (reportedDuplicateToneName(after))
+    if (reportedDuplicateToneName(after, label))
     {
         return;
     }
@@ -1058,10 +1076,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     // there (the same reasoning as CreateToneRegion above).
     const std::string created_region_id =
         common::core::toneRegionAt(after.tone_track, action.position)->id;
-    if (commitMarkerModel(
-            std::move(before),
-            std::move(after),
-            "Add " + (action.name.empty() ? std::string{"Tone"} : action.name)) ==
+    if (commitMarkerModel(std::move(before), std::move(after), label, std::move(subject)) ==
         MarkerCommit::Refused)
     {
         return;

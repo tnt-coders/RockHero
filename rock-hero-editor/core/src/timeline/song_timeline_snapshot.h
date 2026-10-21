@@ -7,6 +7,7 @@
 
 #include "controller/edit_focus.h"
 #include "controller/marker_judge_context.h"
+#include "controller/refusal_light.h"
 
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -71,10 +72,13 @@ struct SongTimelineSnapshot
     \brief Reports the first structural rule this timeline breaks, in any of its slices
     (\ref common::core::validateSongTimelineRules).
     \param context Carries the notes layers this timeline's normalization derived, which each
-           chart's coverage reads; every other rule reads the timeline's own map.
-    \return The violation to report, or empty when the timeline satisfies every rule.
+           chart's coverage reads; every other rule reads the timeline's own map. Its session's map
+           is the one on screen, which the culprits are lit on.
+    \return The refusal to report — lighting the anchors and time signatures a tempo-map rule
+            names and the regions a tone-track rule names; a section, chart or automation rule
+            names no record — or empty when the timeline satisfies every rule.
     */
-    [[nodiscard]] std::optional<std::string> validate(const MarkerJudgeContext& context) const;
+    [[nodiscard]] std::optional<PlanRefused> validate(const MarkerJudgeContext& context) const;
 
     /*!
     \brief The time signature an undo or redo landing on this timeline brings into focus: the first

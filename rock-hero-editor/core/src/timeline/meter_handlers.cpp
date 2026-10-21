@@ -195,9 +195,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
             "a time signature cannot start at or past the end of the song");
         return;
     }
+    const auto* const restated = std::get_if<SetTimeSignatureTarget>(&verb);
     const std::string label = markerVerbLabel(
-        std::holds_alternative<SetTimeSignatureTarget>(verb) ? MarkerVerb::SetTimeSignature
-                                                             : MarkerVerb::AddTimeSignature);
+        restated != nullptr ? MarkerVerb::SetTimeSignature : MarkerVerb::AddTimeSignature);
+    // The subject is the chip of the reign a Set restates; the beat an Add cuts at holds none.
+    RefusalLight subject;
+    if (restated != nullptr)
+    {
+        subject.add(TimeSignatureSelection{.measure = restated->position.measure});
+    }
     const common::core::Fraction place = tempo_map.wholeNotePositionAt(action.position);
     std::vector<common::core::TimeSignatureChange> meters = tempo_map.timeSignatures();
     if (const auto stored =
@@ -229,16 +235,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
         label,
         MarkerRow::TimeSignature,
         landed,
-        EntryFocus::FirstChange);
+        EntryFocus::FirstChange,
+        std::move(subject));
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
-}
-
-// Rationale lives on the declaration in editor_controller_impl.h.
-void EditorController::Impl::refuseTimeSignatureVerb(
-    const TimeSignatureSelection& selection, const MarkerVerb verb, const std::string& reason)
-{
-    m_refusal_log.markerEdit(markerVerbLabel(verb), reason);
-    flashRefusalLight(lightOf(selection));
 }
 
 // Deletes the selected time signature (the Delete-key dispatch for the meter alternative): the
@@ -247,12 +246,11 @@ void EditorController::Impl::refuseTimeSignatureVerb(
 // delete.
 void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSelection& selection)
 {
+    const std::string label = markerVerbLabel(MarkerVerb::DeleteTimeSignature);
     if (selection.measure == 1)
     {
-        refuseTimeSignatureVerb(
-            selection,
-            MarkerVerb::DeleteTimeSignature,
-            "the time signature at measure 1 cannot be deleted");
+        refuseMarkerVerb(
+            label, "the time signature at measure 1 cannot be deleted", lightOf(selection));
         return;
     }
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
@@ -260,11 +258,11 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     const std::optional<std::size_t> stored = storedChangeIndex(tempo_map, selection.measure);
     if (!stored.has_value())
     {
-        refuseTimeSignatureVerb(
-            selection,
-            MarkerVerb::DeleteTimeSignature,
+        refuseMarkerVerb(
+            label,
             "the measure " + std::to_string(selection.measure) +
-                " meter is derived, so nothing is stored there");
+                " meter is derived, so nothing is stored there",
+            lightOf(selection));
         return;
     }
     std::vector<common::core::TimeSignatureChange> meters = tempo_map.timeSignatures();
@@ -273,10 +271,11 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
     commitGridModel(
         std::move(before),
         std::move(after),
-        markerVerbLabel(MarkerVerb::DeleteTimeSignature),
+        label,
         MarkerRow::TimeSignature,
         std::nullopt,
-        EntryFocus::FirstChange);
+        EntryFocus::FirstChange,
+        lightOf(selection));
     flashRenumberedMeasures(m_view, tempo_map, session().song().tempo_map);
 }
 
@@ -291,10 +290,10 @@ void EditorController::Impl::deleteSelectedTimeSignature(const TimeSignatureSele
 void EditorController::Impl::moveSelectedTimeSignature(
     const TimeSignatureSelection& selection, const ChartStepDirection direction)
 {
-    const MarkerVerb verb = MarkerVerb::MoveTimeSignature;
+    const std::string label = markerVerbLabel(MarkerVerb::MoveTimeSignature);
     if (selection.measure == 1)
     {
-        refuseTimeSignatureVerb(selection, verb, "the time signature at measure 1 cannot move");
+        refuseMarkerVerb(label, "the time signature at measure 1 cannot move", lightOf(selection));
         return;
     }
     SongTimelineSnapshot before = SongTimelineSnapshot::capture(session());
@@ -302,11 +301,11 @@ void EditorController::Impl::moveSelectedTimeSignature(
     const std::optional<std::size_t> stored = storedChangeIndex(tempo_map, selection.measure);
     if (!stored.has_value())
     {
-        refuseTimeSignatureVerb(
-            selection,
-            verb,
+        refuseMarkerVerb(
+            label,
             "the measure " + std::to_string(selection.measure) +
-                " meter is derived, so nothing is stored there");
+                " meter is derived, so nothing is stored there",
+            lightOf(selection));
         return;
     }
     const std::size_t index = *stored;
@@ -315,18 +314,26 @@ void EditorController::Impl::moveSelectedTimeSignature(
     const common::core::Fraction place = direction == ChartStepDirection::Right
                                              ? meters[index].place + step
                                              : meters[index].place - step;
-    // The re-address needs the list in order, so the neighbour check stands here, ahead of it.
-    if (place <= meters[index - 1].place ||
-        (index + 1 < meters.size() && place >= meters[index + 1].place))
+    // The re-address needs the list in order, so the neighbour check stands here, ahead of it;
+    // the neighbour reached stands in the way, lit by the measure its chip is drawn at.
+    const bool reaches_previous = place <= meters[index - 1].place;
+    if (reaches_previous || (index + 1 < meters.size() && place >= meters[index + 1].place))
     {
-        refuseTimeSignatureVerb(
-            selection, verb, "a time signature cannot step onto or past its neighbour");
+        const std::size_t neighbour = reaches_previous ? index - 1 : index + 1;
+        RefusalLight lit = lightOf(selection);
+        lit.add(
+            TimeSignatureSelection{
+                .measure = tempo_map.gridPositionAtWholeNote(meters[neighbour].place).measure,
+            });
+        refuseMarkerVerb(label, "a time signature cannot step onto or past its neighbour", lit);
         return;
     }
     if (place >= tempo_map.wholeNotePositionAt(common::core::terminalGridPosition(tempo_map)))
     {
-        refuseTimeSignatureVerb(
-            selection, verb, "a time signature cannot step to or past the end of the song");
+        refuseMarkerVerb(
+            label,
+            "a time signature cannot step to or past the end of the song",
+            lightOf(selection));
         return;
     }
     meters[index].place = place;
@@ -337,10 +344,10 @@ void EditorController::Impl::moveSelectedTimeSignature(
     if (!commitMarkerMove(
             std::move(before),
             std::move(moved),
-            markerVerbLabel(verb),
-            TimeSignatureSelection{.measure = landed}))
+            label,
+            TimeSignatureSelection{.measure = landed},
+            lightOf(selection)))
     {
-        flashRefusalLight(lightOf(selection));
         return;
     }
     followMovedMarker(common::core::measureDownbeat(landed));

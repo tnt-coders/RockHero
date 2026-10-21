@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "controller/refusal_light.h"
+
 #include <cstdint>
 #include <expected>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -39,6 +41,13 @@ struct [[nodiscard]] TempoMapEditError
 
     /*! \brief Human-readable diagnostic for the refusal log. */
     std::string message;
+
+    /*!
+    \brief What stood in the edit's way, on the map the edit would replace: the culprits a broken
+    rule names (\ref tempoMapCulprits); nothing for a refusal that names no record, where only
+    the anchor the edit addressed — the caller's subject — stood in the way.
+    */
+    RefusalLight lit;
 };
 
 /*! \brief A tempo map produced by an edit, or why the edit refused. */
