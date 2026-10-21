@@ -3555,7 +3555,6 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
         // string to speak — so the bracket opens with the gesture rather than at whichever
         // arrival reached the threshold.
         CHECK(span.place == common::core::Fraction{});
-        CHECK(span.bracket_place == std::optional{span.place});
         // Nothing here asserts a founding classification, because under the grip-tenure law there
         // is none to read: the model stores no founding verdict. Accumulation is a RULE rather than
         // a stored verdict — sound alone opens a span at three or more overlapping members — and

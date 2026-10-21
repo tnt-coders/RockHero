@@ -3609,12 +3609,7 @@ TEST_CASE(
     REQUIRE(board.chart.shapes.size() == 1);
     const ShapeViewState& span = board.chart.shapes[0];
     CHECK(span.arpeggio);
-    const std::optional<double>& mark = span.bracket_seconds;
-    REQUIRE(mark.has_value());
-    if (mark.has_value())
-    {
-        CHECK(*mark == Catch::Approx(0.0));
-    }
+    CHECK(span.start_seconds == Catch::Approx(0.0));
 
     const std::vector<HighwayStrikePop>& fretting = board.fret_hand.pops;
     REQUIRE(fretting.size() == 3);

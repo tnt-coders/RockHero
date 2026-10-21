@@ -27,10 +27,10 @@ namespace rock_hero::common::core
 
 The two slots a posture digit can occupy, and the answer is a property of a (span, string) rather
 than of either alone: what HEADS the string AT THE INSTANT THE MARK DRAWS, and at that instant
-alone, is what decides it (THE DIGIT WINDOW, shape rule 7). That instant is the span's FRONT for
-every span an EVENT states and its first interior sounding for a carry-opened successor (shape rule
-4), so the question is asked where the reader is actually looking rather than over a window the
-span's own closing onset could reach into. Published as \ref ShapeStringViewState::digit by the
+alone, is what decides it (THE DIGIT WINDOW, shape rule 7). That instant is the span's FRONT, its
+one instant (shape rule 4), so the question is asked where the reader is actually looking rather
+than over a window the span's own closing onset could reach into. A head is an onset head or a
+linked keyframe head. Published as \ref ShapeStringViewState::digit by the
 projection so the painter and the hit test read one answer — the digit is drawn exactly where it is
 clickable, which is the whole of "nothing drawn is unreachable" for this mark.
 */
@@ -1015,39 +1015,13 @@ struct ShapeViewState
     std::vector<ShapeStringViewState> strings;
 
     /*!
-    \brief Where a span's posture bracket anchors; absent only where a carry-opened successor never
-    sounds interiorly.
+    \brief True where a landing opened this span (shape rule 4): nothing was struck at its front.
 
-    Not the same fact as \ref arpeggio, which is the CLASS — what the span's rails and its name say
-    it is. This is where the span's one opening mark is drawn, and the two part company at a
-    CARRY-OPENED SUCCESSOR, a span that draws no mark at its own start at all. Nothing is
-    stated at a boundary — a chord slide keeps the fingers planted, so all that happens at a landing
-    is the fingers arriving, and a member's death states nothing either — so the continued tails
-    plus the chord NAME changing there are the whole statement. Its bracket DEFERS to the span's
-    first INTERIOR sounding — the ink follows the sound — and a successor that never sounds
-    interiorly draws no bracket at all, which is what the empty state means.
-
-    Every other span keeps its FRONT: there the front IS the statement, made by a strum or by the
-    stops the hand claims at a slot, rather than a continuation of one. A full restrike wears its
-    own full box at its own onset either way, which is a different mark from this one.
-
-    Both surfaces read it — the 2D lane's "[ fret ]" marks and the board's arpeggio box alike — and
-    \ref ShapeStringViewState::digit is resolved AT this instant and at no other (THE DIGIT WINDOW),
-    so the mark states the span's whole membership where the reader meets it and only a head
-    standing right there takes a number out of it.
-
-    EMPTY on a BOX-class span, which is the one condition gating it and it is stated once, at the
-    projection. A bracket is arpeggio furniture: a box-class span states itself with its strums' own
-    boxes and opens no mark at all, so publishing its start here would be an instant at which
-    nothing draws — and the coincidence rule that suppresses a chord box under an arpeggio box keys
-    on exactly this optional. That is the ORDINARY disposition of a landing successor rather than a
-    corner of one.
-
-    Taken from the derivation's \ref ChartShape::bracket_place rather than re-scanned: the walk
-    is what knows which slots a statement covers, and a re-scan would ask that grouping question a
-    second time against an extent the closing trim has already shortened.
+    The 2D lane draws its bracket marks at the front like any span's; the 3D board draws its
+    brackets pinned on the board from the front and sends no frame down the highway, because a box
+    is a strum's (shape rule 5). Taken from \ref ChartShape::landing_opened.
     */
-    std::optional<double> bracket_seconds{};
+    bool landing_opened{false};
 
     /*!
     \brief True where an unnamed hold states the span (\ref ChartShape::hold_stated); false where
@@ -1070,7 +1044,7 @@ struct ShapeViewState
                std::is_eq(lhs.drawn_end_seconds <=> rhs.drawn_end_seconds) &&
                std::is_eq(lhs.close_seconds <=> rhs.close_seconds) &&
                lhs.arpeggio == rhs.arpeggio && lhs.strings == rhs.strings &&
-               lhs.bracket_seconds == rhs.bracket_seconds && lhs.held == rhs.held;
+               lhs.landing_opened == rhs.landing_opened && lhs.held == rhs.held;
     }
 };
 

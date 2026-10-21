@@ -229,50 +229,14 @@ struct ChartShape
     /*!
     \brief True when a LANDING opened this span: the one onset-less open (shape rule 4).
 
-    The one span nothing states at its own start. Every other span is opened by an EVENT — a strum —
-    that puts the statement at an instant; a landing successor's members are rings struck under the
-    statement BEFORE it, whose travels arrived at the boundary the hand slid to. Nothing happens at
-    its start except the previous statement ending and the landed grip standing: mere ring-out opens
-    NOTHING, so this field has exactly one cause and is named for it.
-
-    Display keys the opening mark's deferral on the same fact through \ref bracket_place (a
-    landing states no ink; the first interior sounding fills it), and the chord name changes here
-    once names exist. Published rather than inferred because no reader may substitute a test of its
-    own: `last_stated_place` stops answering the moment an interior re-pick states the successor, so
-    that proxy is wrong in both directions. Its consumers are the census (the sanctioned instrument)
-    and the tests; production display keys on \ref bracket_place. Declared here so that is read
-    as deliberate rather than discovered.
+    The one span nothing states at its own start: its members are rings struck under the statement
+    before it, whose travels arrived at the boundary the hand slid to. Published because no reader
+    may substitute a proxy — `last_stated_place` stops answering the moment an interior re-pick
+    states the successor, so it is wrong in both directions. Its consumers are the walk's emission
+    test, the census, and the 3D board, which draws a landing successor's brackets pinned from its
+    front and sends nothing down the highway.
     */
     bool landing_opened{false};
-
-    /*!
-    \brief The place this span's one OPENING MARK draws at (shape rule 4); absent where it draws
-           none.
-
-    Every span an EVENT states — a strum, or a shape hold opening its own span — carries its own
-    FRONT here (\ref place), because that is the statement's own extent and the rails run from it.
-    An ACCUMULATION is no exception and needs no clause: its front is the statement it opened at,
-    so the bracket starts there and the later members' heads arrive under it. A LANDING SUCCESSOR,
-    a hold opening at a landing included, carries its first INTERIOR sounding instead: the whole
-    grip slid in, so its landing states nothing the predecessor's mark did not, and THE INK FOLLOWS
-    THE SOUND. One that never sounds interiorly carries nothing and draws no mark at all — the
-    rails and the chord name changing there are its whole statement.
-
-    ONE field with one write rule, which is what makes those cases one law rather than a branch on
-    \ref landing_opened: the seed happens where a span opens and the fill happens at the first
-    sounding, so the second only ever lands where the first did not.
-
-    Consulted only where a BRACKET actually draws — an ARPEGGIO-classified span (\ref
-    chartShapeArrivals). A box-class span states itself with its strums' own boxes, so its anchor is
-    never read, and that is the ordinary disposition of a landing successor rather than a corner of
-    one.
-
-    The WALK publishes it because the walk is what knows which slots this statement covers. A
-    re-scan of the note stream for "the first sounding at or after the span's start" would be that
-    grouping question asked a second time, against an extent the closing trim has already
-    shortened.
-    */
-    std::optional<Fraction> bracket_place{};
 
     /*!
     \brief True where a charter's unnamed shape hold states this span (shape rule 9): only its edges

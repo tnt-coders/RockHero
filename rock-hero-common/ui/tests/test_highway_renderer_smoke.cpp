@@ -54,6 +54,7 @@
 #include <memory>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_projection.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_resources.h>
@@ -172,7 +173,8 @@ using common::core::NoteEmphasis;
 // legato pair resolving to a hammer-on and a pull-off, a tapped pair (the tapping-hand light and
 // its box), a long accented open tail, and a strum restruck in part under a ringing string (an
 // arpeggio span: its posture mark and its rails). Two fret-hand placements a wide jump apart give
-// the hand window both a settled span and a transition sweep.
+// the hand window both a settled span and a transition sweep. The projected state then gains a
+// landing-opened arpeggio span (withLandingSuccessor), the one family drawn as brackets alone.
 [[nodiscard]] common::core::Arrangement makeFamiliesArrangement()
 {
     common::core::Chart chart;
@@ -396,6 +398,36 @@ using common::core::NoteEmphasis;
     return arrangement;
 }
 
+// Adds an arpeggio span a slide landing opened, in the eighth measure past every projected span,
+// so the sweep's now crosses its front and the board pins its brackets with no frame. Built by
+// hand rather than charted: which chart yields a landing-opened ARPEGGIO is the projection's
+// question and its suite's subject, where this suite needs only the renderer's path for one. The
+// posture holds an open string, so the window-edge bracket pair draws pinned too.
+[[nodiscard]] common::core::HighwayViewState withLandingSuccessor(
+    common::core::HighwayViewState state)
+{
+    common::core::ShapeViewState landing;
+    landing.start_seconds = 14.0;
+    landing.drawn_end_seconds = 15.0;
+    landing.close_seconds = 15.0;
+    landing.arpeggio = true;
+    landing.landing_opened = true;
+    landing.strings = {
+        common::core::ShapeStringViewState{.string = 1, .stop = common::core::fretStop(0)},
+        common::core::ShapeStringViewState{.string = 2, .stop = common::core::fretStop(13)},
+        common::core::ShapeStringViewState{.string = 3, .stop = common::core::fretStop(14)},
+    };
+    std::vector<common::core::ShapeViewState>& shapes = state.chart.shapes;
+    shapes.insert(
+        std::ranges::upper_bound(
+            shapes,
+            landing.start_seconds,
+            std::ranges::less{},
+            &common::core::ShapeViewState::start_seconds),
+        std::move(landing));
+    return state;
+}
+
 // The swap content: a different chart on a different tuning, so replacing the state rebuilds the
 // retained board face rather than redrawing the same lanes. Drawn under mirrored, inverted, and
 // lane-padded display options so the per-frame display mapping runs its non-default branches.
@@ -533,8 +565,8 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
 
         const common::core::TempoMap tempo_map = makeSmokeTempoMap();
         const common::core::Arrangement families_arrangement = makeFamiliesArrangement();
-        const common::core::HighwayViewState families = makeHighwayViewState(
-            makeChartViewState(families_arrangement, tempo_map), tempo_map, makeSmokeSections());
+        const common::core::HighwayViewState families = withLandingSuccessor(makeHighwayViewState(
+            makeChartViewState(families_arrangement, tempo_map), tempo_map, makeSmokeSections()));
 
         // Fixture guards, not renderer assertions: without them a projection change could empty
         // a draw family and leave the sweep below silently exercising a blank board while still
@@ -552,11 +584,18 @@ TEST_CASE("Highway renderer survives a headless Noop frame sweep", "[ui][highway
         // A tapped CHORD, not only a tap: the picking hand's box, its rails and its box-side pop
         // draw only for two or more taps struck together.
         CHECK(std::ranges::any_of(families.tap_onsets, common::core::tappedChord));
-        // An arpeggio whose posture mark draws, or the mark and its reading-aid switch go unswept.
+        // Both arpeggio marks — the framed box a strike-opened span sends down the highway and the
+        // pinned brackets a landing-opened one shows alone — or a mark and its reading-aid switch
+        // go unswept.
         CHECK(
             std::ranges::any_of(
                 families.chart.shapes, [](const common::core::ShapeViewState& shape) {
-                    return shape.arpeggio && shape.bracket_seconds.has_value();
+                    return shape.arpeggio && !shape.landing_opened;
+                }));
+        CHECK(
+            std::ranges::any_of(
+                families.chart.shapes, [](const common::core::ShapeViewState& shape) {
+                    return shape.arpeggio && shape.landing_opened;
                 }));
         CHECK_FALSE(families.beats.empty());
         CHECK_FALSE(families.sections.empty());

@@ -167,18 +167,13 @@ surface **draws**.
   string, or below it, says that finger is gone and splits the span — and the stored close is the breaking event's own
   onset or where the statement ran out, whichever is EARLIER — never a display value, though a span
   closed by a following event still keeps the same minimum sustain distance every other element does
-  once the projection trims it. Two facts the finished list cannot re-derive ride on the spans
+  once the projection trims it. One fact the finished list cannot re-derive rides on the spans
   themselves: `landing_opened`, true for the one span no EVENT states at its own start — a landed
   travel's successor, whose members are rings struck under the statement BEFORE it, and only that,
   because a landing is not a SOUNDING: nothing is struck at one, so a successor is classified by the
   ordinary triggers found inside it and a chord sliding into chords is a box at both ends, joined by
-  its members' sliding tails; and `bracket_place`, the instant that span's one opening mark draws
-  at. That last one carries the span's own FRONT wherever an EVENT states it — a strum, an authored
-  hold, and an accumulation's earliest uncovered member — carries the first interior sounding of the
-  fretting hand where a LANDING opened it instead, and carries nothing at all where such a span
-  never sounds interiorly and so draws no mark. The projection reads it only for a span that
-  classifies arpeggio, since a box-class span states itself with its strums' own boxes. Neither has
-  a proxy that holds, so the walk that read the channels states both. No founding MODE rides a span
+  its members' sliding tails. It has no proxy that holds, so the walk that read the channels states
+  it, read by the walk's emission test, the census and the 3D board. No founding MODE rides a span
   — growth is accumulation in place, so nothing turns on how a span was born — and no travel flag
   either, because the tail law never hides a ring that STATES something and so needs no span-level
   exemption for a travelling member. The charter's SHAPE HOLDS (shape rule 9) move only the edges:

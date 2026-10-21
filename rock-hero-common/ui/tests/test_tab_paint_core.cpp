@@ -1039,10 +1039,6 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
                         .string = 5, .stop = common::core::fretStop(8)
                     },
                 },
-            // WHERE the bracket draws is the projection's answer too, and an ordinary span's is
-            // its own start. Absent would mean a span drawing no bracket at all, which only a
-            // never-sounding landing successor ever is.
-            .bracket_seconds = 10.0,
             .held = true,
         },
     };
@@ -1218,7 +1214,6 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
                         .digit = common::core::StopMarkSlot::Bracket
                     },
                 },
-            .bracket_seconds = 10.0,
             .held = true,
         },
     };
@@ -4115,64 +4110,66 @@ TEST_CASE("Tab paint core keeps every bend chip inside its layout box", "[ui][ta
     }
 }
 
-// The deferred posture mark on this surface. A landing-opened span states nothing at its landing,
-// so it draws no mark there and defers its bracket to the first interior sounding; a span an event
-// states keeps its own start. Asked as "which COLUMNS do these renders differ in" rather than by
-// probing the bracket's own geometry, so the three pictures are distinguished by where the mark is
-// and nothing else — and a bracket-less span is the common ground all three are measured against.
-TEST_CASE("Tab paint core draws a deferred bracket where the sound is", "[ui][tab-paint]")
+// A span's posture mark stands at its one instant, its front, whatever opened it (shape rule 4): a
+// landing successor's "[ ]" draws at the landing exactly as an event-opened span's draws at its
+// event. Asked as "which COLUMNS do these renders differ in" against the same span carrying no
+// posture, whose rails are identical, so any column the renders disagree in is the bracket's.
+TEST_CASE("Tab paint core draws a span's bracket at its front", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // One arpeggio span and nothing else: the rails are identical in every render, so any column
-    // the renders disagree in is the bracket's.
-    const auto state_marked_at = [](std::optional<double> bracket_seconds) {
+    const auto span_state = [](const bool landing_opened, const bool with_posture) {
+        common::core::ShapeViewState shape{
+            .start_seconds = 13.0,
+            .drawn_end_seconds = 16.0,
+            .close_seconds = 16.0,
+            .arpeggio = true,
+            .strings = {},
+            .landing_opened = landing_opened,
+            .held = false,
+        };
+        if (with_posture)
+        {
+            shape.strings = {
+                common::core::ShapeStringViewState{
+                    .string = 3,
+                    .stop = common::core::fretStop(7),
+                    .digit = common::core::StopMarkSlot::Bracket
+                },
+                common::core::ShapeStringViewState{
+                    .string = 5,
+                    .stop = common::core::fretStop(8),
+                    .digit = common::core::StopMarkSlot::Bracket
+                },
+            };
+        }
         common::core::ChartViewState state;
         state.open_strings = common::core::testing::standardTuning();
-        state.shapes = {
-            common::core::ShapeViewState{
-                .start_seconds = 10.0,
-                .drawn_end_seconds = 16.0,
-                .close_seconds = 16.0,
-                .arpeggio = true,
-                .strings =
-                    {common::core::ShapeStringViewState{
-                         .string = 3,
-                         .stop = common::core::fretStop(7),
-                         .digit = common::core::StopMarkSlot::Bracket
-                     },
-                     common::core::ShapeStringViewState{
-                         .string = 5,
-                         .stop = common::core::fretStop(8),
-                         .digit = common::core::StopMarkSlot::Bracket
-                     }},
-                .bracket_seconds = bracket_seconds,
-            },
-        };
+        state.shapes = {shape};
         indexVisibleRanges(state);
         return state;
     };
-    const auto painted = [](const common::core::ChartViewState& tab) {
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    const auto painted = [&metrics](const common::core::ChartViewState& tab) {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, referenceMetrics(tab.stringCount()), tab);
+        paintTabLane(graphics, metrics, tab);
         return image;
     };
 
-    // 20 px/s across the 400 px lane: the span's start is column 200 and the deferred mark at
-    // 13.0 s is column 260. The two bands are far enough apart that no glyph reaches both.
-    const juce::Image at_start = painted(state_marked_at(10.0));
-    const juce::Image deferred = painted(state_marked_at(13.0));
-    const juce::Image unmarked = painted(state_marked_at(std::nullopt));
+    const juce::Image event_opened = painted(span_state(false, true));
+    const juce::Image landed = painted(span_state(true, true));
+    const juce::Image bare = painted(span_state(false, false));
 
-    // The control keeps its start: it draws something there that a bracket-less span does not.
-    CHECK(worstPixelDeltaInColumns(at_start, unmarked, 190, 215) > 0);
-    // The seamless landing: the deferred span draws NOTHING at its own start.
-    CHECK(worstPixelDeltaInColumns(deferred, unmarked, 190, 215) == 0);
-    // And draws it at the first interior sounding instead, where the control draws nothing.
-    CHECK(worstPixelDeltaInColumns(deferred, unmarked, 250, 275) > 0);
-    CHECK(worstPixelDeltaInColumns(at_start, unmarked, 250, 275) == 0);
+    // The bracket's own columns at the front: the mark lands there and nowhere else.
+    const TabBracketColumns columns = metrics.bracketColumnsAt(metrics.x(13.0), metrics.laneY(3));
+    CHECK(worstPixelDeltaInColumns(event_opened, bare, columns.bar_left, columns.bar_right) > 0);
+    CHECK(worstPixelDeltaInColumns(event_opened, bare, 0, columns.bar_left - 4) == 0);
+    CHECK(worstPixelDeltaInColumns(event_opened, bare, columns.bar_right + 4, 399) == 0);
+
+    // A landing opened it: the same picture, pixel for pixel.
+    CHECK(worstPixelDelta(landed, event_opened) == 0);
 }
 
 // LANE TEXT SITS ON A STRING LINE BY ITS INK, not by its font's line box. JUCE centres text by the

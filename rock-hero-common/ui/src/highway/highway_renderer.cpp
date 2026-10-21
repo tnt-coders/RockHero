@@ -3003,32 +3003,27 @@ void HighwayRenderer::Impl::draw(
             }
         };
 
-        // The far-to-near draw list. Each arpeggio shape gets one box (styled with brackets) for
-        // as long as it is on screen; each chord group gets a plain box unless an arpeggio shape
-        // starts at the same position, in which case the arpeggio box covers it (the chord's
-        // note heads still render — nothing is suppressed).
+        // The far-to-near draw list. An arpeggio span's posture mark stands at its front, the one
+        // instant a span has. A span a strike opened wears a framed box (styled with brackets)
+        // that travels down from that front and pins at the now line until the span's drawn end;
+        // each chord group gets a plain box unless such a framed mark stands at the same onset,
+        // in which case the framed box covers it (the chord's note heads still render — nothing
+        // is suppressed). A span a slide landing opened sends nothing down the highway; its
+        // brackets appear pinned on the board once its front reaches the now line (below).
         std::vector<BoxDraw>& boxes = scratch.boxes;
         for (const common::core::ShapeViewState& shape : visible_shapes)
         {
-            // WHERE the posture mark draws, from the projection rather than from the span's start:
-            // a landing-opened span states nothing at its landing, so it draws no mark there and
-            // defers to its first interior sounding — and one that never sounds interiorly draws
-            // none at all. Bound to a local so the presence test and every read below are provably
-            // the same object.
-            //
             // The mark is a player reading aid, and off it goes WHOLE, panel and brackets alike:
             // a bracketless panel would read as a chord box, which marks simultaneity (shape rule
             // 5), around what may be one note of a broken chord. The rails still mark the span,
             // and a strum the mark would have stood in for wears its own box, because the
             // coincidence test below finds no mark to defer to.
-            const std::optional<double>& mark = shape.bracket_seconds;
-            if (!options.view.show_arpeggio_brackets || !shape.arpeggio || !mark.has_value() ||
+            if (!options.view.show_arpeggio_brackets || !shape.arpeggio ||
                 shape.drawn_end_seconds < now_seconds)
             {
                 continue;
             }
-            const double bracket_seconds = *mark;
-            if (bracket_seconds > span_end_seconds)
+            if (shape.landing_opened || shape.start_seconds > span_end_seconds)
             {
                 continue;
             }
@@ -3043,22 +3038,23 @@ void HighwayRenderer::Impl::draw(
             const auto group_candidates = std::ranges::subrange(
                 std::ranges::lower_bound(
                     state->chord_groups,
-                    bracket_seconds - g_onset_match_epsilon,
+                    shape.start_seconds - g_onset_match_epsilon,
                     std::ranges::less{},
                     &common::core::HighwayChordGroupViewState::start_seconds),
                 std::ranges::upper_bound(
                     state->chord_groups,
-                    bracket_seconds + g_onset_match_epsilon,
+                    shape.start_seconds + g_onset_match_epsilon,
                     std::ranges::less{},
                     &common::core::HighwayChordGroupViewState::start_seconds));
             const auto struck_group = std::ranges::find_if(
                 group_candidates, [&](const common::core::HighwayChordGroupViewState& group) {
                     return group.box_treatment != common::core::HighwayChordBoxTreatment::None &&
-                           std::abs(group.start_seconds - bracket_seconds) < g_onset_match_epsilon;
+                           std::abs(group.start_seconds - shape.start_seconds) <
+                               g_onset_match_epsilon;
                 });
             boxes.push_back(
                 BoxDraw{
-                    .start_seconds = bracket_seconds,
+                    .start_seconds = shape.start_seconds,
                     .box_only = false,
                     .emphasis = struck_group != group_candidates.end()
                                     ? struck_group->emphasis
@@ -3071,8 +3067,10 @@ void HighwayRenderer::Impl::draw(
                     .build_index = boxes.size(),
                 });
         }
-        // Every posture mark drawn this frame is now in `boxes`, and only those: the plain-box
-        // loop below reads this prefix to know which onsets an arpeggio mark already speaks for.
+        // Every framed posture mark drawn this frame is now in `boxes`, and only those: the
+        // plain-box loop below reads this prefix to know which onsets a framed mark already speaks
+        // for. The pinned landing marks are pushed after it, so a strum inside a landing-opened
+        // span wears its own box.
         const auto arpeggio_boxes = static_cast<std::ptrdiff_t>(boxes.size());
         // Groups ascend by onset, so the window clamp is a binary search over the state's
         // whole-song list rather than a per-group test.
@@ -3097,13 +3095,11 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            // Asked of the arpeggio boxes THIS FRAME ALREADY BUILT rather than of the shape list
-            // again, and that is not an optimization: a posture mark does not always draw at its
-            // span's start, so a search keyed on span starts would look in the wrong place for a
-            // deferred one. The boxes pushed above are exactly the marks that draw, at exactly the
-            // instants they draw at, so comparing against them cannot go stale. It is a scan rather
-            // than a search because the arpeggio marks visible at once are a handful, where
-            // searching the shape list would walk the whole song per group.
+            // Asked of the framed arpeggio boxes this frame built, which are exactly the marks a
+            // strum can defer to: only a strike-opened span's front frames one, so the shape list
+            // alone would not say which fronts count. It is a scan rather than a search because
+            // the arpeggio marks visible at once are a handful, where searching the shape list
+            // would walk the whole song per group.
             const bool coincides_with_arpeggio = std::ranges::any_of(
                 std::ranges::subrange(boxes.begin(), boxes.begin() + arpeggio_boxes),
                 [&](const BoxDraw& box) {
@@ -3161,6 +3157,30 @@ void HighwayRenderer::Impl::draw(
                     .arpeggio_shape = nullptr,
                     .track = std::cref(state->pick_hand.track),
                     .color = picking_style.chord,
+                    .build_index = boxes.size(),
+                });
+        }
+        // Landing-opened arpeggio spans: nothing was struck at a landing, so nothing travels. The
+        // grip's brackets appear pinned on the board as the landing crosses the now line,
+        // replacing the predecessor's, and hold there until the span's drawn end — with no
+        // panel, which the draw loop reads off the shape.
+        for (const common::core::ShapeViewState& shape : visible_shapes)
+        {
+            if (!options.view.show_arpeggio_brackets || !shape.arpeggio || !shape.landing_opened ||
+                shape.start_seconds > now_seconds || shape.drawn_end_seconds < now_seconds)
+            {
+                continue;
+            }
+            boxes.push_back(
+                BoxDraw{
+                    .start_seconds = shape.start_seconds,
+                    .box_only = false,
+                    .emphasis = common::core::NoteEmphasis::Normal,
+                    .palm_mute = false,
+                    .dead = false,
+                    .arpeggio_shape = &shape,
+                    .track = std::cref(state->fret_hand.track),
+                    .color = fretting_style.arpeggio,
                     .build_index = boxes.size(),
                 });
         }
@@ -3319,6 +3339,20 @@ void HighwayRenderer::Impl::draw(
             // (common::core::highwayBoxSidesAt).
             const common::core::HighwayHandWindow window =
                 common::core::highwayBoxSidesAt(box.track.get(), box.start_seconds, now_seconds);
+            // Brackets land in their own lane-tagged batches, so pushing them ahead of the panel
+            // does not change the paint order.
+            if (box.arpeggio_shape != nullptr)
+            {
+                push_arpeggio_brackets(*box.arpeggio_shape, z, window.low_line, window.high_line);
+            }
+            // A landing-opened span's mark is its brackets alone: no panel, no light, no mute
+            // marks, since nothing was struck there for a frame to speak for.
+            const bool framed =
+                box.arpeggio_shape == nullptr || !box.arpeggio_shape->landing_opened;
+            if (!framed)
+            {
+                continue;
+            }
             const auto [x0, x1] = handWindowX(window, metrics, mirrored);
             push_box_accent_light(x0, x1);
             pushChordBoxPanel(
@@ -3378,10 +3412,6 @@ void HighwayRenderer::Impl::draw(
                         true,
                         packAbgr(theme.full_mute_mark));
                 }
-            }
-            if (box.arpeggio_shape != nullptr)
-            {
-                push_arpeggio_brackets(*box.arpeggio_shape, z, window.low_line, window.high_line);
             }
         }
 

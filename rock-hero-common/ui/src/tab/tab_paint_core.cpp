@@ -375,9 +375,7 @@ struct ArpeggioBracket
     // per frame and must not rebuild a string per bracket string. Through the one label authority
     // (chartStopText), so a node reads "12" or "2.7" here exactly as its head and the 3D floor do.
     juce::String digit_text;
-    // The MARK'S instant in pixels: the bracket pair's center, which a landing-opened span defers
-    // off its own start, so this is not in general a span start and not in general a head's own
-    // column either.
+    // The span's front in pixels: the bracket pair's center.
     float center_x{};
     // The resolved digit box, plus the fact that placed it: whether this string's posture was
     // displaced into the side slot by a tap. A centred digit needs no ground of its own — the
@@ -2840,26 +2838,19 @@ void paintTabLane(
     // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
     // marks read on a clean background, and the bracket pass draws the identical rectangles.
     //
-    // Untouched by the span reveal: a bracket stands at its own instant, which no end moves.
+    // Untouched by the span reveal: a bracket stands at its span's front, which no end moves.
     std::vector<ArpeggioBracket> brackets;
     for (std::size_t shape_index = first_shape; shape_index < last_shape; ++shape_index)
     {
         const common::core::ShapeViewState& shape = tab.shapes[shape_index];
-        // WHERE the mark draws, from the projection: a span states its opening mark at its own
-        // start unless a LANDING opened it, in which case the mark waits for the first interior
-        // sounding — and a span that draws none at all, box-class ones included, publishes no
-        // instant. Bound to a local so the presence test and the read are provably the same object.
-        //
-        // The mark's own instant is the ONLY left cull here. A second disjunct testing the span's
-        // END would never decide anything: a mark always lies at or before its span's end, so a
-        // span ending before the window has its mark before the window too.
-        const std::optional<double>& mark = shape.bracket_seconds;
-        if (!shape.arpeggio || !mark.has_value() || *mark < span_start)
+        // The mark draws at the span's front, a landing included (shape rule 4). The front is the
+        // only left cull because a span ending before the window started before it.
+        if (!shape.arpeggio || shape.start_seconds < span_start)
         {
             continue;
         }
 
-        const float start_x = metrics.x(*mark);
+        const float start_x = metrics.x(shape.start_seconds);
         for (const common::core::ShapeStringViewState& arpeggio_note : shape.strings)
         {
             const int displayed =
@@ -3111,8 +3102,8 @@ void paintTabLane(
         }
     }
 
-    // Arpeggio spans draw "[ fret ]" bracket marks around every posture string at the posture
-    // mark's instant. Onsets carry no vertical bars — the heads themselves already mark them, so
+    // Arpeggio spans draw "[ fret ]" bracket marks around every posture string at the span's
+    // front. Onsets carry no vertical bars — the heads themselves already mark them, so
     // the span rails and these brackets are the only shape furniture.
     //
     // Left and right square brackets hugging the head's ring, in the head's muted interior color

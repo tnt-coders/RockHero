@@ -303,13 +303,13 @@ event-algebra, edge-first, deletion-first).
   every span with a sounding member is strictly positive — an offset-zero keyframe arrival is the
   one hazard, and the no-zero-length-travel fixture guards it.
 - THE LANDING: discovered at the reach where a travel arrives with two or more members ringing
-  strictly past; front at the landing, bracket deferred, claims carried (the fingers slid, they
+  strictly past; front at the landing, bracket at the front, claims carried (the fingers slid, they
   never lifted). Emitted per rule 6's stated-or-tenure test — the quantum read is musical, and rule
   12a's display trim stays wholly at the projection.
 - LAW II (a claim is a member its own carrier sounds; hand-alone spans stand at their instant) and
   posture dedup are unchanged. THE PUBLISH LIST is
-  exactly eight fields, complete: `position`, `sustain` (the musical close), `stated_extent`,
-  `closing_onset`, `posture`, `sounds_in_parts`, `bracket_position` and `landing_opened`
+  exactly seven fields, complete: `position`, `sustain` (the musical close), `stated_extent`,
+  `closing_onset`, `posture`, `sounds_in_parts` and `landing_opened`
   (`silent_member` left with the claims, 2026-09-29). `landing_opened` is kept because its one
   honest census key is itself — the
   `stated_extent` proxy fails both ways on pinned fixtures — and it has exactly one cause now that

@@ -247,12 +247,6 @@ struct OpenSpan
     // the grip, never what shrinks it, and a higher fret restated inside a shape hold leaves it.
     std::vector<std::optional<ChartStop>> stops;
 
-    // Where this span's opening mark draws, published to \ref ChartShape::bracket_place. Every
-    // span an event states seeds it with its front — the statement it opened at, or a shape hold's
-    // start; a landing successor seeds nothing and the first sounding inside it fills the slot
-    // (shape rule 4).
-    std::optional<Fraction> bracket_place{};
-
     // The last instant an EVENT stated this span's shape; empty only on a landing successor
     // nothing has stated yet. Published as \ref ChartShape::stated_extent (the display trim's
     // floor); its presence is the landing emit rule's stated arm (shape rule 4).
@@ -276,9 +270,10 @@ struct OpenSpan
     bool founded{false};
 
     // True on the span a landing opened and nowhere else (shape rule 4) — the one span no event
-    // states at its own start. Published: the census keys landing-born spans on it, and the display
-    // keys the bracket deferral on it. Not derivable from `last_stated_place`, which stops being
-    // empty the moment an interior re-pick states the successor.
+    // states at its own start. Published: the census keys landing-born spans on it, and the 3D
+    // board sends a landing successor no frame down the highway. Not derivable from
+    // `last_stated_place`, which stops being empty the moment an interior re-pick states the
+    // successor.
     bool landing_opened{false};
 
     // The unnamed shape hold stating this span (shape rule 9); empty on a span its notes alone
@@ -795,7 +790,6 @@ ChartShapes deriveChartShapes(
             .posture = 0,
             .sounds_in_parts = inParts(*open) && !too_few_in_parts,
             .landing_opened = open->landing_opened,
-            .bracket_place = open->bracket_place,
             .hold_stated = open->hold.has_value(),
         };
         // Built once and handed to the table; the row copies it only on a first sighting.
@@ -967,7 +961,6 @@ ChartShapes deriveChartShapes(
         OpenSpan remainder{
             .front_place = boundary,
             .stops = open->stops,
-            .bracket_place = boundary,
             .last_stated_place =
                 stated.has_value() && boundary < *stated ? stated : std::optional<Fraction>{},
             .struck_in_parts = open->struck_in_parts,
@@ -1097,7 +1090,6 @@ ChartShapes deriveChartShapes(
             OpenSpan successor{
                 .front_place = boundary,
                 .stops = std::move(landed),
-                .bracket_place = std::nullopt,
                 .last_stated_place = std::nullopt,
                 .struck_in_parts = false,
                 .turned = std::nullopt,
@@ -1299,7 +1291,6 @@ ChartShapes deriveChartShapes(
                 open = OpenSpan{
                     .front_place = slot.place,
                     .stops = std::move(stops),
-                    .bracket_place = slot.place,
                     .last_stated_place = std::nullopt,
                     .struck_in_parts = false,
                     .turned = std::nullopt,
@@ -1993,10 +1984,6 @@ ChartShapes deriveChartShapes(
                         SpanTurn{.place = slot.place, .stated_before = open->last_stated_place};
                 }
                 open->last_stated_place = slot.place;
-                if (!open->bracket_place.has_value())
-                {
-                    open->bracket_place = slot.place;
-                }
             }
         }
         else
@@ -2042,7 +2029,6 @@ ChartShapes deriveChartShapes(
                 open = OpenSpan{
                     .front_place = slot.place,
                     .stops = std::move(stops),
-                    .bracket_place = slot.place,
                     .last_stated_place = slot.place,
                     .struck_in_parts = !whole_stroke,
                     .turned = std::nullopt,

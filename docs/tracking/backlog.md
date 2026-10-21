@@ -197,9 +197,9 @@ Reported by the migration (`42ab0397`) and not yet re-verified against the code;
 - **Stale comments.** `chart_projection.cpp` (~:270) says a carry-opened successor is one "a
   landing or a member's death founded", but ring-out opens nothing; `docs/developer/the-3d-highway.md`
   (~:417) still lists "claimed" stops as members, and claims were retired.
-- **`ChartShape`'s field docs restate rules** (`place`, `sustain`, `sounds_in_parts`,
-  `bracket_place` in `chart_shapes.h` restate the dating rule, posture truth and class rule at
-  length); cut them to a citation of shape rules 1, 3 and 5.
+- **`ChartShape`'s field docs restate rules** (`place`, `sustain` and `sounds_in_parts` in
+  `chart_shapes.h` restate the dating rule, posture truth and class rule at length); cut them to a
+  citation of shape rules 1, 3 and 5.
 - **A handover detail lost its home.** The replaced guide text said the tail law's handover reads
   the successor's stored claim (`legatoClaimed` plus `predecessorHoldReaches`), never the resolved
   direction. Tail rule 4 does not say it; add it there if it is still true.

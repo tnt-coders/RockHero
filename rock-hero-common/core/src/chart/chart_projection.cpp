@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <ranges>
@@ -536,7 +537,7 @@ ChartViewState makeChartViewState(
     const std::vector<bool>& arrivals = resolutions.arrivals;
 
     // WHERE a posture string states its fret, decided per string by what heads that string AT THE
-    // INSTANT THE BRACKET DRAWS — the posture-smart rule. Answered here rather than in the tab
+    // SPAN'S FRONT, its one instant — the posture-smart rule. Answered here rather than in the tab
     // painter because the drawn digit needs a hit target, so the painter's column and the click's
     // column come from one statement instead of two derivations free to disagree.
     //
@@ -547,72 +548,73 @@ ChartViewState makeChartViewState(
     // would empty an accumulation's frame of everything still to arrive, and its inclusive end
     // would let the very onset that CLOSED the span decide the digits inside it.
     //
-    // Three answers, one question about the one head this instant can carry. NOTHING heads the
-    // string: the bracket's centre is the whole of what states the stop — the silent-string case
-    // and the carried-ring case alike, and the case a member arriving later is in. A head SOUNDING
-    // AT THIS PLACE states it already, so the bracket prints nothing beside it. A head sounding at
-    // ANOTHER place, WHICHEVER HAND MADE IT, owns the string's centre — the centred digit sits
-    // exactly where a head at this instant sits and the note pass paints after the brackets — so
-    // the grip it does not state takes the column beside the bracket, the one slot a head cannot
-    // paint over: the centre carries what SOUNDS and the satellite what the fretting hand HOLDS.
-    // THE PLACE IS PART OF THE TEST on every arm, compared as a stop and never as a printed
-    // number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText reads the same
-    // authority), so a node head over a node grip suppresses because both are that node, and a
-    // fretted head over a node grip printing the same digit does not — a number stated twice
+    // Three answers, one question about the one HEAD this instant can carry — an onset head or a
+    // linked keyframe head, the head a slide or a vibrato change prints along a ring. NOTHING
+    // heads the string: the bracket's centre is the whole of what states the stop — the
+    // silent-string case and the carried-ring case alike, and the case a member arriving later is
+    // in. A head SOUNDING AT THIS PLACE states it already, so the bracket prints nothing beside it.
+    // A head sounding at ANOTHER place, WHICHEVER HAND MADE IT, owns the string's centre — the
+    // centred digit sits exactly where a head at this instant sits and the note pass paints after
+    // the brackets — so the grip it does not state takes the column beside the bracket, the one
+    // slot a head cannot paint over: the centre carries what SOUNDS and the satellite what the
+    // fretting hand HOLDS. THE PLACE IS PART OF THE TEST on every arm, compared as a stop and never
+    // as a printed number (\ref ChartStop): a head prints where it SOUNDS (tabNoteHeadText reads
+    // the same authority), so a node head over a node grip suppresses because both are that node,
+    // and a fretted head over a node grip printing the same digit does not — a number stated twice
     // beside itself is the only thing suppression exists to prevent, and two different places are
     // not one number.
-    const auto digit_slot = [&notes, &places](
+    const std::vector<NoteViewState>& projected = state.notes;
+    const auto place_of = [&places](const std::size_t index) { return places[index]; };
+    const auto digit_slot = [&resolutions, &projected, &places, &place_of](
                                 const Fraction at,
-                                const int string,
+                                const std::size_t string_index,
                                 const ChartStop& stop) -> std::optional<StopMarkSlot> {
-        // The ONE head this string can carry here: the stream is sorted by (position, string) and
-        // refuses duplicate onsets (\ref ChartErrorCode::UnsortedOrDuplicateNotes), so the first
-        // match is the only match and there is never a second answer to reconcile with it.
-        for (auto index = static_cast<std::size_t>(
-                 std::distance(places.begin(), std::ranges::lower_bound(places, at)));
-             index < notes.size() && places[index] == at;
-             ++index)
+        // The ONE note whose head can stand on this string here: the last one struck on it at or
+        // before the instant. Rings on one string never overlap, so no earlier ring reaches past
+        // it to the instant.
+        const std::vector<std::size_t>& on_string =
+            resolutions.connections.string_notes[string_index];
+        const auto after = std::ranges::upper_bound(on_string, at, std::ranges::less{}, place_of);
+        if (after == on_string.begin())
         {
-            const ChartNote& head = notes[index];
-            if (head.string != string)
-            {
-                continue;
-            }
-            const ChartStop printed =
-                soundingStopAt(head.harmonic_node, head.attack, head.fret, head.fret);
-            if (printed == stop)
-            {
-                return std::nullopt;
-            }
-            return StopMarkSlot::Satellite;
+            return StopMarkSlot::Bracket;
         }
-        return StopMarkSlot::Bracket;
+        const std::size_t index = *std::ranges::prev(after);
+        const NoteViewState& note = projected[index];
+        // Its onset head, or the head a keyframe standing at the instant prints — the lane's own
+        // authority (\ref keyframeHeadFret), so a slide-out's chip and a curve dot are no heads —
+        // where the lane draws it (\ref instantDrawn against the note's ink end), so a landing
+        // beyond the ink prints its digit in the bracket.
+        std::optional<int> head_fret;
+        if (places[index] == at)
+        {
+            head_fret = note.fret;
+        }
+        else
+        {
+            const auto keyframe =
+                std::ranges::find(note.keyframes, at - places[index], &KeyframeViewState::offset);
+            if (keyframe != note.keyframes.end() &&
+                instantDrawn(keyframe->seconds, note.ink_end_seconds))
+            {
+                head_fret = keyframeHeadFret(note, *keyframe);
+            }
+        }
+        if (!head_fret.has_value())
+        {
+            return StopMarkSlot::Bracket;
+        }
+        if (soundingStopAt(note.harmonic_node, note.attack, note.fret, *head_fret) == stop)
+        {
+            return std::nullopt;
+        }
+        return StopMarkSlot::Satellite;
     };
 
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = resolutions.shapes[shape_index];
         const Fraction place = shape.place;
-        // WHERE the span's one opening mark draws, TAKEN FROM THE WALK (shape rule 4; published as
-        // \ref ChartShape::bracket_place). Every span an EVENT states carries its own FRONT; a
-        // CARRY-OPENED successor — one a landing or a member's death founded — carries its first
-        // interior SOUNDING instead, because nothing at all is stated at a boundary; one that never
-        // sounds interiorly carries nothing and draws no mark.
-        //
-        // Read rather than re-scanned: a scan here for "the first sounding at or after the span's
-        // start" would be the walk's own grouping question asked a second time, against an extent
-        // the closing trim has already shortened.
-        //
-        // ONE condition gates it, and this is the one: a bracket is ARPEGGIO furniture. A box-class
-        // span states itself with its strums' own boxes and opens no mark of its own, which is the
-        // ordinary disposition of a landing successor rather than a corner of one. Everything
-        // downstream keys on this optional: the deferred bracket and the coincidence rule that
-        // suppresses a chord box under an arpeggio box both ask "is a mark drawn here", and there
-        // is one answer to ask.
-        //
-        // Bound once so the presence test and every read below are provably the same object.
-        const std::optional<Fraction> bracket =
-            arrivals[shape_index] ? shape.bracket_place : std::optional<Fraction>{};
 
         std::vector<ShapeStringViewState> strings;
         if (shape.posture < resolutions.postures.size())
@@ -629,20 +631,19 @@ ChartViewState makeChartViewState(
                 {
                     continue;
                 }
-                const int string = static_cast<int>(index) + 1;
                 strings.push_back(
                     ShapeStringViewState{
-                        .string = string,
+                        .string = static_cast<int>(index) + 1,
                         .stop = *stop,
-                        // Asked AT the mark's own instant, which is the whole window (THE DIGIT
-                        // WINDOW above): the bracket is the span's chord frame, so it states every
-                        // member no head right there already states at its own place. A span
-                        // drawing no bracket prints no digit anywhere, which is exactly the
-                        // empty slot — the posture entry itself stays, because the POSTURE is a
-                        // fact of its own that the class rule and the repeat-box identity test
-                        // both read.
-                        .digit = bracket.has_value() ? digit_slot(*bracket, string, *stop)
-                                                     : std::optional<StopMarkSlot>{},
+                        // Asked AT the span's front, which is the whole window (THE DIGIT WINDOW
+                        // above): the bracket is the span's chord frame, so it states every member
+                        // no head right there already states at its own place. A bracket is
+                        // ARPEGGIO furniture, so a box-class span prints no digit anywhere, which
+                        // is exactly the empty slot — the posture entry itself stays, because the
+                        // POSTURE is a fact of its own that the class rule and the repeat-box
+                        // identity test both read.
+                        .digit = arrivals[shape_index] ? digit_slot(place, index, *stop)
+                                                       : std::optional<StopMarkSlot>{},
                     });
             }
         }
@@ -661,10 +662,7 @@ ChartViewState makeChartViewState(
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],
                 .strings = std::move(strings),
-                .bracket_seconds =
-                    bracket.has_value()
-                        ? std::optional<double>{tempo_map.secondsAtWholeNote(*bracket)}
-                        : std::nullopt,
+                .landing_opened = shape.landing_opened,
                 .held = shape.hold_stated,
             });
     }

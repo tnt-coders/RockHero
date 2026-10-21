@@ -614,13 +614,13 @@ still derives, because it asks about the span's EXTENT.
   shape with hand-free rings sounding under it has members sounding separately from them by
   definition, so the bracket that prints the
   texture draws and the span is published in parts. But the classification exists so that bracket
-  prints the texture: a span with no `bracket_position` — a landing successor nothing has sounded
-  inside, whose mark is deferred because nothing is stated at a boundary — has nowhere to print it,
-  and classing it in parts would colour the rails arpeggio over a figure that reads as a chord.
-  Which is also the landing law's own class rule, applied to texture: a successor is classified by
-  what sounds INSIDE it. Until a first interior sounding it is a chord span with the drone carried
-  in its posture and printed nowhere; at that sounding the bracket draws, prints the 0, and the
-  rails turn arpeggio in one act. The walk's own in-parts flag never sees texture, so a chug over a
+  prints the texture: a landing successor nothing has sounded inside is box class and publishes no
+  bracket, so it has nowhere to print it, and classing it in parts would colour the rails arpeggio
+  over a figure that reads as a chord. Which is also the landing law's own class rule, applied to
+  texture: a successor is classified by what sounds INSIDE it. One nothing sounds inside is a chord
+  span with the drone carried in its posture and printed nowhere; one something sounds inside is an
+  arpeggio, whose bracket at the landing prints the 0 while its rails draw arpeggio. The walk's own
+  in-parts flag never sees texture, so a chug over a
   drone stays ONE span — one bracket with its boxes inside — and nothing structural moves.
 - **Raw pairwise overlap outside spans never creates or classifies a span**: that is let-ring,
   texture and not statement. The strong mutual accumulation is not this — it is the opening law.
@@ -643,16 +643,12 @@ expected inside the covering FHP window.
 ## LAW IV — INK HAS ONE OWNER. Every displayed fact draws exactly once, owned by the most specific furniture that states it.
 
 **BRACKETS state MEMBERSHIP at statement boundaries.** A bracket is ARPEGGIO furniture: a box-class
-span states itself with its strums' own boxes and publishes no bracket at all. Where a span's one
-opening mark draws is published by the walk (`ChartShape::bracket_position`) rather than re-scanned
-downstream, with one write rule: every span an EVENT states carries its own FRONT — a front dated
-to a glide's LANDING included, because a landing begins a member's statement exactly as an onset
-does (ruled 2026-09-26, retiring the deferral to the founding slot, which printed a slid stop late
-and after heads it should frame) — and a landing-opened successor carries its first interior
-SOUNDING, or nothing at all where it never sounds interiorly: its whole grip slid in, so its
-landing states nothing the predecessor's mark did not. The
-projection resolves it into `ShapeViewState::bracket_seconds`: where both surfaces draw the mark,
-where the posture digits are decided, and what a fronting tap's face defers to.
+span states itself with its strums' own boxes and publishes no bracket at all. A span's one opening
+mark draws at its FRONT, a landing included (ruled 2026-09-26 for every event-stated span, extended
+to the landing successor 2026-10-21: its rails already open at the landing, the chart's linked
+heads already print the slid frets there, and a name will change there — one instant, never two).
+The projection decides the posture digits at that instant, and a head there — onset or linked
+keyframe — suppresses the digit beside it.
 
 **THE DIGIT WINDOW is the bracket's own instant and nothing besides.** The opening bracket is the
 span's CHORD FRAME — it states the whole membership at the moment the reader meets it — so a member

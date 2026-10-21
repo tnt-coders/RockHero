@@ -536,21 +536,11 @@ read from the projection rather than off whatever boxes a frame happened to buil
 renderer's box list is clamped to the visible board while the glow reads clusters that have already
 crossed the hit line — exactly the onsets such a list is silent about.
 
-**An arpeggio span's mark draws at `ShapeViewState::bracket_seconds`, not at its start.** The
-derivation publishes that anchor per span (`ChartShape::bracket_place`) rather than leaving each
-surface to re-scan for it: a span an EVENT states carries its own FRONT, since that is the
-statement's own extent and the rails run from it — for an ACCUMULATION that front is where its
-earliest uncovered member's statement began, its onset or the landing a glide brought it to, so the
-bracket stands from the figure's first stop and the later members' heads arrive under it — and a
-shape rule 4 landing-opened successor carries its first interior sounding instead, because its whole
-grip slid in, its landing states nothing new, and the ink follows the sound. The projection
-consults it only where a bracket actually draws — an arpeggio-class span — so a box-class span
-publishes no `bracket_seconds` at all, which is now the ordinary disposition of a successor rather
-than a corner case: a landing is not a sounding, so a successor classifies by the ordinary triggers
-found inside it, and a chord sliding into chords is box class at both ends. One that never sounds
-interiorly draws no furniture whatever — no bracket, and no box either, since nothing strikes it.
-Both the box pass and the bracket glyphs read the published instant, and so does the 2D lane. A
-posture member is a STOP (`ShapeStringViewState::stop`): a fret slot, the open string, or a harmonic
+**An arpeggio span's mark draws at its start on both surfaces.** On the board an event-opened
+span's brackets travel inside a framed arpeggio box from `start_seconds` and pin at the now line to
+`drawn_end_seconds`; a landing successor (`ShapeViewState::landing_opened`) sends nothing down the
+highway — its brackets appear pinned on the board as its start crosses the now line — and a strum
+inside it wears its own box. A box-class span publishes no brackets. A posture member is a STOP (`ShapeStringViewState::stop`): a fret slot, the open string, or a harmonic
 node the fretting finger touches. A node member wears the fretted bracket cell placed by the one
 stop rule (`highwayStopX`) — on its own wire, as the node head and the floor number already are — so
 the board says "node" by placement and needs no new art; only a true open string takes the

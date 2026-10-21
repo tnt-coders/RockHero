@@ -1540,8 +1540,8 @@ TEST_CASE("A tap's plant reaches the spans through the pull-off that states it",
 // TRAVEL SPLITS AT THE LANDING, AND THE LANDED GRIP RE-OPENS THERE (shape rule 4). A chord slide
 // keeps the fingers planted, so the rings run continuously and the span COVERS the transit, ending
 // where the new grip is established — which is exactly where the successor opens, so the two TILE.
-// The members' sliding tails draw across the transit, and the successor draws no opening mark of
-// its own: the continued tails and the chord NAME changing at the landing are the whole statement.
+// The members' sliding tails draw across the transit, and nothing is struck at the landing: the
+// continued tails and the chord NAME changing there are the whole statement.
 TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][chart]")
 {
     SECTION("a chord slide states its departing grip, then the grip it lands in")
@@ -2059,11 +2059,10 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(derived.shapes[2].place == Fraction{1, 4});
         CHECK(derived.shapes[2].sustain == Fraction{1, 8});
         CHECK(derivedStops(derived, 2) == chord_at(5));
-        // The shape was slid into, so neither landing states anything a bracket could show.
+        // The shape was slid into, so both later spans open at a landing.
         for (const std::size_t landed : {std::size_t{1}, std::size_t{2}})
         {
             CHECK(derived.shapes[landed].landing_opened);
-            CHECK_FALSE(derived.shapes[landed].bracket_place.has_value());
         }
         everySpanIsPositive(derived);
     }
@@ -2775,84 +2774,22 @@ TEST_CASE("Chart shape derivation never overlaps two spans", "[core][chart]")
     }
 }
 
-// THE OPENING MARK'S ANCHOR, published by the walk (shape rule 4). One field with one write rule:
-// every span an EVENT states seeds it at its own start, and the first interior SOUNDING fills the
-// slot a landing left empty.
-TEST_CASE("Chart shape derivation publishes each span's opening mark", "[core][chart]")
+// A slide lands on 13 and rings on while an open string and then a fret sound around it. The
+// landing begins a statement as a strike does (shape rule 4), so it opens a span there with one
+// survivor; the two notes grow it to three and found it, fronted at the landing.
+TEST_CASE("Chart shape derivation opens a span at a lone glide's landing", "[core][chart]")
 {
-    SECTION("an event-opened span carries its own start")
-    {
-        const std::vector<ChartNote> notes = streamOf({
-            noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
-            noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
-            noteAt(2, Fraction{}, 1, 5, Fraction{1, 4}),
-            noteAt(2, Fraction{}, 2, 7, Fraction{1, 4}),
-        });
-        const ChartShapes derived = deriveFrom(notes);
+    const ChartShapes derived = deriveFrom(streamOf({
+        travellingAt(noteAt(2, Fraction{}, 3, 11, Fraction{5, 8}), {{Fraction{1, 8}, 13}}),
+        noteAt(3, Fraction{}, 4, 0, Fraction{3, 8}),
+        noteAt(3, Fraction{1, 2}, 5, 12, Fraction{1, 8}),
+    }));
 
-        REQUIRE(derived.shapes.size() == 1);
-        // The strum states the shape, so the mark belongs at the strum — not at the restrike
-        // inside, which states nothing the span did not already say.
-        CHECK(derived.shapes.front().bracket_place == std::optional{Fraction{}});
-    }
-
-    SECTION("a landing successor defers to its first interior sounding")
-    {
-        const std::vector<ChartNote> notes = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{7, 16}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{1}), {{Fraction{7, 16}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{1}), {{Fraction{7, 16}, 11}}),
-            noteAt(3, Fraction{}, 1, 8, Fraction{1, 4}),
-        });
-        const ChartShapes derived = deriveFrom(notes);
-
-        REQUIRE(derived.shapes.size() == 2);
-        // Bound ONCE and guarded by that name: two `shapes[1]` subscripts are two calls the
-        // optional checker cannot prove yield the same object, and it cannot see through REQUIRE.
-        const ChartShape& successor = derived.shapes[1];
-        CHECK(successor.landing_opened);
-        // The landing itself states nothing, so the mark waits for the re-pick.
-        CHECK(successor.bracket_place == std::optional{Fraction{1, 2}});
-        REQUIRE(successor.bracket_place.has_value());
-        if (successor.bracket_place.has_value())
-        {
-            CHECK(successor.place != *successor.bracket_place);
-        }
-    }
-
-    SECTION("a successor that never sounds interiorly carries no mark at all")
-    {
-        const std::vector<ChartNote> notes = streamOf({
-            travellingAt(noteAt(1, Fraction{}, 1, 5, Fraction{1}), {{Fraction{1, 2}, 8}}),
-            travellingAt(noteAt(1, Fraction{}, 2, 7, Fraction{1}), {{Fraction{1, 2}, 10}}),
-            travellingAt(noteAt(1, Fraction{}, 3, 9, Fraction{1}), {{Fraction{1, 2}, 11}}),
-        });
-        const ChartShapes derived = deriveFrom(notes);
-
-        REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.shapes[1].landing_opened);
-        CHECK_FALSE(derived.shapes[1].bracket_place.has_value());
-    }
-
-    SECTION("a lone glide's landing opens the span, whose mark draws at its first sounding")
-    {
-        // A slide lands on 13 and rings on while an open string and then a fret sound around it.
-        // The landing begins a statement as a strike does, so it opens a span there with one
-        // survivor; the two notes grow it to three and found it, fronted at the landing. A landing
-        // is no sounding, so the mark draws at the first sounding inside, the open string's.
-        const ChartShapes derived = deriveFrom(streamOf({
-            travellingAt(noteAt(2, Fraction{}, 3, 11, Fraction{5, 8}), {{Fraction{1, 8}, 13}}),
-            noteAt(3, Fraction{}, 4, 0, Fraction{3, 8}),
-            noteAt(3, Fraction{1, 2}, 5, 12, Fraction{1, 8}),
-        }));
-
-        REQUIRE(derived.shapes.size() == 1);
-        CHECK(derived.shapes.front().place == Fraction{3, 8});
-        CHECK(derived.shapes.front().landing_opened);
-        CHECK(derived.shapes.front().bracket_place == std::optional{Fraction{1, 2}});
-        CHECK(memberCount(derived, 0) == 3);
-        everySpanIsPositive(derived);
-    }
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes.front().place == Fraction{3, 8});
+    CHECK(derived.shapes.front().landing_opened);
+    CHECK(memberCount(derived, 0) == 3);
+    everySpanIsPositive(derived);
 }
 
 // THE ACCUMULATION LAW, probed figure by figure. Each section is one of the constraint figures the
@@ -2886,9 +2823,6 @@ TEST_CASE("Chart shape derivation opens a span where rings accumulate", "[core][
         CHECK(derived.shapes[0].sounds_in_parts);
         REQUIRE(arpeggiosFrom(notes).size() == 1);
         CHECK(arpeggiosFrom(notes).front());
-        // The rails run from the front, so the mark does too, and no digit stack stands there for
-        // members whose own heads are still to arrive.
-        CHECK(derived.shapes[0].bracket_place == std::optional{derived.shapes[0].place});
         everySpanIsPositive(derived);
     }
 
@@ -5349,7 +5283,6 @@ TEST_CASE("What sounds under a bracket's opening is what it prints", "[core][cha
         CHECK(over_drone.shapes[1].landing_opened);
         CHECK(derivedStops(over_drone, 1)[0] == std::optional{fretStop(7)});
         CHECK(derivedStops(over_drone, 1)[5] == std::optional{fretStop(0)});
-        CHECK_FALSE(over_drone.shapes[1].bracket_place.has_value());
         CHECK_FALSE(over_drone.shapes[1].sounds_in_parts);
         everySpanIsPositive(over_drone);
 
@@ -6167,7 +6100,6 @@ TEST_CASE(
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[0].sustain == Fraction{1, 8});
         CHECK(derived.shapes[1].place == Fraction{3, 2});
-        CHECK(derived.shapes[1].bracket_place == std::optional{Fraction{3, 2}});
         CHECK(derived.shapes[1].sustain == Fraction{1, 2});
         CHECK(derived.shapes[1].sounds_in_parts);
         CHECK(memberCount(derived, 1) == 3);
@@ -6183,7 +6115,6 @@ TEST_CASE(
             deriveFrom(figure({inMeasure(2, noteAt(1, Fraction{}, 4, 4, Fraction{1}))}));
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[1].place == Fraction{1});
-        CHECK(derived.shapes[1].bracket_place == std::optional{Fraction{1}});
         CHECK(derived.shapes[1].sustain == Fraction{1});
         CHECK(memberCount(derived, 1) == 4);
         everySpanIsPositive(derived);
@@ -6223,7 +6154,6 @@ TEST_CASE(
         const ChartShapes derived = deriveFrom(notes);
         REQUIRE(derived.shapes.size() == 2);
         CHECK(derived.shapes[1].place == Fraction{1, 2});
-        CHECK(derived.shapes[1].bracket_place == std::optional{Fraction{1, 2}});
         CHECK(derived.shapes[1].sustain == Fraction{3, 2});
         CHECK(derived.shapes[1].sounds_in_parts);
         CHECK(memberCount(derived, 1) == 3);
@@ -7358,7 +7288,6 @@ TEST_CASE("A hold over a bar of single notes is one arpeggio of all its stops", 
     CHECK(held.resolutions.shapes[0].hold_stated);
     CHECK(held.resolutions.shapes[0].place == Fraction{1});
     CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
-    CHECK(held.resolutions.shapes[0].bracket_place == std::optional{Fraction{1}});
     CHECK(stopOf(held.resolutions, 0, 1) == std::optional{fretStop(3)});
     CHECK(stopOf(held.resolutions, 0, 2) == std::optional{fretStop(2)});
     CHECK(stopOf(held.resolutions, 0, 3) == std::optional{fretStop(4)});
@@ -7746,7 +7675,6 @@ TEST_CASE("A pedal followed by a whole stroke brackets from the pedal", "[core][
     REQUIRE(derived.shapes.size() == 1);
     CHECK(derived.shapes[0].place == Fraction{});
     CHECK(derived.shapes[0].sustain == Fraction{1});
-    CHECK(derived.shapes[0].bracket_place == std::optional{Fraction{}});
     CHECK(derived.shapes[0].sounds_in_parts);
     CHECK(memberCount(derived, 0) == 3);
     CHECK(derivedStops(derived, 0)[5] == std::optional{fretStop(0)});

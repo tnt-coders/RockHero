@@ -304,18 +304,15 @@ takes the next one.
      chart encodes a glide into a restrike by placing the arrival exactly one such distance before
      the replacing onset. A landed span closed with no sounding head drops only at zero tenure, and
      one an event has stated is always emitted. No derivation question measures drawable room.
-   - **The opening mark follows the sound.** A landing successor draws no opening mark at the
-     landing: its mark anchors at its first interior fretting-hand sounding, and one that never
-     sounds inside draws none. `ChartShape::landing_opened` publishes that one cause, and
-     `ChartShape::bracket_place` the anchor, under one write rule: a span a statement opens seeds it
-     at its front, a hold's span at the hold's start, and a landing successor's first sounding fills
-     it.
+   - **The mark is the front.** A span has one instant of its own, its front, and its rails, its
+     brackets and its name share it; a landing successor's bracket marks draw at the landing, where
+     the grip it carries is established. `ChartShape::landing_opened` publishes that a landing, not
+     a strike, opened the span: the 3D board reads it to send such a span nothing down the highway
+     (rule 5).
 5. **A span is an arpeggio when its members sound separately, and a box while every sounding of it
    is the shape whole.** The class decides the span's own furniture: an arpeggio's brackets, or
-   nothing of its own for a box span, which its strums' own boxes state. The projection resolves
-   the bracket's anchor (`ShapeViewState::bracket_seconds`) for an arpeggio span alone. A landing
-   successor that never sounds inside draws no furniture at all: no bracket, and no box, since
-   nothing strikes it.
+   nothing of its own for a box span, which its strums' own boxes state. A landing successor
+   nothing sounds inside is box class and draws no furniture of its own, since nothing strikes it.
    - **A sounding that is only part of the shape** makes the span an arpeggio: its own start where
      a member is carried in rather than struck (rule 1), a partial restrike, a lone re-pick, growth
      by a string the span never stated, a partial slide, or a whole stroke absorbed by its parts
@@ -355,7 +352,10 @@ takes the next one.
      or both — and any other profile, or any drawn tail, falls back to the full box. So silence
      re-heads, a fresh grip re-heads, any interleaved onset re-heads, and a partial strike after a
      full chord re-heads. Only the 3D board draws boxes; the 2D lane states the same with the
-     span's rails and name.
+     span's rails and name. On the board an arpeggio span's brackets travel inside its frame, the
+     mark of the sounding that opened it; a landing successor was opened by no sounding, so it sends
+     nothing down the highway — its brackets appear pinned on the board as the landing crosses the
+     now line, replacing its predecessor's, and a strum inside it wears its own box.
 6. **A drawn span keeps the minimum sustain distance before the head that closed it and ends where
    the hand next moves, and only a drawn one.** The derivation stores the musical close (rule 3);
    the trim is applied once, where the view state is built, so no margin sits inside the seams
@@ -408,8 +408,9 @@ takes the next one.
      (`NoteViewState::held_fret`), and other ink already prints every one: a plant by the pull's
      destination head, a default by its span's bracket.
    - **The digit window is the bracket's own instant.** A posture string's fret prints centred in
-     the bracket where nothing heads the string at that instant; in the satellite column outboard of
-     the closing bar where a head there, of either hand, sounds at another place; and nowhere where
+     the bracket where no head — an onset head or a linked keyframe head, which print through one
+     rule — stands on the string at that instant; in the satellite column outboard of the closing
+     bar where a head there, of either hand, sounds at another place; and nowhere where
      a head there sounds at this one. The note pass paints after the brackets, so the satellite is
      the one column a head sounding elsewhere cannot cover. Places compare as stops, never as
      printed numbers: a head printing node 17 over a grip holding 5 puts the 5 in the satellite.

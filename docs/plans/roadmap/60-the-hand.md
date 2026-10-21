@@ -367,8 +367,7 @@ its anchors corrected, and the importer passes it had missed added.
   geometry is exported (`tabShapeRailBounds` does not exist).
 - **Whole-note places are THE axis — not in the 2026-10-02 inventory, verified 2026-10-04.** Since
   `987b62cf` / `f5769734` every per-revision pass reasons in whole-note `Fraction` places:
-  `ChartConnections::places` (via `chartNotePlaces`), `ChartShape::place` and
-  `ChartShape::bracket_place` (`std::optional<Fraction>`, `chart_shapes.h:284`). `FretWindow` and
+  `ChartConnections::places` (via `chartNotePlaces`) and `ChartShape::place`. `FretWindow` and
   `chartPlantedStops` exist.
 - **No template, dictionary, zone or fingering storage exists anywhere — verified
   2026-10-04.** The GP parser reads no fingering and no chord diagrams
@@ -541,7 +540,7 @@ whose own "Still OPEN" list is the hold's: by-eye judgments and the fit test's c
 |---|---|---|
 | 1 | 60-Q1 (item 1, condition discharged 2026-10-03), items 2 and 3, Q1–Q12 above | Nothing. CLOSED 2026-10-04 |
 | 2 | 60-Q4 (item 5), items 4, 6 and 7 | Nothing. Ruled by §1a and 60a's Phase 2 build rulings (the exit ride KEPT as derived motion, the dips DROPPED); DONE 2026-10-08. |
-| 3 | Items 8 and 9; the edge keys (RULED 2026-10-13, restating 2026-09-05: `Shift+Alt+←/→` moves a selected span's or hold's end, `Alt+←/→` its start only, walled at the first misfit; `60b-holds.md` item 4) | ~~The END gesture (OPEN by design: build it, or let the members' tail keys serve).~~ The tell and outline strength (a sighting). Q-D, which `bracket_place` probably answers. ~~How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate~~ |
+| 3 | Items 8 and 9; the edge keys (RULED 2026-10-13, restating 2026-09-05: `Shift+Alt+←/→` moves a selected span's or hold's end, `Alt+←/→` its start only, walled at the first misfit; `60b-holds.md` item 4) | ~~The END gesture (OPEN by design: build it, or let the members' tail keys serve).~~ The tell and outline strength (a sighting). Q-D (the span's one instant is its front). ~~How the derived events reach the controller (scene, or resolutions held) — a design call for the builder, not a user gate~~ |
 | 4 | The hold's design (RULED 2026-10-13, `60b-holds.md`: `holds[] {start, end?, grip?}`, a pinned start, an optional authored end, the hold normalizer that trims and clears instead of refusing) | The settlement edge (re-verify on a regenerated reel; likely moot). The background triplet and the chip, tick and rail styles (a sighting) |
 | 5 | 60-Q5 (item 11) RULED NO, reopenable there; the invalidation rule (item 12's second half — RULED 2026-10-13 as the hold normalizer's grip clearing, `60b-holds.md`) | 60-Q3, the fingering model, and the GP parser's fingering scope (item 10); purge-on-save (item 12) — DEFERRED to the Phase 5 session |
 | 6 | RETIRED 2026-10-14 (§7) | Nothing: the slide split, the threshold and §9 Q3 are moot; the offender worklist and the drone watch item moved to §11 |

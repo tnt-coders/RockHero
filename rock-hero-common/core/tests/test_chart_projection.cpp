@@ -2160,13 +2160,9 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
         {
             return;
         }
-        // The bracket draws at the source's own onset, so this IS the fronting figure.
-        REQUIRE(span.bracket_seconds.has_value());
-        if (span.bracket_seconds.has_value())
-        {
-            CHECK_THAT(
-                *span.bracket_seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
-        }
+        // The span fronts at the source's own onset, so this IS the fronting figure.
+        CHECK(span.arpeggio);
+        CHECK_THAT(span.start_seconds, Catch::Matchers::WithinAbs(source->start_seconds, 1e-9));
         // The posture holds the LANDING STOP on string 3, and the source's head there prints the 7
         // it sounds, so the bracket prints the 5 in the satellite column — exactly as it does
         // beside a tap. The strings arriving later keep their centred digits.
@@ -2281,20 +2277,20 @@ TEST_CASE("A held stop prints in its span's opening bracket", "[core][chart]")
     }
 }
 
-// Shape rule 4's landing rule, projected. A span an event states keeps its bracket at its own
-// start, because there the start IS the statement. A LANDING-OPENED span states nothing at its
-// landing — a chord slide keeps the fingers planted, so all that happens there is the fingers
-// arriving — and its bracket defers to the span's first interior sounding, where the ink follows
-// the sound.
-TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[core][chart]")
+// Shape rule 4's landing rule, projected. Every span has ONE instant, its front, and a
+// LANDING-OPENED span is no exception: nothing is struck at its landing — a chord slide keeps the
+// fingers planted, so all that happens there is the fingers arriving — yet its bracket draws there
+// all the same, and the slid members' linked heads standing at the landing state their stops as an
+// onset head would.
+TEST_CASE("A landing-opened span draws its bracket at its landing", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     // Three fingers hold a grip, glide, and come to rest at 1:3 (1.0s at 120 BPM), ringing on. The
-    // lone re-pick at 2:1 (2.0s) is the successor's first interior sounding.
+    // lone re-pick at 2:1 (2.0s) sounds the landed grip in parts.
     //
     // Three rather than two because the successor a landing opens is the opening law asked at a
     // boundary: its surviving members must reach the accumulation minimum, so a two-string
-    // glide would land in no stated grip and there would be no successor to defer anything.
+    // glide would land in no stated grip and there would be no successor at all.
     const auto slide_into = [](const std::vector<ChartNote>& extra) {
         Arrangement arrangement = makeArrangementWithChart();
         Chart* const chart = chartOrNull(arrangement);
@@ -2335,42 +2331,118 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         return arrangement;
     };
 
-    SECTION("the bracket anchors at the first interior sounding")
+    // The successor's posture entry on one string, or nullptr where its posture holds none there.
+    const auto entry_on = [](const ShapeViewState& span,
+                             const int string) -> const ShapeStringViewState* {
+        const auto entry = std::ranges::find(span.strings, string, &ShapeStringViewState::string);
+        return entry != span.strings.end() ? &*entry : nullptr;
+    };
+
+    // The re-pick at 2.0s, sounding the landed grip in parts.
+    const ChartNote repick{
+        .position = GridPosition{.measure = 2, .beat = 1},
+        .string = 1,
+        .fret = 7,
+        .sustain = Fraction{1, 2},
+        .bend = {},
+        .keyframes = {},
+    };
+
+    SECTION("the bracket draws at the landing")
     {
+        const Arrangement arrangement = slide_into({repick});
+
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        REQUIRE(state.shapes.size() == 2);
+        // The departing grip is struck WHOLE, so it is a box: a bracket is arpeggio furniture, and
+        // the strum's own box is its whole statement.
+        CHECK_FALSE(state.shapes[0].arpeggio);
+        CHECK_FALSE(state.shapes[0].landing_opened);
+        // The re-pick reaches only part of the landed grip, which makes the successor an arpeggio,
+        // and its bracket draws at its front, the landing (1.0s), with nothing struck there.
+        CHECK(state.shapes[1].arpeggio);
+        CHECK(state.shapes[1].landing_opened);
+        CHECK_THAT(state.shapes[1].start_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
+    }
+
+    SECTION("a linked keyframe head at the front suppresses the bracket digit")
+    {
+        // An open string struck with the grip rings through the landing, so the successor holds
+        // it beside the three slid members. Each slid member's linked head stands at the landing
+        // printing the stop the grip holds there, so the bracket prints no number beside it; the
+        // open string has no head there, so its digit is the bracket's.
         const Arrangement arrangement = slide_into({
             ChartNote{
-                .position = GridPosition{.measure = 2, .beat = 1},
-                .string = 1,
-                .fret = 7,
-                .sustain = Fraction{1, 2},
+                .position = GridPosition{.measure = 1, .beat = 1},
+                .string = 5,
+                .fret = 0,
+                .sustain = Fraction{3, 2},
                 .bend = {},
                 .keyframes = {},
             },
+            repick,
         });
 
         const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
         REQUIRE(state.shapes.size() == 2);
-        // Each span's mark bound ONCE to a name, so the guard and the read are provably the same
-        // object — the shape lint cannot tie two indexings of the same vector together.
-        const std::optional<double>& departing = state.shapes[0].bracket_seconds;
-        const std::optional<double>& successor = state.shapes[1].bracket_seconds;
-        // The departing grip is struck WHOLE, so it is a box and publishes no bracket instant at
-        // all: an anchor is arpeggio furniture, and the strum's own box is its whole statement. Its
-        // posture is still stated — the class rule and the box identity both read it — which is
-        // what makes the empty optional a statement about INK.
-        CHECK_FALSE(state.shapes[0].arpeggio);
-        CHECK_FALSE(departing.has_value());
-        // The successor opens at the landing (1.0s) and draws NOTHING there: its mark waits for
-        // the re-pick at 2.0s, which is the discrimination — the span's own start is 1.0. The
-        // re-pick reaches only part of the landed grip, which is what makes this successor an
-        // arpeggio at all and therefore what makes it draw a bracket.
-        CHECK(state.shapes[1].arpeggio);
-        CHECK_THAT(state.shapes[1].start_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
-        REQUIRE(successor.has_value());
-        if (successor.has_value())
+        const ShapeViewState& successor = state.shapes[1];
+        CHECK(successor.arpeggio);
+        CHECK(successor.landing_opened);
+        const ShapeStringViewState* const slid = entry_on(successor, 1);
+        const ShapeStringViewState* const ringing = entry_on(successor, 5);
+        REQUIRE(slid != nullptr);
+        REQUIRE(ringing != nullptr);
+        if (slid != nullptr && ringing != nullptr)
         {
-            CHECK_THAT(*successor, Catch::Matchers::WithinAbs(2.0, 1e-9));
+            CHECK(slid->stop == fretStop(7));
+            CHECK_FALSE(slid->digit.has_value());
+            CHECK(ringing->stop == fretStop(0));
+            CHECK(ringing->digit == std::optional{StopMarkSlot::Bracket});
+        }
+    }
+
+    SECTION("an onset head at the front suppresses the bracket digit as before")
+    {
+        // A broken chord piling up one pluck at a time: one arpeggio span fronted at the first
+        // pluck, whose onset head states string 1's stop, while the members still to arrive print
+        // their digits in the bracket.
+        Arrangement arrangement = makeArrangementWithChart();
+        Chart* const chart = chartOrNull(arrangement);
+        REQUIRE(chart != nullptr);
+        if (chart != nullptr)
+        {
+            chart->notes.clear();
+            for (const int string : {1, 2, 3})
+            {
+                chart->notes.push_back(
+                    ChartNote{
+                        .position = GridPosition{.measure = 1, .beat = string},
+                        .string = string,
+                        .fret = 5,
+                        .sustain = Fraction{4 - string, 4},
+                        .bend = {},
+                        .keyframes = {},
+                    });
+            }
+            chart->fret_hand_positions = {};
+        }
+
+        const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+
+        REQUIRE(state.shapes.size() == 1);
+        const ShapeViewState& span = state.shapes.front();
+        CHECK(span.arpeggio);
+        CHECK_FALSE(span.landing_opened);
+        const ShapeStringViewState* const struck = entry_on(span, 1);
+        const ShapeStringViewState* const arriving = entry_on(span, 3);
+        REQUIRE(struck != nullptr);
+        REQUIRE(arriving != nullptr);
+        if (struck != nullptr && arriving != nullptr)
+        {
+            CHECK_FALSE(struck->digit.has_value());
+            CHECK(arriving->digit == std::optional{StopMarkSlot::Bracket});
         }
     }
 
@@ -2382,13 +2454,11 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
 
         REQUIRE(state.shapes.size() == 2);
         // BOX AT BOTH ENDS: the departing grip is struck whole and nothing strikes the successor at
-        // all, so neither is an arpeggio and neither draws an opening mark. What the reader sees is
-        // the two boxes and the members' sliding tails between them — shape rule 4's seamless
-        // picture, falling out of the class law rather than a carve-out.
+        // all, so neither is an arpeggio and neither draws a bracket. What the reader sees is the
+        // two boxes and the members' sliding tails between them — shape rule 4's seamless picture,
+        // falling out of the class law rather than a carve-out.
         CHECK_FALSE(state.shapes[0].arpeggio);
         CHECK_FALSE(state.shapes[1].arpeggio);
-        CHECK_FALSE(state.shapes[0].bracket_seconds.has_value());
-        CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
         // A span with no bracket prints no digit either — the posture entries stay, because the
         // posture is a fact of its own that the class rule and the box identity both read.
         CHECK_FALSE(state.shapes[1].strings.empty());
@@ -2398,10 +2468,8 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         }
     }
 
-    SECTION("a right-hand onset inside the successor anchors nothing")
+    SECTION("a right-hand onset inside the successor brackets it from the landing")
     {
-        // The bracket states the FRETTING hand's grip, and a tap says nothing about where those
-        // fingers are — so it cannot be the sounding the mark follows.
         Arrangement arrangement = slide_into({});
         Chart* const chart = chartOrNull(arrangement);
         REQUIRE(chart != nullptr);
@@ -2425,16 +2493,25 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
 
         REQUIRE(state.shapes.size() == 2);
         // The tap flips the successor's CLASS — a held shape sounded from above is trigger (d) —
-        // so this span really would draw a bracket if anything anchored one. Nothing does: the
-        // anchor follows the fretting hand's soundings, and there are none inside.
-        CHECK(state.shapes[1].arpeggio);
-        CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
+        // so its bracket draws at its one instant, the landing. Every member's linked head stands
+        // there stating the stop the grip holds, so the digits the bracket resolves are present
+        // and each is the suppressed one.
+        const ShapeViewState& successor = state.shapes[1];
+        CHECK(successor.arpeggio);
+        CHECK(successor.landing_opened);
+        CHECK_THAT(successor.start_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
+        CHECK(successor.strings.size() == 3);
+        for (const ShapeStringViewState& entry : successor.strings)
+        {
+            CHECK_FALSE(entry.digit.has_value());
+        }
     }
 
     SECTION("a chord gliding up and back draws no bracket at its turn or its return")
     {
         // Open strings under two fingers that glide 5 to 7 and back: the turn and the return each
-        // land a chord the hand slid into, so both successors draw nothing on either surface.
+        // land a chord the hand slid into, and nothing strikes either, so both successors are
+        // boxes and draw no bracket.
         Arrangement arrangement = makeArrangementWithChart();
         Chart* const chart = chartOrNull(arrangement);
         REQUIRE(chart != nullptr);
@@ -2467,8 +2544,8 @@ TEST_CASE("A landing-opened span defers its bracket to its first sounding", "[co
         const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
         REQUIRE(state.shapes.size() == 3);
-        CHECK_FALSE(state.shapes[1].bracket_seconds.has_value());
-        CHECK_FALSE(state.shapes[2].bracket_seconds.has_value());
+        CHECK_FALSE(state.shapes[1].arpeggio);
+        CHECK_FALSE(state.shapes[2].arpeggio);
     }
 }
 

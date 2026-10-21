@@ -1788,14 +1788,10 @@ section 2026-09-05.
   the one-indicator side first (does the armed slot need to dissolve at all?) before adding a
   second mark.
 
-- **A tap's held stop may print nowhere near it under a landing-opened span (2026-09-29).** Since
-  no note draws its held stop, a tap's DEFAULT is stated only by its span's bracket. A span a
-  chord slide's LANDING opens draws its bracket at its first interior sounding, and a tap states no
-  grip, so where no member sounds again inside it the span draws no bracket at all. A tap there
-  holds the landed grip's fret (the hand windows and the fret-hand light still read it), but no ink
-  beside it says so; the slide landings' own keyframe marks state the landed frets further back.
-  Unsighted; raised by the review of 7aa66a5b.
-
-  **Trigger:** a sighting of a chord slide followed by a tap with no later member sounding, where
-  the reader cannot tell what the tap is held over. **Remedy:** a span-furniture question (where a
-  landing-opened span's mark draws), not a return of the note satellite.
+- **~~A tap's held stop may print nowhere near it under a landing-opened span (2026-09-29)~~ —
+  RETIRED 2026-10-21: the mark is the front.** Since no note draws its held stop, a tap's DEFAULT
+  is stated only by its span's bracket, and a span a chord slide's LANDING opened used to defer its
+  bracket to its first interior sounding, so a tap with no member sounding after it was held over
+  ink that never drew. The user ruled that every span has one instant, its front (shape rule 4): a
+  tap is a right-hand onset inside the span, which makes it an arpeggio (shape rule 5), and its
+  bracket now draws at the landing, so the tap's held fret prints there.
