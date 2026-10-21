@@ -118,7 +118,7 @@ the board is judged by.
 
 The chart's own place, not the board-clamped one (\ref highwayDrawnStop): the clamp is a display
 limit and must not make two heads the chart tells apart compare equal. Asked by a strum's repeat
-identity (\ref makeHighwayChordGroups) and by a string's chain of abutting repeats
+identity (\ref makeHighwayChordGroups) and by a string's chain of take-overs in place
 (\ref HighwayViewState::head_ends) alike, so the two can never judge "the same head" differently.
 
 \param note Note whose head is compared.
@@ -644,17 +644,21 @@ struct HighwayViewState
     line (\ref HighwayChordGroupViewState::hold_cap_seconds) and never before its ink end, then
     dissolves by the shared head rule (\ref headFade).
 
-    THE REPEAT CHAIN overrides that end. A head whose stored ring ends EXACTLY on the next head of
-    its own string (\ref NoteViewState::end_head), and whose head ends (\ref headEndFret) at the
-    stop that head is struck at (\ref headSoundingStop), stays fully lit and pinned until that head
-    lands in its place, and is gone as it lands: the successor takes over the same spot, so only the
-    chain's last head fades. A slide chains from where it lands, never from where it began. Per
-    head, so a partial chord repeat chains only its repeated members. A repeat box's heads take
-    over too: they draw nothing as they approach but stand at the hit line once struck
+    THE TAKE-OVER IN PLACE overrides that end. A string shows one head per stop: the first later
+    head struck on the same string at the stop this head ends on (\ref headEndFret,
+    \ref headSoundingStop), while this head is still in play — pinned at the line, or its ring
+    still sounding, which outlasts a tailed head's pin by the tail's crop margin — lands in its
+    place, so this head stays fully lit and pinned until that landing and is gone as it happens;
+    only the last head of such a chain fades. Whatever lands on the string in between is no part
+    of it: a shape keeps a stop planted while a higher fret of the same string sounds and is pulled
+    off back to it, and the planted head hands over to the re-strike that comes back, not to the
+    higher fret. A slide chains from where it lands, never from where it began. Per head, so a
+    partial chord repeat chains only its repeated members. A repeat box's heads take over too: they
+    draw nothing as they approach but stand at the hit line once struck
     (\ref HighwayChordGroupViewState::showsNotes), so the held heads always wear the marks of the
-    strike now sounding. The chain replaces the head's own end outright, a hold included: whatever
-    holds the head holds its successor to the same end, so a held run hands over at each landing
-    and dissolves only at its last head.
+    strike now sounding. The take-over replaces the head's own end outright, a hold included:
+    whatever holds the head holds its successor to the same end, so a held run hands over at each
+    landing and dissolves only at its last head.
     */
     std::vector<HighwayHeadEnd> head_ends;
 

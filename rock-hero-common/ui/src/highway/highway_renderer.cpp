@@ -3929,7 +3929,7 @@ void HighwayRenderer::Impl::draw(
         // is done. The pin and the fade are the projection's (HighwayViewState::head_ends): with
         // its tail and at the tail's rate; where no tail is drawn, from the strike over its stored
         // ring capped at the shortest tail's fade; ending at the pin where the head is held past
-        // its ink; and whole until an abutting repeat takes its place.
+        // its ink; and whole until a later head at its stop takes its place.
         const common::core::HighwayHeadEnd& board_head = state->head_ends[index];
         const double head_seconds =
             std::clamp(now_seconds, note.start_seconds, board_head.pin_end_seconds);

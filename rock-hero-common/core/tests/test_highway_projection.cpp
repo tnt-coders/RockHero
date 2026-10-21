@@ -1219,13 +1219,15 @@ TEST_CASE("Highway holds a repeat chain's heads through the whole chain", "[core
     CHECK_FALSE(state.chart.notes[0].rested);
 }
 
-// THE REPEAT CHAIN: a head whose stored ring ends EXACTLY on the next head of its own string at the
-// same stop stays whole and pinned until that head lands in its place, so only the chain's last
-// head fades, by the shared head rule. Every arm is measured at 120 BPM, where an eighth lasts a
-// quarter second and — being exactly the kept-sustain bound — draws no tail, so each head alone
-// would fade from its strike.
+// THE TAKE-OVER IN PLACE: a head still in play when a later head of its own string is struck at
+// the stop it ends on stays whole and pinned until that head lands in its place, so only the
+// chain's last head fades, by the shared head rule. Every arm is measured at 120 BPM, where an
+// eighth lasts a quarter second and — being exactly the kept-sustain bound — draws no tail, so
+// each head alone would fade from its strike; a ring that reaches the next head is what keeps
+// these tail-less heads in play up to it.
 TEST_CASE(
-    "Highway keeps an abutting repeat's head whole until the next one lands", "[core][highway]")
+    "Highway keeps a head whole until a later head at its stop lands in its place",
+    "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
     const auto note = [](int string, int fret, GridPosition position, Fraction sustain) {
@@ -1332,6 +1334,50 @@ TEST_CASE(
         // The ring does end on that head; the stop is what differs.
         CHECK(state.chart.notes[0].end_head == std::optional<std::size_t>{1});
         check_own(state, 0);
+    }
+
+    SECTION("a planted stop hands over past a higher fret to the pull-off back onto it")
+    {
+        // The arpeggio figure: three strings accumulate a grip, string 1's 5 rings exactly into a
+        // 7 picked above it, and the 7 is pulled off back onto the 5. The pull-off proves the 5
+        // stayed planted beneath the 7, so the span rides the ornament whole and holds the planted
+        // head past it. That head's ring ends on the 7 rather than on the pull-off, so the chain is
+        // found by stop, not by the ring ending on the next head: the pull-off lands in the planted
+        // head's place, and the 7 between them is no part of it.
+        const GridPosition ornament_at{.measure = 1, .beat = 2, .offset = Fraction{1, 2}};
+        const HighwayViewState state = board({
+            note(3, 7, first, Fraction{3, 4}),
+            note(2, 5, second, Fraction{5, 8}),
+            note(1, 5, third, eighth),
+            note(1, 7, ornament_at, eighth),
+            ChartNote{
+                .position = GridPosition{.measure = 1, .beat = 3},
+                .string = 1,
+                .fret = 5,
+                .sustain = eighth,
+                .attack = NoteAttack::Legato,
+                .bend = {},
+                .keyframes = {},
+            },
+        });
+        REQUIRE(state.head_ends.size() == 5);
+        REQUIRE(state.chart.note_length_ends.size() == 5);
+        const NoteViewState& ornament = state.chart.notes[3];
+        const double release_onset = state.chart.notes[4].start_seconds;
+        CHECK(release_onset == Catch::Approx(1.0));
+        // The span's hold is what keeps the planted head in play past the ornament's onset; were
+        // the head held only to its own ring, it would end on the 7 and nothing here would test the
+        // take-over.
+        REQUIRE(state.chart.note_length_ends[2] > ornament.start_seconds);
+        // The pin is the pull-off's onset, not the 7's: the 7 differs in stop and takes nothing
+        // over.
+        check_handed_over(state.head_ends[2], release_onset);
+        // The 7 is handed over by its pull-off, so it holds its stored ring, which ends exactly
+        // where the pull-off lands, and dissolves within that by the shared head rule.
+        const HighwayHeadEnd& ornament_end = state.head_ends[3];
+        CHECK(ornament_end.fade == headFade(ornament, ornament_end.pin_end_seconds));
+        CHECK(ornament_end.fade.length_seconds > 0.0);
+        CHECK(ornament_end.fade.end_seconds <= release_onset);
     }
 
     // A HEAD CHAINS FROM WHERE IT ENDS (headEndFret): a slide from where it lands, so a slide from
