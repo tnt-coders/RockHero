@@ -7495,6 +7495,95 @@ TEST_CASE("A hold cropped at a release normalizes once", "[core][chart]")
     CHECK(normal.conversions[0].repair == ChartRepair::UnfitShapeHold);
 }
 
+// An unnamed hold is evidence for the hold-under law (shape rule 9 feeding rule 7): on a string its
+// span does not yet state, a pull-off source can only be riding above its plant, so it states that
+// plant and the pull-off's landing is the stop already held, not hand-position rule 6's release.
+// String 3 rings open under the bar, string 5 holds 6 from 1:2, and string 4 sounds 7 at 1:3 and
+// pulls off to 5 at 1:4, everything ringing to 2:1.
+TEST_CASE("A planted source inside a shape hold states its plant", "[core][chart]")
+{
+    const auto figure = [](ChartNote sounded) {
+        return streamOf({
+            noteAt(gridAt(1, 1), 3, 0, Fraction{1}),
+            noteAt(gridAt(1, 2), 5, 6, Fraction{3, 4}),
+            std::move(sounded),
+            pullOffAt(4, Fraction{}, 4, 5, Fraction{1, 4}),
+        });
+    };
+    const std::vector<ChartNote> notes = figure(noteAt(gridAt(1, 3), 4, 7, Fraction{1, 4}));
+    REQUIRE(
+        deriveUnder(notes, {}).resolutions.connections.legato[indexAt(notes, 1, 4, 4)] ==
+        LegatoMotion::Pull);
+
+    // The span a hold states, by the published flag rather than an index the walk may move.
+    const auto held_span = [](const ChartResolutions& resolved) {
+        const auto found = std::ranges::find_if(
+            resolved.shapes, [](const ChartShape& shape) { return shape.hold_stated; });
+        REQUIRE(found != resolved.shapes.end());
+        return static_cast<std::size_t>(found - resolved.shapes.begin());
+    };
+
+    SECTION("a hold starting on the source holds the plant through the release")
+    {
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 3), gridAt(2, 1))});
+        CHECK(held.fits[0]);
+        const std::size_t span = held_span(held.resolutions);
+        CHECK(held.resolutions.shapes[span].place == Fraction{1, 2});
+        CHECK(stopOf(held.resolutions, span, 3) == std::optional{fretStop(0)});
+        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(5)});
+        CHECK(stopOf(held.resolutions, span, 5) == std::optional{fretStop(6)});
+    }
+
+    SECTION("a hold starting inside the source's ring carries the plant in")
+    {
+        // The source outlives the front by an eighth, past the minimum sustain distance, so it
+        // rings into the hold as a carried member.
+        REQUIRE(minimumSustainDistance(makeTempoMap(), Fraction{5, 8}) < Fraction{1, 8});
+        const Held held =
+            deriveUnder(notes, {holdOver(gridAt(1, 3, Fraction{1, 2}), gridAt(2, 1))});
+        CHECK(held.fits[0]);
+        const std::size_t span = held_span(held.resolutions);
+        CHECK(held.resolutions.shapes[span].place == Fraction{5, 8});
+        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(5)});
+    }
+
+    SECTION("a hold ending at the release prints the plant, not the fret sounded")
+    {
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 3), gridAt(1, 4))});
+        CHECK(held.fits[0]);
+        const std::size_t span = held_span(held.resolutions);
+        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(5)});
+    }
+
+    SECTION("without a hold the derived span is unchanged")
+    {
+        // Nothing was down on string 4 at the source's strike, so it states the 7 it sounds and
+        // the release onto 5 is a new statement that closes the span.
+        const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+        REQUIRE(plain.shapes.size() == 1);
+        CHECK(plain.shapes[0].place == Fraction{});
+        CHECK(plain.shapes[0].sustain == Fraction{3, 4});
+        CHECK(stopOf(plain, 0, 3) == std::optional{fretStop(0)});
+        CHECK(stopOf(plain, 0, 4) == std::optional{fretStop(7)});
+        CHECK(stopOf(plain, 0, 5) == std::optional{fretStop(6)});
+    }
+
+    SECTION("a harmonic source states its pressed stop, so its release still conflicts")
+    {
+        ChartNote artificial = noteAt(gridAt(1, 3), 4, 7, Fraction{1, 4});
+        artificial.harmonic_node = 19.0;
+        const std::vector<ChartNote> harmonic_notes = figure(std::move(artificial));
+        const std::vector<ShapeHold> holds{holdOver(gridAt(1, 3), gridAt(2, 1))};
+        const Held held = deriveUnder(harmonic_notes, holds);
+        CHECK_FALSE(held.fits[0]);
+        const std::size_t span = held_span(held.resolutions);
+        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(7)});
+        CHECK(
+            normalizedOnce(harmonic_notes, holds).resolved.shape_holds ==
+            std::vector{holdOver(gridAt(1, 3), gridAt(1, 4))});
+    }
+}
+
 // A hold's wall is its published end. Here the first hold's span closes at a conflict, and the span
 // struck there runs on past the hold's stated end to a two-finger glide landing exactly where the
 // next hold starts, so the next hold states the landed grip and closes where a lower fret releases

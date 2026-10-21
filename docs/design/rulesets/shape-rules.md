@@ -391,15 +391,19 @@ takes the next one.
    slide founds, grows and joins no span, and a tapped chord derives none. A right-hand onset renews
    its string's sound and makes the one contradiction of the tap's floor (rule 3). What it holds is
    rule 8's derived fact, which reads the spans and never feeds them.
-   - **The hold-under law.** A pull-off proves a finger on its landing stop at the release and at
-     no earlier instant, so every source states the fret it sounds and its release is a new
+   - **The hold-under law.** A pull-off alone proves a finger on its landing stop at the release
+     and at no earlier instant, so every source states the fret it sounds and its release is a new
      statement. The one exception is a source added above a stop its string is demonstrably already
      at: it states that stop, the fret it sounds being an ornament riding above, so the grip neither
-     breaks nor is rewritten (`gripStatement`). The exception never holds where the source's own
-     path sweeps that stop, and never under a harmonic played over a pressed stop, which states the
-     pressed stop, so a pull-off from it is a new statement and closes the span at the release even
-     while the chord around it rings on. The landing stop stays in the derived table as the
-     source's held stop, and the pull's own head prints it.
+     breaks nor is rewritten (`gripStatement`). Two things demonstrate it: the standing grip's entry
+     on the string, and an unnamed shape hold on a string its span does not yet state — the hold is
+     the charter's word that one shape is held from its start, so a planted source there can only be
+     riding above its plant, whether struck inside the hold or carried into its front (rule 9). The
+     exception never holds where the source's own path sweeps that stop, and never under a harmonic
+     played over a pressed stop, which states the pressed stop, so a pull-off from it is a new
+     statement and closes the span at the release even while the chord around it rings on. The
+     landing stop stays in the derived table as the source's held stop, and the pull's own head
+     prints it.
    - **A held stop has no mark of its own.** The hand windows and the 3D fret-hand light read it
      (`NoteViewState::held_fret`), and other ink already prints every one: a plant by the pull's
      destination head, a default by its span's bracket.
@@ -437,10 +441,13 @@ takes the next one.
    though a chord struck inside still grips its own and stands. None holds that meet are one
    stretch: two that abut or overlap merge into one, comparing their edges alone
    (`mergedNoneHolds`). A none hold is never cropped around a chord.
-   - **The walk is the one authority.** A hold changes only the edges. Everything inside is the
-     span walk's own judgement by rules 1 to 5 and hand-position rule 6: grip statements and
-     plants, membership, the landing instant, the class and the posture. Inside an unnamed hold
-     the walk keeps exactly one span, the hold's, fronted at the hold's start.
+   - **The walk is the one authority.** A hold changes only the edges and the evidence below.
+     Everything inside is the span walk's own judgement by rules 1 to 5 and hand-position rule 6:
+     grip statements and plants, membership, the landing instant, the class and the posture. Inside
+     an unnamed hold the walk keeps exactly one span, the hold's, fronted at the hold's start. The
+     hold adds one piece of evidence to that walk and nothing else: on a string its span does not
+     yet state, a pull-off source states its plant (rule 7's hold-under law), so the release back
+     onto the plant restates the grip and is no conflict.
    - **The hold is the statement.** An unnamed hold is the charter's statement that one grip is
      held there, so its span is published whatever the notes inside come to (rule 1's thresholds
      gate derived spans alone). The hold's span opens at the hold's start, every ring sounding there

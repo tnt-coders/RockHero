@@ -1072,6 +1072,59 @@ TEST_CASE("The start key skips candidates where the hand would release a stop", 
     CHECK(editor.holds() == std::vector{unnamedHold(at(1, 2), at(2, 3))});
 }
 
+// A hold is evidence for the hold-under law: string 3 rings open under the bar, string 5 holds 6
+// from 1:2, and string 4 sounds 7 at 1:3 and pulls off to 5 at 1:4, everything ringing to 2:1.
+// Inside the hold string 4's pull-off source states its plant, 5, so the release is the stop
+// already held and the start key steps a grid line at a time from the release back over the source.
+TEST_CASE("The start key steps a hold back over a planted source", "[core][holds]")
+{
+    common::core::ChartNote pull_off = makeTestNote(at(1, 4), 4, 5, Fraction{1, 4});
+    pull_off.attack = common::core::NoteAttack::Legato;
+    HoldEditor editor{chartOf(
+        {{makeTestNote(at(1, 1), 3, 0, Fraction{1, 1})},
+         {makeTestNote(at(1, 2), 5, 6, Fraction{3, 4})},
+         {makeTestNote(at(1, 3), 4, 7, Fraction{1, 4})},
+         {pull_off}},
+        {unnamedHold(at(1, 4), at(2, 1))})};
+    REQUIRE(editor.holds() == std::vector{unnamedHold(at(1, 4), at(2, 1))});
+    editor.walkDownAt(1.75, 1);
+    REQUIRE(editor.selectedHold() == std::optional<std::size_t>{0});
+    const std::size_t entries = editor.entries();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    // The stop the published held span states on string 4.
+    const auto held_string_4 = [&editor]() -> std::optional<common::core::ChartStop> {
+        REQUIRE(editor.state().tab != nullptr);
+        for (const common::core::ShapeViewState& span : editor.state().tab->shapes)
+        {
+            if (!span.held)
+            {
+                continue;
+            }
+            for (const common::core::ShapeStringViewState& entry : span.strings)
+            {
+                if (entry.string == 4)
+                {
+                    return entry.stop;
+                }
+            }
+        }
+        return std::nullopt;
+    };
+
+    editor.startKey(false);
+    INFO(editor.holdsText());
+    CHECK(editor.view.refusal_flashes.size() == flashes);
+    CHECK(editor.entries() == entries + 1);
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 3), at(2, 1))});
+    CHECK(held_string_4() == std::optional{common::core::fretStop(5)});
+
+    editor.startKey(false);
+    CHECK(editor.view.refusal_flashes.size() == flashes);
+    CHECK(editor.holds() == std::vector{unnamedHold(at(1, 2), at(2, 1))});
+    CHECK(held_string_4() == std::optional{common::core::fretStop(5)});
+}
+
 // The grid line the edge keys step to is the placement quantum's: the grid with snap on, and with
 // snap off the next tick, 1/960 of a beat.
 TEST_CASE("The edge keys step by the placement quantum", "[core][holds]")
