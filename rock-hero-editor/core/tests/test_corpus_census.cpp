@@ -1032,7 +1032,9 @@ void countDerivation(
                 }
                 landing_here = std::ranges::any_of(
                     landingsOf(saved[ringing], arrives_into[ringing]),
-                    [&](const Fraction landed) { return index.onset[ringing] + landed == start; });
+                    [&](const Fraction landing_offset) {
+                        return index.onset[ringing] + landing_offset == start;
+                    });
             }
             if (landing_here)
             {
