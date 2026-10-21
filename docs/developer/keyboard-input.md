@@ -332,8 +332,10 @@ see the tempo verbs in \ref guide_2d_views.
 chord, a toolbar button 4 px right of the lock's whose click runs the command, and a ticked menu
 row. It is OFF at every song open. While it is on, the song's content is frozen where it sounds:
 the tempo verbs keep every object's time instead of moving it with the beat, and every chord, digit
-and move that would change a note, a marker or an automation point is refused with the usual
-refusal flash and log line (\ref guide_musical_time).
+and move that would change a note, a marker or an automation point is refused with the usual log
+line and the refusal flash on the note, hold or chip it would have changed — an automation point
+is no flash target, and the lock itself, a toolbar control, is never lit
+(\ref guide_musical_time).
 
 `ScaleTempo` (`0x1409`, "Scale Tempo...", category Tempo) has no default chord either: a whole-song
 grid repair is rare and deliberate, so its surfaces are the Edit menu item and the tempo row's
@@ -527,9 +529,9 @@ of these attack rows (`ChartTechnique::LeftTap`), toggled like `T`'s right-hand 
 The planner applies the generalized dissolve law to what it wrote,
 dropping a statement that restates the state already in force and letting the strip authority
 take a keyframe the drop emptied — SILENT when they apply nothing, since "nothing to do" is not an
-error — while every per-note verb returns each note it could not write with its own reason in
-`ChartSelectionPlan::refused`, for the refusal flash
-(`docs/plans/in-progress/refusal-flash.md`)),
+error — while every per-note verb returns each note it could not write with its own reason, and
+whatever stood in its way, in `ChartSelectionPlan::refused` (`ChartRefusedNote`), for the refusal
+flash (`docs/plans/in-progress/refusal-flash.md`)),
 `onChartJunctionToggleRequested` (the junction toggle, `Shift+L` — one verb with two directions,
 because a junction has exactly two states and the press moves each selected one to the other. A
 selected KEYFRAME becomes a head: the note's path ends there and a new STRUCK head (`Pick`) takes
@@ -555,7 +557,7 @@ heads, a join's new point — so pressing again reverses it),
 one chart verb whose law is **offer every CHANGE the selection allows, and ask only where there is
 more than one**. WHICH ROWS CHANGE ANYTHING IS THE PLANNER'S ANSWER, never a count made beside it:
 the verb plans each node row (`planSetHarmonic`) and the clear (`planClearHarmonic`) over the live
-chart, and a plan of `NoChange` is a row that would do nothing — so ZERO changes is an inert press,
+chart, and a plan of `PlanNoChange` is a row that would do nothing — so ZERO changes is an inert press,
 ONE applies in the keystroke, and two or more ask. The node rows come from the member whose label
 names the MOST nodes — a carrier's label being the fret its node lies at, `harmonicLabelFret` in
 `chart_edits.cpp`, the same authority the clear presses back down, so a note touching 4.98 is offered
@@ -673,9 +675,10 @@ rest: `Alt+Left/Right` (`MoveSelection`) step the start and `Alt+Shift+Left/Righ
 (`AdjustChartSustain`, whose availability opens on `has_span_row_selection`) the end, each to the
 nearer of the next note boundary and the next grid line — the placement quantum's
 (`placementQuantum`): the grid with snap on, a tick with it off — where the hold fits its notes,
-skipping the candidates the gate refuses and refused only where none fits — with the NEAREST
-candidate's own refusal, its reason and its light, never a message about the direction; only where
-no candidate lies that way at all does the refusal say so and light the moved hold
+skipping the candidates the gate refuses and refused only where none fits — logging the NEAREST
+candidate's own reason and lighting the moved hold beside that candidate's culprit, never a message
+about the direction; only where no candidate lies that way at all does the refusal say so, and the
+moved hold lights alone
 (`planSteppedShapeHoldEdge`, each candidate judged by `planMoveShapeHoldEdge`), as one held run
 through `commitChartGestureStep` (`ChartShapeHoldEdgeGesture`), a derived span becoming a hold on
 the first press (and staying a derived span, selected, when the run steps back to where it began)
@@ -688,9 +691,11 @@ stays unbound, reserved for plan 52. Every picker row and every `Delete` writes 
 `commitHoldChoice`, and every hold verb through the one carve (`carvedShapeHolds`: the extent out
 of every hold it overlaps, a new hold stated over it or none, the none holds that meet merged), and
 ends at the hold gate `finalizeShapeHoldPlan`, which refuses any result the normalizer would
-rewrite; a refusal logs under the verb's label and lights what it names (`ChartPlanInvalid::lit`):
-the neighbour a push would empty, the stretch a hold that does not fit overruns, or else the hold
-itself — a hold as the notes sounding inside it. An authored position the new holds leave
+rewrite; a refusal logs under the verb's label and `refuseShapeHoldVerb` adds the selection's
+light (`selectionLight`: the selected notes and keyframes, or the span or none hold) beside what
+the gate names (`PlanRefused::lit`): the neighbour hold a push would
+empty, the notes a hold that does not fit runs on past, every hold a broken rule's result changed,
+or the hold itself — each hold glowing on its own rails. An authored position the new holds leave
 uncovering never refuses the verb: it is dropped into the same undo entry and logged
 (`dropUncoveringFretHandPositions`). A
 landing that names a span the notes no longer derive selects nothing (`landMarkerSelection`).

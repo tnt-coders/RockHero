@@ -1,15 +1,17 @@
 # Refusal flash (task #278)
 
-Status: BUILT 2026-09-30, awaiting its sighting (F1, F2). Written 2026-09-21 from a recovered
+Status: BUILT 2026-09-30, awaiting its sighting (F1, F2); rebuilt 2026-10-20 to one rule for every
+refusal on every surface (see "One rule for every refusal"). Written 2026-09-21 from a recovered
 discussion — see "Provenance" — because the ruling had survived in one conversation only, and task
 #278 had gone on describing the design the ruling replaced.
 
-When an edit key is refused, the editor says so **on the thing that refused it**: the selected
-elements the verb turned down glow red a couple of times and stay as they were. Why it was refused
-goes to the log. There is no status line, no toast and no caret callout — that was the proposal on
-the table, and the flash was chosen instead of it.
+When an edit key is refused, the editor says so **on the things it concerned**: the thing the key
+tried to change and the thing that stood in its way glow red a couple of times and stay as they
+were. Why it was refused goes to the log. There is no status line, no toast and no caret callout —
+that was the proposal on the table, and the flash was chosen instead of it.
 
-Every claim about current code below was verified on 2026-09-21 and the Shape section on 2026-09-30. Re-verify before acting on one.
+Every claim about current code below was verified on 2026-09-21, and re-verified against
+`05edcc5f` on 2026-10-20 from "Shape, as built" down. Re-verify before acting on one.
 
 ## What was ruled
 
@@ -35,30 +37,16 @@ So, ruled:
 - **One mechanism for every verb.** No per-verb feedback design.
 
 **A refusal lights what it names; the reason goes to the log** (user, 2026-10-20). What a refusal
-lights is decided where it refuses, never defaulted by the mechanism: every `ChartPlanInvalid`
-carries its light (`ChartPlanInvalid::lit`, a `ChartRefusalLight` of note keys, keyframe keys and
-a fret-hand position's chip, `rock-hero-editor/core/src/chart/chart_edits.h`) beside its reason,
-and the controller's one flash path (`flashRefusalLight`) only resolves it. Where another authored
-thing stands in the way, that culprit glows instead of the selection: the authored fret-hand
-position that would not cover a stop, beside every note gripping a stop it misses — all the things
-"hand position P does not cover frets 5 and 7 gripped from Q" names, since a refusal naming one
-missed stop of several would send the charter to fix one and meet the next (the note gate's and the
-hold gate's one coverage refusal; retired: positions yield to notes and holds, 2026-10-20), the note a move would land on, the ring whose authored statement an edit would cut off (beside the
-head that cuts it, since one of the two is the edit's own product with no mark yet), the
-predecessor a head cannot join, the neighbour hold a push would empty, and the stretch between a
-hold's stated end and where its shape closes. A hold edge key refused at every candidate its way
-surfaces the NEAREST candidate's own refusal, reason and light, never a message of its own about
-the direction (`planSteppedShapeHoldEdge`; only with no candidate that way at all does it say so,
-lighting the moved hold). Where nothing does, the refusing site names the refused elements
-themselves; a site with nothing on screen to name (an empty slot, no chart) says
-so with an empty light. A hold is lit as the notes sounding inside it, struck in it or ringing into
-it. The marker funnel's refusal (`MarkerModelInvalid`) carries no light, because the funnel judges
-a model and never knows which chip the verb acted on: the verb that produced the model lights its
-chip beside the funnel's record.
+lights is decided where it refuses, never defaulted by the mechanism, and a refusal naming one
+missed stop of several would send the charter to fix one and meet the next, so a coverage refusal
+names them all. Its first build lit a culprit INSTEAD of the selection, a hold as the notes
+sounding in it, and nothing for a marker funnel's refusal; the design session the same day
+replaced that with "One rule for every refusal" (below), which keeps the decide-where-it-refuses
+half and lights the subject beside the culprit.
 
 Accepted in the same exchange without objection, but the assistant's words and not the user's: the
-flash fires on a real refusal only, never on an honest no-op (`ChartPlanInvalid`, never
-`NoChange`); a fading glow modulates luminance, so the signal does not rest on hue alone; and if
+flash fires on a real refusal only, never on an honest no-op (`PlanRefused`, never
+`PlanNoChange`); a fading glow modulates luminance, so the signal does not rest on hue alone; and if
 sighting ever shows charters not finding the why, the log line is the thing to surface — not a
 redesign.
 
@@ -85,7 +73,7 @@ four payloads "built and waiting" for it. Neither survives:
   returns `ChartSelectionPlan{plan, refused}` (`rock-hero-editor/core/src/chart/chart_edits.h`):
   the whole-plan answer beside each note it could not write, with its reason. It replaced
   `ChartLegatoPlan` and its skip enum. A whole-plan refusal carries its reason too
-  (`ChartPlanInvalid::reason`, the rule's own message where the gate refused), so the slide-tail
+  (`PlanRefused::reason`, the rule's own message where the gate refused), so the slide-tail
   clip's refusal and every other gate refusal reach the log with their words.
 - **The count-plus-dominant-reason shape was the wrong shape for a flash.** A flash needs the
   refused elements' identities, so the planner returns them and the count is the list's size. One
@@ -97,39 +85,39 @@ four payloads "built and waiting" for it. Neither survives:
   note; relational refusals belong to a pair). The ruling already covers it: "every selection where
   the action was refused" — when the whole plan is refused, the whole selection flashes.
 
-## Shape, as built (2026-09-30)
+## Shape, as built
 
-1. **Core: refusals carry reasons, identities and their light.** `ChartPlanRefusal` is
-   `variant<ChartPlanNoChange, ChartPlanInvalid>`, and only the refusal carries a reason and what
-   it lights (`ChartPlanInvalid::lit`), both stated where it refuses — the note planners, the note
-   gate `finalizePlan` and the hold gate `finalizeShapeHoldPlan`. The per-note verbs return
-   `ChartSelectionPlan`, whose `refused` names each note they could not write. In `planNoteWrite`
-   a verb's write either refuses a note with a reason (the harmonic's "no node is reachable") or
-   leaves the no-op test to find "already so", so a no-op is never a refusal; a note the per-note
-   rules refuse is named with the rule's message.
-2. **Controller: one report path.** `reportChartPlanRefusal` logs a whole-plan refusal against its
-   subject and flashes what the refusal lights; `reportChartRefusedNotes` logs each refused note
-   and flashes those; a hold verb's `refuseShapeHoldVerb` logs under the verb's label and flashes
-   the same way; all reach the view through `flashRefusalLight`, which resolves keys through the
-   two authorities the selection is published by and a hand chip through its row's marker index.
-   The funnel `applyChartEditPlan` reports, and its per-note overload
-   reports the notes AFTER applying the rest, because the flash is addressed in the projection the
-   apply published. The junction toggle, `Insert`'s refused cut (the ring's note, since nothing was
-   typed to box) and the harmonic picker's "nothing on offer" report through the same two.
-3. **Port: a one-shot effect**, `IEditorView::flashChartRefusal(ChartRefusalFlash)`, not view state.
-   The test fake records each flash, which is what controller tests assert.
-4. **View: the tab lane.** A glow in `EditorTheme::invalid` spreading outward from each refused
-   mark's outline (the outline the selection ring strokes), clipped outside the mark, at the
-   flash's level; the lane's one frame attachment steps it beside the presence ease, and a new
-   projection drops it. The level is `cos²(π·(pulses − ½)·t/T)`: lit at the keystroke, dark between
-   pulses and at the end.
-5. **The log.** The Quill-backed `RH_LOG_*` facade, at `%APPDATA%/Rock Hero/Rock Hero Editor.log`.
-   The app still has no way to open it (F5): the reason is developer-visible until an "Open Log"
-   entry exists, which is small and the user's to call.
+Built 2026-09-30 for the tab lane and generalized 2026-10-20 to every surface; the light itself —
+what each refusal lights and how it reaches the screen — is under "One rule for every refusal".
 
-**Deliberately silent:** the held-key gestures (move, resize) — their `Invalid` is mostly a visible
-bound, and the gesture step never hands a refused plan to the funnel; an honest `NoChange`; and a
-legato press that CLEARED, whose notes' refusals to set were never asked for.
+1. **Core: refusals carry reasons and identities.** `PlanRefusal` is
+   `variant<PlanNoChange, PlanRefused>` (`rock-hero-editor/core/src/controller/refusal_light.h`),
+   and only the refusal carries a reason and a light, both stated where it refuses. The per-note
+   verbs return `ChartSelectionPlan`, whose `refused` names each note they could not write
+   (`ChartRefusedNote`). In `planNoteWrite` a verb's write either refuses a note with a reason (the
+   harmonic's "no node is reachable") or leaves the no-op test to find "already so", so a no-op is
+   never a refusal; a note the per-note rules refuse is named with the rule's message.
+2. **Controller: the report follows the apply.** `applyChartEditPlan` reports a refused plan, and
+   its per-note overload reports the refused notes AFTER applying the rest, because the flash is
+   addressed in the projection the apply published.
+3. **Port: a one-shot effect**, `IEditorView::flashRefusal(RefusalFlash)`, not view state. The test
+   fake records each flash, which is what controller tests assert.
+4. **View: one glow and one pulse on every 2D surface.** A glow in `EditorTheme::invalid` spreading
+   outward from each refused mark's outline (the outline the selection ring strokes), clipped
+   outside the mark, at the flash's level (`paintRefusalGlow`, `ui/src/shared/flash_pulse.h`); each
+   surface's frame attachment steps it, a refusal arriving mid-flash joins the running one, and a
+   new projection drops it. The level is `cos²(π·(pulses − ½)·t/T)`: lit at the keystroke, dark
+   between pulses and at the end. The 3D preview restates the same pulse's level to the renderer
+   every frame (`HighwayRenderer::setHighlight`).
+5. **The log.** The Quill-backed `RH_LOG_*` facade, at `%APPDATA%/Rock Hero/Rock Hero Editor.log`,
+   every record written by `RefusalLog` (`shared/refusal_log.h`). The app has no way to open it
+   (F5): the reason is developer-visible until an "Open Log" entry exists, which is small and the
+   user's to call.
+
+**Deliberately silent:** an honest `PlanNoChange` — the sustain clamp at the next head and every
+visible bound that plans as one; and a legato press that CLEARED, whose notes' refusals to set
+were never asked for. A held-key gesture's step reports every refusal it meets, like any other key
+(F8, F9).
 
 ## Open — the user's to rule
 
@@ -138,13 +126,13 @@ legato press that CLEARED, whose notes' refusals to set were never asked for.
 | F1 | Pulse count and timing | BUILT at two pulses over 0.6 s (`g_refusal_flash_train` in `shared/flash_pulse.h`); sight and tune |
 | F2 | Drawn geometry: the selection ring turning red, or a glow around it | BUILT as the ring turning red, then made a GLOW (user, 2026-09-30: wider, closer to the accent's halo): reach 0.2 of the mark's size, the accent halo's, after 0.45 sighted too wide; four layers (`g_refusal_glow_*`, `shared/flash_pulse.cpp`), drawn over the caret square (user, 2026-09-30) |
 | ~~F3~~ | ~~Key repeat~~ | BUILT as recommended: a refusal arriving mid-flash joins the running one on its clock, so a held key reads as one pulse train |
-| F8 | The fret shift at the neck's edge (`ShiftChartFrets` below fret 0 or past the last) flashes the selection, while a move stopping at the edge is silent | Sight it: the fret on screen already says why, so under the bound ruling it may belong with the silent bounds |
-| F9 | The move gesture's `Invalid` carries both visible bounds (neck edge, occupied slot) and a real refusal (a landing that would strand a point), so the gesture stays silent for both | If a real move refusal needs its flash, a bound should plan `NoChange` as the sustain clamp does, leaving `Invalid` for refusals only |
+| F8 | The fret shift at the neck's edge (`ShiftChartFrets` below fret 0 or past the last) flashes the selection, and so does a move off the neck (`planMoveSelection`: "the move would leave the neck or the grid") | Sight it: the fret or string on screen already says why, so under the bound ruling both may belong with the silent bounds |
+| F9 | The move gesture's `PlanRefused` carries both visible bounds (the neck's edge, an occupied slot) and a real refusal (a landing that would strand a point), and the gesture reports every refusal, so all of them flash | If a bound should stay silent, it should plan `PlanNoChange` as the sustain clamp does, leaving `PlanRefused` for refusals only |
 | F10 | A keyframe a per-note rule refuses flashes its NOTE's head, since the rule authority names notes, not keyframes | Sight it; naming the keyframe needs the rule authority to name one |
 | F11 | A legato press that CLEARS flashes nothing, even where some selected notes could not have been claimed | Built silent: the press cleared, which never asked those notes to be set; the ruling's "applies to seven, flashes the three" reads either way for a clear |
-| ~~F4~~ | ~~2D only?~~ | RULED 2026-09-21: yes, 2D only |
+| ~~F4~~ | ~~2D only?~~ | ~~RULED 2026-09-21: yes, 2D only~~ — superseded 2026-10-20: the span bars are targets on the 3D preview too, so the preview glows ("One rule for every refusal") |
 | ~~F5~~ | ~~Reason to the log ONLY~~ | RULED 2026-09-21: yes, "for now" — the log line is the thing to surface if charters cannot find the why |
-| ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report. The first is the Tempo Lock's refused anchor move (plan 66 Phase 1, 2026-10-04): the tempo chip glows on the ruler through `IEditorView::flashTempoAnchorRefusal`, on the same pulse and glow, which moved to `ui/src/shared/flash_pulse.h` (named `refusal_flash.h` until plan 65 Phase 3 gave its pulse a second, non-refusal use) so both surfaces share them |
+| ~~F6~~ | ~~Scope of "every selection"~~ | RULED 2026-09-21: notes and keyframes with #278; a marker verb gains it when it first has a refusal to report. The first is the Tempo Lock's refused anchor move (plan 66 Phase 1, 2026-10-04): the tempo chip glows on the ruler, on the same pulse and glow, which moved to `ui/src/shared/flash_pulse.h` (named `refusal_flash.h` until plan 65 Phase 3 gave its pulse a second, non-refusal use) so both surfaces share them. Since 2026-10-20 every chip of every marker kind is a target, through the one `IEditorView::flashRefusal` |
 | ~~F7~~ | ~~40-Q5~~ | RULED 2026-09-21: a silent floor, no flash — see "A visible bound is not a refusal" above. The lock itself was ruled 2026-08-09 |
 
 **A second consumer, RULED 2026-09-21 (user), STRUCK 2026-09-30 (user).** An `Alt` digit or
@@ -169,193 +157,152 @@ and it was not: the task store kept the pre-ruling wording. Recovered from the t
 2026-09-21. A parallel design review run the same day, before the recovery, recommended a fixed
 text line under the transport; it is superseded by the ruling and kept out of this plan.
 
-## Design session 2026-10-20: one rule for every refusal
+## One rule for every refusal (ruled 2026-10-20)
 
-For the user to rule from. Read against the working tree of 2026-10-20 (the uncommitted rewrite of
-the refusal light in `rock-hero-editor/core`); re-verify before acting on a row.
+Built in `bdc466c4`, `03a4ec54`, `38154b3e`, `fc2fd3b3` and `05edcc5f`; everything below was read
+against `05edcc5f`.
 
-### The mechanism today
+### The ruling
 
-A refused chart plan is `ChartPlanInvalid{reason, lit}`, where `lit` is a `ChartRefusalLight{notes,
-keyframes, fret_hand_position}` — chart keys plus at most one hand position's place
-(`rock-hero-editor/core/src/chart/chart_edits.h`) — stated at the refusing site, never defaulted.
-Three controller paths feed the one flash path `flashRefusalLight`
-(`editor_controller_impl.h`, defined in `chart_handlers.cpp`): `reportChartPlanRefusal` (logs a
-whole-plan refusal against the verb's SUBJECT, flashes `lit`), `reportChartRefusedNotes` (logs and
-flashes each per-note refusal of a `ChartSelectionPlan`) and `refuseShapeHoldVerb` (logs under the
-hold verb's label, flashes `lit`); `insertAtChartCaret` and `flashFretHandChip` call it directly.
-It resolves the keys to projection indices and the position to its chip's marker index, and hands
-`IEditorView::flashChartRefusal(ChartRefusalFlash{notes, keyframes, fret_hand_position})` to the tab
-lane, which glows exactly those: notes, keyframes, one hand-position chip. The marker funnel's
-refusal is reason-only (`MarkerModelInvalid{reason}`, `marker_model_commit.h`); the verb that
-produced the model lights its own chip, if it chooses to. Ruler chips are a SEPARATE port,
-`IEditorView::flashRulerChipRefusal(RulerChipKey{row, start})` for the Section, Tempo and
-TimeSignature rows, reached by `flashSongSectionChip` (section verbs), `refuseTimeSignatureVerb` and
-the meter move's commit refusal, and `refuseLockedTempoAnchorMove` (Tempo Lock only);
-`ChartRefusalLight` cannot name a ruler chip. Nothing can light a hold's own furniture (its bracket
-or rails): a hold is lit as the notes sounding in it. Nothing lights a tone-region chip, and nothing
-flashes on the 3D highway (F4).
+> A refusal flashes the thing you tried to change and the thing that stood in its way, and the log
+> carries the sentence.
+
+- **Where they are the same thing, it flashes once.** A refusal naming the very note, chip or hold
+  the key acted on glows that one mark, never twice and never in a second style.
+- **Where nothing stood in the way, only the subject flashes.**
+- **Where there is no subject on screen** — a prompt's text, no chart loaded — **only the log
+  speaks.**
+- **Every authored thing on the timeline is a target:** notes and keyframes; every chip — the
+  fret-hand position, the tempo anchor, the time signature, the section, the tone region; and the
+  span and none-hold bars, on the 2D lane and on the 3D preview.
+
+### The mechanism, as shipped
+
+A refusal's light is one type, `RefusalLight` (`controller/refusal_light.h` under
+`rock-hero-editor/core/src/`): `RefusalTarget`s of any kinds, each named exactly as the selection
+names that kind (`ChartNoteKey`, `ChartKeyframeKey`, `SpanSelection`, `NoneHoldSelection`,
+`FretHandPositionSelection`, `SongSectionSelection`, `TempoAnchorSelection`,
+`TimeSignatureSelection`, `ToneRegionSelection`), so a refusal and a selection name a thing the one
+way. Each refusing site adds what it knows (`PlanRefused::lit`, `ChartRefusedNote::lit`,
+`TempoMapEditError::lit`), and the controller adds the subject it holds — the selection or operand
+a chart verb planned over (`reportChartPlanRefusal`, `reportChartRefusedNotes`,
+`reportChartFretEntryRefusal`), whatever was selected when a hold verb ran — the chart selection's
+notes and keyframes or the selected marker, a time span lighting nothing (`refuseShapeHoldVerb`,
+through `selectionLight`) — the chip a marker verb
+acted on (`refuseMarkerVerb`, which every marker verb and the marker funnel refuse through) — so
+neither has to know what the other added, and the flash glows the union as one set. A rule's
+error carries its records, so no verb restates a rule to find what stood in its way: a tempo-map
+error names its anchors and meter places (`tempoMapCulprits`), a tone-track error its regions
+(`toneTrackCulprits`), the coverage rule the uncovering position and the stops it misses
+(`FretHandPositionsSnapshot::validate`). The marker funnel returns the same refusal type the chart
+planners do (`judgeMarkerModel`: `std::expected<…, PlanRefusal>`, each snapshot's `validate`
+returning `std::optional<PlanRefused>`), and a move adds the marker standing where the moved one
+would land (`commitMarkerMove`). Every flash takes one path, `flashRefusalLight`
+(`chart/chart_handlers.cpp`), which resolves each target through the authority its surface draws it
+by and hands the view one `RefusalFlash` through one port, `IEditorView::flashRefusal`.
+`EditorView::flashRefusal` hands each surface its share: the tab lane (`TabView::flashRefusal`) its
+notes, keyframes, fret-hand position chips and span and none-hold rails; the ruler
+(`TimelineRuler::flashRefusal`) its section, tempo and time-signature chips by `RulerChipKey`; the
+tone row (`ToneTrackView::flashRefusal`) its regions by id; and the 3D preview
+(`PreviewSurface::flashRefusal`) a `HighwayHighlight` of its spans' rails and its positions' floor
+numbers. Every painter glows the set it is given and never knows subject from culprit. A typed tone
+name that duplicates another is input the charter retypes, not a broken model: it is logged under
+the verb's label and lights every region bearing the name (`reportedDuplicateToneName`), the prompt
+having no subject on screen.
 
 ### Census
 
-S = the refused selection or subject (what the verb acted on); C = a culprit the reason names
-besides S. "as notes" = a hold lit through the notes sounding in it. All files under
-`rock-hero-editor/core/src/`.
+Every refusal at `05edcc5f`. **Subject** is what the controller adds — "sel" is the selection or
+operand a chart verb planned over (a gesture's live selection), "hold" whatever was selected when
+the hold verb ran — its notes and keyframes, or the span or none hold (a time selection adds
+none), "chip" the marker the verb acted on;
+**Culprit** is what the refusing site adds beyond it. A target the projection cannot resolve (a
+note or chip the refused edit would have made) lights nothing, and "—" lights nothing. Every row
+logs its reason. Paths are under `rock-hero-editor/core/src/`.
 
-| # | Site | Message | Lights today | S lit | C lit |
-|---|---|---|---|---|---|
-| 1 | `chart/chart_edits.cpp:finalizePlan` (truncation) | the edit would cut an authored statement off a ring it shortens | the ring + the head bounding it | when S is one of the two | yes |
-| 2 | `chart_edits.cpp:validateAffected` (alone) | the rule's message | the first affected note the rule refuses | one note of S | — |
-| 3 | `validateAffected` (pair) | the rule's message | the pair | part of S | the neighbour, yes |
-| ~~4~~ | ~~`fretHandCoverageRefusal` (both gates)~~ retired: positions yield to notes and holds, 2026-10-20 | ~~hand position P does not cover frets … gripped from Q~~ | ~~first uncovering position's chip + every note gripping a missed stop~~ | ~~no, unless S grips a missed stop~~ | ~~yes (a stop taken from a slide arrival: chip only)~~ |
-| 5 | `finalizeShapeHoldPlan` (reader rule) | the rule's message | every changed hold, as notes | as notes | as notes |
-| 6 | `finalizeShapeHoldPlan` (normalizer drop) | H would hold nothing | H, as notes | as notes | — |
-| 7 | `finalizeShapeHoldPlan` (no fit) | H does not fit its notes: its shape closes at X | notes sounding between H's stated end and X | no | yes |
-| 8 | `planSteppedShapeHoldEdge` (nearest candidate) | that candidate's own refusal (rows 5–7, 10–11) | that row's light | per row | per row |
-| 9 | `planSteppedShapeHoldEdge` (no candidate) | no note boundary or grid line later/earlier | the moved hold, as notes | as notes | — |
-| 10 | `movedShapeHolds` (moved emptied) | H would hold nothing | the moved hold, as notes | as notes | — |
-| 11 | `movedShapeHolds` (neighbour emptied) | the edge would push H′ to nothing | H′, as notes | no | as notes |
-| 12 | split walk (junction split, `planCutRing`) | a scrape has no junction to split | the note + the junction keyframes asked (a cut's instant resolves to none) | yes | — |
-| 13 | split walk | the split instant is not inside the ring | same as 12 | yes | — |
-| 14 | `joinHeadIntoPath` | the ring before this head has no stop to hand to a point | the predecessor | **no** | yes |
-| 15 | `joinHeadIntoPath` | a scrape or harmonic head cannot become a point on a ring | the head | yes | — |
-| 16 | `planInsertKeyframe` | no note stands at that slot | nothing | — | — |
-| 17 | `planCutRing` | no note stands at that slot | nothing | — | — |
-| 18 | `planMoveSelection` | the move would stand a point on or past its ring's end | that keyframe | one element of S | — |
-| 19 | `planMoveSelection` | the move would leave the neck or the grid | the moved notes | notes; selected keyframes dark | — |
-| 20 | `planMoveSelection` | a moved note would land on a note that stays | the unmoved notes in the way | **no** | yes |
-| 21 | `planRetypeFrets` | a fret-hand harmonic has no stop to retype | that note | one element of S | — |
-| 22 | `planToggleJunctions` (cut) | a head must sit on a stated fret | that keyframe | one element of S | — |
-| 23 | `planToggleJunctions` (join) | nothing earlier on the string holds a path to join | that head | one element of S | — |
-| 24 | `planNoteWrite` (verb's write) | the verb's reason (harmonic: no node is reachable, …) | each refused note | yes | — |
-| 25 | `planNoteWrite` (rule) | the rule's message | each refused note | yes | — |
-| 26 | `planSetLegato` | the picking hand strikes it, so no connection describes it | each refused note | yes | — |
-| 27 | `planSetLegato` | nothing earlier … to connect to / the ring before it stops short and cannot be grown to reach it / no connection between the two stops | each refused note | yes | the short ring: **no** |
-| 28 | `chart/chart_handlers.cpp` harmonic picker, nothing on offer | each note's reason | each note | yes | — |
-| 29 | `chart_handlers.cpp:applyChartEditPlan` (Note Lock) | Note Lock is on: … | the notes the plan rewrote | notes; selected keyframes dark | — |
-| 30 | `planChartFretEntry` (Note Lock) | Note Lock is on: … | per target: the ring, the retyped notes + keyframes, the hand chip; nothing for an insert at an empty slot | red box while typed; flashed only through `Insert` | — |
-| 31 | `planChartFretEntry` | no chart is loaded | nothing | — | — |
-| 32 | `armOrSettleChartFretEntry` (any refused digit entry) | the plan's reason | the pending red box only; `lit` is not flashed | the box | **no** (e.g. row 3's neighbour) |
-| 33 | `chart/fret_hand_handlers.cpp` hand-position Add at cursor (funnel) | the funnel's reason (coverage, Note Lock) | a derived chip at that place if one stands, else nothing | — | **no** |
-| 34 | `refuseDerivedFretHandPosition` (Move, Delete) | P is derived, so nothing is stored there | the chip | yes | — |
-| 35 | `moveSelectedFretHandPosition` | fret-hand position would leave the chart | the chip | yes | — |
-| 36 | `moveSelectedFretHandPosition` (funnel) | occupied start, past end, coverage, Note Lock | the chip at its old place | yes | **no** |
-| 37 | `planFretHandFret` | the funnel's reason | the red box (`lit` names the chip, unflashed) | the box | no |
-| 38 | `ClearFretHandEnd` (funnel) | the funnel's reason | nothing | **no** | **no** |
-| 39 | `deleteSelectedFretHandPosition` (funnel) | Note Lock | nothing | **no** | — |
-| 40 | `PruneFretHandPositions` | no stored hand position is redundant / Note Lock | nothing | — | — |
-| 41 | `chart/shape_hold_handlers.cpp:ChooseHold` | nothing is selected to hold | nothing | — | — |
-| 42 | `timeline/section_handlers.cpp` Insert (funnel) | empty name, off grid, at terminal, place held, Note Lock | nothing (prompt) | — | **no** (the holding section) |
-| 43 | Rename (funnel) | blank name, Note Lock | the section chip | yes | — |
-| 44 | `moveSelectedSongSection` | section would leave the song | the chip | yes | — |
-| 45 | `moveSelectedSongSection` (funnel) | terminal, place held, Note Lock | the chip at its old place | yes | **no** |
-| 46 | `deleteSelectedSongSection` (funnel) | Note Lock | the chip | yes | — |
-| 47 | `timeline/meter_handlers.cpp:onTimeSignatureSetRequested` | not a time signature: text | nothing (prompt) | — | — |
-| 48 | `SetTimeSignature` | cannot start at or past the end of the song | nothing | — | — |
-| 49 | `SetTimeSignature` (`commitGridModel`) | tempo-map rule (reign too short) | nothing | **no** | **no** |
-| 50 | `deleteSelectedTimeSignature` | measure 1 cannot be deleted / derived | the chip | yes | — |
-| 51 | `deleteSelectedTimeSignature` (`commitGridModel`) | tempo-map rule | nothing | **no** | **no** |
-| 52 | `moveSelectedTimeSignature` | measure 1 / derived / to or past the end | the chip | yes | — |
-| 53 | `moveSelectedTimeSignature` | cannot step onto or past its neighbour | the moved chip | yes | **no** |
-| 54 | `moveSelectedTimeSignature` (`commitMarkerMove`) | ReignTooShort, … | the chip | yes | **no** |
-| 55 | `timeline/tempo_handlers.cpp:refuseLockedTempoAnchorMove` (nudge, drag, release) | Tempo Lock is on: … | the tempo chip | yes | — |
-| 56 | `commitTempoEdit` (Add, Set BPM, Move, Delete, Scale) | the edit's message (occupied, terminal, neighbour, first anchor, tempo) | nothing | **no** | **no** |
-| 57 | `commitTempoEdit` (funnel, Note Lock branch) | the funnel's reason | nothing | **no** | **no** |
-| 58 | `MoveTempoAnchor` drag event | the edit's message | nothing (last legal time held) | no | no |
-| 59 | `onTempoSpanBpmRequested`, `onScaleTempoRequested` | not a number: text / the parse's message | nothing (prompt) | — | — |
-| 60 | `ScaleTempo` relabel (Note Lock) | `scaledTimeline`'s message / funnel | nothing | — | — |
-| 61 | `tone/tone_handlers.cpp` create/delete/reset/retone core errors | `RH_LOG_WARNING`, not the refusal log | nothing | no | no |
-| 62 | `reportedDuplicateToneName` | an error dialog (`reportError`) | nothing | — | — |
-| 63 | every tone funnel refusal (`commitMarkerModel`, `commitMarkerMove`) | the funnel's reason | nothing (no tone chip target) | **no** | **no** |
-| 64 | `moveSelectedToneRegionStart` | tone change would leave the song | nothing | **no** | — |
-| 65 | `SetToneAutomationPoints` | Note Lock is on: … | nothing | — | — |
+| # | Site | Reason (logged) | Subject | Culprit |
+|---|---|---|---|---|
+| 1 | `chart/chart_edits.cpp:finalizePlan` (truncation) | the edit would cut an authored statement off a ring it shortens | sel | the ring and the head bounding it |
+| 2 | `validateAffected` (alone) | the rule's message | sel | the note the rule judged |
+| 3 | `validateAffected` (pair) | the rule's message | sel | both notes of the pair |
+| 4 | `finalizeShapeHoldPlan` (reader rule) | the rule's message | hold | every hold the candidate changed |
+| 5 | `finalizeShapeHoldPlan` (normalizer drop) | H would hold nothing | hold | H |
+| 6 | `finalizeShapeHoldPlan` (no fit) | H does not fit its notes: its shape closes at X | hold | the notes sounding between H's stated end and X |
+| 7 | `planSteppedShapeHoldEdge` (nearest candidate) | that candidate's own refusal (rows 4–6, 9, 10) | hold | that row's culprit |
+| 8 | `planSteppedShapeHoldEdge` (no candidate that way) | no note boundary or grid line later / earlier | hold | the moved hold: the subject, once |
+| 9 | `movedShapeHolds` (moved hold emptied) | H would hold nothing | hold | the moved hold: the subject, once |
+| 10 | `movedShapeHolds` (neighbour emptied) | the edge would push H′ to nothing | hold | H′ |
+| 11 | `splitNoteIntoProducts` (junction toggle, `planCutRing`) | a scrape has no junction to split | sel | the note and the junctions asked of it |
+| 12 | `splitNoteIntoProducts` | the split instant is not inside the ring | sel | the note and the junctions asked of it |
+| 13 | `joinHeadIntoPath` | the ring before this head has no stop to hand to a point | sel | the predecessor |
+| 14 | `joinHeadIntoPath` | a scrape or harmonic head cannot become a point on a ring | sel | the head, within the subject |
+| 15 | `planInsertKeyframe`, `planCutRing` | no note stands at that slot | — | — |
+| 16 | `planMoveSelection` | the move would stand a point on or past its ring's end | sel | that keyframe, within the subject |
+| 17 | `planMoveSelection` | the move would leave the neck or the grid | sel | the moved notes, within the subject |
+| 18 | `planMoveSelection` | a moved note would land on a note that stays | sel | the unmoved notes in the way |
+| 19 | `planRetypeFrets` (`ShiftChartFrets`, a retyping digit) | a fret-hand harmonic has no stop to retype | sel, or the entry's target (row 26) | that note, within the subject |
+| 20 | `planToggleJunctions` (cut) | a head must sit on a stated fret | sel | that keyframe, within the subject |
+| 21 | `planToggleJunctions` (join) | nothing earlier on the string holds a path to join | sel | that head, within the subject |
+| 22 | `planNoteWrite` (the verb's write; the per-note rules) | the verb's reason (harmonic: no node is reachable, …) or the rule's message | each refused note | — |
+| 23 | `planSetLegato` | the picking hand strikes it, so no connection describes it / nothing earlier on the string to connect to | each refused note | — |
+| 24 | `planSetLegato` | the ring before it stops short and cannot be grown to reach it / no connection between the two stops | each refused note | the predecessor ring |
+| 25 | `chart/chart_handlers.cpp` harmonic picker, nothing on offer | each note's reason | each note | — |
+| 26 | `reportChartFretEntryRefusal` (a refused bare or `Alt` digit, a refused `Insert`) | the plan's reason | the entry's target: the ring a cut or point divides, the objects a retype addresses, the hand chip; nothing for an insert at an empty slot | whatever the plan's refusal lit (rows 1–3, 11, 12, 15, 19, 32, 33) |
+| 27 | `replanChartFretEntry` (Note Lock) | Note Lock is on: … | the entry's target, as row 26 | — |
+| 28 | `replanChartFretEntry` | no chart is loaded | — | — |
+| 29 | `applyChartEditPlan` (Note Lock, every chart verb) | Note Lock is on: … | the notes the plan rewrites or removes, and the holds and positions it drops or changes; an insert at an empty slot logs alone | — |
+| 30 | `chart/shape_hold_handlers.cpp` `ChooseHold` | nothing is selected to hold | — | — |
+| 31 | `chart/fret_hand_handlers.cpp` Move, Delete (derived) | P is derived, so nothing is stored there | chip | — |
+| 32 | `FretHandPositionsSnapshot::validate` (coverage), via Add at cursor, Move, either fret, Clear End | P does not cover … | chip; for the Add, the place, which lights a derived chip standing there | P's chip and the notes gripping every stop it misses |
+| 33 | `FretHandPositionsSnapshot::validate` (stream rules) and the Note Lock, via the same verbs and Delete | the rule's message / Note Lock is on: … | chip, as row 32 | — |
+| 34 | Move (`moveSelectedFretHandPosition`) | fret-hand position would leave the chart | chip | — |
+| 35 | Move, the funnel's refusal | occupied start, past the end, as rows 32–33 | chip | the chip at the landing, where one stands, and row 32's culprits |
+| 36 | `PruneFretHandPositions` | no stored hand position is redundant | — | — |
+| 37 | `PruneFretHandPositions`, the funnel's refusal | the rule's message / Note Lock is on: … | — (every stored position) | row 32's culprits |
+| 38 | `timeline/section_handlers.cpp` Insert, the funnel's refusal | empty name, off the grid, at or past the terminal, place held, Note Lock | the place, which lights the section holding it: subject and culprit at once | — |
+| 39 | Rename, Delete, the funnel's refusal | blank name / Note Lock is on: … | chip | — |
+| 40 | `moveSelectedSongSection` | section would leave the song | chip | — |
+| 41 | `moveSelectedSongSection`, the funnel's refusal | onto the terminal, place held, Note Lock | chip | the section holding the landing place |
+| 42 | `timeline/meter_handlers.cpp:onTimeSignatureSetRequested` | not a time signature: text | the chip of the measure it was typed on | — |
+| 43 | `SetTimeSignature` | a time signature cannot start at or past the end of the song | — | — |
+| 44 | `SetTimeSignature`, the grid funnel (`SongTimelineSnapshot::validate`) | the timeline rule's message (a reign shorter than one of its measures, …) | the chip of the reign a Set restates; an Add's beat holds none | the anchors and meters a tempo-map rule names, the regions a tone rule names; a section or chart rule names none |
+| 45 | `deleteSelectedTimeSignature` | the time signature at measure 1 cannot be deleted / the measure N meter is derived | chip | — |
+| 46 | `deleteSelectedTimeSignature`, the grid funnel | as row 44 | chip | as row 44 |
+| 47 | `moveSelectedTimeSignature` | measure 1 cannot move / derived / to or past the end of the song | chip | — |
+| 48 | `moveSelectedTimeSignature` | a time signature cannot step onto or past its neighbour | chip | the neighbour's chip |
+| 49 | `moveSelectedTimeSignature`, the funnel (`commitMarkerMove`) | as row 44 | chip | the chip at the landing measure, where one stands, and row 44's culprits |
+| 50 | `timeline/tempo_handlers.cpp:onTempoSpanBpmRequested`, `onScaleTempoRequested` | not a number: text / the parse's message | the anchor the tempo was typed on / — | — |
+| 51 | `refuseLockedTempoAnchorMove` (nudge, each drag event, release) | Tempo Lock is on: … the tempo anchor at … is blocked | chip | — |
+| 52 | `MoveTempoAnchor` drag event | the edit's message | chip | the anchors and meters a broken rule names |
+| 53 | `commitTempoEdit`, the edit's refusal (Add, Set Tempo, Move, Delete, Scale with the lock off) | occupied, at or past the terminal, onto a neighbour, the first anchor, the tempo, a broken rule | the anchor addressed — Add's place lights an anchor standing there; Scale's subject is the whole map, which no chip draws | the anchors and meters a broken rule names (`TempoMapEditError::lit`) |
+| 54 | `commitTempoEdit`, the funnel's refusal (`TempoMapSnapshot`, or `SongTimelineSnapshot` with the Note Lock on) | the rule's message | as row 53 | as row 44 |
+| 55 | Scale Tempo with the lock on (`scaledTimeline`) | the relabel's message | — | — |
+| 56 | Scale Tempo with the lock on, the grid funnel | as row 44 | — (the whole song) | as row 44 |
+| 57 | `tone/tone_handlers.cpp` Create Tone Region, Add Tone: the core edit or the funnel | the core's message / the rule's / Note Lock is on: … | the region holding the place, which the insert splits | the regions the error names |
+| 58 | Delete Tone Region, its sole-region reset, Change Tone of Region: the core edit or the funnel | as row 57 | the region | the regions the error names |
+| 59 | Move Tone Boundary (drag): the core edit or the funnel | as row 57 | the region the boundary opens | the regions the error names |
+| 60 | `moveSelectedToneRegionStart` | tone change would leave the song | the region | — |
+| 61 | `moveSelectedToneRegionStart`: the core edit or the funnel (`commitMarkerMove`) | as row 57 | the region | the regions the error names |
+| 62 | `ToneModelSnapshot::validate` (catalog), via the tone verbs | tone is not in the arrangement catalog | as the verb's | the region pointing outside the catalog |
+| 63 | Rename Tone, the funnel's refusal | the rule's message / Note Lock is on: … | — (a catalog tone, which no chip draws) | the regions the error names |
+| 64 | `reportedDuplicateToneName` (Rename Tone, Add Tone, a retone to a new tone) | A tone named "…" already exists in this arrangement. | — | every region bearing the name |
+| 65 | `SetToneAutomationPoints` (Note Lock) | Note Lock is on: … | — | — |
+| 66 | `controller/marker_model_commit.h` (`landMarkerModel`, `commitMarkerMove`) | no model to apply onto | as the verb's | — |
 
-### Findings from the sighting
+Not refusals, and outside the table: a mint failure is an error dialog (`reportError`); an action
+naming a tone region, plugin instance or automation write the model no longer holds is ignored with
+an `RH_LOG_WARNING`; an honest `PlanNoChange` reports nothing.
 
-- **(a) The subject goes dark.** Lengthening a note's tail through an authored position's reign into
-  a chord refuses with row 4, which lights the position's chip and the chord's uncovered notes but
-  NOT the note whose tail was lengthened. Rows 14, 20 and 11 share the shape: what the key acted on
-  is dark, only what stood in its way glows.
-  Row 4's example retired: positions yield to notes and holds, 2026-10-20.
-- **(b) A hold has no target.** Every refusal naming a hold (5–11) lights the notes sounding in it,
-  never its bracket or rails: neither the tab lane nor the highway can glow a hold.
-- **(c) A composed message hid the culprit.** The hold-edge stepper's own "no boundary … where the
-  hold fits" named only the direction and lit only the moved hold; it now surfaces the nearest
-  boundary's own refusal (row 8).
-- **(d) A partial culprit misleads.** The coverage refusal first named one missed stop of two; the
-  charter fixed one and met the next. It now names and lights them all (row 4).
-  Retired: positions yield to notes and holds, 2026-10-20.
-- **(e) Doc drift.** The held-key move and sustain steps report their refusals today
-  (`chart_handlers.cpp`, `reportChartPlanRefusal` after `commitChartGestureStep`), so rows 18–20
-  and the sustain path flash, which "Deliberately silent" and F9 above say they do not; and the
-  junction toggle's comment ("flashes the selection it refused") predates rows 12–15/22–23.
+### What is not a target
 
-### Candidate rules, applied
-
-- **R1** — lights only what the refusal names (today).
-- **R2** — the refused selection always lights, and the named culprits light beside it.
-- **R3** — lights the culprit when one is named, else the selection (the 2026-08-28 optional form).
-
-| Rows | R1 (today) | R2 | R3 |
-|---|---|---|---|
-| 9, 10, 24–26, 27 (first and third reasons), 28, 34, 35, 43, 44, 46, 50, 52, 55 | S exactly | same | same |
-| 2, 3, 12, 13, 15, 18, 21–23 (one element of a wider S) | the named element(s) | all of S, the named element(s) within it | same as today |
-| 19, 29 (S's keyframes dark) | the notes | all of S | all of S (no culprit) |
-| 1 | ring + bounding head | + rest of S | the ring only: the edit's own product goes dark |
-| 7, 11, 14, 20 (S dark) | C only | S + C | same as today |
-| 27 (short-ring reason) | the note | + the predecessor ring | the predecessor ring only: the note goes dark |
-| 36, 45, 53, 54 (C dark) | S's chip | S's chip + C (holding placement/section, neighbour meter, short reign) | C only |
-| 33, 42 (no S on screen, C dark) | nothing or a derived chip | C (+ S where a chip stands) | C |
-| 5, 6, 8 (holds) | as notes | the hold itself + C | C, else the hold — every rule needs a hold target |
-| 32, 37, 30 typed (red box) | the box | box + C flashed | open: C flashed instead of, or beside, the box |
-| 38, 39, 49, 51, 56, 57, 58, 63, 64 (S on screen, nothing lit) | nothing | S (+ C) | C, else S |
-| 16, 17, 31, 40, 41, 47, 48, 59–62, 65 (nothing on screen) | nothing | nothing | nothing |
-
-Open per rule:
-
-- **R1**: what does a flash with S dark communicate (finding a)? The charter sees an unrelated glow
-  and must infer what they pressed was refused; rows 38–64 lighting nothing contradicts "the flash
-  is for a key that did nothing".
-- **R2**: does S double-light when S IS the named thing (rows 2, 12, 15, 34…) — one glow, or a second
-  glow style to tell "refused" from "in the way"? With one style, S and C read as the same kind of
-  mark.
-- **R3**: row 1 and row 27 lose the subject; in rows 36/45/53/54 the moved chip, the thing the key
-  addressed, goes dark — the same complaint as finding (a), relocated.
-- **All**: rows 5–11 cannot be honoured without a hold target (see the requirement below).
-
-### Stated requirement: every authored thing needs a glow target (user, 2026-10-20)
-
-"holds as well as other chips like BPM/time sig/section will need to be able to flash too on
-refusal." Not a question: every authored thing on the timeline needs a refusal-glow target.
-
-| Target | Exists today | Reached by |
-|---|---|---|
-| Note, keyframe (tab lane) | yes | `flashChartRefusal` |
-| Fret-hand position chip (tab lane) | yes | `ChartRefusalFlash::fret_hand_position` |
-| Section chip (ruler) | yes | `flashSongSectionChip` → `flashRulerChipRefusal` |
-| Time-signature chip (ruler) | yes | `refuseTimeSignatureVerb`, the meter move's commit refusal |
-| Tempo (BPM) anchor chip (ruler) | yes, but used by the Tempo Lock only | `refuseLockedTempoAnchorMove`; rows 56–58 never reach it |
-| Hold bracket / rails, tab lane | **no** | — |
-| Hold furniture, 3D highway | **no** (no refusal flash exists in 3D; F4 ruled 2D only, which this requirement reopens for holds) | — |
-| Tone-region chip | **no** (not in the user's list; recorded as fact) | — |
-
-A refusal's light today cannot carry a ruler chip (`ChartRefusalLight` has no such field), so a
-chart refusal whose culprit is a meter or tempo chip has no way to name it.
-
-### Open questions for the ruling
-
-1. **The hold target.** What glows for a hold — bracket, rails, both — on the tab lane and the
-   highway, and does the hold light as itself instead of, or beside, its notes?
-2. **The marker-lane gaps.** (a) A refused Add of a hand position (row 33) lights a derived chip
-   standing there or nothing — light the culprit, the would-be chip, or nothing? (b) A refused time
-   signature (rows 48, 49, 51) lights nothing. (c) A refused tempo edit (rows 56–58) lights
-   nothing, though the tempo chip target exists. (d) Prompt-text refusals (rows 42, 47, 59) have
-   nothing on screen: is the log the whole answer there?
-3. **The truncation's two marks (row 1).** Keep both the ring and the head that cuts it, given one
-   of the two is the edit's own product with no mark yet?
-4. **The Note Lock's lights (rows 29, 30, 39, 46, 57, 63, 65).** The lock is the culprit and is not
-   on the lane: light S, the lock's toolbar control, or both?
-5. **The log line.** Does the log stay the only carrier of the full sentence (F5), now that a glow
-   may stand for several different things at once (S, C, or both)?
-6. **One port or two.** Should a refusal's light be able to name a ruler chip, so a chart refusal
-   can light a tempo or meter culprit and the marker funnel's refusal can carry a light at all?
+- **The lock toolbar controls.** The Note Lock and the Tempo Lock refuse as culprits that are
+  nothing on the timeline; the log names the lock, and the flash lights what the lock froze.
+- **Automation points and lanes.** A refused automation write logs, and lights nothing.
+- **A prompt's text, and anything with no mark on screen:** a typed meter, tempo, factor or tone
+  name; a catalog tone; the whole tempo map or song (Scale Tempo); the stored positions as a whole
+  (Prune); an edit with no chart loaded.
+- **What the refused edit would have made.** It has no mark yet, so its target resolves to nothing;
+  the authored thing it ran into is what glows.
+- **On the 3D preview: notes, keyframes, the ruler's and tone row's chips, and none holds.** The
+  preview glows the spans' rails and the hand positions' floor numbers; a none hold draws nothing
+  on the highway, and the rest glow on the 2D surfaces.

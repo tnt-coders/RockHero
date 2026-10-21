@@ -1263,16 +1263,16 @@ written down.
   Not required while only these two readers exist; raised by the review of e40cab06.
 
 - **The design-pattern guide's planner list is stale.** `docs/developer/design-patterns.md` counts
-  "the thirteen planners" (lines 176, 191 and 201) and enumerates thirteen names at 191-194, but the
+  "the thirteen" (line 182) and "the twelve planners" (line 200) and enumerates twelve names, but the
   enumeration omits four functions that DO carry the planner shape — `planInsertKeyframe`,
   `planSetHarmonic`, `planClearHarmonic` and `planClearPinchHarmonic` — while naming three that
   return other plan types: `planSetLegato` (`ChartSelectionPlan`), `planSettleChart` (a bare
   `ChartEditPlan`, never refused) and `planToggleJunctions`
-  (`std::expected<ChartJunctionPlan, ChartPlanRefusal>`). Since 2026-09-30 the eight per-note
+  (`std::expected<ChartJunctionPlan, PlanRefusal>`). Since 2026-09-30 the eight per-note
   technique verbs also return `ChartSelectionPlan` rather than
-  `std::expected<ChartEditPlan, ChartPlanRefusal>`, so neither the count nor the membership is right
+  `std::expected<JudgedChartPlan, PlanRefusal>`, so neither the count nor the membership is right
   under either reading. Pre-existing. Fix shape: decide what the guide means by "planner" (returns
-  `std::expected<ChartEditPlan, ChartPlanRefusal>`, or any plan-producing function), then list by
+  `std::expected<JudgedChartPlan, PlanRefusal>`, or any plan-producing function), then list by
   that rule — or drop the count and point at `chart_edits.h`, which cannot go stale.
 
 ## Found while unifying fret and held (2026-09-17)

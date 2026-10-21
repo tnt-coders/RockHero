@@ -338,8 +338,8 @@ at it does nothing.
   (`chart_edits.cpp:1122-1136`.) Typing a digit on the HEAD therefore already re-stops the harmonic
   correctly, node and all, with the finalize gate judging legality.
 - On the **Held** channel it refuses outright: `if (!pickingHandStopsString(note.attack,
-  note.harmonic_node)) return std::unexpected{ChartPlanRefusal::Invalid};`
-  (`chart_edits.cpp:1023-1026`). That is correct as a statement about the FIELD — a harmonic has no
+  note.harmonic_node))` returns a whole-plan refusal (`chart_edits.cpp:1023-1026` at the
+  sighting). That is correct as a statement about the FIELD — a harmonic has no
   planted finger to author, the plant beneath it being derived from the pull-off that follows — but
   from the charter's seat it reads as "the number I am pointing at cannot be typed".
 

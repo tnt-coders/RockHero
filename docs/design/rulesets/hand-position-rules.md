@@ -120,7 +120,8 @@ feeding the positions. An authored position is downstream of both the notes and 
 - **A position is refused where it would not cover the stops gripped at its place.** Adding,
   moving or retyping a position the notes and holds there contradict states something false, and
   is refused with the rule's sentence, as a hold that does not fit its notes is refused
-  (`validateFretHandCoverage`).
+  (`validateFretHandCoverage`). The refusal lights the position's chip and the notes gripping
+  every stop it misses, so the charter sees every stop to fix at once.
 - **A note or hold edit that leaves a position uncovering drops it.** The position never refuses
   an edit to either. After a note edit or a hold edit, as on load, the normalizer drops every
   authored position that no longer covers the stops gripped at its place, inside the edit's own

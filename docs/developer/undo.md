@@ -44,7 +44,9 @@ kind, carrying that kind's whole model before and after; every marker verb commi
 funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,
 validates it against one `MarkerJudgeContext` (`marker_judge_context.h`: the session and the
 displayed chart's memoized notes layer, the same for every snapshot kind, so the funnel names no
-kind), refuses it whole, records nothing when nothing changed, releases a selection naming a
+kind), refuses it whole — the refusal (`PlanRefused`) logged under the verb's label, and the
+verb's subject lit together with whatever the rule's records name as standing in its way
+(`refuseMarkerVerb`) — records nothing when nothing changed, releases a selection naming a
 marker that is gone, resyncs the audible tone and the engine's tempo-derived caches
 (`syncTempoDerivedAudio`) and publishes once. The entry it pushes holds each side's WRITTEN form
 (`writtenModel`, `writtenMarkerEdit`): every model is its own, except the song timeline, which

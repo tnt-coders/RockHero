@@ -171,9 +171,10 @@ forbids.
 ## Plan / apply split
 
 A mutation is a pure, headless `plan...()` function that reads the model and returns an edit
-description (`std::expected<Plan, ChartPlanRefusal>` — a plan, or WHY there is none: `NoChange` for
-a valid no-op, `Invalid` for a rule refusal; the two emptinesses are distinct alternatives because
-collapsing them onto one `std::nullopt` makes every refusal silent) without mutating anything; a
+description (`std::expected<Plan, PlanRefusal>` — a plan, or WHY there is none: `PlanNoChange`
+for a valid no-op, `PlanRefused` for a rule refusal; the two emptinesses are distinct alternatives
+because collapsing them onto one `std::nullopt` makes every refusal silent) without mutating
+anything; a
 separate apply step checks preconditions and swaps the change in. Undo replays the same plan in
 reverse, so round trips are exact by construction — and the hover ghost can run the *same* planner
 the click runs, so an affordance can never promise an edit the commit would refuse.
@@ -181,7 +182,7 @@ the click runs, so an affordance can never promise an edit the commit would refu
 One of the thirteen answers a bare `Plan` instead, because for it an EMPTY plan is a real answer it
 must be able to give: `planSettleChart`'s flatten can exactly cancel the burst it is diffed
 against, and the caller still has to commit that — walking the chart back to the plan's base is
-what removes the claim. So the plan is never refused: reading its empty diff as `NoChange` would
+what removes the claim. So the plan is never refused: reading its empty diff as `PlanNoChange` would
 tell the caller to do nothing exactly when it must commit. The one thing that is not a plan (the
 sweep found nothing to flatten) is the CALLER's question, asked before it plans:
 `unjustifiedLegatoClaims` returns the claims to flatten, its emptiness means nothing to settle, and
@@ -193,7 +194,7 @@ and writes the result in, so a plan restating only the notes would silently drop
 
 Every other planner, `planAdjustSustain` included, keeps the
 `expected` shape: a gesture whose replayed steps put every ring back where it started needs no
-plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
+plan to describe it, because the answer to `PlanNoChange` there is to take the gesture's undo entry back
 out — not to commit an entry that describes nothing.
 
 Exemplar: `ChartEditPlan` with the twelve planners — `planInsertNote` /
@@ -213,8 +214,10 @@ the planner already knew, so carrying them costs no second pass and no separate 
 step. The consumer is the refusal flash (`docs/plans/in-progress/refusal-flash.md`), which glows
 those very elements and logs each reason. A count plus a dominant reason would not do: the flash
 needs identities, so the planner returns them and the count is the list's size. A refusal of the
-whole plan carries its reason and what it lights (`ChartPlanInvalid::reason`, `::lit`), both
-decided where it refuses. Recurring:
+whole plan carries its reason and what it lights (`PlanRefused::reason`, `::lit`), both decided
+where it refuses. The marker funnel answers in the same type (`judgeMarkerModel` returns
+`std::expected<JudgedMarkerModel<Snapshot>, PlanRefusal>`), so one refusal shape crosses every
+edit the editor plans. Recurring:
 `planLanePointAtCaret` → `plantLanePoint` (`tone_handlers.cpp`), and the game's
 `library_scan_plan.h` (a pure planner that diffs the cached index and returns a deterministic action
 list, no IO). Reach for it when a mutation needs undo, a truthful preview, or side-effect-free
@@ -264,6 +267,21 @@ string (`ringEndWithinBound`). It is not a partial application of a crossing edi
 cannot exist past that head, so the head IS the answer to "how far out", and both verbs that move an
 end (duration and move) give it rather than each inventing a refusal. Everything that CROSSES a
 boundary in those verbs still refuses: a head's landing, and any point other than the slide-out.
+
+## A refusal lights its subject and its culprit
+
+A refusal flashes the thing the key tried to change and the thing that stood in its way, and each
+half is stated by the one place that knows it: the refusing site adds the culprit it found, the
+controller adds the subject it planned over, and neither restates the other. Exemplar:
+`RefusalLight` (`editor/core/src/controller/refusal_light.h`) — `RefusalTarget`s of any kinds,
+named as the selection names them, which the flash glows as one set, so neither author cares what
+the other added. The site fills `PlanRefused::lit` (the note a move would land on, the neighbour
+hold a push would empty), and a rule's error carries its own records for the site to read
+(`tempoMapCulprits`, `toneTrackCulprits`) rather than the verb restating the rule;
+`reportChartPlanRefusal` and `refuseMarkerVerb` add the selection or the chip and hand the union to
+`flashRefusalLight`, the one path to the one port, `IEditorView::flashRefusal`. The painters glow
+the set and never know subject from culprit. Reach for it when a feedback signal has two authors: a union of facts each author
+states beats a result type that makes one of them guess the other's half.
 
 ## Typed boundary errors {#patterns_typed_errors}
 
@@ -491,13 +509,13 @@ records its own step — nothing at all where a run's whole state is its latest 
 over a replan callback (`the whole run, given the state it started from`), the verb value the next
 press must match, and — for a verb whose steps RE-KEY what they move — where the run has landed.
 Everything after that is shared: reconstructing the pre-gesture chart, push-or-replace,
-retire-on-`NoChange`, and arming the window; a refusal goes back to the verb, which reports it
-against what it acts on. A second copy of that machinery per verb is exactly the "one rule stated
-twice" defect; adding a gesture verb means writing what a STEP means and nothing else — and four
-verbs run the shape today. Two need the landing: the move gesture, because a note's key is its slot
-and a keyframe's identity IS its offset, so every step re-points the selection — and the window's
-proof then compares against the re-pointed keys — and the hold edge keys, because a hold is
-selected by its start, which the start key moves.
+retire-on-`PlanNoChange`, and arming the window; a refusal goes back to the verb as a
+`PlanRefused`, which reports it against what it acts on. A second copy of that machinery per verb
+is exactly the "one rule stated twice" defect; adding a gesture verb means writing what a STEP
+means and nothing else — and four verbs run the shape. Two need the landing: the move gesture,
+because a note's key is its slot and a keyframe's identity IS its offset, so every step re-points
+the selection — and the window's proof then compares against the re-pointed keys — and the hold
+edge keys, because a hold is selected by its start, which the start key moves.
 
 # Asynchrony and lifetime patterns
 

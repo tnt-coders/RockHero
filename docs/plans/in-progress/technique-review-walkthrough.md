@@ -90,8 +90,8 @@ Keep this list and the session task list in step.
     injected clock is the authority so a stale or duplicated wake is a no-op. Trap for anyone
     extending it: `ImmediateMessageThreadScheduler` runs the work SYNCHRONOUSLY, so a controller
     test needs the deferring scheduler plus a settable clock.
-  - **Refusal is a typed channel, not silence.** The planners return `std::expected<ChartEditPlan,
-    ChartPlanRefusal>` with `{NoChange, Invalid}`, `finalizePlan` owning the classification and
+  - **Refusal is a typed channel, not silence.** The planners return `std::expected<JudgedChartPlan,
+    PlanRefusal>` with `{PlanNoChange, PlanRefused}`, `finalizePlan` owning the classification and
     per-planner early-outs classified where they occur; `planSettleChart`'s distinct emptiness and
     `planSetLegato`'s typed report are untouched, and the refusal kinds are pinned by tests. Without
     it a valid no-op and a refusal were the same `nullopt`, so no caller could paint one red.
