@@ -466,6 +466,15 @@ private:
     // none holds.
     [[nodiscard]] static Rails noneHoldRails(const DrawableLane& lane, std::size_t index);
 
+    // The rails of the span at `index` as drawn, the one answer the selection outline and the
+    // refusal glow trace; nothing for an index outside the lane's spans or rails too short to draw.
+    [[nodiscard]] std::optional<Rails> drawnSpanRails(
+        const DrawableLane& lane, std::size_t index) const;
+
+    // The rails of the none hold at `index` as drawn, on the same terms as drawnSpanRails.
+    [[nodiscard]] static std::optional<Rails> drawnNoneHoldRails(
+        const DrawableLane& lane, std::size_t index);
+
     // The selected span's or none hold's rails, the one answer the outline and
     // selectedSpanRowBounds read; nothing with neither selected or rails too short to draw.
     [[nodiscard]] std::optional<Rails> selectedSpanRowRails(const DrawableLane& lane) const;

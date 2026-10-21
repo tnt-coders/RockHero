@@ -47,7 +47,10 @@ ToneTrackView::ToneTrackView(
     , m_tempo_map(tempo_map)
     , m_content_map(content_map)
     , m_transport(transport)
-    , m_vblank_attachment(this, [this] { reportPlaybackFrame(); })
+    , m_vblank_attachment(this, [this] {
+        reportPlaybackFrame();
+        stepRefusalFlash();
+    })
 {}
 
 void ToneTrackView::setVisibleTimeline(common::core::TimeRange visible_timeline)
@@ -166,6 +169,26 @@ bool ToneTrackView::wantsPointerAt(juce::Point<int> local_point) const
     return hitAt(local_point).has_value();
 }
 
+// Rationale lives on the declaration in tone_track_view.h.
+void ToneTrackView::flashRefusal(std::vector<std::string> region_ids)
+{
+    if (region_ids.empty())
+    {
+        return;
+    }
+    flashOrJoinRefusal(m_refusal, std::move(region_ids), joinRefused<std::string>);
+    repaint();
+}
+
+// Retires the refusal flash once its pulses have run, repainting every frame it ran.
+void ToneTrackView::stepRefusalFlash()
+{
+    if (retireFinishedFlash(m_refusal))
+    {
+        repaint();
+    }
+}
+
 void ToneTrackView::paint(juce::Graphics& g)
 {
     // The row draws no background of its own: the canvas paints its band and the shared
@@ -186,6 +209,10 @@ void ToneTrackView::paint(juce::Graphics& g)
     const float clip_pad = static_cast<float>(g_region_corner_radius) + 4.0f;
     const float clip_left = static_cast<float>(clip.getX()) - clip_pad;
     const float clip_right = static_cast<float>(clip.getRight()) + clip_pad;
+
+    // The bodies a running refusal flash lights, collected as the regions draw and glowed after the
+    // last of them, so a neighbour drawn later never covers a glow spilling onto it.
+    std::vector<juce::Rectangle<float>> refused_bodies;
 
     for (std::size_t index = 0; index < m_state.regions.size(); ++index)
     {
@@ -268,6 +295,11 @@ void ToneTrackView::paint(juce::Graphics& g)
             g.drawRoundedRectangle(draw_bounds, static_cast<float>(g_region_corner_radius), 2.0f);
         }
 
+        if (m_refusal.has_value() && std::ranges::contains(m_refusal->subject, region.id))
+        {
+            refused_bodies.push_back(draw_bounds);
+        }
+
         // The label rides its region and sticks at the visible left edge while the region still
         // covers it (like the pinned tempo/time-signature ruler), leaving with the region's own
         // right edge. That rule is stickyLabelLeft's, shared with the automation row's chips one
@@ -294,6 +326,18 @@ void ToneTrackView::paint(juce::Graphics& g)
                 m_label_font.draw(
                     g, regionLabel(region), label_bounds.toFloat(), juce::Justification::left);
             }
+        }
+    }
+
+    // A refused region glows around the body outline its selection stroke traces.
+    if (m_refusal.has_value())
+    {
+        const float level = m_refusal->pulse.level();
+        for (const juce::Rectangle<float>& body : refused_bodies)
+        {
+            juce::Path outline;
+            outline.addRoundedRectangle(body, static_cast<float>(g_region_corner_radius));
+            paintRefusalGlow(g, outline, body.getHeight(), level);
         }
     }
 

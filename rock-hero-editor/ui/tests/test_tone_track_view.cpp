@@ -389,6 +389,36 @@ TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui
     }
 }
 
+// A refused region glows red around its body, named by id, and its neighbour does not. Probed on
+// the pixel two rows above each region's top edge (y = 4), where the glow spills over the ground,
+// at each region's middle so the first's glow cannot reach the second's probe.
+TEST_CASE("Tone track glows a refused region red and not its neighbour", "[ui][tone]")
+{
+    ToneTrackHarness harness;
+    const juce::Colour ground{0xff203040};
+    const auto render = [&harness, &ground] {
+        juce::Image image{
+            juce::Image::ARGB,
+            harness.view.getWidth(),
+            harness.view.getHeight(),
+            true,
+            juce::SoftwareImageType{}
+        };
+        juce::Graphics graphics{image};
+        graphics.fillAll(ground);
+        harness.view.paint(graphics);
+        return image;
+    };
+    const juce::Image plain = render();
+    REQUIRE(plain.getPixelAt(200, 2) == ground);
+    REQUIRE(plain.getPixelAt(600, 2) == ground);
+
+    harness.view.flashRefusal({"region-a"});
+    const juce::Image flashed = render();
+    CHECK(flashed.getPixelAt(200, 2).getRed() > ground.getRed());
+    CHECK(flashed.getPixelAt(600, 2) == ground);
+}
+
 // Alt+drag places the ghost boundary before committing: the release position, not the press
 // position, becomes the requested tone change.
 TEST_CASE("Tone track Alt-drag places the insert before committing", "[ui][tone]")

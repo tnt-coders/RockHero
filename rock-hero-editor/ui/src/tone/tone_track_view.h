@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "shared/flash_pulse.h"
 #include "timeline/cursor_overlay.h"
 
 #include <cstddef>
@@ -20,6 +21,7 @@
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -216,6 +218,19 @@ public:
     [[nodiscard]] bool cancelActiveGesture();
 
     /*!
+    \brief Flashes the tone regions a refusal lights: each glows red a couple of times around its
+    body, then the row stands as it was.
+
+    A flash arriving while one runs joins it on the running pulse, so a drag or a held key reads as
+    one pulse train. A region is found by its id at paint time, so a region out of view draws no
+    glow and a new state keeps the flash. A refusal lighting no region starts no pulse, so it never
+    cuts short the pulse a later region refusal would join.
+
+    \param region_ids The refused regions' ids; empty when the refusal lights none on this row.
+    */
+    void flashRefusal(std::vector<std::string> region_ids);
+
+    /*!
     \brief Paints the row divider and the tone regions.
     \param g Graphics context used for drawing.
     */
@@ -396,10 +411,19 @@ private:
     // notice the audible tone drifting off the playhead. Tick only — this row decides nothing.
     void reportPlaybackFrame();
 
+    // Retires the refusal flash once its pulses have run, and repaints while it runs.
+    void stepRefusalFlash();
+
     // Read-only transport, read only for its playing flag: the gate on the per-frame report.
     const common::audio::ITransport& m_transport;
 
-    // Vblank-driven callback feeding the controller the frame tick it has no source for.
+    // The refusal flash while it runs: every refused region it has joined, named by id because a
+    // new state may reorder the regions, and its pulse.
+    std::optional<PulsedFlash<std::vector<std::string>>> m_refusal{};
+
+    // Vblank-driven callback feeding the controller the frame tick it has no source for, and
+    // stepping the refusal flash. After every member the tick reads, so they are constructed before
+    // the attachment can fire.
     juce::VBlankAttachment m_vblank_attachment;
 
     // Live edge-drag state; empty while no drag is active.

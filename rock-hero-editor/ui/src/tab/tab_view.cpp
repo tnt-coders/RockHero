@@ -107,6 +107,18 @@ struct MarkOutline
     float extent{0.0f};
 };
 
+// A span-row mark's rails, top then bottom, as an overlay traces them: nothing when they are too
+// short to draw, so no outline or glow stands where the lane shows no mark.
+[[nodiscard]] std::optional<std::pair<juce::Rectangle<float>, juce::Rectangle<float>>> drawnOnly(
+    const std::pair<juce::Rectangle<float>, juce::Rectangle<float>>& rails)
+{
+    if (rails.first.isEmpty())
+    {
+        return std::nullopt;
+    }
+    return rails;
+}
+
 // How long a reveal takes to run from the crop to the ring's end, or back: long enough that a chip
 // riding the tail's end reads as travelling from where it was clicked, short enough not to hold up
 // a keyboard walk. A head stepping back fades over the same run, so it clears as the ring arrives.
@@ -1106,6 +1118,36 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(bottom_rail, overlayRingStroke(bottom_rail.getHeight()));
     }
 
+    // A REFUSED span or none hold glows on both its rails as every refused mark does, traced on
+    // the rectangles the selection outline strokes, over that outline. The glow reaches as far as
+    // a refused head's (the lane's head extent): a rail's own height is a few pixels, which would
+    // leave a sub-pixel glow no one sees.
+    if (m_refusal.has_value())
+    {
+        const float level = m_refusal->pulse.level();
+        const float extent = metrics.headSize();
+        const auto glow_rails = [&g, level, extent](const std::optional<Rails>& rails) {
+            if (!rails.has_value())
+            {
+                return;
+            }
+            for (const juce::Rectangle<float>& rail : {rails->first, rails->second})
+            {
+                juce::Path outline;
+                outline.addRectangle(rail);
+                paintRefusalGlow(g, outline, extent, level);
+            }
+        };
+        for (const std::size_t span : m_refusal->subject.spans)
+        {
+            glow_rails(drawnSpanRails(*lane, span));
+        }
+        for (const std::size_t none_hold : m_refusal->subject.none_holds)
+        {
+            glow_rails(drawnNoneHoldRails(*lane, none_hold));
+        }
+    }
+
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
     // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
     // is not only a name column but a current-state column — which string is which, and where the
@@ -1417,25 +1459,41 @@ std::optional<juce::Rectangle<float>> TabView::selectedSpanRowBounds() const
         [](const Rails& rails) { return rails.first.getUnion(rails.second); });
 }
 
-// At most one of the two indices is published: the selection holds one marker.
-std::optional<TabView::Rails> TabView::selectedSpanRowRails(const DrawableLane& lane) const
+// The span's rails unless the projection has outrun the index or they are too short to draw.
+std::optional<TabView::Rails> TabView::drawnSpanRails(
+    const DrawableLane& lane, const std::size_t index) const
 {
-    const std::optional<std::size_t>& span = m_edit.selected_span;
-    const std::optional<std::size_t>& none_hold = m_edit.selected_none_hold;
-    Rails rails;
-    if (span.has_value() && *span < lane.tab.shapes.size())
-    {
-        rails = spanRails(lane, *span);
-    }
-    else if (none_hold.has_value() && *none_hold < lane.tab.none_holds.size())
-    {
-        rails = noneHoldRails(lane, *none_hold);
-    }
-    if (rails.first.isEmpty())
+    if (index >= lane.tab.shapes.size())
     {
         return std::nullopt;
     }
-    return rails;
+    return drawnOnly(spanRails(lane, index));
+}
+
+// The none hold's rails unless the projection has outrun the index or they are too short to draw.
+std::optional<TabView::Rails> TabView::drawnNoneHoldRails(
+    const DrawableLane& lane, const std::size_t index)
+{
+    if (index >= lane.tab.none_holds.size())
+    {
+        return std::nullopt;
+    }
+    return drawnOnly(noneHoldRails(lane, index));
+}
+
+// At most one of the two indices is published: the selection holds one marker.
+std::optional<TabView::Rails> TabView::selectedSpanRowRails(const DrawableLane& lane) const
+{
+    if (const std::optional<std::size_t>& span = m_edit.selected_span; span.has_value())
+    {
+        return drawnSpanRails(lane, *span);
+    }
+    if (const std::optional<std::size_t>& none_hold = m_edit.selected_none_hold;
+        none_hold.has_value())
+    {
+        return drawnNoneHoldRails(lane, *none_hold);
+    }
+    return std::nullopt;
 }
 
 // Drawn under the paint core's furniture, so a fret-hand chip standing on the top rail covers the

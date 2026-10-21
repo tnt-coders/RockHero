@@ -1621,11 +1621,21 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
         });
 }
 
-// One refusal flashes on every surface that draws one of its targets: the ruler its chips, the
-// tab lane the rest. Each glows what it draws, so the two pulse as one refusal.
+// One refusal flashes on every surface that draws one of its targets: the ruler its chips, the tone
+// row its regions, the 3D preview its spans and fret-hand positions, the tab lane the rest. Each
+// glows what it draws in the theme's invalid ink, so all pulse as one refusal.
 void EditorView::flashRefusal(core::RefusalFlash flash)
 {
     m_track_viewport->flashRefusal(flash);
+    if (m_preview_window != nullptr)
+    {
+        m_preview_window->flashRefusal(
+            std::make_shared<const common::ui::HighwayHighlight>(common::ui::HighwayHighlight{
+                .shapes = flash.spans,
+                .fret_hand_positions = flash.fret_hand_positions,
+                .color = editorTheme().invalid.getARGB(),
+            }));
+    }
     m_tab_view.flashRefusal(std::move(flash));
 }
 

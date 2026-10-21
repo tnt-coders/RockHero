@@ -267,6 +267,40 @@ void showTwoSpans(TabView& view)
     view.setState(makeTwoSpanTabState(), 0);
 }
 
+// A refusal flash lighting the given spans and none holds and nothing else.
+[[nodiscard]] core::RefusalFlash spanRowRefusal(
+    std::vector<std::size_t> spans, std::vector<std::size_t> none_holds)
+{
+    return core::RefusalFlash{
+        .notes = {},
+        .spans = std::move(spans),
+        .none_holds = std::move(none_holds),
+        .fret_hand_positions = {},
+        .keyframes = {},
+        .ruler_chips = {},
+        .tone_regions = {},
+    };
+}
+
+// Whether any pixel in the window is classified as the refusal glow: nearer the theme's invalid
+// ink than the canvas the lane is drawn over is. The glow's level falls with time, so the class is
+// asked of a pixel the glow tints at all, which any level above zero gives — a slow runner cannot
+// flake it.
+[[nodiscard]] bool anyPixelGlowsInvalid(const juce::Image& image, const juce::Rectangle<int> window)
+{
+    const auto distance_to_invalid = [](const juce::Colour color) {
+        const juce::Colour invalid = editorTheme().invalid;
+        const int red = color.getRed() - invalid.getRed();
+        const int green = color.getGreen() - invalid.getGreen();
+        const int blue = color.getBlue() - invalid.getBlue();
+        return (red * red) + (green * green) + (blue * blue);
+    };
+    const int canvas_distance = distance_to_invalid(g_canvas_ink);
+    return anyPixelIn(image, window, [&](const juce::Colour pixel) {
+        return distance_to_invalid(pixel) < canvas_distance;
+    });
+}
+
 } // namespace
 
 // The chart's string count floors the lane count; a minimum only ever adds lanes. The rule itself
@@ -957,6 +991,53 @@ TEST_CASE("TabView glows a refused fret-hand chip red", "[ui][tab-view]")
             .tone_regions = {},
         });
     CHECK(red_beside_chip() > plain);
+}
+
+// A refused span glows around both its rails as every refused mark does, and its neighbour does
+// not. Probed on the pixel row just below the first span's top rail (x 60 to 90, rows 0 to 2),
+// where the glow spills onto the canvas, and on the same row under the second span's rail.
+TEST_CASE("TabView glows a refused span's rails red", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    showTwoSpans(view);
+    const juce::Rectangle<int> below_first_rail{62, 3, 26, 1};
+    const juce::Rectangle<int> below_second_rail{142, 3, 36, 1};
+    CHECK_FALSE(anyPixelGlowsInvalid(renderOverCanvas(view), below_first_rail));
+
+    view.flashRefusal(spanRowRefusal({0}, {}));
+    const juce::Image flashed = renderOverCanvas(view);
+    CHECK(anyPixelGlowsInvalid(flashed, below_first_rail));
+    CHECK_FALSE(anyPixelGlowsInvalid(flashed, below_second_rail));
+}
+
+// A refused none hold glows around its hatched rails as a refused span does. Probed on the pixel
+// row just below the hold's top rail (x 60 to 120, rows 0 to 2).
+TEST_CASE("TabView glows a refused none hold's rails red", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    common::core::ChartViewState state;
+    state.open_strings = common::core::testing::standardTuning();
+    state.none_holds = {
+        common::core::NoneHoldViewState{.start_seconds = 6.0, .end_seconds = 12.0},
+    };
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
+    const juce::Rectangle<int> below_top_rail{62, 3, 56, 1};
+    CHECK_FALSE(anyPixelGlowsInvalid(renderOverCanvas(view), below_top_rail));
+
+    view.flashRefusal(spanRowRefusal({}, {0}));
+    CHECK(anyPixelGlowsInvalid(renderOverCanvas(view), below_top_rail));
 }
 
 // The glow draws OVER the caret square, so a refusal at the caret's own slot is never cut by it:

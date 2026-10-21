@@ -12,6 +12,7 @@
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 
@@ -87,6 +88,13 @@ public:
     \param state Shared scene-model snapshot from the controller; null clears the board.
     */
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
+
+    /*!
+    \brief Forwards a refusal's highway marks to the surface, which flashes them.
+    \param highlight The refused marks in the current snapshot's indices, and their color; null or
+           empty when the refusal lights nothing on the board.
+    */
+    void flashRefusal(std::shared_ptr<const common::ui::HighwayHighlight> highlight);
 
     /*! \brief Re-frames the board from rest, for a different project or arrangement. */
     void resetCamera();

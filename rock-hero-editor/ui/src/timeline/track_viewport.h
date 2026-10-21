@@ -421,8 +421,9 @@ public:
         std::optional<int> signature_measure);
 
     /*!
-    \brief Forwards a refusal's ruler chips to the pinned ruler, which flashes them.
-    \param flash The refusal's targets; only its ruler chips are this surface's.
+    \brief Forwards a refusal's ruler chips to the pinned ruler and its tone regions to the tone
+    row, which flash them.
+    \param flash The refusal's targets; only its ruler chips and tone regions are this surface's.
     */
     void flashRefusal(const core::RefusalFlash& flash);
 
