@@ -20,6 +20,7 @@
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -52,16 +53,48 @@ supplies bounds sized against \ref g_tab_reference_string_count.
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept;
 
 /*!
+\brief Returns the face the lane's status line prints in, its sentences and its count alike: a
+regular weight a size above the chip labels', so a line of prose reads as prose rather than as one
+more chip.
+
+Each call measures the face's ink, so the lane builds it once.
+
+\return The status line font.
+*/
+[[nodiscard]] common::ui::TabLaneFont tabStatusLineFont();
+
+/*!
+\brief A span-row mark's rails as the tab lane draws them, for the overlay that traces them with
+the span's chip on the ruler (TabView::selectedSpanRow, TabView::drawnSpanRow).
+*/
+struct DrawnSpanRow
+{
+    /*! \brief The span's index; empty for a none hold, which stands no chip on the ruler. */
+    std::optional<std::size_t> span{};
+
+    /*! \brief The top rail, in the lane's coordinates. */
+    juce::Rectangle<float> top_rail{};
+
+    /*! \brief The bottom rail, in the lane's coordinates. */
+    juce::Rectangle<float> bottom_rail{};
+
+    /*! \brief The lane's head size, which a refused mark's glow reaches by. */
+    float head_size{};
+};
+
+/*!
 \brief Renders the chart tablature over the arrangement waveform lane.
 
 The notation itself is drawn by the shared paint core (common/ui tab_paint_core.h), which both
 products render through and which describes what it draws; this view supplies the bounds and the
 visible-timeline mapping, matching the waveform beneath it, from the controller's seconds-resolved
 tab projection. On top of the notation it draws the chart-editing overlays the editor alone owns:
-selection rings, the white square of the armed caret, and the in-flight marquee. While a chart is
-displayed the lane owns its pointer events, converting them to lane-local chart pointer intents; the
-controller decides what a press means (select, caret arming, marquee, or — while playing — a plain
-seek). Without a chart the lane is pointer-transparent.
+selection rings, the white square of the armed caret, the in-flight marquee, and the STATUS LINE at
+the lane's top-left, which says a refusal's sentence while its flash runs and otherwise how many
+notes are selected, from two up — chart or no chart, since a refusal needs none. The line is inert
+to the pointer. While a chart is displayed the lane owns its pointer events, converting them to
+lane-local chart pointer intents; the controller decides what a press means (select, caret arming,
+marquee, or — while playing — a plain seek). Without a chart the lane is pointer-transparent.
 */
 class TabView final : public juce::Component
 {
@@ -175,25 +208,37 @@ public:
 
     The overlay is also the edit's FOCUS: a SELECTED note and the note the CARET stands on draw to
     their ring ends, and the head a focused ring ends on steps back behind it (core::chartPresence),
-    so a selection or caret change redraws those notes.
+    so a selection or caret change redraws those notes. The selected-note count it carries is what
+    the status line says while no refusal speaks.
 
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
     void setEditState(core::ChartEditViewState edit);
 
     /*!
-    \brief Flashes what a refusal lights in the lane: each refused mark's selection ring glows red a
-    couple of times, then the lane stands as it was.
+    \brief Flashes the lane's share of a refusal: each refused note, keyframe and fret-hand chip's
+    selection ring glows red a couple of times, and the status line says the refusal's sentence in
+    red, held at full ink long enough to read and then faded (g_refusal_line_hold), on the same
+    flash's clock; then the lane stands as it was.
 
-    A flash arriving while one runs joins it on the running clock, so a held key reads as one pulse
-    train rather than restarting it. It runs on the clock whether or not the lane is on screen, so
-    a lane shown late never plays it late, and a new projection drops it, since its indices name
-    other notes. A refusal lighting nothing in the lane starts no pulse, so it never cuts short the
-    pulse a later refusal in the lane would join.
+    A refused span or none hold is not the lane's to glow: its rails and the span's chip on the
+    ruler read as one shape, which the track viewport traces. The newest refusal replaces the last
+    one's marks and sentence and restarts the clock (startRefusalFlash, every surface's one rule),
+    so the line always says why the key just pressed was refused, and a refusal that says nothing
+    clears it. Where the refusal says no sentence the flash holds none and retires with its glows.
+    It runs on the clock whether or not the lane is on screen, so a lane shown late never plays it
+    late, and a new projection drops it, since its indices name other notes.
 
-    \param flash The refused targets, the lane's in the current projection's indices.
+    \param flash The refusal, its tab-lane fields in the current projection's indices.
     */
-    void flashRefusal(core::RefusalFlash flash);
+    void flashRefusal(const core::RefusalFlash& flash);
+
+    /*!
+    \brief Returns what the status line says now: a refusal's sentence until it has faded out, else
+    "N notes selected" while two or more notes are selected, else nothing.
+    \return The line's text, empty while the line draws nothing.
+    */
+    [[nodiscard]] juce::String statusLineText() const;
 
     /*!
     \brief Turns the whole-lane ring reveal on or off; repaints only when it changes.
@@ -263,15 +308,18 @@ public:
     void setVisibleTimeline(common::core::TimeRange visible_timeline);
 
     /*!
-    \brief Stores the content x of the viewport's left edge, which the string legend pins to.
+    \brief Stores the viewport's visible run of this lane: its left edge, which the string legend
+    pins to, and its width, which the status line stops short of.
 
     The lane is as wide as the whole canvas and scrolls inside the viewport, so "the left of the
     window" is a moving column in this component's own space — the same fact the tone rows take to
-    pin their labels, pushed from the same place.
+    pin their labels, pushed from the same place. Until a run is pushed it is empty, so the status
+    line has no room to draw in.
 
     \param content_left_x Content-coordinate x of the visible area's left edge.
+    \param content_width Width of the visible area, in content pixels.
     */
-    void setVisibleContentLeft(int content_left_x);
+    void setVisibleContent(int content_left_x, int content_width);
 
     /*!
     \brief Stores the map the projection's times were resolved under and the map its content
@@ -346,6 +394,27 @@ public:
     [[nodiscard]] std::optional<juce::Rectangle<float>> selectedSpanRowBounds() const;
 
     /*!
+    \brief The selected span's or none hold's rails as drawn, read at paint time by the overlay
+    that rings them with the span's chip.
+    \return The selected mark's rails, or empty with neither selected or rails too short to draw.
+    */
+    [[nodiscard]] std::optional<DrawnSpanRow> selectedSpanRow() const;
+
+    /*!
+    \brief One span's rails as drawn, by projection index.
+    \param span Index of the span in the current projection.
+    \return Its rails, or empty for an index the projection has outrun or rails too short to draw.
+    */
+    [[nodiscard]] std::optional<DrawnSpanRow> drawnSpanRow(std::size_t span) const;
+
+    /*!
+    \brief One none hold's rails as drawn, by projection index.
+    \param none_hold Index of the none hold in the current projection.
+    \return Its rails, or empty for an index the projection has outrun or rails too short to draw.
+    */
+    [[nodiscard]] std::optional<DrawnSpanRow> drawnNoneHoldRow(std::size_t none_hold) const;
+
+    /*!
     \brief The head of one note by projection index, in this component's coordinates.
 
     The anchor for a popup about that note — the harmonic node picker opens on the head whose
@@ -407,8 +476,14 @@ private:
     };
 
     // The lane metrics and their chart for the current state and bounds, or nothing when there is
-    // nothing to draw with. The one derivation every geometry question here goes through.
+    // nothing to draw with. The one derivation every geometry question here goes through, built
+    // once per state and kept until an input changes; each caller gets a copy of the kept build
+    // (its fonts are shared handles), so a setter re-entered from a callback cannot leave a caller
+    // reading a build it dropped.
     [[nodiscard]] std::optional<DrawableLane> laneMetrics() const;
+
+    // Drops the kept lane metrics; every setter of an input laneMetrics builds from calls it.
+    void invalidateLaneMetrics() noexcept;
 
     // Re-derives the cached legend column when a fact that sizes it changed — the bounds, the lane
     // count, whether the tuning names anything — and the pinned chip every time, since a new
@@ -418,9 +493,8 @@ private:
     // Re-derives which fret-hand placement GOVERNS the window's left edge and the chip it draws
     // there. Its own refresh because a scroll moves it and moves nothing else about the panel: the
     // placement search and one text measurement are a per-scroll cost the panel's own width (210
-    // text layouts) could never be. Takes the derivation rather than repeating it, so a refresh
-    // that already has a lane in hand does not build the lane's three fonts twice.
-    void refreshPinnedFhp(const std::optional<DrawableLane>& lane);
+    // text layouts) could never be.
+    void refreshPinnedFhp();
 
     // The screen-pinned chrome at the current pin: the legend panel, widened to hold the governing
     // fret-hand chip standing on it. ONE rectangle for what a scroll repaints and what the pointer
@@ -439,8 +513,10 @@ private:
     // the same derivation's.
     [[nodiscard]] std::optional<juce::Rectangle<float>> caretSquare(const DrawableLane& lane) const;
 
-    // Builds the chart pointer event for a mouse event using the currently painted geometry.
-    [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;
+    // Builds the chart pointer event for a mouse event using the currently painted geometry;
+    // nothing where the lane has nothing to draw with.
+    [[nodiscard]] std::optional<core::ChartPointerEvent> makePointerEvent(
+        const juce::MouseEvent& event) const;
 
     // The index of the scrolling fret-hand chip under a lane-local point, the one drawn last where
     // chips overlap; nothing off every chip. The pinned chip is not asked: it is chrome, which
@@ -467,17 +543,14 @@ private:
     [[nodiscard]] static Rails noneHoldRails(const DrawableLane& lane, std::size_t index);
 
     // The rails of the span at `index` as drawn, the one answer the selection outline and the
-    // refusal glow trace; nothing for an index outside the lane's spans or rails too short to draw.
+    // refusal glow trace (drawnSpanRow); nothing for an index outside the lane's spans or rails
+    // too short to draw.
     [[nodiscard]] std::optional<Rails> drawnSpanRails(
         const DrawableLane& lane, std::size_t index) const;
 
     // The rails of the none hold at `index` as drawn, on the same terms as drawnSpanRails.
     [[nodiscard]] static std::optional<Rails> drawnNoneHoldRails(
         const DrawableLane& lane, std::size_t index);
-
-    // The selected span's or none hold's rails, the one answer the outline and
-    // selectedSpanRowBounds read; nothing with neither selected or rails too short to draw.
-    [[nodiscard]] std::optional<Rails> selectedSpanRowRails(const DrawableLane& lane) const;
 
     // Hatches the rails of the none holds reaching the clip, beneath the furniture.
     static void paintNoneHolds(juce::Graphics& g, const DrawableLane& lane);
@@ -516,8 +589,32 @@ private:
     // (common::ui::TabNotePresence).
     [[nodiscard]] common::ui::TabNotePresence presence(std::size_t index) const;
 
-    // Retires the refusal flash once its pulses have run, and repaints while it runs.
+    // Repaints what the refusal flash shows wherever its level moved since the last frame — the
+    // lane while its glows pulse, the status line while its sentence fades — and retires the
+    // flash once it has nothing left to show (FlashPulse::finished, which carries the line's hold).
     void stepRefusalFlash();
+
+    // Draws the notation and every overlay that rides it, for a lane with a chart to draw.
+    void paintLane(juce::Graphics& g, const DrawableLane& lane) const;
+
+    // The sentence the status line says, or null: the flash's, where it carries one and the line
+    // has not faded it out.
+    [[nodiscard]] const std::string* shownSentence() const;
+
+    // Re-composes the status line (statusLineText) and measures its plate, repainting where it
+    // was and where it now is when its text changed. Called from every change it reads: the
+    // selection, a flash starting, being replaced or ending.
+    void refreshStatusLine();
+
+    // The status line's plate at the current pin: just under the fret-hand chips' row, just past
+    // the legend panel, as wide as its measured text; empty while the line says nothing.
+    [[nodiscard]] juce::Rectangle<float> statusLinePlate() const;
+
+    // The pixels the plate can paint, for a repaint held to the line.
+    [[nodiscard]] juce::Rectangle<int> statusLineArea() const;
+
+    // Draws the status line's plate and text, last of everything, so it reads over the notation.
+    void paintStatusLine(juce::Graphics& g) const;
 
     // The chart projection, shared with the controller; null without a chart. It is the whole of
     // the pointer path too: the controller hit-tests, selects and inserts against the projection
@@ -570,9 +667,58 @@ private:
     // When the ease last stepped, in milliseconds on JUCE's high-resolution counter.
     double m_presence_stepped_at_ms{0.0};
 
-    // The refusal flash while it runs: every refused element it has joined, and its pulse. Its
-    // indices address m_tab, so a new projection drops it.
-    std::optional<PulsedFlash<core::RefusalFlash>> m_refusal{};
+    // The lane's share of a refusal (flashRefusal): the marks it glows and the sentence its status
+    // line says.
+    struct Refusal
+    {
+        std::vector<std::size_t> notes{};
+        std::vector<core::ChartKeyframeRef> keyframes{};
+        std::vector<std::size_t> fret_hand_positions{};
+        std::string sentence{};
+
+        // Whether the refusal lights any mark the lane draws, as opposed to only saying its
+        // sentence here.
+        [[nodiscard]] bool glows() const noexcept
+        {
+            return !notes.empty() || !keyframes.empty() || !fret_hand_positions.empty();
+        }
+
+        // Whether it neither glows nor says anything (startRefusalFlash then clears the flash).
+        [[nodiscard]] bool empty() const noexcept
+        {
+            return !glows() && sentence.empty();
+        }
+    };
+
+    // The refusal flash while it runs: the newest refusal's share and its pulse. Its indices
+    // address m_tab, so a new projection drops it.
+    std::optional<PulsedFlash<Refusal>> m_refusal{};
+
+    // The flash's glow and line levels as the last frame stepped them, so a frame repaints only a
+    // level that moved: nothing through the line's hold or after the glow's train.
+    float m_stepped_glow_level{0.0f};
+    float m_stepped_line_level{0.0f};
+
+    // The status line as last composed, measured where it is composed so no paint lays out glyphs
+    // to size the plate: its text, empty while it says nothing, the plate's width, and whether the
+    // text is a refusal's sentence, which draws red, held and then faded on the flash's clock,
+    // rather than steady.
+    struct StatusLine
+    {
+        juce::String text{};
+        float plate_width{0.0f};
+        bool refusal{false};
+    };
+    StatusLine m_status_line{};
+
+    // THE lane's chip label face, built once: every paint's metrics carry it (laneMetrics), so the
+    // fret-hand and capo chips print in it, and it sizes the chips' row the status line stands
+    // under (common::ui::tabFhpChipRow) — with no chart too, where the lane builds no metrics.
+    common::ui::TabLaneFont m_label_font{common::ui::chipLabelFont()};
+
+    // The status line's own face (tabStatusLineFont), built once: its text is measured and drawn
+    // in it, and its plate stands as tall as it (common::ui::chipHeight).
+    common::ui::TabLaneFont m_status_font{tabStatusLineFont()};
 
     // The string colors every lane surface derives from.
     common::ui::StringColorPalette m_string_colors;
@@ -583,15 +729,24 @@ private:
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
 
+    // The lane metrics laneMetrics last built, kept until one of their inputs changes — the
+    // projection, the lane count, the bounds, the visible timeline, the colors and inks, or the
+    // re-time (invalidateLaneMetrics). Empty until first asked, and after any such change.
+    mutable std::optional<common::ui::TabLaneMetrics> m_lane_metrics{};
+
     // Content x of the viewport's left edge: where the string legend pins. Zero is the canvas's
     // own left edge, which is where a lane that does not scroll (the tests) leaves it.
     int m_visible_content_left{0};
 
+    // Width of the viewport's visible area: the run the status line must fit inside. Zero until
+    // the viewport pushes it, which leaves the line no room.
+    int m_visible_content_width{0};
+
     // The legend column as it stands at pin zero — width measured from the tuning's longest name
     // in the lane's own font, spanning the lane's height; empty when no legend draws. Cached
-    // because a scroll moves ONLY the pin: re-deriving it there would build three fonts and
-    // measure every string name on every vblank of a playback follow, for a column whose size
-    // none of that changes. Refreshed from the facts that DO size it (refreshLegendColumn).
+    // because a scroll moves ONLY the pin: re-deriving it there would measure every string name
+    // on every vblank of a playback follow, for a column whose size none of that changes.
+    // Refreshed from the facts that DO size it (refreshLegendColumn).
     juce::Rectangle<int> m_legend_column{};
 
     // Everything common::ui::tabStringLegendBounds reads: the lane's bounds and lane count (its

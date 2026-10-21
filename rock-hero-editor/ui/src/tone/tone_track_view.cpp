@@ -172,12 +172,10 @@ bool ToneTrackView::wantsPointerAt(juce::Point<int> local_point) const
 // Rationale lives on the declaration in tone_track_view.h.
 void ToneTrackView::flashRefusal(std::vector<std::string> region_ids)
 {
-    if (region_ids.empty())
+    if (startRefusalFlash(m_refusal, std::move(region_ids)))
     {
-        return;
+        repaint();
     }
-    flashOrJoinRefusal(m_refusal, std::move(region_ids), joinRefused<std::string>);
-    repaint();
 }
 
 // Retires the refusal flash once its pulses have run, repainting every frame it ran.
@@ -502,11 +500,10 @@ void ToneTrackView::showRegionContextMenu(
         // never dereferences a dangling listener (JUCE reports result 0 for a deleted watch
         // target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
-        [this, ref = region.tone_document_ref, name = region.name, id = region.id, insert_position](
-            int result) {
+        [this, ref = region.tone_document_ref, id = region.id, insert_position](int result) {
             if (result == 1)
             {
-                m_listener.onToneRenamePromptRequested(ref, name);
+                m_listener.onToneRenamePromptRequested(ref);
             }
             else if (result == 2)
             {
@@ -514,7 +511,7 @@ void ToneTrackView::showRegionContextMenu(
             }
             else if (result == 3 && insert_position.has_value())
             {
-                m_listener.onToneChangeInsertRequested(*insert_position, ref);
+                m_listener.onToneChangeInsertRequested(*insert_position);
             }
         });
 }
@@ -600,10 +597,7 @@ void ToneTrackView::finishGesture(const juce::MouseEvent& event)
         m_insert_drag.reset();
         setInsertGhostX(std::nullopt);
         emitSnapGuide(std::nullopt);
-        // The drag began on a region the hit test named, and pushes were deferred while it ran, so
-        // the index still addresses the region the position falls inside.
-        m_listener.onToneChangeInsertRequested(
-            insert.preview, m_state.regions[insert.region_index].tone_document_ref);
+        m_listener.onToneChangeInsertRequested(insert.preview);
         return;
     }
 
@@ -696,7 +690,7 @@ void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
     {
         return;
     }
-    m_listener.onToneRenamePromptRequested(region.tone_document_ref, region.name);
+    m_listener.onToneRenamePromptRequested(region.tone_document_ref);
 }
 
 std::optional<float> ToneTrackView::xForTime(common::core::TimePosition position) const

@@ -33,15 +33,18 @@ add_executable(
     test_editor_view_signal_chain.cpp
     test_editor_view_state.cpp
     test_editor_view_timeline.cpp
+    test_flash_pulse.cpp
     test_grid_spacing_selector.cpp
     test_input_calibration_window.cpp
     test_key_chord_text.cpp
+    test_mark_outline.cpp
     test_plugin_browser_window.cpp
     test_plugin_window_shortcut_sync.cpp
     test_preview_time_model.cpp
     test_signal_chain_block_layout.cpp
     test_tab_view.cpp
     test_tone_track_view.cpp
+    test_track_viewport.cpp
     test_transport_controls.cpp)
 
 # Let focused smoke tests construct private editor view types without making them public API.

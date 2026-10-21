@@ -19,6 +19,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <string_view>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -390,17 +391,15 @@ std::expected<JudgedChartPlan, PlanRefusal> finalizePlan(
             // Lit with the head that bounds the ring as well: one of the two is the edit's own
             // product, standing on a slot the projection has no mark for yet, and the other is
             // the authored thing it ran into.
-            const auto bound = std::ranges::find_if(
-                candidate.begin() + static_cast<std::ptrdiff_t>(truncation->index) + 1,
-                candidate.end(),
-                [string = candidate[truncation->index].string](
-                    const common::core::ChartNote& later) { return later.string == string; });
+            const common::core::ChartNote& truncated = candidate[truncation->index];
+            const auto bound = common::core::firstNoteOnStringAfter(
+                candidate, truncated.position, truncated.string);
             assert(
                 bound != candidate.end() &&
                 "a truncated ring is bounded by a later onset on its string");
             return std::unexpected{PlanRefused{
                 .reason = "the edit would cut an authored statement off a ring it shortens",
-                .lit = lightOn({noteTarget(candidate[truncation->index]), noteTarget(*bound)}),
+                .lit = lightOn({noteTarget(truncated), noteTarget(*bound)}),
             }};
         }
     }
@@ -869,6 +868,15 @@ struct AddressedStop
     }
     return ring;
 }
+
+// Which bound judged a duration press's answer for one keyed ring, should that answer leave the
+// ring where the live chart holds it: the sentence the log carries, and what stood in its way —
+// nothing beyond the note where the onset or a scrape's window held it.
+struct HeldRing
+{
+    std::string_view reason;
+    RefusalLight culprit;
+};
 
 // THE SPLIT, for one note: appends the products of cutting `note` at each instant to `products`.
 //
@@ -1551,7 +1559,7 @@ std::expected<JudgedChartPlan, PlanRefusal> planMoveSelection(
             occupied.add(noteTarget(note));
         }
     }
-    if (!occupied.empty())
+    if (!occupied.targets.empty())
     {
         return std::unexpected{PlanRefused{
             .reason = "a moved note would land on a note that stays",
@@ -1564,6 +1572,77 @@ std::expected<JudgedChartPlan, PlanRefusal> planMoveSelection(
     std::ranges::inplace_merge(
         notes.rest, notes.rest.begin() + moved_from, common::core::chartNoteOrderLess);
     return finalizePlan(chart, tempo_map, std::move(notes.rest), label);
+}
+
+// The press's own questions, asked before the run's geometry: did the grid's edge absorb it, and
+// did the ring bound leave every slide-out it addressed where the previous press left it. Both are
+// asked of a TIME press only; a string press asks no time move of anything.
+std::expected<JudgedChartPlan, PlanRefusal> planMoveGesture(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const common::core::Chart& base, const std::vector<ChartSlotKey>& note_keys,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps,
+    const std::string_view label)
+{
+    if (steps.empty() || (note_keys.empty() && keyframe_keys.empty()))
+    {
+        return std::unexpected{PlanNoChange{}};
+    }
+    const ChartMoveDelta delta = chartMoveGestureDelta(tempo_map, note_keys, keyframe_keys, steps);
+    const ChartStepDirection pressed = steps.back().direction;
+    if (pressed == ChartStepDirection::Left || pressed == ChartStepDirection::Right)
+    {
+        // The edge: the run without this press reaches exactly as far, because the step collapsed
+        // onto the grid's origin or its terminal (adjacentTempoGridPosition) — the one place that
+        // decides it, asked the same way on a first press and inside a run.
+        const std::vector<ChartMoveStep> before(steps.begin(), std::prev(steps.end()));
+        if (chartMoveGestureDelta(tempo_map, note_keys, keyframe_keys, before).whole_notes ==
+            delta.whole_notes)
+        {
+            return std::unexpected{PlanRefused{
+                .reason = pressed == ChartStepDirection::Left ? "already at the start of the song"
+                                                              : "already at the end of the song",
+                .lit = {},
+            }};
+        }
+        // The ring bound: a slide-out is parked when the clamp took the step (it lands short of
+        // where the delta aimed it) and left its end where the live chart already has it, so what
+        // holds it is the head it stops at. Only a selection of nothing else can have moved
+        // nothing: a note or an interior point always moves, or refuses on its own.
+        if (note_keys.empty() && !keyframe_keys.empty())
+        {
+            RefusalLight parked;
+            const bool all_parked =
+                std::ranges::all_of(keyframe_keys, [&](const ChartKeyframeKey& key) {
+                    const common::core::ChartNote* const started =
+                        chartNoteAt(base.notes, key.note);
+                    const common::core::ChartNote* const live = chartNoteAt(chart.notes, key.note);
+                    const common::core::Keyframe* const slide_out =
+                        started != nullptr ? common::core::endFretStatement(*started) : nullptr;
+                    if (live == nullptr || slide_out == nullptr || slide_out->offset != key.offset)
+                    {
+                        return false;
+                    }
+                    const common::core::Fraction landed =
+                        chartSteppedKeyframeOffset(base, tempo_map, key, delta.whole_notes);
+                    if (!(landed < key.offset + delta.whole_notes) || live->sustain != landed)
+                    {
+                        return false;
+                    }
+                    parked.add(noteTarget(*common::core::firstNoteOnStringAfter(
+                        base.notes, started->position, started->string)));
+                    return true;
+                });
+            if (all_parked)
+            {
+                return std::unexpected{PlanRefused{
+                    .reason = "slide-out already reaches the next note on its string",
+                    .lit = std::move(parked),
+                }};
+            }
+        }
+    }
+    return planMoveSelection(
+        base, tempo_map, note_keys, keyframe_keys, delta.whole_notes, delta.strings, label);
 }
 
 std::expected<JudgedChartPlan, PlanRefusal> planRetypeFrets(
@@ -1733,6 +1812,12 @@ std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
     // What the entry changes the selection's rings by in total, start → now, which is what names
     // it below.
     common::core::Fraction net{};
+    // Whether any keyed ring went unheld — moved off the value the live chart holds, or left there
+    // with no bound judging it — and what held each of the others. The live chart is the run's
+    // entry applied, so "where the live chart has it" is exactly "where the previous press left
+    // it".
+    bool unheld = false;
+    std::vector<HeldRing> held;
     for (common::core::ChartNote& note : candidate)
     {
         if (!std::ranges::binary_search(keys, chartSlotKeyOf(note)))
@@ -1749,6 +1834,10 @@ std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
         }
         common::core::ChartNote stepped = *start;
         common::core::Fraction target = authoredSustain(tempo_map, *start, steps);
+        // Read before the replay rewrites the note: the ring the live chart holds.
+        const common::core::Fraction live_ring = note.sustain;
+        // The bound that judged the replay's answer, set where each one does.
+        std::optional<HeldRing> hold;
         // The ring's FLOOR: the last keyframe's offset where the note carries one, the onset
         // otherwise — a point never leaves the ring, and this verb moves the ribbon, never a point.
         // A replay that reaches past the floor has nowhere legal to put the end: the note keeps
@@ -1774,6 +1863,7 @@ std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
             if (target < window)
             {
                 target = window;
+                hold = HeldRing{.reason = "scrape already at its shortest", .culprit = {}};
             }
         }
         else if (!stepped.keyframes.empty())
@@ -1794,7 +1884,18 @@ std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
             // than this clamp. The clamp can never SHORTEN a note below where the gesture found it:
             // normalizeSustainOverlaps holds every stored ring inside this same bound, so `start`
             // is already at most the bound.
+            const common::core::Fraction asked = target;
             target = common::core::ringEndWithinBound(chart.notes, note, tempo_map, target);
+            if (target < asked)
+            {
+                // The clamp took the step, so what holds the ring is the onset it stops at, read
+                // off the walk the bound itself measures to.
+                hold = HeldRing{
+                    .reason = "ring already reaches the next note on its string",
+                    .culprit = lightOn({noteTarget(*common::core::firstNoteOnStringAfter(
+                        chart.notes, note.position, note.string))}),
+                };
+            }
             // The one way a ring changes length once it carries a payload: a pitched note's
             // keyframes all lie above its floor, so nothing clips there — the resize leaves a
             // slide-out behind a lengthening ring as the pitched stop it has become, and re-aims a
@@ -1813,17 +1914,59 @@ std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
             // controller retires the grow entry instead of treating the shrink as refused.
             note = std::move(stepped);
         }
+        else if (stepped.keyframes.empty())
+        {
+            hold = HeldRing{.reason = "ring cannot shrink to nothing", .culprit = {}};
+        }
+        else
+        {
+            hold = HeldRing{
+                .reason = "ring cannot shrink past its last keyframe",
+                .culprit =
+                    lightOn({ChartKeyframeKey{.note = chartSlotKeyOf(stepped), .offset = floor}}),
+            };
+        }
+        if (hold.has_value() && note.sustain == live_ring)
+        {
+            held.push_back(*hold);
+        }
+        else
+        {
+            unheld = true;
+        }
         // A held note counts too: the ring it keeps is still what the entry writes over `base`.
         net = net + (note.sustain - start->sustain);
     }
 
-    // A step that moves NO ring — every keyed note held at its floor or pinned at its bound —
-    // needs no clause here. The replay is a pure function of the step list, so it answers the plan
-    // it answered last time, and dropping that press so the run banks no overshoot is the shared
-    // gesture authority's (commitChartGestureStep, which compares the replay against the plan its
-    // entry already holds). A chord member held while another member moves is not this case at all:
-    // that step happened, and replaying the held member from its start is what brings it back in
-    // shape with the others.
+    // A press a bound holds for EVERY keyed note — each ring left where the previous press left
+    // it — moved nothing, so it is refused, as every key that does nothing is: it lights what held
+    // each ring (the next note on its string, its last keyframe; nothing beyond the note where the
+    // onset or a scrape's window held it), the controller adds the selection, and the step is never
+    // recorded, so the run banks no overshoot to pay back. Checked before the finalize, whose
+    // NoChange means something else: a run that stepped back to `base` MOVED its rings, and retires
+    // its entry. A chord member held while another member moves is not this case at all: that step
+    // happened, and replaying the held member from its start is what brings it back in shape with
+    // the others.
+    if (!unheld && !held.empty())
+    {
+        const std::string_view first = held.front().reason;
+        const bool one_reason = std::ranges::all_of(
+            held, [first](const HeldRing& ring) { return ring.reason == first; });
+        RefusalLight lit;
+        for (const HeldRing& ring : held)
+        {
+            lit.add(ring.culprit);
+        }
+        return std::unexpected{PlanRefused{
+            .reason =
+                std::string{
+                    one_reason          ? first
+                    : steps.back().grow ? "every ring already at its bound"
+                                        : "every ring already at its floor"
+                },
+            .lit = std::move(lit),
+        }};
+    }
 
     // The label states the gesture's NET direction, because the entry it goes on describes the
     // whole gesture (start → now) rather than the step just pressed: grow, grow, shrink is a growth

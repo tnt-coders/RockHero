@@ -538,6 +538,39 @@ public:
     /*! \copydoc IEditorController::onFretHandPositionChordRequested */
     void onFretHandPositionChordRequested() override;
 
+    /*! \copydoc IEditorController::onSongSectionChordRequested */
+    void onSongSectionChordRequested() override;
+
+    /*! \copydoc IEditorController::onTempoChordRequested */
+    void onTempoChordRequested() override;
+
+    /*! \copydoc IEditorController::onTimeSignatureChordRequested */
+    void onTimeSignatureChordRequested() override;
+
+    /*! \copydoc IEditorController::onToneChordRequested */
+    void onToneChordRequested() override;
+
+    /*! \copydoc IEditorController::onSongSectionAtRequested */
+    void onSongSectionAtRequested(common::core::GridPosition position) override;
+
+    /*! \copydoc IEditorController::onTimeSignatureAtRequested */
+    void onTimeSignatureAtRequested(common::core::GridPosition position) override;
+
+    /*! \copydoc IEditorController::onToneChangeAtRequested */
+    void onToneChangeAtRequested(common::core::GridPosition position) override;
+
+    /*! \copydoc IEditorController::onToneRenamePromptRequested */
+    void onToneRenamePromptRequested(std::string tone_document_ref) override;
+
+    /*! \copydoc IEditorController::onScaleTempoPromptRequested */
+    void onScaleTempoPromptRequested() override;
+
+    /*! \copydoc IEditorController::onSelectionRestateRequested */
+    void onSelectionRestateRequested() override;
+
+    /*! \copydoc IEditorController::onSelectionRenameRequested */
+    void onSelectionRenameRequested() override;
+
     /*! \copydoc IEditorController::onFretHandPositionEndClearRequested */
     void onFretHandPositionEndClearRequested() override;
 

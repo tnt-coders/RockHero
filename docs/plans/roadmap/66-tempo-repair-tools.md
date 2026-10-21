@@ -65,9 +65,21 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
   object's time and re-addresses its grid position, instead of moving it with the beat. It applies to tempo edits only (a meter edit already keeps time under 65-Q1 = A). The
   workflow for a non-click song: turn it on, sync anchors to the audio, turn it off.
 - **Tempo lock** (toolbar toggle, ON by default for every song each session, never saved): while
-  locked, anchors cannot be MOVED in time (chip drag, `Alt+←/→`); adding one, deleting one, typing
-  a tempo and Scale Tempo stay available. A blocked move is refused visibly. This replaces the
-  deleted 2026-07-09 grid lock, whose fault was blocking every tempo edit by default.
+  locked, the tempo map and the time signatures are frozen: every tempo and meter verb is
+  refused — an anchor or meter move (chip drag, its release, `Alt+←/→`), adding, deleting or
+  retyping an anchor or a meter, the tempo and meter chords, and Scale Tempo in either form. A
+  refused verb flashes the selection and the lock's own toolbar button, and logs one line.
+  **AMENDED 2026-10-20 (user), twice:** the lock had blocked only the moves; it now freezes the
+  whole map and every meter, and the lock's button glows as the thing that stood in the way.
+  **The lock answers first** (ruled the same day): while it is on, its refusal is a verb's first
+  answer, before any planning, bound or prompt, and no prompt opens. Which lock governs which
+  action is stated once, in the action table (`governingLock`,
+  `controller/editor_action_availability.h`), and read once, at dispatch (`refuseLockedAction`);
+  the chords, Enter and Ctrl+R ask the same table through the action their answer runs. Undo and
+  redo bypass both locks on purpose: a lock guards new intentions, and undo only reproduces
+  history already consented to; the toggles themselves are not undoable. The deleted 2026-07-09
+  grid lock blocked every tempo edit too; what sets this one apart is the visible, one-click
+  toggle beside the grid control.
 
 ## Decisions
 
@@ -80,10 +92,11 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    rounds every position to the tick lattice once instead of compounding the rounding per event
    (plan 64's 64-Q5, recommendation B). Decision 7 (2026-10-04) made the toggle-off drag the same
    gesture: it too commits once, on release, where plan 41 committed it per event.
-3. **The lock blocks only moves** — the chip drag and `Alt+←/→` — and is ON by default at every
-   song open, every session, never saved. A refused move gets the refusal flash (red glow on the
-   refused selection plus the log line, `docs/plans/in-progress/refusal-flash.md`), never a status
-   line or toast.
+3. **The lock freezes the tempo map and the time signatures** (amended 2026-10-20; it had blocked
+   only the chip drag and `Alt+←/→`) and is ON by default at every song open, every session, never
+   saved. Its refusal is a verb's first answer, before any bound or prompt. A refused verb gets the
+   refusal flash (red glow on the selection and on the lock's toolbar button, plus the log line,
+   `docs/plans/in-progress/refusal-flash.md`), never a status line or toast.
 
 4. **The two toggles' icons and tooltips (user, 2026-10-04).** Material Symbols Outlined style,
    weight 400, in `rock-hero-editor/ui/resources/` beside the transport icons: Tempo Lock is
@@ -103,8 +116,9 @@ Three tools give the charter the other direction, keeping TIME and re-addressing
    with Grid, not with play, nothing overlaps, and the ON ring does not read as a box like the Grid
    combo's same-geometry outline.
    Tooltips, verbatim:
-   - "Tempo Lock: while on, tempo anchors can't be dragged or nudged. Adding, deleting and typing
-     tempos still work."
+   - "Tempo Lock: while on, the tempo map and time signatures are frozen: no anchor or time
+     signature can be added, moved, retyped, scaled or deleted." (amended 2026-10-20 with the
+     lock's scope)
    - "Note Lock: while on, tempo edits leave notes where they sound in the audio and move the grid
      under them." (renamed from "Keep Notes in Time" on 2026-10-04)
 
@@ -199,10 +213,15 @@ and verifies with a build and the touched tests.
 ### Phase 1 — Tempo lock
 
 - A session-state toggle in the core, ON at every song open and never saved; the toolbar button
-  and its command. `Alt+←/→` on a tempo chip and the chip drag are refused while it is on, through
-  the refusal flash; insert, delete, typed BPM and Scale Tempo are not.
-- **Tests:** the lock is on after open, refuses both moves with a flash and no undo entry, and
-  passes the other four verbs; it is absent from the saved package and the settings file.
+  and its command. Every tempo and meter verb is refused while it is on, first, through the
+  refusal flash, which glows the selection and the lock's button (amended 2026-10-20: it had
+  refused only `Alt+←/→` and the chip drag, passing insert, delete, typed BPM and Scale Tempo, and
+  every meter verb).
+- **Tests:** the lock is on after open; it refuses the nudge, every drag event, a drag's release,
+  insert, delete, typed BPM and Scale Tempo in both forms, and the meter set, insert, move, delete
+  and chord, each with a flash naming the lock and no undo entry, while each verb lands with the
+  lock off; a locked chord opens no prompt; it is absent from the saved package and the settings
+  file.
 - Independent of plan 65; it may land first.
 
 ### Phase 2 — Scale Tempo

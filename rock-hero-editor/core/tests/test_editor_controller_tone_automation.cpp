@@ -1,8 +1,11 @@
+#include "log_capture.h"
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -141,7 +144,7 @@ struct AutomationEditor : SongEditorHarness
 
 // The full content width and visible timeline the pointer-gesture tests map pixels against, plus
 // the pressed lane's value band. At 400 px over [0, 4] s a point at t seconds sits at x = 100·t
-// (the ÷width forward map the hit-test uses); the placement snap inverts through ÷ (width - 1). The
+// (the one time-to-x mapping, which the hit-test and the placement snap's inverse share). The
 // band {top 5, height 40} matches a default 56 px lane, so value v draws at y = 5 + (1 - v)·40.
 constexpr int g_pointer_content_width = 400;
 constexpr float g_pointer_band_top = 5.0F;
@@ -358,6 +361,31 @@ TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][t
     CHECK(
         editor.automation().selected_point ==
         std::optional{ToneAutomationSelectedPointRef{.lane_index = 0, .point_index = 0}});
+}
+
+// The points are content the Note Lock holds in time, so a write under it is refused: the model
+// stays as it was and no entry opens, and the flash lights the lock's button.
+TEST_CASE(
+    "The Note Lock refuses a tone automation edit and lights its button", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 2), .norm_value = 0.6F}});
+    const std::vector<common::core::ToneParameterAutomation> seeded = editor.model();
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE(editor.state().note_lock);
+    const std::size_t entries = editor.state().undo_history.labels.size();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.controller.onToneAutomationPointsEditRequested(
+        g_instance,
+        g_param,
+        {common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.3F}});
+    CHECK(editor.model() == seeded);
+    CHECK(editor.state().undo_history.labels.size() == entries);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    const RefusalFlash& flash = editor.view.refusal_flashes.back();
+    CHECK(flash.locks == std::vector{LockControl::Note});
 }
 
 // Removing a plugin takes its automation out of the model with it, and undo restores both.
@@ -631,7 +659,9 @@ TEST_CASE(
     // Global beat 4.5 at the default 120 BPM.
     CHECK(curve_seconds() == Catch::Approx(2.25));
 
-    // Half the tempo over the whole song puts the same beat at 4.5 s.
+    // Half the tempo over the whole song puts the same beat at 4.5 s, typed with the Tempo Lock,
+    // which every open turns on, off.
+    editor.controller.onTempoLockToggleRequested();
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
     CHECK(curve_seconds() == Catch::Approx(4.5));
 
@@ -661,6 +691,8 @@ TEST_CASE(
     REQUIRE(curve_seconds() == Catch::Approx(2.25));
     const int seeded_writes = editor.tone_automation.write_call_count;
 
+    // Typed with the Tempo Lock, which every open turns on and which freezes the meters, off.
+    editor.controller.onTempoLockToggleRequested();
     editor.controller.onTimeSignatureSetRequested(beatAt(1, 1), "8/8");
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 1);
@@ -820,11 +852,13 @@ TEST_CASE(
 }
 
 // The shared move intent nudges the selected point's value and steps its position, carrying the
-// selection and the lane caret along, and never past the region window or the map's start.
+// selection and the lane caret along, and never past the region window or the map's start: those
+// steps are refused, logged under the lane's label, and the window's refusal lights its region.
 TEST_CASE(
     "EditorController moves the selected automation point through the one move dispatch",
     "[core][tone-automation]")
 {
+    const testing::LogCapture capture;
     AutomationEditor editor;
     editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
@@ -872,19 +906,128 @@ TEST_CASE(
 
     // A grid step from the off-grid slot lands on the ADJACENT grid line — never jumping past
     // it (the shared adjacent-line primitive, matching the caret's own stepping rule); the
-    // step that would land on the region's end boundary (4.0 s) is refused by the window
-    // clamp.
+    // step that would land on the region's end boundary (4.0 s) is refused by the window, which
+    // lights the region whose edge held it.
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 3));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 4));
+    const std::size_t entries = editor.state().undo_history.labels.size();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 4));
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().tone_regions == std::vector<std::string>{g_region});
+    CHECK(
+        editor.view.refusal_flashes.back().sentence ==
+        "automation point would leave its tone region");
 
-    // At the map edge the step collapses: refused, nothing changes.
+    // At the map edge the step collapses: refused, nothing changes, and a point is no refusal
+    // target, so nothing lights; the lane's line still says why.
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 1));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.model().front().points.front().position == pointAt(1, 1));
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 2);
+    CHECK(editor.view.refusal_flashes.back().tone_regions.empty());
+    CHECK(editor.view.refusal_flashes.back().sentence == "automation point would leave the song");
+    CHECK(editor.state().undo_history.labels.size() == entries);
+
+    const std::string contents = capture.text();
+    CHECK(
+        contents.find(
+            R"(Rejected marker edit label="Automate Gain" )"
+            R"(detail="automation point would leave its tone region")") != std::string::npos);
+    CHECK(
+        contents.find(
+            R"(Rejected marker edit label="Automate Gain" )"
+            R"(detail="automation point would leave the song")") != std::string::npos);
+}
+
+// A value step at the range's end and a time step onto a neighbour are refused too, logged under
+// the lane's label and lighting nothing: the point is no refusal target, nor is the neighbour.
+TEST_CASE(
+    "A selected automation point's value and neighbour bounds refuse with a log line",
+    "[core][tone-automation]")
+{
+    const testing::LogCapture capture;
+    AutomationEditor editor;
+    editor.controller.onToneAutomationPointsEditRequested(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.0F},
+            common::core::ToneAutomationPoint{.position = pointAt(1, 2), .norm_value = 1.0F},
+            common::core::ToneAutomationPoint{.position = pointAt(1, 3), .norm_value = 0.5F},
+        });
+    const std::vector<common::core::ToneParameterAutomation> seeded = editor.model();
+    const std::size_t entries = editor.state().undo_history.labels.size();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    // The middle point stands at the top of the range and between two neighbours one grid line
+    // away on either side, so every press but Down is held.
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 2));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 1));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Down);
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 2));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+
+    CHECK(editor.model() == seeded);
+    CHECK(editor.state().undo_history.labels.size() == entries);
+    const std::vector<std::string> sentences{
+        "automation point is already at the top of its range",
+        "automation point cannot step onto or past its neighbour",
+        "automation point is already at the bottom of its range",
+        "automation point cannot step onto or past its neighbour",
+    };
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + sentences.size());
+    const std::string contents = capture.text();
+    for (std::size_t index = 0; index < sentences.size(); ++index)
+    {
+        const RefusalFlash& flash = editor.view.refusal_flashes[flashes + index];
+        CHECK(flash.sentence == sentences[index]);
+        CHECK(flash.tone_regions.empty());
+        CHECK(flash.locks.empty());
+        CHECK(
+            contents.find(
+                R"(Rejected marker edit label="Automate Gain" detail=")" + sentences[index]) !=
+            std::string::npos);
+    }
+}
+
+// The window's edge inside the song is the next region's start: a step onto it is refused and
+// lights the region it would leave. The Note Lock answers before any bound, since nothing moves
+// while it holds: a locked step at the same edge says the lock and lights its button.
+TEST_CASE(
+    "A selected automation point is held by an interior region edge, and the lock comes first",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor{makeTwoToneChartedSong(pointAt(2, 1))};
+    editor.controller.onToneAutomationPointsEditRequested(
+        g_instance,
+        g_param,
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 4), .norm_value = 0.5F}});
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 4));
+    const std::vector<common::core::ToneParameterAutomation> seeded = editor.model();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(editor.model() == seeded);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().tone_regions == std::vector<std::string>{g_region});
+    CHECK(
+        editor.view.refusal_flashes.back().sentence ==
+        "automation point would leave its tone region");
+
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE(editor.state().note_lock);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    CHECK(editor.model() == seeded);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 2);
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Note});
+    CHECK(editor.view.refusal_flashes.back().tone_regions.empty());
+    CHECK(editor.view.refusal_flashes.back().sentence == g_note_lock_sentence);
 }
 
 // A move intent on an empty lane slot creates a point on the curve with the step applied, as one
@@ -1045,16 +1188,15 @@ TEST_CASE(
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
 
-    // Geometry chosen so the two x->seconds conversions straddle a snap boundary. Over [0, 4] s
-    // with a 401 px content width, the pixel x 225.3 maps to 2.253 s through the placement seam
-    // (timelinePositionForX divides by width - 1 and clamps) but to 2.247 s through a ÷width
-    // mapping (the hit-test's forward map, inverted). The quarter-note grid boundary sits at
-    // 2.25 s, so the two paths snap to DIFFERENT slots, one pixel apart; the ghost must take the
-    // placement seam's, so it previews exactly where an Alt+click lands.
+    // Geometry chosen so the pixel's raw time sits just past a snap boundary. Over [0, 4] s with a
+    // 400 px content width, the pixel x 225.3 maps to 2.253 s through the placement seam
+    // (timelinePositionForX, the one mapping's inverse); the quarter-note grid boundary sits at
+    // 2.25 s, so the seam snaps it LATER, to 2.5 s. The ghost must take the seam's slot rather than
+    // the raw pixel time, so it previews exactly where an Alt+click lands.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
-    constexpr int content_width = 401;
+    constexpr int content_width = 400;
     constexpr float boundary_x = 225.3F;
 
     editor.controller.onToneAutomationPointerMove(
@@ -1085,22 +1227,10 @@ TEST_CASE(
     const common::core::GridPosition placement_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
     CHECK(placement_slot == beatAt(2, 2));
+    CHECK(placement_time->seconds == Catch::Approx(2.253));
 
-    // The ÷width mapping snaps this same pixel to the EARLIER slot (2.0 s, measure 2 beat 1): the
-    // two paths genuinely disagree here.
-    const double width_division_seconds =
-        visible.start.seconds +
-        (static_cast<double>(boundary_x) / static_cast<double>(content_width)) *
-            visible.duration().seconds;
-    const common::core::GridPosition width_division_slot = nearestTempoGridPosition(
-        tempo_map,
-        common::core::Fraction{1, 4},
-        common::core::TimePosition{width_division_seconds});
-    CHECK(width_division_slot == beatAt(2, 1));
-    CHECK(width_division_slot != placement_slot);
-
-    // The published ghost lands on the placement slot, not the ÷width one: its seconds match the
-    // placement path's TempoMap::secondsAt exactly (2.5 s), never the ÷width slot's 2.0 s.
+    // The published ghost lands on the placement slot, not the raw pixel time: its seconds match
+    // the placement path's TempoMap::secondsAt exactly (2.5 s), never the unsnapped 2.253 s.
     REQUIRE(editor.automation().insert_ghost.has_value());
     if (editor.automation().insert_ghost.has_value())
     {
@@ -1109,7 +1239,7 @@ TEST_CASE(
             editor.automation().insert_ghost->seconds ==
             Catch::Approx(tempo_map.secondsAt(placement_slot)));
         CHECK(editor.automation().insert_ghost->seconds == Catch::Approx(2.5));
-        CHECK(editor.automation().insert_ghost->seconds != Catch::Approx(2.0));
+        CHECK(editor.automation().insert_ghost->seconds != Catch::Approx(placement_time->seconds));
     }
 }
 
@@ -1122,14 +1252,13 @@ TEST_CASE(
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
 
-    // The same boundary geometry the ghost-snap test uses, so the caret's snap is proven against
-    // the identical disagreement: over [0, 4] s at 401 px, the pixel x 225.3 inverts to 2.253 s
-    // through the placement seam (÷ (width - 1)) but to 2.247 s through a ÷width mapping. The 1/4
-    // grid boundary sits at 2.25 s, so the two paths arm the caret on DIFFERENT slots.
+    // The same boundary geometry the ghost-snap test uses: over [0, 4] s at 400 px, the pixel x
+    // 225.3 inverts to 2.253 s through the placement seam, just past the 1/4 grid's boundary at
+    // 2.25 s, so the seam arms the caret on the LATER slot rather than the raw pixel time.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
-    constexpr int content_width = 401;
+    constexpr int content_width = 400;
     constexpr float boundary_x = 225.3F;
 
     // A plain (no Alt) primary press on the empty unauthored lane arms the caret — the row-axis
@@ -1165,30 +1294,16 @@ TEST_CASE(
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
     CHECK(placement_slot == beatAt(2, 2));
 
-    // The ÷width mapping arms the caret one slot EARLIER (2.0 s, measure 2 beat 1): the two paths
-    // genuinely disagree at this pixel.
-    const double width_division_seconds =
-        visible.start.seconds +
-        (static_cast<double>(boundary_x) / static_cast<double>(content_width)) *
-            visible.duration().seconds;
-    const common::core::GridPosition width_division_slot = nearestTempoGridPosition(
-        tempo_map,
-        common::core::Fraction{1, 4},
-        common::core::TimePosition{width_division_seconds});
-    CHECK(width_division_slot == beatAt(2, 1));
-    CHECK(width_division_slot != placement_slot);
-
-    // The armed caret lands on the placement slot, not the ÷width slot: the caret sits exactly
-    // where an Alt+click / ghost would at this pixel, and the transport follows it there.
+    // The armed caret lands on the placement slot: it sits exactly where an Alt+click / ghost
+    // would at this pixel, and the transport follows it there rather than to the raw 2.253 s.
     REQUIRE(editor.automation().lane_caret.has_value());
     if (editor.automation().lane_caret.has_value())
     {
         CHECK(editor.automation().lane_caret->lane_index == 0);
         CHECK(editor.automation().lane_caret->position == placement_slot);
-        CHECK(editor.automation().lane_caret->position != width_division_slot);
     }
     CHECK(editor.transport.position().seconds == Catch::Approx(2.5));
-    CHECK(editor.transport.position().seconds != Catch::Approx(2.0));
+    CHECK(editor.transport.position().seconds != Catch::Approx(placement_time->seconds));
 }
 
 // The lane caret arms on the session's placement quantum: the grid with snap on, the tick
@@ -1208,7 +1323,7 @@ TEST_CASE(
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
-    constexpr int content_width = 401;
+    constexpr int content_width = 400;
     constexpr float off_grid_x = 213.0F;
 
     const common::core::TempoMap& tempo_map = editor.controller.session().song().tempo_map;
@@ -1854,9 +1969,9 @@ TEST_CASE("EditorController walks the focus rows below the strings", "[core][ton
 }
 
 // The "+" row is reached by selection like a marker row, but it names no document object: Enter
-// opens the parameter picker, and Ctrl+R has nothing to rename. Both verbs are published by the
-// core, so the view dispatches on no kind of its own.
-TEST_CASE("EditorController publishes the add-lane row's restate verb", "[core][tone-automation]")
+// opens the parameter picker, and Ctrl+R has nothing to rename. Both verbs are decided by the core
+// at the press, so the view dispatches on no kind of its own.
+TEST_CASE("EditorController asks for the add-lane row's restate picker", "[core][tone-automation]")
 {
     AutomationEditor editor{makeChartedAutomationSong()};
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
@@ -1872,8 +1987,10 @@ TEST_CASE("EditorController publishes the add-lane row's restate verb", "[core][
     const EditorViewState* const state = stateOrNull(editor.view.last_state);
     REQUIRE(state != nullptr);
     REQUIRE(state->tone_automation.add_lane_row_selected);
-    CHECK(std::holds_alternative<OpenAutomationPickerTarget>(state->restate_target));
-    CHECK(std::holds_alternative<std::monostate>(state->rename_target));
+    CHECK(
+        editor.pressForPrompt(&EditorController::onSelectionRestateRequested) ==
+        std::optional<MarkerPrompt>{OpenAutomationPickerTarget{}});
+    CHECK_FALSE(editor.pressForPrompt(&EditorController::onSelectionRenameRequested).has_value());
 }
 
 // A horizontal press or a jump from a marker row returns to the row the caret was reached from, a

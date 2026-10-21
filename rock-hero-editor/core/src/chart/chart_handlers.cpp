@@ -88,48 +88,6 @@ constexpr double g_cursor_column_tolerance_seconds = 0.001;
         chartSlotText(key.note));
 }
 
-// Hands `visit` every element a whole-stream change drops or rewrites: each one its stream held
-// before and no longer holds after. Nothing where the plan leaves that stream alone.
-template <typename Element, typename Visit>
-void forEachReplaced(const std::optional<StreamChange<Element>>& change, const Visit& visit)
-{
-    if (!change.has_value())
-    {
-        return;
-    }
-    // Bound once, so the optional-access check sees the guard reach the loop below.
-    const StreamChange<Element>& stream = *change;
-    for (const Element& element : stream.before)
-    {
-        // A predicate rather than a value find, which under clang the MSVC STL may send down a
-        // vectorized path that cannot take the element.
-        if (std::ranges::none_of(
-                stream.after, [&element](const Element& kept) { return kept == element; }))
-        {
-            visit(element);
-        }
-    }
-}
-
-// What a plan would take from its base, as a refusal lights it: the notes it removes or rewrites,
-// and the holds and positions its whole-stream rewrites drop or change — what a lock froze.
-[[nodiscard]] RefusalLight planBaseLight(const ChartEditPlan& plan)
-{
-    RefusalLight light;
-    for (const common::core::ChartNote& note : plan.removed)
-    {
-        light.add(ChartNoteKey{.slot = chartSlotKeyOf(note)});
-    }
-    forEachReplaced(plan.shape_holds, [&light](const common::core::ShapeHold& hold) {
-        light.add(holdTarget(hold));
-    });
-    forEachReplaced(
-        plan.fret_hand_positions, [&light](const common::core::FretHandPosition& position) {
-            light.add(FretHandPositionSelection{.position = position.position});
-        });
-    return light;
-}
-
 // The SUBJECT of a chart refusal record: what was refused, beside the planner's reason for it. One
 // object is named outright; several by their count and their first and last in the selection's
 // own order (notes, then keyframes), which keeps a marquee's line short and still says where it
@@ -190,13 +148,17 @@ const common::core::ChartViewState* EditorController::Impl::currentTabProjection
 // Rationale lives on the declaration in editor_controller_impl.h. The note and keyframe keys are
 // gathered first and resolved in one merge each, which takes them in the chart's own order; every
 // marker resolves through its row on its own.
-void EditorController::Impl::flashRefusalLight(const RefusalLight& lit)
+void EditorController::Impl::flashRefusalLight(
+    const RefusalLight& lit, const std::string_view sentence)
 {
-    if (m_view == nullptr || lit.empty())
+    // Every refusal says why, so a flash is never empty, even where nothing in its light resolves.
+    assert(!sentence.empty() && "a refusal carries its sentence");
+    if (m_view == nullptr)
     {
         return;
     }
     RefusalFlash flash;
+    flash.sentence = sentence;
     std::vector<ChartSlotKey> notes;
     std::vector<ChartKeyframeKey> keyframes;
     // A marker its row no longer holds lights nothing, as a key the projection cannot resolve.
@@ -242,6 +204,7 @@ void EditorController::Impl::flashRefusalLight(const RefusalLight& lit)
                 [&flash](const ToneRegionSelection& region) {
                     flash.tone_regions.push_back(region.region_id);
                 },
+                [&flash](const LockControl lock) { flash.locks.push_back(lock); },
             },
             target);
     }
@@ -263,12 +226,7 @@ void EditorController::Impl::flashRefusalLight(const RefusalLight& lit)
     sortUnique(flash.fret_hand_positions);
     sortUnique(flash.ruler_chips);
     sortUnique(flash.tone_regions);
-    if (flash.notes.empty() && flash.spans.empty() && flash.none_holds.empty() &&
-        flash.fret_hand_positions.empty() && flash.keyframes.empty() && flash.ruler_chips.empty() &&
-        flash.tone_regions.empty())
-    {
-        return;
-    }
+    sortUnique(flash.locks);
     m_view->flashRefusal(std::move(flash));
 }
 
@@ -285,7 +243,7 @@ void EditorController::Impl::reportChartPlanRefusal(
         chartSubjectText(subject.notes(), subject.keyframes()), invalid->reason);
     RefusalLight lit = lightOf(subject);
     lit.add(invalid->lit);
-    flashRefusalLight(lit);
+    flashRefusalLight(lit, invalid->reason);
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -303,7 +261,8 @@ void EditorController::Impl::reportChartRefusedNotes(
         lit.add(ChartNoteKey{.slot = note.note});
         lit.add(note.lit);
     }
-    flashRefusalLight(lit);
+    // One line on screen: the first note's reason, the log carrying every note's.
+    flashRefusalLight(lit, refused.front().reason);
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -1161,28 +1120,12 @@ bool EditorController::Impl::applyChartEditPlan(
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds), seeds the notes-layer memo with the gate's own derivation of the
-// stream it landed, and records it as one undo entry. The Note Lock refuses here, where every
-// planned edit lands whatever planned it, naming the notes the plan would rewrite or remove as
-// the refusal's subject — an insert at an empty slot names none and logs alone.
+// stream it landed, and records it as one undo entry. The Note Lock never reaches here: every
+// verb that plans a chart edit is dispatched, and the dispatcher refuses it first
+// (refuseLockedAction).
 bool EditorController::Impl::applyChartEditPlan(
     JudgedChartPlan plan, std::optional<ChartEditLanding> landing)
 {
-    if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
-    {
-        std::vector<ChartSelectionKey> rewritten;
-        rewritten.reserve(plan.plan.removed.size());
-        for (const common::core::ChartNote& note : plan.plan.removed)
-        {
-            rewritten.emplace_back(ChartNoteKey{.slot = chartSlotKeyOf(note)});
-        }
-        ChartSelection subject;
-        subject.replaceWith(rewritten);
-        // The lock names nothing on the lane, so the refusal lights what it froze.
-        reportChartPlanRefusal(
-            PlanRefused{.reason = std::move(*locked), .lit = planBaseLight(plan.plan)}, subject);
-        return false;
-    }
-
     // Where the charter stands before anything moves, which is exactly where undo returns them.
     EditFocus before = chartEditFocus();
     const std::optional<std::expected<void, EditorUndoFailureCode>> applied = m_session.writeChart(
@@ -2460,15 +2403,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // snap is on, a tick while it is off), and Up/Down across strings. The time move is RELATIVE, so an
 // object sitting between lines keeps its offset rather than being pulled onto one — a move is not a
 // snap. A refused move (edge of the neck, occupied slot, a keyframe stepped onto its neighbour or
-// out of its ring) is a silent no-op — the selection stays put, matching refuse-not-clamp
-// everywhere else.
+// out of its ring, a slide-out already parked on the next head, a selection already at the start or
+// end of the song) changes nothing and flashes — the selection stays put, matching
+// refuse-not-clamp everywhere else. Every one of them is the planner's answer (planMoveGesture).
 //
 // BOTH selection kinds are operands of the time step: a note's place is its slot and a keyframe's
 // is an offset along the ring it rides, so one press steps each where it lives, in one plan and
 // one undo entry. The STRING step reaches notes only — a keyframe has no string of its
 // own, and a selected head carries its path across by construction — so Alt+Up/Down over keyframes
-// alone moves nothing: a first press plans nothing at all, and a press inside a live run records a
-// step that adds no delta, which leaves the run exactly where it was.
+// alone moves nothing: a first press plans nothing at all, and a press inside a live run plans
+// the run it already holds, which the gesture authority drops unrecorded.
 //
 // A held or repeated run is ONE GESTURE and ONE UNDO ENTRY, as the duration verb's is: every press
 // APPENDS its step to the run's list, the whole run is re-planned by replaying that list over the
@@ -2490,6 +2434,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     {
         return;
     }
+    // Bound once, right behind the guard, so every read below is provably behind it.
+    const common::core::Chart& live_chart = *arrangement->chart;
 
     // The gesture this press continues, or a fresh one over what is selected NOW. Its keys are read
     // once, here, and never again: every step re-points the selection, so the live keys name where
@@ -2595,14 +2541,14 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     // argument is being evaluated, and a moved-from list would replay nothing.
     const std::expected<bool, PlanRefused> committed = commitChartGestureStep(
         live != nullptr,
-        [this, &delta, &gesture, label](const common::core::Chart& pre_gesture) {
-            return planMoveSelection(
-                pre_gesture,
+        [this, &live_chart, &gesture, label](const common::core::Chart& pre_gesture) {
+            return planMoveGesture(
+                live_chart,
                 session().song().tempo_map,
+                pre_gesture,
                 gesture.note_keys,
                 gesture.keyframe_keys,
-                delta.whole_notes,
-                delta.strings,
+                gesture.steps,
                 label);
         },
         gesture,
@@ -2888,14 +2834,6 @@ std::expected<EditorController::Impl::ChartFretEntryPlan, PlanRefusal> EditorCon
     {
         // No chart, so nothing to light.
         return std::unexpected{PlanRefused{.reason = "no chart is loaded", .lit = {}}};
-    }
-    // Refused at the plan, not only at the settle, so the pending box is red while the value is
-    // typed: what the commit would refuse is what the box shows. It names no culprit, as the
-    // funnel's lock refusal does: the lock is nothing on screen; the report lights what the entry
-    // was typed on.
-    if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
-    {
-        return std::unexpected{PlanRefused{.reason = std::move(*locked), .lit = {}}};
     }
     const common::core::Chart& chart = *arrangement->chart;
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
@@ -3393,7 +3331,7 @@ void EditorController::Impl::reportChartFretEntryRefusal(const ChartFretEntry& e
     m_refusal_log.chartEdit(chartFretEntrySubject(entry), invalid->reason);
     RefusalLight lit = fretEntryTargetLight(entry.target);
     lit.add(invalid->lit);
-    flashRefusalLight(lit);
+    flashRefusalLight(lit, invalid->reason);
 }
 
 // Rationale lives on the declaration in editor_controller_impl.h.
@@ -3669,17 +3607,17 @@ std::expected<bool, PlanRefused> EditorController::Impl::commitChartGestureStep(
     std::expected<JudgedChartPlan, PlanRefusal> plan = replan(*pre_gesture);
     if (!plan.has_value())
     {
-        // Invalid is the gate refusing the result, so this step never happened: it is not recorded
+        // Invalid is the planner or the gate refusing the step — a bound holding everything it
+        // addressed, or a result breaking a rule — so this step never happened: it is not recorded
         // (the appended list is the caller's local until the window is armed below), a running
         // gesture keeps the entry and the steps it had, and the refusal goes back to the caller,
         // which reports it against what its verb acts on.
         //
-        // NoChange is the gesture standing exactly where it started — every object already at its
-        // bound on a first step, or a run that replayed back to its start — so it describes no edit
-        // at all. A first step then arms nothing, and the next press in the other direction starts
-        // from the current values rather than paying back steps that never moved anything; a
-        // running gesture RETIRES the entry it pushed, because an entry describing nothing is a
-        // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
+        // NoChange is the gesture standing exactly where it started — a first step that changes
+        // nothing, or a run that replayed back to its start — so it describes no edit at all. A
+        // first step then arms nothing; a running gesture RETIRES the entry it pushed, because an
+        // entry describing nothing is a dead Ctrl+Z on a document reported modified that is
+        // byte-identical to the saved file.
         if (std::holds_alternative<PlanNoChange>(plan.error()) && burst != nullptr)
         {
             // The selection goes back with the chart, landed once it is written: to the selection
@@ -3701,19 +3639,17 @@ std::expected<bool, PlanRefused> EditorController::Impl::commitChartGestureStep(
         return false;
     }
 
-    // A replayed run that describes EXACTLY the plan its entry already holds moved nothing — every
-    // object pinned at a bound or held at a floor — so the press is not recorded: the caller's step
-    // list is still its own local until the window is armed below, and a running gesture keeps the
-    // entry and the steps it had. Recording it would bank an overshoot the charter cannot see and
-    // would have to pay back, press by press, before the next visible step. The label is
+    // A replayed run that describes EXACTLY the plan its entry already holds moved nothing, so the
+    // press is not recorded: the caller's step list is still its own local until the window is
+    // armed below, and a running gesture keeps the entry and the steps it had. The label is
     // deliberately not compared: it names the run's NET direction, and a run standing still has no
     // new direction to name.
     //
-    // Stated here rather than per verb because it is a fact about the GESTURE, not about any verb's
-    // rules: the entry's plan is the only record of where the run has reached, and the shared
-    // authority is the one place holding it. It is what makes a clamp safe to coalesce — the move
-    // verb's slide-out parks on the next head on its string, so every further press that way is a
-    // no-op that must cost nothing to come back from.
+    // A press a bound held never reaches here: its planner refuses it, lighting what held it
+    // (planAdjustSustain, planMoveGesture), and the refusal above records nothing either. What
+    // remains is a press inside a run that asked nothing new: the harmonic picker's row already in
+    // force chosen again, a string step over keyframes alone, and a step on a finer lattice that
+    // only walks back over what an earlier press's clamp absorbed, which no bound judges.
     if (burst != nullptr && plan->plan.removed == burst->plan.removed &&
         plan->plan.inserted == burst->plan.inserted &&
         plan->plan.shape_holds == burst->plan.shape_holds &&

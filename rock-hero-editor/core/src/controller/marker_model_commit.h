@@ -30,7 +30,7 @@ namespace rock_hero::editor::core
 
 // The marker models that state the grid itself and so address the rest — the ones commitGridModel
 // lands, each stating how the keyboard crosses its landing (GridCarry). Every other model is
-// content, which the Note Lock freezes.
+// content.
 template <typename Snapshot>
 inline constexpr bool g_states_grid = requires { Snapshot::g_grid_carry; };
 
@@ -84,19 +84,12 @@ template <typename Snapshot>
 
 // The funnel's front half: the produced model normalized, then validated, then compared with the
 // one it would replace. Stated once so the commit and a pending entry's red box cannot disagree
-// about what the commit would refuse. The Note Lock's refusal comes first, since it refuses the
-// edit whatever model it produced; it names no culprit, the lock being nothing on screen.
+// about what the commit would refuse. No lock is asked here: every marker verb is dispatched, and
+// the lock that governs it refused it first (refuseLockedAction).
 template <typename Snapshot>
 std::expected<EditorController::Impl::JudgedMarkerModel<Snapshot>, PlanRefusal> EditorController::
     Impl::judgeMarkerModel(const Snapshot& before, Snapshot after) const
 {
-    if constexpr (!g_states_grid<Snapshot>)
-    {
-        if (std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
-        {
-            return std::unexpected{PlanRefused{.reason = std::move(*locked), .lit = {}}};
-        }
-    }
     MarkerModelNormalization normalization = normalizedModel(after);
     if (std::optional<PlanRefused> refused = after.validate(
             MarkerJudgeContext{

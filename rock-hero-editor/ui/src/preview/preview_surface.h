@@ -6,7 +6,6 @@
 #pragma once
 
 #include "preview/preview_time_model.h"
-#include "shared/flash_pulse.h"
 
 #include <chrono>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -87,27 +86,9 @@ public:
 
     /*!
     \brief Replaces the highway content the surface renders.
-
-    A different snapshot drops a running refusal flash, since its indices name the old chart's
-    marks.
-
     \param state Shared scene-model snapshot from the controller; null clears the board.
     */
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
-
-    /*!
-    \brief Flashes the highway marks a refusal lights: each lights in the highlight's color a
-    couple of times, then the board stands as it was.
-
-    A flash arriving while one runs joins it on the running pulse, so a held key reads as one pulse
-    train. It runs on the clock whether or not frames are ticking, so a preview shown late never
-    plays it late. A refusal lighting nothing on the board starts no pulse, so it never cuts short
-    the pulse a later refusal would join.
-
-    \param highlight The refused marks in the current snapshot's indices, and their color; null or
-           empty when the refusal lights nothing here.
-    */
-    void flashRefusal(std::shared_ptr<const common::ui::HighwayHighlight> highlight);
 
     /*!
     \brief Re-frames the board from rest on the next frame, after any pending state swap.
@@ -194,10 +175,6 @@ private:
     std::optional<common::ui::HighwayRenderer> m_renderer;
 
     std::shared_ptr<const common::core::HighwayViewState> m_state;
-
-    // The refusal flash while it runs: every refused mark it has joined, in m_state's indices, and
-    // its pulse. Handed to the renderer each frame at the pulse's level; a new snapshot drops it.
-    std::optional<PulsedFlash<std::shared_ptr<const common::ui::HighwayHighlight>>> m_refusal{};
 
     // How the preview maps the board: the player's view preferences, padded to the tab's
     // displayed-string minimum. Handed to the renderer when it comes up and whenever the editor

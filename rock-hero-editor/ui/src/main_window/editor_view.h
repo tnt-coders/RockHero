@@ -10,6 +10,7 @@
 #include "main_window/menu_look_and_feel.h"
 #include "main_window/undo_history_overlay.h"
 #include "shared/audio_level_meter.h"
+#include "shared/flash_pulse.h"
 #include "shared/mode_toggle_button.h"
 #include "signal_chain/plugin_browser_window.h"
 #include "signal_chain/signal_chain_panel.h"
@@ -167,6 +168,9 @@ public:
     /*! \copydoc core::IEditorView::showChartHoldPicker */
     void showChartHoldPicker(core::ChartHoldPicker picker) override;
 
+    /*! \copydoc core::IEditorView::showMarkerPrompt */
+    void showMarkerPrompt(const core::MarkerPrompt& prompt) override;
+
     /*! \copydoc core::IEditorView::flashRefusal */
     void flashRefusal(core::RefusalFlash flash) override;
 
@@ -195,8 +199,8 @@ public:
     void paint(juce::Graphics& g) override;
 
     /*!
-    \brief Dims the whole editor and draws the editor notice over it while a modal window holds
-    the editor.
+    \brief Glows the lock buttons a running refusal flash lights, then dims the whole editor and
+    draws the editor notice over it while a modal window holds the editor.
     \param g Graphics context used for drawing.
     */
     void paintOverChildren(juce::Graphics& g) override;
@@ -338,6 +342,16 @@ private:
     // sampler (m_vblank_attachment) is the ONE place the predicate is read, and it is the only
     // sampler that cannot be wrong about where the pointer is.
     void syncAltHeldState();
+
+    // The toolbar button of a lock, which a refusal the lock caused glows.
+    [[nodiscard]] ModeToggleButton& lockButton(core::LockControl lock);
+
+    // The area the lock refusal's glow can paint: around every lit button, or nothing while no
+    // flash runs. The editor repaints only there, since its children are the whole window.
+    [[nodiscard]] juce::Rectangle<int> lockRefusalGlowArea();
+
+    // Retires the lock refusal flash once its pulses have run, repainting its glow while it runs.
+    void stepLockRefusalFlash();
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();
@@ -508,18 +522,20 @@ private:
     // TimelineRuler::Listener implementation.
     void onSpanSelected(std::size_t index) override;
 
-    // TimelineRuler::Listener implementation.
+    // TimelineRuler::Listener implementation; asks the core for the section verb at the place.
     void onSongSectionInsertPromptRequested(common::core::GridPosition position) override;
 
     // TimelineRuler::Listener implementation.
     void onTempoAnchorInsertRequested(common::core::GridPosition position) override;
 
-    // TimelineRuler::Listener implementation.
-    void onTimeSignatureInsertPromptRequested(
-        const core::InsertTimeSignatureTarget& target) override;
+    // TimelineRuler::Listener implementation; asks the core for the meter verb at the place.
+    void onTimeSignatureInsertPromptRequested(common::core::GridPosition position) override;
 
     // TimelineRuler::Listener implementation; runs the ScaleTempo command.
     void onScaleTempoPromptRequested() override;
+
+    // Opens the name prompt for the section insert the core's published section verb names.
+    void insertSection(const core::InsertSectionTarget& target);
 
     // TimelineRuler::Listener implementation; also Enter's perform.
     void onSelectionRestateRequested() override;
@@ -549,9 +565,9 @@ private:
         const juce::String& title, common::core::GridPosition position,
         const std::string& meter_text);
 
-    // The Scale Tempo prompt: one factor typed for the whole song, handed back raw for the core to
-    // parse. The ScaleTempo command opens it.
-    void promptScaleTempo();
+    // The Scale Tempo prompt the core names after the lock has answered: one factor typed for the
+    // whole song, handed back raw for the core to parse.
+    void promptScaleTempo(const core::ScaleTempoTarget& target);
 
     // ToneTrackView::Listener implementation.
     void onToneRegionSelected(std::string region_id) override;
@@ -595,13 +611,14 @@ private:
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position) override;
 
-    // ToneTrackView::Listener implementation.
-    void onToneRenamePromptRequested(
-        std::string tone_document_ref, std::string current_name) override;
+    // ToneTrackView::Listener implementation; asks the core for the rename prompt.
+    void onToneRenamePromptRequested(std::string tone_document_ref) override;
 
-    // ToneTrackView::Listener implementation.
-    void onToneChangeInsertRequested(
-        common::core::GridPosition position, std::string containing_tone_document_ref) override;
+    // Opens the tone rename prompt the core's published rename verb names.
+    void renameTone(const core::RenameToneTarget& target);
+
+    // ToneTrackView::Listener implementation; asks the core for the tone verb at the place.
+    void onToneChangeInsertRequested(common::core::GridPosition position) override;
 
     // ToneTrackView::Listener implementation.
     void onToneRegionDeleteRequested(std::string region_id) override;
@@ -748,11 +765,6 @@ private:
     // are not repeated here: the timeline ruler's header bands pin them to their left edge.
     juce::Label m_position_display;
 
-    // Read-only "N notes" readout beside the position display while two or more chart notes
-    // are selected (the marker model's count chip): typing acts on the whole selection, so
-    // its size must stay visible even when the highlighted notes are scrolled off-screen.
-    juce::Label m_selection_count_display;
-
     // Marked position behind the current m_position_display text, so vblank frames where that
     // position holds skip re-formatting the readout strings. Seconds alone identify
     // the text because the other readout inputs (project-loaded flag, tempo map) change only
@@ -767,6 +779,11 @@ private:
 
     // Toolbar toggle for the Note Lock, paired with the tempo lock just right of it.
     ModeToggleButton m_note_lock_button;
+
+    // The refusal flash on the lock buttons while it runs: the newest refusal's locks, and its
+    // pulse. Painted over the children (paintOverChildren), since the glow stands outside the
+    // button it surrounds.
+    std::optional<PulsedFlash<std::vector<core::LockControl>>> m_lock_refusal{};
 
     // Transport-bar meter for the final mix output.
     AudioLevelMeter m_master_output_meter;

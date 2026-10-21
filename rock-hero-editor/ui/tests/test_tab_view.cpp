@@ -23,6 +23,7 @@
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/common/ui/testing/highway_theme_fixtures.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -77,19 +78,41 @@ namespace
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
-// A refusal flash lighting the given notes and nothing else.
-[[nodiscard]] core::RefusalFlash notesRefusal(std::vector<std::size_t> notes)
+// A refusal lighting the given notes and the given fret-hand chips, and saying `sentence`.
+[[nodiscard]] core::RefusalFlash laneRefusal(
+    std::vector<std::size_t> notes, std::vector<std::size_t> fret_hand_positions,
+    std::string sentence)
 {
     return core::RefusalFlash{
         .notes = std::move(notes),
         .spans = {},
         .none_holds = {},
-        .fret_hand_positions = {},
+        .fret_hand_positions = std::move(fret_hand_positions),
         .keyframes = {},
         .ruler_chips = {},
         .tone_regions = {},
+        .locks = {},
+        .sentence = std::move(sentence),
     };
 }
+
+// A refusal lighting the given notes and saying nothing.
+[[nodiscard]] core::RefusalFlash notesRefusal(std::vector<std::size_t> notes)
+{
+    return laneRefusal(std::move(notes), {}, {});
+}
+
+// A refusal lighting nothing in the lane and saying `sentence`, as a refusal of a ruler chip or a
+// tone region reaches it.
+[[nodiscard]] core::RefusalFlash sentenceRefusal(std::string sentence)
+{
+    return laneRefusal({}, {}, std::move(sentence));
+}
+
+// The Note Lock's sentence, the longest the line commonly says.
+constexpr const char* g_lock_sentence{
+    "Note Lock is on: the song's content is frozen while it holds the notes in time"
+};
 
 // Pushes the fixture, the way the controller publishes it.
 void setFixtureState(TabView& view)
@@ -227,9 +250,10 @@ const juce::Colour g_canvas_ink{0xff203040};
     return image;
 }
 
-// Two spans with a gap between, and nothing else: [6s, 9s) drawn and closing at 10s, then
-// [14s, 18s). Over a 20-second window 200 pixels wide the first's rails run from x = 60 to 90, or
-// to 100 revealed, and the second's from 140 to 180, all clear of the legend panel.
+// Two spans with a gap between, and nothing else: a chord span over [6s, 9s) drawn and closing at
+// 10s, then an arpeggio span over [14s, 18s). Over a 20-second window 200 pixels wide the first's
+// rails run from x = 60 to 90, or to 100 revealed, and the second's from 140 to 180, all clear of
+// the legend panel.
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTwoSpanTabState()
 {
     common::core::ChartViewState state;
@@ -246,7 +270,7 @@ const juce::Colour g_canvas_ink{0xff203040};
             .start_seconds = 14.0,
             .drawn_end_seconds = 18.0,
             .close_seconds = 18.0,
-            .arpeggio = false,
+            .arpeggio = true,
             .strings = {},
         },
     };
@@ -267,20 +291,8 @@ void showTwoSpans(TabView& view)
     view.setState(makeTwoSpanTabState(), 0);
 }
 
-// A refusal flash lighting the given spans and none holds and nothing else.
-[[nodiscard]] core::RefusalFlash spanRowRefusal(
-    std::vector<std::size_t> spans, std::vector<std::size_t> none_holds)
-{
-    return core::RefusalFlash{
-        .notes = {},
-        .spans = std::move(spans),
-        .none_holds = std::move(none_holds),
-        .fret_hand_positions = {},
-        .keyframes = {},
-        .ruler_chips = {},
-        .tone_regions = {},
-    };
-}
+using testing::nearestColor;
+using testing::squaredColorDistance;
 
 // Whether any pixel in the window is classified as the refusal glow: nearer the theme's invalid
 // ink than the canvas the lane is drawn over is. The glow's level falls with time, so the class is
@@ -288,16 +300,10 @@ void showTwoSpans(TabView& view)
 // flake it.
 [[nodiscard]] bool anyPixelGlowsInvalid(const juce::Image& image, const juce::Rectangle<int> window)
 {
-    const auto distance_to_invalid = [](const juce::Colour color) {
-        const juce::Colour invalid = editorTheme().invalid;
-        const int red = color.getRed() - invalid.getRed();
-        const int green = color.getGreen() - invalid.getGreen();
-        const int blue = color.getBlue() - invalid.getBlue();
-        return (red * red) + (green * green) + (blue * blue);
-    };
-    const int canvas_distance = distance_to_invalid(g_canvas_ink);
+    const juce::Colour invalid = editorTheme().invalid;
+    const int canvas_distance = squaredColorDistance(g_canvas_ink, invalid);
     return anyPixelIn(image, window, [&](const juce::Colour pixel) {
-        return distance_to_invalid(pixel) < canvas_distance;
+        return squaredColorDistance(pixel, invalid) < canvas_distance;
     });
 }
 
@@ -362,7 +368,7 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
     // The string legend is an OCCLUDER by design: it stands over whatever the notation drew in its
     // pinned column. Park it at the far right so the head probes below read the head, not the
     // chrome over it — the legend's own coverage is what its case asserts.
-    view.setVisibleContentLeft(180);
+    view.setVisibleContent(180, view.getWidth());
 
     // A software image keeps pixel readback meaningful: the platform-native image type on
     // Windows is Direct2D-backed and does not rasterize in headless test runs.
@@ -400,7 +406,7 @@ TEST_CASE("TabView redraws in the string colors it is given", "[ui][tab-view]")
             .end = common::core::TimePosition{20.0},
         });
     setFixtureState(view);
-    view.setVisibleContentLeft(180);
+    view.setVisibleContent(180, view.getWidth());
     common::ui::StringColorPalette recolored = common::ui::testing::fixtureStringColors();
     constexpr common::ui::ArgbColor low_e_green = 0xff00ff00;
     recolored.colors.at(5) = low_e_green;
@@ -474,7 +480,7 @@ TEST_CASE("TabView excludes the notation from the string legend's column", "[ui]
     // bottom lane of six.
     constexpr int scrolled_pin = 150;
     constexpr int line_row = 110;
-    view.setVisibleContentLeft(scrolled_pin);
+    view.setVisibleContent(scrolled_pin, view.getWidth());
     const juce::Image scrolled = renderOverCanvas(view);
     CHECK(scrolled.getPixelAt(6, line_row) == juce::Colour{0xff7c0000});
 
@@ -538,7 +544,7 @@ TEST_CASE("TabView draws span furniture over the legend column", "[ui][tab-view]
     // chip draws does -- neither its flat ground nor its near-white digits -- so a pixel with that
     // signature inside the chip is the letter standing on it.
     view.setState(makeFurnitureTabState(), 0);
-    view.setVisibleContentLeft(60);
+    view.setVisibleContent(60, view.getWidth());
     const juce::Image pinned = renderOverCanvas(view);
     const juce::Rectangle<int> pinned_column = view.legendBounds();
     const juce::Colour top_string_ink =
@@ -590,7 +596,7 @@ TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
 
     // SCROLLED PAST IT, the placement governs the left edge and its chip stands on the panel.
     constexpr int governed_pin = 60;
-    view.setVisibleContentLeft(governed_pin);
+    view.setVisibleContent(governed_pin, view.getWidth());
     const juce::Image governed = renderOverCanvas(view);
     CHECK(governed.getPixelAt(view.legendBounds().getX() + 2, chip_row) == chip_ground);
 
@@ -598,7 +604,7 @@ TEST_CASE("TabView pins the governing fret-hand position", "[ui][tab-view]")
     // it: the pin is dropped rather than the incoming chip suppressed, so the new value scrolls on
     // to the edge and takes over. Read at the pin's own column, which the dropped chip has left.
     constexpr int yielding_pin = 115;
-    view.setVisibleContentLeft(yielding_pin);
+    view.setVisibleContent(yielding_pin, view.getWidth());
     const juce::Image yielded = renderOverCanvas(view);
     CHECK(yielded.getPixelAt(view.legendBounds().getX() + 2, chip_row) != chip_ground);
 
@@ -637,7 +643,7 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
         });
     view.setState(makeFurnitureTabState(), 0);
     constexpr int governed_pin = 60;
-    view.setVisibleContentLeft(governed_pin);
+    view.setVisibleContent(governed_pin, view.getWidth());
 
     const juce::Rectangle<int> column = view.legendBounds();
     REQUIRE_FALSE(column.isEmpty());
@@ -647,7 +653,8 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const juce::Rectangle<float> chip =
         common::ui::tabFhpChipBounds(metrics, fixture->fret_hand_positions.front(), 0.0f);
@@ -667,7 +674,7 @@ TEST_CASE("TabView answers nothing to a press on the pinned fret-hand chip", "[u
 
     // Scroll the pin away and the same pixel answers a press again: the rule is the chrome's, not
     // a silenced strip of lane.
-    view.setVisibleContentLeft(0);
+    view.setVisibleContent(0, view.getWidth());
     view.mouseDown(testing::makeMouseDownEvent(view, under_chip_x, chip_y));
     CHECK(event_count == 1);
     CHECK(last_phase == core::ChartPointerPhase::Down);
@@ -711,7 +718,8 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
             6,
             6,
             common::ui::testing::fixtureStringColors(),
-            common::ui::testing::fixtureTabShapeInks()),
+            common::ui::testing::fixtureTabShapeInks(),
+            common::ui::chipLabelFont()),
         common::core::testing::standardTuning(),
         0);
     REQUIRE_FALSE(column.isEmpty());
@@ -745,7 +753,7 @@ TEST_CASE("TabView answers nothing to a press in the string legend", "[ui][tab-v
 
     // The column travels with the pin, so what it swallows travels too: once it scrolls away, the
     // pixel it covered answers a press again.
-    view.setVisibleContentLeft(150);
+    view.setVisibleContent(150, view.getWidth());
     view.mouseDown(testing::makeMouseDownEvent(view, legend_x, line_y));
     CHECK(event_count == 2);
     CHECK(last_phase == core::ChartPointerPhase::Down);
@@ -788,7 +796,7 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
     // The presses below land on the lane's left edge, which is where the string legend's column
     // stands — and that column answers nothing (it is inert chrome; its own case pins that). Park
     // it at the far right so these read the notation's own gestures.
-    view.setVisibleContentLeft(180);
+    view.setVisibleContent(180, view.getWidth());
     CHECK(view.wantsPointerAt({50, 60}));
     CHECK(view.hitTest(50, 60));
 
@@ -881,7 +889,7 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     // The selection ring is probed on the head's LEFT band, which is exactly where the string
     // legend's pinned column stands; park the legend at the far right so this case reads the
     // overlay rather than the chrome over it.
-    view.setVisibleContentLeft(180);
+    view.setVisibleContent(180, view.getWidth());
     view.setEditState(
         core::ChartEditViewState{
             .selected_notes = {0},
@@ -930,7 +938,7 @@ TEST_CASE("TabView glows a refused head red until the projection changes", "[ui]
             .end = common::core::TimePosition{20.0},
         });
     setFixtureState(view);
-    view.setVisibleContentLeft(180);
+    view.setVisibleContent(180, view.getWidth());
     const auto render = [&view] {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 200, 120, true)};
@@ -980,64 +988,8 @@ TEST_CASE("TabView glows a refused fret-hand chip red", "[ui][tab-view]")
     };
     const int plain = red_beside_chip();
 
-    view.flashRefusal(
-        core::RefusalFlash{
-            .notes = {},
-            .spans = {},
-            .none_holds = {},
-            .fret_hand_positions = {1},
-            .keyframes = {},
-            .ruler_chips = {},
-            .tone_regions = {},
-        });
+    view.flashRefusal(laneRefusal({}, {1}, {}));
     CHECK(red_beside_chip() > plain);
-}
-
-// A refused span glows around both its rails as every refused mark does, and its neighbour does
-// not. Probed on the pixel row just below the first span's top rail (x 60 to 90, rows 0 to 2),
-// where the glow spills onto the canvas, and on the same row under the second span's rail.
-TEST_CASE("TabView glows a refused span's rails red", "[ui][tab-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view{
-        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
-    };
-    showTwoSpans(view);
-    const juce::Rectangle<int> below_first_rail{62, 3, 26, 1};
-    const juce::Rectangle<int> below_second_rail{142, 3, 36, 1};
-    CHECK_FALSE(anyPixelGlowsInvalid(renderOverCanvas(view), below_first_rail));
-
-    view.flashRefusal(spanRowRefusal({0}, {}));
-    const juce::Image flashed = renderOverCanvas(view);
-    CHECK(anyPixelGlowsInvalid(flashed, below_first_rail));
-    CHECK_FALSE(anyPixelGlowsInvalid(flashed, below_second_rail));
-}
-
-// A refused none hold glows around its hatched rails as a refused span does. Probed on the pixel
-// row just below the hold's top rail (x 60 to 120, rows 0 to 2).
-TEST_CASE("TabView glows a refused none hold's rails red", "[ui][tab-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view{
-        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
-    };
-    common::core::ChartViewState state;
-    state.open_strings = common::core::testing::standardTuning();
-    state.none_holds = {
-        common::core::NoneHoldViewState{.start_seconds = 6.0, .end_seconds = 12.0},
-    };
-    view.setBounds(0, 0, 200, 120);
-    view.setVisibleTimeline(
-        common::core::TimeRange{
-            .start = common::core::TimePosition{},
-            .end = common::core::TimePosition{20.0},
-        });
-    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
-    const juce::Rectangle<int> below_top_rail{62, 3, 56, 1};
-    CHECK_FALSE(anyPixelGlowsInvalid(renderOverCanvas(view), below_top_rail));
-
-    view.flashRefusal(spanRowRefusal({}, {0}));
-    CHECK(anyPixelGlowsInvalid(renderOverCanvas(view), below_top_rail));
 }
 
 // The glow draws OVER the caret square, so a refusal at the caret's own slot is never cut by it:
@@ -1056,7 +1008,7 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(timeline);
     setFixtureState(view);
-    view.setVisibleContentLeft(180);
+    view.setVisibleContent(180, view.getWidth());
     view.setEditState(
         core::ChartEditViewState{.caret = core::ChartCaretViewState{.seconds = 1.0, .string = 1}});
     const common::ui::TabLayoutRect square = common::ui::tabSlotHeadSquare(
@@ -1066,7 +1018,8 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
             6,
             6,
             common::ui::testing::fixtureStringColors(),
-            common::ui::testing::fixtureTabShapeInks()),
+            common::ui::testing::fixtureTabShapeInks(),
+            common::ui::chipLabelFont()),
         1.0,
         1);
     const auto square_left = static_cast<int>(std::floor(square.x));
@@ -1084,10 +1037,10 @@ TEST_CASE("TabView draws the refusal glow over the caret square", "[ui][tab-view
     CHECK(render().getGreen() < caret_only.getGreen());
 }
 
-// A refusal reported again while a flash runs joins it as a UNION: the glow is painted once
-// whatever the report count, so a held key's repeats cannot stack into solid red and lose the
-// pulse. Asked as a sum over the whole head's box rather than of one pixel, so a second glow shows
-// wherever it lands in the halo.
+// A refusal reported again while a flash runs REPLACES it, so the glow is painted once whatever
+// the report count: a held key's repeats cannot stack into solid red and lose the pulse. Asked as
+// a sum over the whole head's box rather than of one pixel, so a second glow shows wherever it
+// lands in the halo.
 TEST_CASE("TabView glows a refused head once however often it is reported", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1102,7 +1055,7 @@ TEST_CASE("TabView glows a refused head once however often it is reported", "[ui
                 .end = common::core::TimePosition{20.0},
             });
         setFixtureState(view);
-        view.setVisibleContentLeft(180);
+        view.setVisibleContent(180, view.getWidth());
         for (int report = 0; report < reports; ++report)
         {
             view.flashRefusal(notesRefusal({0}));
@@ -1128,6 +1081,220 @@ TEST_CASE("TabView glows a refused head once however often it is reported", "[ui
     // A union renders as one stroke, up to the level's drift over the milliseconds between the
     // two renders; stacked glows saturate the halo.
     CHECK(red_difference <= 40);
+}
+
+// THE STATUS LINE says a refusal's sentence in red on a plate at the lane's top-left: past the
+// legend panel, just under the fret-hand chips' row, so neither the letters nor a chip is covered.
+// A refusal lighting nothing in the lane — a ruler chip's, a lock's — still says it here. Probed
+// by channel relationships rather than exact inks: the plate darkens the canvas's blue in its left
+// padding, where no glyph reaches, and the red ink is the only thing that can lift red above green
+// inside it.
+TEST_CASE("TabView says a refusal's sentence in red under the chips' row", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    view.setBounds(0, 0, 600, 120);
+    view.setVisibleContent(0, 600);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeEmptyTabState(), 0);
+    const juce::Rectangle<int> legend = view.legendBounds();
+    REQUIRE_FALSE(legend.isEmpty());
+    const juce::Range<float> chip_row =
+        common::ui::tabFhpChipRow(view.getLocalBounds(), common::ui::chipLabelFont());
+    const int plate_x = legend.getRight() + 4;
+    const auto plate_top = static_cast<int>(std::ceil(chip_row.getEnd())) + 4;
+    const auto plate_height =
+        static_cast<int>(std::floor(common::ui::chipHeight(tabStatusLineFont())));
+    const int plate_mid = plate_top + plate_height / 2;
+    const juce::Image plain = renderOverCanvas(view);
+    CHECK(view.statusLineText().isEmpty());
+    CHECK(plain.getPixelAt(plate_x + 2, plate_mid) == g_canvas_ink);
+
+    view.flashRefusal(sentenceRefusal(g_lock_sentence));
+    CHECK(view.statusLineText() == g_lock_sentence);
+    const juce::Image flashed = renderOverCanvas(view);
+    CHECK(flashed.getPixelAt(plate_x + 2, plate_mid).getBlue() < g_canvas_ink.getBlue());
+    CHECK(anyPixelIn(
+        flashed,
+        juce::Rectangle<int>{plate_x, plate_top, 300, plate_height},
+        [](const juce::Colour pixel) { return pixel.getRed() > pixel.getGreen() + 16; }));
+    // Nothing above the plate changed: the chips' row and the rail over it stay the lane's.
+    CHECK(
+        worstPixelDeltaInColumns(
+            plain.getClippedImage({0, 0, 600, plate_top - 1}),
+            flashed.getClippedImage({0, 0, 600, plate_top - 1}),
+            0,
+            599) == 0);
+    // Nor did the legend panel, which the plate stands clear of.
+    CHECK(worstPixelDeltaInColumns(plain, flashed, legend.getX(), legend.getRight() + 1) == 0);
+}
+
+// With no chart the lane draws nothing but the line, which then stands at the window's left edge:
+// a tempo or tone refusal needs no chart to say why.
+TEST_CASE("TabView says a refusal's sentence without a chart", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    view.setBounds(0, 0, 600, 120);
+    view.setVisibleContent(0, 600);
+    view.flashRefusal(sentenceRefusal("Tempo Lock is on: the tempo map is frozen"));
+    CHECK(view.statusLineText() == "Tempo Lock is on: the tempo map is frozen");
+    const juce::Range<float> chip_row =
+        common::ui::tabFhpChipRow(view.getLocalBounds(), common::ui::chipLabelFont());
+    const int plate_mid = juce::roundToInt(
+        chip_row.getEnd() + 4.0f + (common::ui::chipHeight(tabStatusLineFont()) / 2.0f));
+    CHECK(renderOverCanvas(view).getPixelAt(6, plate_mid).getBlue() < g_canvas_ink.getBlue());
+}
+
+// Between refusals the line says how many notes are selected, from two up — the selection's size
+// a typed digit acts on, readable with the highlights scrolled off — and nothing for one. The ink
+// is the lane overlay's white, never the refusal's red.
+TEST_CASE("TabView's status line counts two or more selected notes", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    view.setBounds(0, 0, 600, 120);
+    view.setVisibleContent(0, 600);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    setFixtureState(view);
+    const auto select = [&view](std::vector<std::size_t> notes) {
+        view.setEditState(core::ChartEditViewState{.selected_notes = std::move(notes)});
+    };
+
+    CHECK(view.statusLineText().isEmpty());
+    select({0});
+    CHECK(view.statusLineText().isEmpty());
+    select({0, 1});
+    CHECK(view.statusLineText() == "2 notes selected");
+    select({0, 1, 2});
+    CHECK(view.statusLineText() == "3 notes selected");
+
+    const juce::Rectangle<int> legend = view.legendBounds();
+    const juce::Range<float> chip_row =
+        common::ui::tabFhpChipRow(view.getLocalBounds(), common::ui::chipLabelFont());
+    const juce::Rectangle<int> line{
+        legend.getRight() + 4,
+        static_cast<int>(std::ceil(chip_row.getEnd())) + 4,
+        120,
+        static_cast<int>(std::floor(common::ui::chipHeight(tabStatusLineFont()))),
+    };
+    const juce::Image image = renderOverCanvas(view);
+    CHECK(anyPixelIn(image, line, [](const juce::Colour pixel) {
+        return pixel.getGreen() > 0x60 && std::abs(pixel.getRed() - pixel.getGreen()) < 16;
+    }));
+    CHECK_FALSE(anyPixelIn(image, line, [](const juce::Colour pixel) {
+        return pixel.getRed() > pixel.getGreen() + 16;
+    }));
+
+    select({2});
+    CHECK(view.statusLineText().isEmpty());
+}
+
+// A refusal's sentence takes the line from the count: a new projection drops the flash and the
+// count returns at once; otherwise the sentence HOLDS at full ink — long past the glow's pulses, so
+// it can be read — and the count returns once the hold and the fade have run, even before a frame
+// retires the flash. The hold is asked as "the line's pixels at 1 s are the line's pixels as it
+// lit", which only a level standing at full ink gives.
+TEST_CASE("TabView holds a refusal's sentence, then gives the line back", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    view.setBounds(0, 0, 600, 120);
+    view.setVisibleContent(0, 600);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    setFixtureState(view);
+    view.setEditState(core::ChartEditViewState{.selected_notes = {0, 1, 2}});
+    REQUIRE(view.statusLineText() == "3 notes selected");
+
+    view.flashRefusal(sentenceRefusal(g_lock_sentence));
+    CHECK(view.statusLineText() == g_lock_sentence);
+    // A later refusal replaces the running flash and says its own sentence.
+    view.flashRefusal(sentenceRefusal("Tempo Lock is on: the tempo map is frozen"));
+    CHECK(view.statusLineText() == "Tempo Lock is on: the tempo map is frozen");
+    // A glow-only refusal replaces it too: the newest refusal has nothing to say, so the line
+    // stops saying the last one's sentence.
+    view.flashRefusal(notesRefusal({0}));
+    CHECK(view.statusLineText() == "3 notes selected");
+
+    setFixtureState(view);
+    CHECK(view.statusLineText() == "3 notes selected");
+
+    const juce::Range<float> chip_row =
+        common::ui::tabFhpChipRow(view.getLocalBounds(), common::ui::chipLabelFont());
+    const juce::Rectangle<int> line{
+        view.legendBounds().getRight(),
+        static_cast<int>(std::floor(chip_row.getEnd())),
+        560,
+        static_cast<int>(std::ceil(common::ui::chipHeight(tabStatusLineFont()))) + 8,
+    };
+    view.flashRefusal(sentenceRefusal(g_lock_sentence));
+    const double lit_ms = juce::Time::getMillisecondCounterHiRes();
+    CHECK(view.statusLineText() == g_lock_sentence);
+    const juce::Image as_lit = renderOverCanvas(view).getClippedImage(line);
+    const auto sleep_until = [lit_ms](const double seconds) {
+        const double wait_ms =
+            lit_ms + (seconds * 1000.0) - juce::Time::getMillisecondCounterHiRes();
+        juce::Thread::sleep(std::max(0, static_cast<int>(std::ceil(wait_ms))));
+    };
+
+    sleep_until(1.0);
+    CHECK(view.statusLineText() == g_lock_sentence);
+    const juce::Image at_one_second = renderOverCanvas(view).getClippedImage(line);
+    CHECK(worstPixelDeltaInColumns(as_lit, at_one_second, 0, line.getWidth() - 1) == 0);
+    CHECK(anyPixelIn(at_one_second, at_one_second.getBounds(), [](const juce::Colour pixel) {
+        return pixel.getRed() > pixel.getGreen() + 16;
+    }));
+
+    sleep_until(g_refusal_line_hold.hold_seconds + g_refusal_line_hold.fade_seconds + 0.05);
+    CHECK(view.statusLineText() == "3 notes selected");
+}
+
+// The line never runs past the window: it stops a gap short of the visible run's right edge, its
+// text ellipsized inside, wherever the viewport stands.
+TEST_CASE("TabView keeps the status line inside the visible run", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{
+        common::ui::testing::fixtureStringColors(), common::ui::testing::fixtureTabShapeInks()
+    };
+    view.setBounds(0, 0, 600, 120);
+    view.setVisibleContent(0, 200);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeEmptyTabState(), 0);
+    const juce::Range<float> chip_row =
+        common::ui::tabFhpChipRow(view.getLocalBounds(), common::ui::chipLabelFont());
+    const int plate_mid = juce::roundToInt(
+        chip_row.getEnd() + 4.0f + (common::ui::chipHeight(tabStatusLineFont()) / 2.0f));
+    const juce::Image plain = renderOverCanvas(view);
+
+    view.flashRefusal(sentenceRefusal(g_lock_sentence));
+    const juce::Image flashed = renderOverCanvas(view);
+    CHECK(flashed.getPixelAt(190, plate_mid).getBlue() < g_canvas_ink.getBlue());
+    CHECK(worstPixelDeltaInColumns(plain, flashed, 197, 599) == 0);
 }
 
 // The reveal, which is the WHOLE-LANE arm of the drawn-extent pick: while it is held every visible
@@ -1783,7 +1950,8 @@ TEST_CASE(
                 6,
                 6,
                 common::ui::testing::fixtureStringColors(),
-                common::ui::testing::fixtureTabShapeInks()),
+                common::ui::testing::fixtureTabShapeInks(),
+                common::ui::chipLabelFont()),
             state->notes[0],
             state->notes[0].keyframes.front(),
             ring_end_seconds,
@@ -1961,7 +2129,8 @@ TEST_CASE(
                 6,
                 6,
                 common::ui::testing::fixtureStringColors(),
-                common::ui::testing::fixtureTabShapeInks()),
+                common::ui::testing::fixtureTabShapeInks(),
+                common::ui::chipLabelFont()),
             landing)
             .center_y);
 
@@ -2044,7 +2213,8 @@ TEST_CASE("TabView rings a selected bend point's chip on the chip as painted", "
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
     const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabKeyframeLayout(
             metrics, note, note.keyframes.front(), note.ink_end_seconds, true)
@@ -2146,7 +2316,8 @@ TEST_CASE("TabView draws a selected note's bend chip over the caret square", "[u
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
     const std::optional<common::ui::TabLayoutRect> chip =
         common::ui::tabNoteLayout(metrics, note).bend_chip;
     REQUIRE(chip.has_value());
@@ -2366,7 +2537,8 @@ TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<float> chip =
@@ -2390,8 +2562,9 @@ TEST_CASE("TabView reports a press on a fret-hand chip as its placement", "[ui][
     CHECK(pointer_events == 2);
 }
 
-// The selected placement's chip wears the accent outline, and nothing else in the lane changes.
-TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
+// The selected placement's chip wears the accent ring just OUTSIDE its box, as a selected keyframe
+// chip does, so the chip's own plate stays readable, and nothing else in the lane changes.
+TEST_CASE("TabView rings the selected fret-hand chip", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
@@ -2415,7 +2588,8 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<int> chip =
@@ -2423,7 +2597,15 @@ TEST_CASE("TabView outlines the selected fret-hand chip", "[ui][tab-view]")
             .getSmallestIntegerContainer();
     REQUIRE_FALSE(chip.isEmpty());
 
-    CHECK(worstPixelDeltaInColumns(plain, selected, chip.getX(), chip.getRight()) > 0);
+    // At the chip's mid-height, clear of its rounded corners, the ring's stroke (at least 1.5
+    // pixels) covers the column just left of the box, and the box's own first column keeps its
+    // plate.
+    const int mid_row = chip.getCentreY();
+    const juce::Colour accent = editorTheme().accent;
+    const juce::Colour plate = plain.getPixelAt(chip.getX(), mid_row);
+    const juce::Colour beside = plain.getPixelAt(chip.getX() - 1, mid_row);
+    CHECK(nearestColor(selected.getPixelAt(chip.getX() - 1, mid_row), {beside, accent}) == accent);
+    CHECK(nearestColor(selected.getPixelAt(chip.getX(), mid_row), {plate, accent}) == plate);
     // Well left of the chip the two renders agree.
     CHECK(worstPixelDeltaInColumns(plain, selected, 40, chip.getX() - 10) == 0);
 }
@@ -2445,7 +2627,7 @@ TEST_CASE("TabView outlines a selected fret-hand chip where it is pinned", "[ui]
         });
     view.setState(makeFurnitureTabState(), 0);
     // Scrolled past the first placement (2.0s, x = 20), which then governs the edge and pins.
-    view.setVisibleContentLeft(60);
+    view.setVisibleContent(60, view.getWidth());
     const juce::Image plain = renderOverCanvas(view);
 
     view.setEditState(core::ChartEditViewState{.selected_fret_hand_position = 0});
@@ -2489,7 +2671,8 @@ TEST_CASE("TabView draws a fret-hand entry's box on its chip", "[ui][tab-view]")
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
     const std::shared_ptr<const common::core::ChartViewState> fixture = makeFurnitureTabState();
     const common::core::FhpViewState& second = fixture->fret_hand_positions[1];
     const juce::Rectangle<int> chip =
@@ -2544,9 +2727,11 @@ TEST_CASE("TabView reports a press on a span's rails as the span", "[ui][tab-vie
     CHECK(pointer_events == 3);
 }
 
-// The selected span's rails wear the accent outline and run to its musical close, its neighbour
-// unchanged; selectedSpanRowBounds is the two rails as drawn, top edge to bottom edge.
-TEST_CASE("TabView outlines the selected span's rails", "[ui][tab-view]")
+// The selected span's rails run to its musical close and wear the accent ring just OUTSIDE them,
+// so the rails keep their kind's ink and a selected chord span still reads apart from a selected
+// arpeggio span; the unselected neighbour is unchanged. selectedSpanRowBounds is the two rails as
+// drawn, top edge to bottom edge.
+TEST_CASE("TabView reports the selected span's rails and leaves their ring", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{
@@ -2555,18 +2740,35 @@ TEST_CASE("TabView outlines the selected span's rails", "[ui][tab-view]")
     showTwoSpans(view);
     CHECK_FALSE(view.selectedSpanRowBounds().has_value());
     const juce::Image plain = renderOverCanvas(view);
+    const juce::Colour accent = editorTheme().accent;
+    // Each kind's rail ink as the lane draws it, read off the unselected render.
+    const juce::Colour chord_rail = plain.getPixelAt(75, 1);
+    const juce::Colour arpeggio_rail = plain.getPixelAt(160, 1);
+    const auto classify = [&](const juce::Colour pixel) {
+        return nearestColor(pixel, {chord_rail, arpeggio_rail, accent});
+    };
 
+    // The rails are rows 0 to 2 and 117 to 119, drawn in their own ink. The ring around them is
+    // not the lane's: it runs around the chip on the ruler and the top rail as one shape, which
+    // the track viewport strokes, so the rows beside the rails stay bare here.
+    const auto check_ringed_rails =
+        [&](const juce::Image& image, const int x, const juce::Colour ink) {
+            for (const int rail_row : {0, 1, 2, 117, 118, 119})
+            {
+                CHECK(classify(image.getPixelAt(x, rail_row)) == ink);
+            }
+            CHECK(image.getPixelAt(x, 3) != accent);
+            CHECK(image.getPixelAt(x, 116) != accent);
+        };
+
+    // The chord span, out past its drawn end to the close; the arpeggio span's columns agree.
     view.setEditState(core::ChartEditViewState{.selected_span = 0});
-    const juce::Image selected = renderOverCanvas(view);
-
-    // The outline traces both rails' outer rows in the accent, out past the drawn end to the
-    // close; the second span's columns agree.
+    const juce::Image chord_selected = renderOverCanvas(view);
     for (const int x : {75, 95})
     {
-        CHECK(selected.getPixelAt(x, 0) == editorTheme().accent);
-        CHECK(selected.getPixelAt(x, 119) == editorTheme().accent);
+        check_ringed_rails(chord_selected, x, chord_rail);
     }
-    CHECK(worstPixelDeltaInColumns(plain, selected, 130, 199) == 0);
+    CHECK(worstPixelDeltaInColumns(plain, chord_selected, 130, 199) == 0);
 
     const std::optional<juce::Rectangle<float>> bounds = view.selectedSpanRowBounds();
     REQUIRE(bounds.has_value());
@@ -2577,12 +2779,16 @@ TEST_CASE("TabView outlines the selected span's rails", "[ui][tab-view]")
         CHECK(bounds->getY() == Catch::Approx(0.0f));
         CHECK(bounds->getBottom() == Catch::Approx(120.0f));
     }
+
+    // The arpeggio span keeps the arpeggio's ink.
+    view.setEditState(core::ChartEditViewState{.selected_span = 1});
+    check_ringed_rails(renderOverCanvas(view), 160, arpeggio_rail);
 }
 
 // A none hold draws its rails as a slashed hatch in its own neutral ink, and its rails are its
 // marker in the lane: a press on a slash or a gap between slashes names the hold, and one over a
 // chord box standing inside it names both, for the controller to pick. The selected hold's rails
-// wear the accent outline.
+// wear the accent ring outside them.
 TEST_CASE("TabView hatches a none hold's rails and reports a press on them", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -2655,10 +2861,23 @@ TEST_CASE("TabView hatches a none hold's rails and reports a press on them", "[u
     CHECK_FALSE(pressed.has_value());
     CHECK(pointer_events == 1);
 
+    // The selected hold's hatch still reads, slash and gap alike; its ring is the track viewport's
+    // (as a span's is), so the lane leaves the rows beside its rails bare.
     view.setEditState(core::ChartEditViewState{.selected_none_hold = 0});
     const juce::Image selected = renderOverCanvas(view);
-    CHECK(selected.getPixelAt(66, 0) == editorTheme().accent);
-    CHECK(selected.getPixelAt(66, 119) == editorTheme().accent);
+    const juce::Colour accent = editorTheme().accent;
+    const auto classify = [&](const juce::Colour pixel) {
+        return nearestColor(pixel, {hatch, g_canvas_ink, accent});
+    };
+    for (const int middle_row : {1, 118})
+    {
+        CHECK(classify(selected.getPixelAt(62, middle_row)) == hatch);
+        CHECK(classify(selected.getPixelAt(64, middle_row)) == g_canvas_ink);
+        CHECK(classify(selected.getPixelAt(61, middle_row + 1)) == hatch);
+        CHECK(classify(selected.getPixelAt(63, middle_row - 1)) == hatch);
+    }
+    CHECK(selected.getPixelAt(66, 3) != accent);
+    CHECK(selected.getPixelAt(66, 116) != accent);
     const std::optional<juce::Rectangle<float>> bounds = view.selectedSpanRowBounds();
     REQUIRE(bounds.has_value());
     if (bounds.has_value())

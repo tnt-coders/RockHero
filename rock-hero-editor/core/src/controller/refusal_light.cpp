@@ -16,11 +16,6 @@ void RefusalLight::add(const RefusalLight& light)
     targets.insert(targets.end(), light.targets.begin(), light.targets.end());
 }
 
-bool RefusalLight::empty() const noexcept
-{
-    return targets.empty();
-}
-
 // Every selected object, notes then keyframes as the selection publishes them.
 RefusalLight lightOf(const ChartSelection& selection)
 {

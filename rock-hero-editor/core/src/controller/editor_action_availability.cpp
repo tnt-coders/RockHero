@@ -98,6 +98,18 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetHold:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
+        // The marker verbs decided at the press ask for a prompt whose answer edits the project.
+        case EditorAction::Id::SongSectionChord:
+        case EditorAction::Id::SongSectionAt:
+        case EditorAction::Id::TempoChord:
+        case EditorAction::Id::TimeSignatureChord:
+        case EditorAction::Id::TimeSignatureAt:
+        case EditorAction::Id::ToneChord:
+        case EditorAction::Id::ToneChangeAt:
+        case EditorAction::Id::ToneRenamePrompt:
+        case EditorAction::Id::ScaleTempoPrompt:
+        case EditorAction::Id::RestateSelection:
+        case EditorAction::Id::RenameSelection:
         {
             return true;
         }
@@ -229,6 +241,17 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SelectFretHandPosition:
             case EditorAction::Id::SelectSpanRowMark:
             case EditorAction::Id::AuthorFretHandPositionAtCursor:
+            case EditorAction::Id::SongSectionChord:
+            case EditorAction::Id::SongSectionAt:
+            case EditorAction::Id::TempoChord:
+            case EditorAction::Id::TimeSignatureChord:
+            case EditorAction::Id::TimeSignatureAt:
+            case EditorAction::Id::ToneChord:
+            case EditorAction::Id::ToneChangeAt:
+            case EditorAction::Id::ToneRenamePrompt:
+            case EditorAction::Id::ScaleTempoPrompt:
+            case EditorAction::Id::RestateSelection:
+            case EditorAction::Id::RenameSelection:
             case EditorAction::Id::ChooseHold:
             case EditorAction::Id::SetHold:
             case EditorAction::Id::ClearFretHandEnd:
@@ -327,6 +350,10 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetToneAutomationPoints:
         case EditorAction::Id::MoveSelection:
         case EditorAction::Id::DeleteSelection:
+        // The tone row's verbs decided at the press, closing with the row they ask for.
+        case EditorAction::Id::ToneChord:
+        case EditorAction::Id::ToneChangeAt:
+        case EditorAction::Id::ToneRenamePrompt:
         {
             return firstFailure({
                 require(conditions.has_loaded_arrangement, Reason::NoLoadedArrangement),
@@ -357,19 +384,11 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetSignalChainPlacement:
         case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
-        {
-            return firstFailure({
-                require(live_chain, Reason::NoLoadedArrangement),
-                require(conditions.has_loaded_plugins, Reason::NoLoadedPlugins),
-            });
-        }
-        // Removing a plugin takes its automation points out of the song, which the Note Lock holds.
         case EditorAction::Id::RemovePlugin:
         {
             return firstFailure({
                 require(live_chain, Reason::NoLoadedArrangement),
                 require(conditions.has_loaded_plugins, Reason::NoLoadedPlugins),
-                require(!conditions.note_locked, Reason::NoteLocked),
             });
         }
         case EditorAction::Id::NewToneDocument:
@@ -475,6 +494,16 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::ScaleTempo:
         case EditorAction::Id::SelectTempoAnchor:
         case EditorAction::Id::SelectTimeSignature:
+        // The ruler's verbs decided at the press, and the selection verbs, whose operand is a
+        // marker play already cleared.
+        case EditorAction::Id::SongSectionChord:
+        case EditorAction::Id::SongSectionAt:
+        case EditorAction::Id::TempoChord:
+        case EditorAction::Id::TimeSignatureChord:
+        case EditorAction::Id::TimeSignatureAt:
+        case EditorAction::Id::ScaleTempoPrompt:
+        case EditorAction::Id::RestateSelection:
+        case EditorAction::Id::RenameSelection:
         {
             return firstFailure({
                 require(conditions.has_project, Reason::NoProject),
@@ -487,6 +516,133 @@ using Verdict = std::optional<ActionUnavailableReason>;
 }
 
 } // namespace
+
+// One case list per lock, so a new action cannot compile without saying which lock governs it.
+ActionLock governingLock(const EditorAction::Id action) noexcept
+{
+    switch (action)
+    {
+        // Content: the notes and everything authored over them, the sections, the tone regions
+        // and their catalog tones, the automation points. The pickers and the fret entry ask
+        // nothing a lock would let them write, so no picker opens and no digit is typed.
+        case EditorAction::Id::CreateToneRegion:
+        case EditorAction::Id::DeleteToneRegion:
+        case EditorAction::Id::RenameTone:
+        case EditorAction::Id::SetToneRegionTone:
+        case EditorAction::Id::MoveToneBoundary:
+        case EditorAction::Id::CreateNewTone:
+        case EditorAction::Id::SetToneAutomationPoints:
+        // Removing a plugin takes its automation points out of the song, and replacing the tone's
+        // rig drops the automation keyed by the plugins it replaces; with none to drop either is
+        // still the one press, refused alike.
+        case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::ImportToneFile:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::InsertRingPoint:
+        case EditorAction::Id::TypeChartFretDigit:
+        case EditorAction::Id::ShiftChartFrets:
+        case EditorAction::Id::AdjustChartSustain:
+        case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::ChooseChartHarmonic:
+        case EditorAction::Id::SetChartHarmonicNode:
+        case EditorAction::Id::ChooseChartBend:
+        case EditorAction::Id::SetChartBend:
+        case EditorAction::Id::ToggleChartJunction:
+        case EditorAction::Id::InsertSongSection:
+        case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::ClearFretHandEnd:
+        case EditorAction::Id::PruneFretHandPositions:
+        case EditorAction::Id::ChooseHold:
+        case EditorAction::Id::SetHold:
+        // The section and tone verbs decided at the press: no prompt opens that only a refusal
+        // could answer, and no bound answers before the lock.
+        case EditorAction::Id::SongSectionChord:
+        case EditorAction::Id::SongSectionAt:
+        case EditorAction::Id::ToneChord:
+        case EditorAction::Id::ToneChangeAt:
+        case EditorAction::Id::ToneRenamePrompt:
+        {
+            return ActionLock::Note;
+        }
+        // The grid: the tempo map and the time signatures, Scale Tempo in both of its forms.
+        case EditorAction::Id::InsertTempoAnchor:
+        case EditorAction::Id::SetTempoSpanBpm:
+        case EditorAction::Id::MoveTempoAnchor:
+        case EditorAction::Id::ReleaseTempoAnchorDrag:
+        case EditorAction::Id::ScaleTempo:
+        case EditorAction::Id::SetTimeSignature:
+        case EditorAction::Id::TempoChord:
+        case EditorAction::Id::TimeSignatureChord:
+        case EditorAction::Id::TimeSignatureAt:
+        case EditorAction::Id::ScaleTempoPrompt:
+        {
+            return ActionLock::Tempo;
+        }
+        // The editor-wide move and delete, `Enter` and `Ctrl+R` dispatch on the selection's kind.
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
+        case EditorAction::Id::RestateSelection:
+        case EditorAction::Id::RenameSelection:
+        {
+            return ActionLock::Operand;
+        }
+        // Undo and redo reproduce history already consented to, and a lock's own toggle is not
+        // undoable; everything else here changes no song content: the project and the signal
+        // chain, the transport, the grid settings, the view, navigation and selection.
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::SaveProject:
+        case EditorAction::Id::SaveProjectAs:
+        case EditorAction::Id::ExportSong:
+        case EditorAction::Id::CloseProject:
+        case EditorAction::Id::ExitApplication:
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::CancelBusyOperation:
+        case EditorAction::Id::Undo:
+        case EditorAction::Id::Redo:
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::Stop:
+        case EditorAction::Id::SeekTimeline:
+        case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::ToggleGridSnap:
+        case EditorAction::Id::ToggleTempoLock:
+        case EditorAction::Id::ToggleNoteLock:
+        case EditorAction::Id::SelectArrangement:
+        case EditorAction::Id::SelectToneRegion:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::BeginPluginInsert:
+        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::InsertSelectedPlugin:
+        case EditorAction::Id::MovePlugin:
+        case EditorAction::Id::SetSignalChainPlacement:
+        case EditorAction::Id::SetPluginDisplayTypeOverride:
+        case EditorAction::Id::OpenPlugin:
+        case EditorAction::Id::NewToneDocument:
+        case EditorAction::Id::OpenToneFile:
+        case EditorAction::Id::SaveToneFile:
+        case EditorAction::Id::SaveToneFileAs:
+        case EditorAction::Id::ExportToneFile:
+        // Answers the confirmation only an import opens, which the Note Lock refused first.
+        case EditorAction::Id::ResolveToneImportPrompt:
+        case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::StepToRowObject:
+        case EditorAction::Id::JumpToFocusRow:
+        case EditorAction::Id::JumpChartCaret:
+        case EditorAction::Id::ExtendTimeSelection:
+        case EditorAction::Id::SelectSongSection:
+        case EditorAction::Id::SelectTempoAnchor:
+        case EditorAction::Id::SelectTimeSignature:
+        case EditorAction::Id::SelectFretHandPosition:
+        case EditorAction::Id::SelectSpanRowMark:
+        {
+            return ActionLock::None;
+        }
+    }
+    return ActionLock::None;
+}
 
 // Encodes the actions that intentionally remain available while async work owns the editor.
 bool actionSupersedesBusy(EditorAction::Id action) noexcept
@@ -573,6 +729,17 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::SelectSpanRowMark:
         case EditorAction::Id::AuthorFretHandPositionAtCursor:
+        case EditorAction::Id::SongSectionChord:
+        case EditorAction::Id::SongSectionAt:
+        case EditorAction::Id::TempoChord:
+        case EditorAction::Id::TimeSignatureChord:
+        case EditorAction::Id::TimeSignatureAt:
+        case EditorAction::Id::ToneChord:
+        case EditorAction::Id::ToneChangeAt:
+        case EditorAction::Id::ToneRenamePrompt:
+        case EditorAction::Id::ScaleTempoPrompt:
+        case EditorAction::Id::RestateSelection:
+        case EditorAction::Id::RenameSelection:
         case EditorAction::Id::ChooseHold:
         case EditorAction::Id::SetHold:
         case EditorAction::Id::ClearFretHandEnd:
@@ -686,10 +853,6 @@ std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noex
         case Reason::NoLoadedPlugins:
         {
             return "no-loaded-plugins";
-        }
-        case Reason::NoteLocked:
-        {
-            return "note-locked";
         }
     }
 

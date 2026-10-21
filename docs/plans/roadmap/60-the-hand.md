@@ -202,8 +202,10 @@ What the one object IS in each layer:
   other. The one-arrow order stands: notes + authored statements → positions → spans / rings.
 - **On the surfaces**: the position chip and the span brackets stay what they are today (the chip
   is `FhpViewState`, width derived; the brackets derived); an authored marker additionally draws
-  its tell in the editor 2D lane; a selected hand event outlines its chip (built) and its rails
-  (Phase 3). Nothing new is invented for the highway.
+  its tell in the editor 2D lane; a selected hand event outlines its chip (built), and a selected
+  span its ruler chip and its rails as one shape — one outline around the chip and the top rail,
+  one around the bottom rail, stroked by the track viewport (built). Nothing new is invented for
+  the highway.
 - **On the keyboard**: ONE hand row between the time signature and the strings (§8, built), one
   author chord and one jump chord (`Ctrl+H` / `Ctrl+Shift+H`, built), one selection kind
   (`FretHandPositionSelection`, built). `Ctrl+P` / `Ctrl+Shift+P` are in the free pool and command
@@ -344,7 +346,7 @@ its anchors corrected, and the importer passes it had missed added.
   stop its stretch holds, `defaultedPlacement`), `Delete`, `Alt+←/→` by one placement quantum
   (`steppedNudgePosition`), bare digits typing the START fret, `Alt`+digit the END fret,
   `Alt+Delete` clearing it (`ClearFretHandEnd`), every verb through `commitMarkerModel` over a
-  `FretHandPositionsSnapshot`. One bound for every marker kind, `markerCanStartAt`
+  `FretHandPositionsSnapshot`. One bound for every marker kind, `objectCanStartAt`
   (`chart_rules.cpp:150`). A chip click selects the placement and seeks nothing (the hit test is
   `TabView::fretHandChipAt`, `tab_view.cpp:356-383`); the pinned chip is an ordinary selectable
   chip whose column is the pin's (`:340-347`); the selected chip is outlined, pinned or scrolling
@@ -507,8 +509,8 @@ ruling; the full evidence lives in the design records.
    make, and a front that moved WITH the tails is a second authority over the extent (law 6). A
    note that already rings through the span is already a member unless a boundary record stands
    between, so the only thing the gesture can honestly move is the boundary record. **RULED: only
-   the marker moves.** `Alt+←/→` steps a marker one placement quantum and is inert on a derived
-   front; a derived span changes through the sound (the tails' own verb) or a marker, and the
+   the marker moves.** `Alt+←/→` steps a marker one placement quantum and is refused on a derived
+   front, the chip flashing; a derived span changes through the sound (the tails' own verb) or a marker, and the
    derivation answers. The two invalid states a marker move can reach — a duplicate front, off the
    chart's start — are refused with the refusal flash (#278); everything else derives something
    legal (law 5). The content-editing FRONT gesture is STRUCK. The END gesture (bulk tail editing

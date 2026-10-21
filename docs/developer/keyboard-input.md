@@ -263,31 +263,35 @@ File-menu chords (`Ctrl+O`, `Ctrl+I`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+E`, `Ctrl+
 ride the same route, and command-backed menu items display their live shortcut automatically —
 the popup queries the mapping set per item.
 
-`Ctrl+T` (the tone-change chord) is a registered command whose `perform` opens a UI popup (the tone
-picker) before any action runs, and `Ctrl+M` is the section command with the same shape. Under the
-marker grammar (2026-09-14) neither chord decides anything: the CORE publishes the VERB each one
-would perform at the cursor — `EditorViewState::tone_chord_target` as nothing /
-`RetoneRegionTarget{region_id, tone_document_ref}` / `SplitToneRegionTarget{position,
-containing_tone_document_ref}`, and `section_chord_target` as nothing /
-`RenameSectionTarget{position, name}` / `InsertSectionTarget{position}` — and the view opens the
-picker or prompt that variant names. The meter chord `Ctrl+/` (`InsertTimeSignature`, `0x1408`)
-has the section's shape: `time_signature_chord_target` is nothing /
+The marker chords — `Ctrl+M` (section), `Ctrl+B` (tempo), `Ctrl+/` (`InsertTimeSignature`,
+`0x1408`), `Ctrl+T` (tone change) and `Ctrl+P` (position) — decide nothing in the view: each
+`perform` forwards one intent (`onSongSectionChordRequested`, `onTempoChordRequested`,
+`onTimeSignatureChordRequested`, `onToneChordRequested`, `onFretHandPositionChordRequested`), and
+the CORE applies the marker grammar (2026-09-14) at the press, as it decides the hold picker. Where
+the verb needs a prompt or picker, the core asks the view for it through
+`IEditorView::showMarkerPrompt(MarkerPrompt)` — `RenameSectionTarget{position, name}` /
+`InsertSectionTarget{position}`, `SetTempoTarget{position, bpm_text}`,
 `SetTimeSignatureTarget{position, meter_text}` / `InsertTimeSignatureTarget{position, meter_text}`,
-and both open one meter prompt ("Set Time Signature" or "Add Time Signature", one field typed as
-"7/8") whose raw text goes back through `onTimeSignatureSetRequested` for the core to parse. Typing
+`RetoneRegionTarget{region_id, tone_document_ref}` / `SplitToneRegionTarget{position,
+containing_tone_document_ref}` — and the view opens exactly that, through the same helpers Enter's
+restate and the ruler menus use. A tempo anchor inserted at a free slot and a position inserted by
+`Ctrl+P` have nothing to prompt for and land at once. The meter's two prompts are one ("Set Time
+Signature" or "Add Time Signature", one field typed as "7/8") whose raw text goes back through
+`onTimeSignatureSetRequested` for the core to parse. Typing
 the prevailing meter on one of its own downbeats changes no measure and records nothing, but shows
 the chip, selected, so the charter can retype it: a time signature restating its reign is
 authoring state that lives while its chip is selected and dissolves when the selection leaves
 (the keyframe commit law's meter row, \ref guide_musical_time). The
 chords read the CURSOR and never the selection: the armed
 caret, else the paused cursor (`cursorPosition(quantum)`, at the placement quantum for the tone's,
-the section's and the tempo anchor's slot, and at the tick for the meter's beat). "Nothing" carries the playback and no-song
-gates, stated once in the projection rather than in five UI guards, so a chord typed while the
-transport rolls finds no verb to perform. `Ctrl+P` (the position chord) has nothing to prompt for,
-so it publishes no verb at all: its `perform` forwards `onFretHandPositionChordRequested()`, and
-the core decides the same precedence and acts on it inside ONE action
-(`AuthorFretHandPositionAtCursor`, whose `fretHandPositionChordTarget` is file-local to
-`fret_hand_handlers.cpp`). `F3`/`F8` are commands that toggle UI panels directly — trigger-only
+the section's and the tempo anchor's slot, and at the tick for the meter's beat). With no cursor —
+the transport rolling, no song — a chord addresses nothing and says nothing, a gate stated once in
+`cursorPosition` rather than in five UI guards. On the closing barline, where nothing may start, a
+chord is refused at the press: the log line "nothing can start at or past the end of the song"
+under the insert's label (`refuseAtSongEnd`, which `SetTimeSignature` at the end shares), said on
+the lane's status line with nothing to light — unless the lock that freezes that verb is on, which
+answers first. `Ctrl+P` runs as ONE action (`AuthorFretHandPositionAtCursor`), its precedence
+stated in that handler in `fret_hand_handlers.cpp`. `F3`/`F8` are commands that toggle UI panels directly — trigger-only
 commands with no core policy. Two more UI-only families
 ride the same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
@@ -325,17 +329,23 @@ the mapping set through `commandChordText`, so a rebind moves the dialog's text 
 every song open and left deliberately, so its surfaces are the toolbar button and the ticked menu
 row, and the button's click runs the same command (`invokeDirectly`) rather than an intent of its
 own. Like snap it flips a session fact the core owns and nothing persists; unlike snap it asks
-nothing before turning off. While it is on, the core refuses the tempo-anchor moves themselves —
-see the tempo verbs in \ref guide_2d_views.
+nothing before turning off. While it is on, the tempo map and the time signatures are frozen: the
+core refuses every tempo and meter verb — insert, typed tempo or meter, delete, Scale Tempo, every
+anchor and meter move, and the tempo and meter chords, which open no prompt — before anything else
+answers, and the refusal flash glows the toolbar button beside the selection; see the tempo verbs
+in \ref guide_2d_views. Which lock governs each action is one table (`governingLock`,
+`controller/editor_action_availability.h`), read once at dispatch (`refuseLockedAction`). Undo and
+redo bypass both locks on purpose: a lock guards new intentions, and undo only reproduces history
+already consented to.
 
 `ToggleNoteLock` (`0x1907`, the Note Lock) is its pair, in the same group with the same shape: no default
 chord, a toolbar button 4 px right of the lock's whose click runs the command, and a ticked menu
 row. It is OFF at every song open. While it is on, the song's content is frozen where it sounds:
 the tempo verbs keep every object's time instead of moving it with the beat, and every chord, digit
-and move that would change a note, a marker or an automation point is refused with the usual log
-line and the refusal flash on the note, hold or chip it would have changed — an automation point
-is no flash target, and the lock itself, a toolbar control, is never lit
-(\ref guide_musical_time).
+and move that would change a note, a hold, a hand position, a section, a tone region or an
+automation point is refused first — no bound is checked, no prompt or picker opens — with the
+lock's log line and the refusal flash on the selection beside the lock's own toolbar button, the
+thing that stood in the way (\ref guide_musical_time).
 
 `ScaleTempo` (`0x1409`, "Scale Tempo...", category Tempo) has no default chord either: a whole-song
 grid repair is rare and deliberate, so its surfaces are the Edit menu item and the tempo row's
@@ -351,7 +361,10 @@ while the transport plays. It opens one prompt (titled by the form the Note Lock
 follow the beat)" with it off — one field "Scale factor (e.g. 2, 1/2, 3/2)", a "Scale" button),
 empty so a stray Enter scales nothing, whose raw text goes back through `onScaleTempoRequested`
 for the core to parse (`parseScaleFactor`, which refuses a term over 16 once reduced). The Tempo
-Lock does not block either form: no anchor is moved by hand (\ref guide_musical_time).
+Lock refuses either form, as it refuses every tempo verb, and answers before the prompt opens:
+the command asks the core (`onScaleTempoPromptRequested`), which asks back for the prompt
+(`ScaleTempoTarget`, titled by the form) only once the lock has answered, as every chord and menu
+row does (\ref guide_musical_time).
 
 `PruneHandPositions` (`0x140A`, "Prune Hand Positions", category Hand) has the same shape with no
 prompt: no default chord, an Edit-menu item greyed and self-gated on `marker_edits_enabled`, its
@@ -403,7 +416,9 @@ one plan and one entry even for a mixed selection, while the string step reaches
 keyframe has no string, and a selected head carries its path across by construction. A selected
 note's own keyframes ride at unchanged offsets, since an offset is relative to the onset it hangs
 from. Every bound on a stepped offset is the rule authority's, reached through the finalize gate,
-so crossing a neighbour REFUSES rather than swapping — the offset IS the keyframe's identity. The
+so crossing a neighbour REFUSES rather than swapping — the offset IS the keyframe's identity. A
+press a bound holds moves nothing and is refused (`planMoveGesture`): a slide-out parked on the next
+head flashes that head, and a selection already at the song's start or end flashes alone. The
 step re-keys every moved point, so the verb names the new selection itself (`select_exactly`)
 instead of leaving the default follow pointing at offsets nothing sits on),
 `onChartSustainAdjustRequested(direction)` (THE duration verb —
@@ -414,8 +429,9 @@ the placement quantum's lattice — so a ring left between lines snaps back onto
 the run records steps, each carrying the note value it snapped by, rather than summing them into
 one delta. Its operand is every note the selection reaches through either kind, since a keyframe
 sits on the tail this verb acts on; the head verbs do not reach through a keyframe. A step that
-moves no ring — every note at its floor or bound — is refused and never recorded, so no unseen
-overshoot builds up at a bound),
+moves no ring — every note at its floor or bound — is refused, flashing the notes and what held
+them (the next note on the string, the last keyframe), and never recorded, so no unseen overshoot
+builds up at a bound),
 `onChartFretShiftRequested`, `onChartFretDigitTyped` (the two fret verbs, and both reach a selected
 KEYFRAME as well as a head: a point on a slide states a fret exactly as a head does, so one
 `planRetypeFrets` call takes the selection's two key lists and transposes off ONE anchor over both.
@@ -435,9 +451,9 @@ as "Set Hand Position Start Fret", refused red by the funnel's own front half, `
 while the `Alt` digit states its window's END fret ("Set Hand Position End Fret") and `Alt+Delete`
 (`ClearHandPositionEndFret`) clears that end back to the derived one. On a selected DERIVED
 position either digit first authors the position there at the fret standing there — what `Ctrl+P`
-makes at that place — in the same undo entry (`statedPlacement`); `Alt+Delete` does nothing, there
-being no stated end to clear; and Delete and `Alt+Left/Right` refuse it, since nothing is stored to
-delete or move; at the caret, on an EMPTY slot and at a
+makes at that place — in the same undo entry (`statedPlacement`); and `Alt+Delete`, Delete and
+`Alt+Left/Right` refuse it with the chip glowing red, since nothing is stored to clear, delete or
+move; at the caret, on an EMPTY slot and at a
 ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply the next note, since the
 ring already stops there, which is why sequential entry is safe, whatever that end states — the
 head under the caret RETYPED, and STRICTLY INSIDE a ring the head that CUTS it
@@ -695,20 +711,23 @@ rewrite; a refusal logs under the verb's label and `refuseShapeHoldVerb` adds th
 light (`selectionLight`: the selected notes and keyframes, or the span or none hold) beside what
 the gate names (`PlanRefused::lit`): the neighbour hold a push would
 empty, the notes a hold that does not fit runs on past, every hold a broken rule's result changed,
-or the hold itself — each hold glowing on its own rails. An authored position the new holds leave
+or the hold itself — each hold glowing on its own rails in 2D, a span's chip and rails as one
+shape. An authored position the new holds leave
 uncovering never refuses the verb: it is dropped into the same undo entry and logged
 (`dropUncoveringFretHandPositions`). A
 landing that names a span the notes no longer derive selects nothing (`landMarkerSelection`).
 
-**Two keys read the SELECTION rather than the cursor**, and both take the same projection shape as
-the marker chords above: the core publishes the verb, the view opens the prompt it names.
-`RestateSelection` (`0x1404`, `Enter`) reads `EditorViewState::restate_target` — nothing, rename the
-selected section, type the selected tempo anchor's span tempo or the selected time signature's
-meter, retone the selected region, or open the "+" row's parameter picker.
-`RenameSelection` (`0x1405`, `Ctrl+R`) reads `rename_target` — nothing, rename the selected section,
-or rename the selected region's TONE document — and is silently inert on every kind with no name
-(tempo, time signature, the "+" row), the way `Delete` is. Both are always-active and self-gate on
-an empty target, so a press with nothing to restate neither beeps nor lies.
+**Two keys read the SELECTION rather than the cursor**, and both take the marker chords' shape
+above: the view forwards the press and the core decides it, asking back through
+`showMarkerPrompt`. `RestateSelection` (`0x1404`, `Enter`, `onSelectionRestateRequested`) renames
+the selected section, types the selected tempo anchor's span tempo or the selected time signature's
+meter, retones the selected region, or opens the "+" row's parameter picker
+(`OpenAutomationPickerTarget`); on a bend chip it opens the bend picker through the bend verb's own
+request, as `B` does; on any other kind it does nothing. `RenameSelection` (`0x1405`, `Ctrl+R`,
+`onSelectionRenameRequested`) renames the selected section or the selected region's TONE document
+(`RenameToneTarget`), and does nothing on every kind with no name (tempo, time signature, the "+"
+row), the way `Delete` does. Both are always-active, so a press with nothing to restate neither
+beeps nor lies.
 
 **The whole marker plane is paused-only** (ruled 2026-09-14): while the transport plays, no marker
 of any kind — section, tempo anchor, time signature, fret-hand position, tone region, the "+" row,
@@ -716,8 +735,9 @@ an automation point —
 can be selected and no marker edit can land. The decision is the core's, in
 `editor_action_availability.cpp`, and it reaches the views as ONE published flag,
 `EditorViewState::marker_edits_enabled`, so no surface derives it and none reads the transport to
-second-guess it. `cursorPosition(quantum)` — and the chord, restate and rename targets built on it —
-publishes nothing while playing, which is the same rule stated once more where the chords read it.
+second-guess it. `cursorPosition(quantum)` answers nothing while playing, so a chord addresses
+nothing, and play clears the selection Enter and Ctrl+R read: the same rule, stated once more where
+those verbs read it.
 The tone designer is the deliberate exception: the plugin chain, plugin parameters and the output
 gain stay live mid-play, because that is the point of the live rig.
 

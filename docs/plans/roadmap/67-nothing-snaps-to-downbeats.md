@@ -278,7 +278,7 @@ entry falls from ≈9.6 MB to kilobytes.
 
 **Exactness and validity.** A place is a reduced rational on the tick lattice: `isOnTickLattice`
 (the denominator divides 3840), non-negative, strictly before the terminal for every marker
-(`markerCanStartAt`'s terminal half), strictly ascending where a list is ordered (anchors, meters,
+(`objectCanStartAt`'s terminal half), strictly ascending where a list is ordered (anchors, meters,
 sections, tone changes, fret-hand positions), the first anchor and the first meter at `0`, a meter's
 place on the meter lattice (§2.1) and its reign holding a whole measure (§6 item 4). The
 beat-within-its-measure half of today's `isValidGridPosition` has no reader-side meaning for a
@@ -446,7 +446,7 @@ a refusal of its own (§6, item 3).
 ### 2.5 Sections
 
 `SongSection{GridPosition position; std::string name}` is unchanged. Rules: a non-blank name,
-`markerCanStartAt(position, map)` (on the grid, strictly before the terminal — the shared place
+`objectCanStartAt(position, map)` (on the grid, strictly before the terminal — the shared place
 rule, already asked), strictly ascending. `NotAMeasureDownbeat` is deleted, and so is the
 "Sections must stand on a downbeat" clause everywhere it is restated (§10). Every existing file
 stays valid under this rule: a downbeat is a grid position like any other, so the section half of

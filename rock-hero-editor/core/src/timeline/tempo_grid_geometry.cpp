@@ -5,26 +5,16 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
+#include <rock_hero/common/core/timeline/timeline_x.h>
 
 namespace rock_hero::editor::core
 {
 
 namespace
 {
-
-// Inverse of timelineXForPosition's interior mapping: turns a drawing-width column back into
-// seconds. Used only to bound the grid scan conservatively, so it may be loose; the exact
-// per-line column test in visibleTempoGridLines stays the real visibility gate. Callers
-// guarantee width_span > 0 so the division is safe.
-double secondsAtColumn(common::core::TimeRange visible_timeline, double width_span, int column)
-{
-    return visible_timeline.start.seconds +
-           (static_cast<double>(column) / width_span) * visible_timeline.duration().seconds;
-}
 
 // Keeps rendering and snapping on the same grid even when a caller passes a corrupt note value:
 // both public entry points degrade to the default grid rather than diverging or going blank.
@@ -331,20 +321,14 @@ std::vector<TempoGridLine> visibleTempoGridLines(
 
     const common::core::Fraction note_value = normalizedGridNoteValue(grid_note_value);
 
-    // timelineXForPosition spreads the visible range across [0, width - 1], so a zero span means a
-    // single-pixel canvas where the inverse is undefined. There, skip the bounding search and scan
-    // every line; the exact column test below still keeps the output correct.
-    const auto width_span = static_cast<double>(width - 1);
-    const bool can_bound_scan = width_span > 0.0;
-
-    // One-pixel margins absorb the rounding in the forward map so the bounds never exclude a line
-    // whose rounded column still lands inside the visible span.
-    const double window_start_seconds =
-        can_bound_scan ? secondsAtColumn(visible_timeline, width_span, visible_x_begin - 1)
-                       : std::numeric_limits<double>::lowest();
-    const double window_end_seconds =
-        can_bound_scan ? secondsAtColumn(visible_timeline, width_span, visible_x_end)
-                       : std::numeric_limits<double>::max();
+    // Bounds the scan through the mapping's inverse, loosely: one-pixel margins absorb the rounding
+    // in the forward map so the bounds never exclude a line whose rounded column still lands
+    // inside the visible span, and the exact per-line column test below stays the real gate.
+    const auto drawing_width = static_cast<double>(width);
+    const double window_start_seconds = common::core::timelineSecondsForX(
+        static_cast<double>(visible_x_begin - 1), visible_timeline, drawing_width);
+    const double window_end_seconds = common::core::timelineSecondsForX(
+        static_cast<double>(visible_x_end), visible_timeline, drawing_width);
 
     MeasureGridWalker walker{tempo_map, note_value};
     if (!walker.seekFirstLineAtOrAfter(window_start_seconds))
@@ -374,7 +358,7 @@ std::vector<TempoGridLine> visibleTempoGridLines(
             continue;
         }
 
-        const int column = static_cast<int>(std::round(*x));
+        const int column = timelineColumnForX(*x, width);
         if (column < visible_x_begin || column >= visible_x_end)
         {
             continue;

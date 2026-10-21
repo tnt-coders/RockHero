@@ -28,6 +28,49 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found in the refusal and lock review (2026-10-21)
+
+- **"Moved nothing" is decided in three places.** A press a bound holds is refused by its planner,
+  each comparing its replay with the LIVE chart: `planAdjustSustain` (`chart_edits.cpp`, the
+  `live_ring` read at :1838 and the held test at :1929) and `planMoveGesture` (:1580, whose live
+  `chart` parameter exists only for the parked slide-out test at :1627). Meanwhile
+  `commitChartGestureStep` (`chart_handlers.cpp` :3653) drops a replay equal to the plan its entry
+  holds. One authority would be simpler: planners return the plan plus a "held by" explanation (the
+  bound and what stood in its way), and `commitChartGestureStep` alone decides "moved nothing" —
+  equal to the entry's plan, or NoChange on a first press — and refuses with the explanation. That
+  deletes both planners' live-chart comparisons and `planMoveGesture`'s live chart parameter
+  (~3 files, ~80 lines). Two cares: `PlanNoChange` must carry the explanation on a first press, and
+  the chord-member rule must survive (a member left unchanged with no bound judging it vetoes the
+  refusal, as `unheld` does now).
+- **A gesture still banks overshoot across lattices.** A refused press is never recorded, but a
+  press a clamp absorbed only PART of is: the run's step list keeps the full step, so its overshoot
+  stays banked. A later press back on a finer grid can then only walk back over that absorbed
+  overshoot, its replay equals the plan the entry already holds, and `commitChartGestureStep`'s
+  equal-plan branch (`chart_handlers.cpp`, the `burst->plan` comparison) drops it unrecorded and
+  unlit — the key does nothing visible, silently, until the run ends. Recording the step the clamp
+  actually took (or folding it into the "held by" authority above) would make such a press either
+  move something or refuse with what held it.
+- **The cursor is two aligned halves across the ruler/lane seam.** `TimelineRuler::drawCursor`
+  (`timeline_ruler.cpp`, through `drawTimelineCursor`) draws the line through the ruler body and
+  `CursorOverlay` draws it over the rows, each mapping its own column. Now that
+  `TrackViewport::paintOverChildren` paints over the ruler and the rows together (the span-row
+  ring and its refusal glow), the line could be drawn once there, leaving the ruler only its flag —
+  one column computation instead of two that must agree.
+- **The tone row's selection ring is its own geometry.** The selected region
+  (`ToneTrackView::paint`, `g_tone_region_selection_outline`) is a 2 px white stroke CENTRED on the
+  region's edge, overpainting the accent border, while every other selected mark wears the shared
+  outside ring (`boxRingOutline` in `mark_outline.h`, stroked by `strokeMarkRing`). The white was
+  ruled; the centred geometry may just be the idiom not yet applied. Check against the ruling, then
+  trace the region through `boxRingOutline` in white.
+- **The lock answers before applicability.** `Enter` and `Ctrl+R` are `ActionLock::Operand`
+  (`governingLock`), so on a selected kind they cannot act on — a span, a none hold, a fret-hand
+  position, and for `Ctrl+R` a tempo anchor or a time signature — they flash the governing lock's
+  button while it is on (`refuseLockedAction` via `operandLock` in `editor_controller.cpp`), though
+  with the lock off the same press does nothing (`RestateSelection` and `RenameSelection` in
+  `marker_row_handlers.cpp`). The lock-first rule is deliberate; the case is whether
+  `operandLock` should answer "no lock" for a kind the verb has no meaning on, which would need the
+  verb's applicability stated once where both read it.
+
 ## Found while making positions yield to notes and holds (2026-10-20)
 
 - **Growth has no notion of hand reach.** The span walk grows a span by any struck stop, so a lone

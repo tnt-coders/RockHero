@@ -237,9 +237,10 @@ the live one for every verb that edits from what it finds, and the chart the ges
 for a gesture, whose plan describes the whole run: every press replays from it and normalizes ITS
 holds and positions, so a press stepping back restores a hold an earlier press rewrote and a
 position it dropped. The sustain gesture still reads the LIVE chart for its ring bounds and the ring
-a floored note holds; the move gesture judges nothing against the live chart, so its caller simply
-hands `planMoveSelection` the pre-gesture chart and the one chart argument is both the source of the
-objects and the diff base. Every chart the editor holds is a fixpoint of the gate, so it judges only
+a floored note holds; the move gesture's geometry judges nothing against the live chart, so
+`planMoveGesture` hands `planMoveSelection` the pre-gesture chart and the one chart argument is both
+the source of the objects and the diff base — the live chart answers only the press's own question,
+whether a parked slide-out moved. Every chart the editor holds is a fixpoint of the gate, so it judges only
 the notes the candidate touched plus the same-string rings their new onsets can shorten (the
 locality rule beside `sustainBoundOf`), in stream order: a keystroke costs what the edit touches
 rather than the song, and the first refusal is the whole walk's. The holds and the position drop are
@@ -277,7 +278,11 @@ controller adds the subject it planned over, and neither restates the other. Exe
 named as the selection names them, which the flash glows as one set, so neither author cares what
 the other added. The site fills `PlanRefused::lit` (the note a move would land on, the neighbour
 hold a push would empty), and a rule's error carries its own records for the site to read
-(`tempoMapCulprits`, `toneTrackCulprits`) rather than the verb restating the rule;
+(`tempoMapCulprits`, `toneTrackCulprits`) rather than the verb restating the rule. A lock is a
+culprit like any other, named by its toolbar control (`LockControl`): the one place stating the
+locks' sentences states their light with them (`lockRefusal`), and the one dispatcher check
+(`refuseLockedAction`, reading the action table's `governingLock`) refuses before any verb runs,
+so no site can refuse for a lock without lighting it;
 `reportChartPlanRefusal` and `refuseMarkerVerb` add the selection or the chip and hand the union to
 `flashRefusalLight`, the one path to the one port, `IEditorView::flashRefusal`. The painters glow
 the set and never know subject from culprit. Reach for it when a feedback signal has two authors: a union of facts each author

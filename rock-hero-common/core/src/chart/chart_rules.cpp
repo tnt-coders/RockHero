@@ -99,20 +99,6 @@ void reAimScrapeTerminal(const ChartNote& note, Keyframe& terminal, const Fracti
     }
 }
 
-// The one walk that answers "when is this string struck again", which the truncation, the
-// span-implied note length's cap and the editor's growth verbs all read. Same-position notes are on
-// different strings by construction (a duplicate onset is an invalid chart), so the search starts
-// past the note's whole onset group and stops at the first later note on the string: every note is
-// a strike, so that one is the bound.
-[[nodiscard]] std::vector<ChartNote>::const_iterator nextStrikeOnString(
-    const std::vector<ChartNote>& notes, const ChartNote& note)
-{
-    const auto later = std::ranges::subrange(
-        std::ranges::upper_bound(notes, note.position, std::ranges::less{}, &ChartNote::position),
-        notes.end());
-    return std::ranges::find(later, note.string, &ChartNote::string);
-}
-
 // A target at or past the bound ends exactly on it: adjacency is legal.
 [[nodiscard]] Fraction heldWithinBound(const Fraction target, const std::optional<Fraction>& bound)
 {
@@ -199,9 +185,9 @@ void dropNotePath(ChartNote& note)
     }));
 }
 
-// The grid rule plus the song's end: every marker kind asks this one question, so a section, a tone
-// change and a hand position can never disagree about where the song stops holding one.
-bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map)
+// The grid rule plus the song's end: every note and every marker kind asks this one question, so no
+// two kinds can disagree about where the song stops holding one.
+bool objectCanStartAt(const GridPosition& position, const TempoMap& tempo_map)
 {
     return isValidGridPosition(position, tempo_map) && position < terminalGridPosition(tempo_map);
 }
@@ -284,7 +270,7 @@ std::expected<void, ChartError> validateFretHandPositions(
         // A position off the grid or past the song has no repair; where the window SITS is the
         // normalizer's fit (above the capo, the narrowest window under the last fret), asked as the
         // fixpoint.
-        if (!markerCanStartAt(fhp.position, tempo_map))
+        if (!objectCanStartAt(fhp.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
@@ -349,7 +335,7 @@ std::expected<void, ChartError> validateShapeHolds(
     const ShapeHold* furthest = nullptr;
     for (const ShapeHold& hold : holds)
     {
-        if (!markerCanStartAt(hold.start, tempo_map))
+        if (!objectCanStartAt(hold.start, tempo_map))
         {
             return refused("shape hold starts off the grid or past the song", hold.start);
         }
@@ -634,12 +620,23 @@ bool clipPayloadsToSustain(ChartNote& note, const Fraction sustain)
 std::optional<Fraction> sustainBoundOf(
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
 {
-    const auto next = nextStrikeOnString(notes, note);
+    const auto next = firstNoteOnStringAfter(notes, note.position, note.string);
     if (next == notes.end())
     {
         return std::nullopt;
     }
     return wholeNoteDistance(tempo_map, note.position, next->position);
+}
+
+// The walk forward from an instant to the string's next onset; upper_bound rather than lower_bound,
+// because the onset group standing AT the instant is not after it.
+std::vector<ChartNote>::const_iterator firstNoteOnStringAfter(
+    const std::vector<ChartNote>& notes, const GridPosition position, const int string)
+{
+    const auto later = std::ranges::subrange(
+        std::ranges::upper_bound(notes, position, std::ranges::less{}, &ChartNote::position),
+        notes.end());
+    return std::ranges::find(later, string, &ChartNote::string);
 }
 
 // The walk back from an instant to the string's last earlier onset; lower_bound rather than
@@ -676,7 +673,7 @@ std::vector<TailTruncation> normalizeSustainOverlaps(
     std::vector<TailTruncation> truncated;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        const auto next = nextStrikeOnString(notes, notes[index]);
+        const auto next = firstNoteOnStringAfter(notes, notes[index].position, notes[index].string);
         const std::optional<Fraction> bound =
             next == notes.end()
                 ? std::nullopt
@@ -997,6 +994,15 @@ std::expected<void, ChartError> validateChartNoteAlone(
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
             .message = "note is out of range at " + formatGridPositionToken(note.position),
+        }};
+    }
+    // On the grid, so what this place rule can still refuse is the song's end.
+    if (!objectCanStartAt(note.position, tempo_map))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "a note cannot start at or past the end of the song at " +
+                       formatGridPositionToken(note.position),
         }};
     }
     // The ring. Every struck string rings for SOME length — a dead note's damped stroke included —

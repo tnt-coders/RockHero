@@ -110,7 +110,9 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   consumer of the chart's end needs the same answer (package read closing the last tone region,
   tone-track normalization, tone-track validation, and the editor's end-of-chart navigation and
   selection bounds), so the terminal-anchor lookup and the position it becomes are spelled once
-  here.
+  here. Nothing starts on or past it: `objectCanStartAt` (`chart/chart_rules.h`) is the one place
+  rule a note's onset and every marker's start obey alike — on the grid, strictly before the
+  terminal.
 
 # Presentation: stored durations vs drawn ones (`chart/chart_presentation.h`)
 
@@ -442,18 +444,29 @@ re-placed at f times their place — so the verb chooses its form on the lock it
 commits through `commitGridModel` as a meter edit does.
 
 **While the Note Lock is on, the song's content is frozen.** Every verb that would change it is
-refused through the one authority `noteLockRefusal` — the marker funnel's judge refuses every
-marker model but the two that state the grid (`g_states_grid`: the tempo map and the whole
-timeline), the chart funnel `applyChartEditPlan` refuses every planned chart edit, naming the
-notes it would rewrite, the pending fret entry's plan refuses so the typed value's box is red, and
-the automation points verb refuses — and the plugin removal, which takes a plugin's automation out
-of the song, is unavailable (`ActionConditions::note_locked`). Three writes the lock admits move
+refused first, before any planning, bound or prompt: the action table states which lock governs
+each action (`governingLock`, `controller/editor_action_availability.h` — `Note` for every content
+verb, `Tempo` for the tempo and meter verbs, the selection's kind for the editor-wide move and
+delete), and the dispatcher reads it once before the verb runs (`refuseLockedAction`), refusing
+with the lock's sentence (`lockRefusal`) and flashing the selection beside the lock's own toolbar
+button. The chords, Enter and Ctrl+R ask the same table through the action their answer runs, so
+no prompt opens under the lock; no funnel asks a lock, since every write that reaches one was
+dispatched. The plugin removal, which takes a plugin's automation out of the song, and the tone
+file import, which drops the automation keyed by the plugins it replaces, answer to the Note Lock
+in the same table: neither greys, and each is refused with the lock's button lit. Undo and redo bypass both locks on purpose: a lock guards new intentions, and undo only
+reproduces history already consented to. Three writes the lock admits move
 content, and each re-engages the lock on what it wrote (`engageNoteLock`): the locked Scale Tempo,
 whose free factor rounds the content it scales, the settle sweep, whose flatten is the chart's
 normal form, and a landing whose hold normalizer rewrote a shape hold (`relockOnConvertedContent`) —
 otherwise every later locked edit would lay its map under an origin without the rewrite, and make
 and log it again. A meter edit keeps every place exactly, so it runs as it always does and the origin stays
 true through it; `timeKeptTimeline` reads its meters from the verb's map for that reason.
+
+**While the Tempo Lock is on, the grid is frozen:** the tempo map and the time signatures alike.
+Every tempo and meter verb — an anchor's or a meter's insert, retype, move or delete, the tempo and
+meter chords, Scale Tempo in either form — answers to it in the same action table, and is refused
+first, as the Note Lock refuses content. Sections are content, so they answer to the Note Lock
+only.
 
 Whether the history still stands on the origin is the history's own fact. Engaging marks the
 cursor as the history's **base** (`EditorUndoHistory::markBase`), and the lock's commits push over

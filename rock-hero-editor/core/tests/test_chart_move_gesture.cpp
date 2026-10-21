@@ -1,3 +1,5 @@
+#include "log_capture.h"
+
 #include <algorithm>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
@@ -400,9 +402,11 @@ TEST_CASE("A keyframe move gesture re-points the selection at every step", "[cor
 }
 
 // A RING'S END REACHING THE NEXT HEAD HAS ONE ANSWER, and this is the move verb giving it: the
-// slide-out parks ON that head rather than refusing, exactly as a ring GROWN into it parks there.
-// The gesture consequence is what the clamp has to earn — a press that cannot move must cost
-// nothing to come back from, or the charter pays back an overshoot they never saw, press by press.
+// slide-out stepped onto or past that head parks ON it, exactly as a ring GROWN into it parks
+// there, and a further press that way moves nothing, so it is refused as the duration verb's is —
+// the slide-out and the head holding it flash. The gesture consequence is what the clamp has to
+// earn: a press that cannot move must cost nothing to come back from, or the charter pays back an
+// overshoot they never saw, press by press.
 TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing", "[core][chart]")
 {
     MoveFixture fixture;
@@ -442,12 +446,20 @@ TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing",
     }
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
-    // Further presses that way do NOTHING VISIBLE: the clamp holds the slide-out on the head, so
-    // the replay describes the plan the entry already holds and the press is not recorded at all.
+    CHECK(fixture.view.refusal_flashes.empty());
+
+    // Further presses that way MOVE NOTHING: the clamp holds the slide-out on the head, so each is
+    // refused and not recorded at all, lighting the slide-out the press tried to move and the
+    // head it is parked on.
     fixture.step(ChartStepDirection::Right);
     fixture.step(ChartStepDirection::Right);
     CHECK(fixture.currentChart() == parked);
     CHECK(fixture.undoEntryCount() == entries_before + 1);
+    REQUIRE(fixture.view.refusal_flashes.size() == 2);
+    CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{1});
+    CHECK(
+        fixture.view.refusal_flashes[0].keyframes ==
+        std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}});
     // And the selection still names the slide-out — at the offset the CLAMP landed it on, not the
     // one the delta arithmetic would have named, which nothing in the chart sits on.
     {
@@ -459,12 +471,13 @@ TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing",
         }
     }
 
-    // One press back moves again, and it is the FIRST press back: the two no-op presses banked
-    // nothing, so the run replays to its start, retires its entry, and the slide-out stands where
-    // the charter found it.
+    // One press back moves again, and it is the FIRST press back: the two refused presses banked
+    // nothing, so the run replays to its start, retires its entry with no flash, and the slide-out
+    // stands where the charter found it.
     fixture.step(ChartStepDirection::Left);
     CHECK(fixture.currentChart() == original);
     CHECK(fixture.undoEntryCount() == entries_before);
+    CHECK(fixture.view.refusal_flashes.size() == 2);
     {
         const EditorViewState* const home = stateOrNull(fixture.view.last_state);
         REQUIRE(home != nullptr);
@@ -473,6 +486,71 @@ TEST_CASE("A move gesture parks a slide-out on the next head and banks nothing",
             CHECK(home->chart_edit.selected_keyframes.size() == 1);
         }
     }
+}
+
+// THE SONG'S START IS A BOUND: a press earlier from a note already on the first downbeat moves
+// nothing, so it is refused — the note flashes, the edge being nothing to light, and the log says
+// why — and never recorded, whether it is the run's first press or a later one.
+TEST_CASE("A move earlier from the song's start flashes the note", "[core][chart]")
+{
+    const testing::LogCapture capture;
+    MoveFixture fixture;
+    common::core::Chart chart;
+    chart.tuning.strings = common::core::testing::standardTuning();
+    SECTION("inside a run")
+    {
+        // Measure 1 beat 3, at 1.0s (x = 20): two presses reach the start.
+        chart.notes = {makeTestNote({.measure = 1, .beat = 3}, 1, g_measure_3_fret)};
+        REQUIRE(fixture.load(std::move(chart)));
+        click(fixture.controller, 20.0f, g_string_1_y);
+        const std::size_t entries_before = fixture.undoEntryCount();
+        fixture.step(ChartStepDirection::Left);
+        fixture.step(ChartStepDirection::Left);
+        CHECK(
+            fixture.onsetOfFret(g_measure_3_fret) ==
+            common::core::GridPosition{.measure = 1, .beat = 1});
+        CHECK(fixture.view.refusal_flashes.empty());
+
+        fixture.step(ChartStepDirection::Left);
+        CHECK(
+            fixture.onsetOfFret(g_measure_3_fret) ==
+            common::core::GridPosition{.measure = 1, .beat = 1});
+        CHECK(fixture.undoEntryCount() == entries_before + 1);
+        REQUIRE(fixture.view.refusal_flashes.size() == 1);
+        CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
+
+        // The refused press banked nothing: two presses later retrace the run to its start and
+        // retire its entry.
+        fixture.step(ChartStepDirection::Right);
+        fixture.step(ChartStepDirection::Right);
+        CHECK(
+            fixture.onsetOfFret(g_measure_3_fret) ==
+            common::core::GridPosition{.measure = 1, .beat = 3});
+        CHECK(fixture.undoEntryCount() == entries_before);
+    }
+    SECTION("as the first press")
+    {
+        chart.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, g_measure_3_fret)};
+        REQUIRE(fixture.load(std::move(chart)));
+        click(fixture.controller, 0.0f, g_string_1_y);
+        {
+            const EditorViewState* const selected = stateOrNull(fixture.view.last_state);
+            REQUIRE(selected != nullptr);
+            if (selected != nullptr)
+            {
+                REQUIRE(selected->chart_edit.selected_notes.size() == 1);
+            }
+        }
+        const std::size_t entries_before = fixture.undoEntryCount();
+        fixture.step(ChartStepDirection::Left);
+        CHECK(
+            fixture.onsetOfFret(g_measure_3_fret) ==
+            common::core::GridPosition{.measure = 1, .beat = 1});
+        CHECK(fixture.undoEntryCount() == entries_before);
+        REQUIRE(fixture.view.refusal_flashes.size() == 1);
+        CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
+    }
+    CHECK(capture.text().find("already at the start of the song") != std::string::npos);
 }
 
 // THE burst record's own law, which guards against data loss: the record must not outlive the edit

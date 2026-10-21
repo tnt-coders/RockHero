@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -564,19 +565,16 @@ std::optional<juce::Rectangle<int>> ToneAutomationLanesView::plusChipBounds(
     };
 }
 
-// Raw linear map, deliberately unclamped: curve segments must span points outside the visible
-// range, and the editable-window dim rects need real (possibly off-canvas) edge coordinates.
+// The one time-to-x mapping, deliberately unclamped: curve segments must span points outside the
+// visible range, and the editable-window dim rects need real (possibly off-canvas) edge
+// coordinates.
 std::optional<float> ToneAutomationLanesView::xForSeconds(double seconds) const
 {
-    const double duration = m_visible_timeline.end.seconds - m_visible_timeline.start.seconds;
-    if (getWidth() <= 0 || duration <= 0.0)
-    {
-        return std::nullopt;
-    }
-    const double drawn_seconds = m_content_map.secondsRetimedFrom(m_tempo_map, seconds);
-    return static_cast<float>(
-        (drawn_seconds - m_visible_timeline.start.seconds) / duration *
-        static_cast<double>(getWidth()));
+    return core::timelineXForPosition(
+        common::core::TimePosition{m_content_map.secondsRetimedFrom(m_tempo_map, seconds)},
+        m_visible_timeline,
+        getWidth(),
+        core::TimelinePositionClamping::ExtendPastVisibleRange);
 }
 
 float ToneAutomationLanesView::snappedValueForLane(

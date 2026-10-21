@@ -208,18 +208,9 @@ the theme and the resolved palette to the preview (`setLook`), and the palette a
 CRT switch) when the new theme's art is the old one's, and otherwise recreates the renderer
 through `bringUpRenderer()`, the same path and the same failure policy as a first open.
 
-The editor's refusal flash reaches the board as a **highlight**. `EditorView::flashRefusal` builds
-a `HighwayHighlight` (`highway_renderer.h`) from the refusal's spans and fret-hand positions — the
-indices the board's chart uses, since it is the same projection the tab lane flashes in — in the
-editor theme's `invalid` color, and hands it to `PreviewSurface::flashRefusal`. The surface owns the
-pulse: a refusal arriving mid-flash joins the running one, a new view state drops it (its indices
-name the old chart), and every frame it restates the set and the pulse's level through
-`HighwayRenderer::setHighlight(highlight, level)`. A lit span's rails draw again over their own in
-the highlight's color at the level's share of a rail's intensity, and a lit position's upcoming
-floor number leans toward that color by the level. The set is shared, never copied, and the level
-is a plain number, so a running flash allocates nothing per frame; a null set or a level of zero
-lights nothing, and the game, which never highlights, never calls it. The renderer glows what it
-is handed and never knows why.
+The editor's refusal flash never reaches the board. It belongs to the 2D editing surfaces, and a
+surface lights every refused thing it draws or nothing at all; the preview cannot light a note head
+or a none hold, so it lights none, and `EditorView::flashRefusal` hands the preview nothing.
 
 # The sharing mechanics, precisely
 

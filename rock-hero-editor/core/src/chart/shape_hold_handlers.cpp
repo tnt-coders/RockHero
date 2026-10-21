@@ -185,10 +185,9 @@ std::optional<ShapeHoldExtent> EditorController::Impl::selectedHoldExtent() cons
 // the refusal names a hold as it stood then, and only the selection names it where it stands now.
 void EditorController::Impl::refuseShapeHoldVerb(const MarkerVerb verb, const PlanRefused& refusal)
 {
-    m_refusal_log.markerEdit(markerVerbLabel(verb), refusal.reason);
     RefusalLight lit = selectionLight(m_selection);
     lit.add(refusal.lit);
-    flashRefusalLight(lit);
+    refuseMarkerVerb(markerVerbLabel(verb), refusal.reason, lit);
 }
 
 // The choice lands on the hold the carve leaves at the extent's start, merged or not: a none hold
@@ -235,8 +234,8 @@ void EditorController::Impl::performActionImpl(EditorAction::ChooseHold /*action
     const std::optional<ShapeHoldExtent> extent = selectedHoldExtent();
     if (!extent.has_value())
     {
-        m_refusal_log.markerEdit(
-            markerVerbLabel(MarkerVerb::ChooseHold), "nothing is selected to hold");
+        refuseMarkerVerb(
+            markerVerbLabel(MarkerVerb::ChooseHold), "nothing is selected to hold", RefusalLight{});
         return;
     }
     // Bound above the loop, which the optional-access check cannot see through.
@@ -337,8 +336,8 @@ void EditorController::Impl::stepShapeHoldEdge(const ShapeHoldEdge edge, const b
     gesture.value = stepped.value;
     const common::core::GridPosition landed =
         edge == ShapeHoldEdge::Start ? gesture.value : gesture.base.start;
-    // The step was judged above, so the commit has nothing left to refuse: it lands the plan or
-    // retires a run stepped back to its start.
+    // The step was judged above, and the Note Lock answered at dispatch, so the commit has nothing
+    // left to refuse: it lands the plan or retires a run stepped back to its start.
     static_cast<void>(commitChartGestureStep(
         continues,
         // The plan the candidate was judged with, handed on rather than planned a second time.

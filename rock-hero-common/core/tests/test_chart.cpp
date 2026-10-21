@@ -732,6 +732,35 @@ TEST_CASE("Chart rules refuse an instant between two ticks", "[core][chart]")
     }
 }
 
+// A note starts where any timeline object may (objectCanStartAt): on the grid and strictly before
+// the closing barline, so the last instant of the song's last bar is legal and the barline is not.
+TEST_CASE("Chart rules refuse a note at or past the song's end", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const GridPosition terminal = terminalGridPosition(tempo_map);
+    ChartTuning tuning;
+    tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote note;
+    note.string = 1;
+    note.fret = 5;
+    note.sustain = g_fixture_ring;
+    // The last beat of the 4/4 map's last bar, a quarter before the closing barline.
+    note.position = GridPosition{.measure = terminal.measure - 1, .beat = 4, .offset = {}};
+    CHECK(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+
+    note.position = terminal;
+    const auto at_end = validateChartNoteAlone(note, tuning, tempo_map);
+    REQUIRE_FALSE(at_end.has_value());
+    if (!at_end.has_value())
+    {
+        CHECK(at_end.error().code == ChartErrorCode::InvalidNote);
+        CHECK(at_end.error().message.starts_with(
+            "a note cannot start at or past the end of the song"));
+    }
+    note.position = GridPosition{.measure = terminal.measure, .beat = 2, .offset = {}};
+    CHECK_FALSE(validateChartNoteAlone(note, tuning, tempo_map).has_value());
+}
+
 // A duration is a note value, so its lattice test is its own: a whole number of ticks of a whole
 // note is on the lattice wherever it starts, and a septuplet's seventh is on it nowhere — whatever
 // meter the note stands in. That holds only because the onset is held to the lattice first.
@@ -1750,6 +1779,48 @@ TEST_CASE("Chart rules bound a keyframe's channels", "[core][chart]")
         CHECK(at_the_nut.error().code == ChartErrorCode::InvalidNote);
         CHECK(validate_with(Keyframe{.offset = Fraction{1, 8}, .fret = 1}, 0.0).has_value());
     }
+}
+
+// THE RING'S BOUND AND THE NOTE NAMED FOR IT ARE ONE ANSWER: the onset the forward walk finds is
+// the one sustainBoundOf measures to, the backward walk finds the ring that onset bounds, and both
+// pass over the onset group standing at the instant itself.
+TEST_CASE("The same-string walks find the onsets bounding a ring", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto note_at = [](const GridPosition position, const int string) {
+        ChartNote note;
+        note.position = position;
+        note.string = string;
+        note.fret = 5;
+        note.sustain = g_fixture_ring;
+        return note;
+    };
+    const std::vector<ChartNote> notes{
+        note_at(GridPosition{.measure = 1, .beat = 1}, 1),
+        note_at(GridPosition{.measure = 1, .beat = 1}, 2),
+        note_at(GridPosition{.measure = 1, .beat = 2}, 2),
+        note_at(GridPosition{.measure = 1, .beat = 3}, 1),
+    };
+
+    // String 1's next strike is two quarters on; the string-2 notes in between stop nothing.
+    const auto bounding = firstNoteOnStringAfter(notes, notes[0].position, 1);
+    REQUIRE(bounding != notes.end());
+    CHECK(bounding - notes.begin() == 3);
+    CHECK(sustainBoundOf(notes, notes[0], tempo_map) == std::optional{Fraction{1, 2}});
+    // Its own string-2 neighbour in the chord is not after it, so the walk skips the onset group.
+    const auto chord_next = firstNoteOnStringAfter(notes, notes[1].position, 2);
+    REQUIRE(chord_next != notes.end());
+    CHECK(chord_next - notes.begin() == 2);
+    // Nothing later sounds on string 1 after its second note: no onset, and no bound.
+    CHECK(firstNoteOnStringAfter(notes, notes[3].position, 1) == notes.end());
+    CHECK_FALSE(sustainBoundOf(notes, notes[3], tempo_map).has_value());
+
+    // The mirror: the onset at beat 3 bounds string 1's first note, and nothing earlier sounds on
+    // string 2 before the downbeat.
+    const auto bounded = lastNoteOnStringBefore(notes, notes[3].position, 1);
+    REQUIRE(bounded != notes.end());
+    CHECK(bounded - notes.begin() == 0);
+    CHECK(lastNoteOnStringBefore(notes, notes[1].position, 2) == notes.end());
 }
 
 // A NOTE'S ARRIVAL TRUNCATES ITS PREDECESSOR'S RING, AND THE STATEMENT AT THAT RING'S END RIDES

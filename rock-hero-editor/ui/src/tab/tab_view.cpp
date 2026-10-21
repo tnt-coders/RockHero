@@ -2,6 +2,7 @@
 
 #include "shared/editor_theme.h"
 #include "shared/flash_pulse.h"
+#include "shared/mark_outline.h"
 #include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
 
@@ -19,6 +20,7 @@
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/chart/chart_reveal.h>
+#include <string>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -28,14 +30,6 @@ namespace rock_hero::editor::ui
 
 namespace
 {
-
-// One stroke width for every edge-straddling overlay outline (selection rings and the caret
-// square), so the editing furniture reads as one family at any head size. The caret-mask query
-// shares it so the mask spans exactly the square's outer stroke edge.
-[[nodiscard]] float overlayRingStroke(float head_size) noexcept
-{
-    return std::max(1.0f, head_size / 15.0f) * 1.5f;
-}
 
 // Fills one rail with a slashed hatch (/////): each slash rises to the right across the rail's
 // height, a third of the rail's height wide every two thirds of it, anchored at the rail's start
@@ -100,13 +94,6 @@ template <typename Mark, typename RailsOf>
     return std::nullopt;
 }
 
-// A mark an overlay traces: its closed outline, and the size its ring and glow scale with.
-struct MarkOutline
-{
-    juce::Path path;
-    float extent{0.0f};
-};
-
 // A span-row mark's rails, top then bottom, as an overlay traces them: nothing when they are too
 // short to draw, so no outline or glow stands where the lane shows no mark.
 [[nodiscard]] std::optional<std::pair<juce::Rectangle<float>, juce::Rectangle<float>>> drawnOnly(
@@ -138,6 +125,19 @@ bool stepToward(float& progress, const float target, const float step) noexcept
     return std::is_neq(progress <=> target);
 }
 
+// The status line's clearance from the legend panel and the chips' row, and its text's padding
+// inside the plate.
+constexpr float g_status_line_gap{4.0f};
+constexpr float g_status_line_padding{4.0f};
+
+// The status line's text size: two pixels over the chip labels' 12, in a regular weight, so a
+// sentence is read comfortably at a glance.
+constexpr float g_status_line_text_height{14.0f};
+
+// How much of the lane's ground the plate lays over the notation: enough that the line reads over
+// any note, little enough that the note still shows it is there.
+constexpr float g_status_line_plate_opacity{0.8f};
+
 } // namespace
 
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
@@ -148,6 +148,12 @@ float tabLaneCenterY(
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept
 {
     return common::ui::tabLaneCenterY(displayed_string, displayed_string_count, bounds);
+}
+
+// Rationale lives on the declaration in tab_view.h.
+common::ui::TabLaneFont tabStatusLineFont()
+{
+    return common::ui::TabLaneFont{juce::Font{juce::FontOptions{g_status_line_text_height}}};
 }
 
 // Holds the colors every paint derives the lane's surfaces from.
@@ -162,6 +168,7 @@ void TabView::setColors(
 {
     m_string_colors = string_colors;
     m_shape_inks = shape_inks;
+    invalidateLaneMetrics();
     repaint();
 }
 
@@ -211,37 +218,169 @@ void TabView::setEditState(core::ChartEditViewState edit)
     m_edit = std::move(edit);
     easePresenceToAnswers();
     repaint();
+    refreshStatusLine();
     // The overlay carries the caret; push its fresh mask now so the paused column's cut-out
     // changes in the same synchronous pass as the drawn square, never a frame behind it.
     publishCaretMask();
 }
 
-// Rationale lives on the declaration in tab_view.h.
-void TabView::flashRefusal(core::RefusalFlash flash)
+// Rationale lives on the declaration in tab_view.h. The record holds the line's sentence only
+// where it says one, so a refusal that glows and says nothing retires with its train.
+void TabView::flashRefusal(const core::RefusalFlash& flash)
 {
-    if (flash.notes.empty() && flash.keyframes.empty() && flash.spans.empty() &&
-        flash.none_holds.empty() && flash.fret_hand_positions.empty())
+    Refusal refusal{
+        .notes = flash.notes,
+        .keyframes = flash.keyframes,
+        .fret_hand_positions = flash.fret_hand_positions,
+        .sentence = flash.sentence,
+    };
+    const bool glowed = m_refusal.has_value() && m_refusal->subject.glows();
+    const bool glows = refusal.glows();
+    const std::optional<FlashHold> hold =
+        refusal.sentence.empty() ? std::nullopt : std::optional{g_refusal_line_hold};
+    if (!startRefusalFlash(m_refusal, std::move(refusal), hold))
     {
         return;
     }
-    flashOrJoinRefusal(
-        m_refusal, std::move(flash), [](core::RefusalFlash& into, const core::RefusalFlash& from) {
-            joinRefused(into.notes, from.notes);
-            joinRefused(into.spans, from.spans);
-            joinRefused(into.none_holds, from.none_holds);
-            joinRefused(into.fret_hand_positions, from.fret_hand_positions);
-            joinRefused(into.keyframes, from.keyframes);
-        });
-    repaint();
-}
-
-// Rationale lives on the declaration in tab_view.h.
-void TabView::stepRefusalFlash()
-{
-    if (retireFinishedFlash(m_refusal))
+    if (glowed || glows)
     {
         repaint();
     }
+    refreshStatusLine();
+}
+
+// Rationale lives on the declaration in tab_view.h. A level is repainted only when it moved since
+// the last frame, so the line costs nothing through its hold and the glows nothing once their train
+// has run; the record then retires and the line says the count again.
+void TabView::stepRefusalFlash()
+{
+    if (!m_refusal.has_value())
+    {
+        return;
+    }
+    const PulsedFlash<Refusal>& refusal = *m_refusal;
+    const float glow_level = refusal.pulse.level();
+    const float line_level = refusal.pulse.heldLevel();
+    if (refusal.subject.glows() && std::is_neq(glow_level <=> m_stepped_glow_level))
+    {
+        repaint();
+    }
+    if (m_status_line.refusal && std::is_neq(line_level <=> m_stepped_line_level))
+    {
+        repaint(statusLineArea());
+    }
+    m_stepped_glow_level = glow_level;
+    m_stepped_line_level = line_level;
+    if (refusal.pulse.finished())
+    {
+        m_refusal.reset();
+        refreshStatusLine();
+    }
+}
+
+// Rationale lives on the declaration in tab_view.h. A sentence that has faded out says nothing,
+// even before a frame retires its flash.
+const std::string* TabView::shownSentence() const
+{
+    if (!m_refusal.has_value() || m_refusal->subject.sentence.empty() ||
+        m_refusal->pulse.heldFinished())
+    {
+        return nullptr;
+    }
+    return &m_refusal->subject.sentence;
+}
+
+// Rationale lives on the declaration in tab_view.h.
+juce::String TabView::statusLineText() const
+{
+    if (const std::string* const sentence = shownSentence(); sentence != nullptr)
+    {
+        return juce::String{*sentence};
+    }
+    const std::size_t selected = m_edit.selected_notes.size();
+    if (selected >= 2)
+    {
+        return juce::String{static_cast<int>(selected)} + " notes selected";
+    }
+    return {};
+}
+
+// Rationale lives on the declaration in tab_view.h.
+void TabView::refreshStatusLine()
+{
+    juce::String text = statusLineText();
+    if (text == m_status_line.text)
+    {
+        return;
+    }
+    repaint(statusLineArea());
+    const float plate_width = text.isEmpty() ? 0.0f
+                                             : static_cast<float>(m_status_font.width(text)) +
+                                                   (2.0f * g_status_line_padding);
+    m_status_line = StatusLine{
+        .text = std::move(text),
+        .plate_width = plate_width,
+        .refusal = shownSentence() != nullptr,
+    };
+    repaint(statusLineArea());
+}
+
+// Rationale lives on the declaration in tab_view.h. Past the legend panel rather than the pinned
+// fret-hand chip, which stands in the chips' row above the line, and held a gap short of the
+// visible run's right edge, the text inside it ellipsized where it would run past.
+juce::Rectangle<float> TabView::statusLinePlate() const
+{
+    if (m_status_line.text.isEmpty())
+    {
+        return {};
+    }
+    const juce::Range<float> chip_row = common::ui::tabFhpChipRow(getLocalBounds(), m_label_font);
+    const float left = static_cast<float>(legendBounds().getRight()) + g_status_line_gap;
+    const float visible_right =
+        static_cast<float>(m_visible_content_left + m_visible_content_width) - g_status_line_gap;
+    const float width = std::min(m_status_line.plate_width, visible_right - left);
+    if (width <= 2.0f * g_status_line_padding)
+    {
+        return {};
+    }
+    return juce::Rectangle<float>{
+        left,
+        chip_row.getEnd() + g_status_line_gap,
+        width,
+        common::ui::chipHeight(m_status_font),
+    };
+}
+
+// The plate's whole pixels, and one more for its antialiased corners.
+juce::Rectangle<int> TabView::statusLineArea() const
+{
+    const juce::Rectangle<float> plate = statusLinePlate();
+    return plate.isEmpty() ? juce::Rectangle<int>{}
+                           : plate.getSmallestIntegerContainer().expanded(1);
+}
+
+// Rationale lives on the declaration in tab_view.h. A sentence holds and then fades on the flash's
+// clock (g_refusal_line_hold), never on the glow's pulses, and the count stands steady.
+void TabView::paintStatusLine(juce::Graphics& g) const
+{
+    // A frame that repaints only the cursor's strip skips the plate unless the strip crosses it.
+    const juce::Rectangle<float> plate = statusLinePlate();
+    if (plate.isEmpty() || !g.clipRegionIntersects(statusLineArea()))
+    {
+        return;
+    }
+    const float level =
+        m_status_line.refusal && m_refusal.has_value() ? m_refusal->pulse.heldLevel() : 1.0f;
+    const EditorTheme& theme = editorTheme();
+    g.setColour(theme.waveform_row_background.withAlpha(g_status_line_plate_opacity * level));
+    g.fillRoundedRectangle(plate, common::ui::g_lane_chip_corner_radius);
+    const juce::Colour ink = m_status_line.refusal ? theme.invalid : theme.lane_overlay;
+    g.setColour(ink.withMultipliedAlpha(level));
+    m_status_font.draw(
+        g,
+        m_status_line.text,
+        plate.reduced(g_status_line_padding, 0.0f),
+        juce::Justification::left);
 }
 
 // Holds or releases the ring reveal. A repaint only on a genuine change, because the
@@ -365,22 +504,19 @@ bool TabView::hitTest(int x, int y)
     return wantsPointerAt({x, y});
 }
 
-// Builds the chart pointer event carrying the exact geometry the notation painted with, so the
-// controller's hit resolution and the pixels on screen can never disagree.
-core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event) const
+// Builds the chart pointer event carrying the exact geometry the notation painted with — the
+// lane's own metrics, its re-time included — so the controller's hit resolution and the pixels on
+// screen can never disagree. A lane with nothing to draw with builds none.
+std::optional<core::ChartPointerEvent> TabView::makePointerEvent(
+    const juce::MouseEvent& event) const
 {
-    const juce::Rectangle<int> bounds = getLocalBounds();
-    const int displayed_count =
-        common::core::displayedStringCount(m_tab->stringCount(), m_minimum_displayed_strings);
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
+    {
+        return std::nullopt;
+    }
     return core::ChartPointerEvent{
-        .geometry = common::ui::makeTabLaneGeometry(
-            static_cast<float>(bounds.getX()),
-            static_cast<float>(bounds.getY()),
-            static_cast<float>(bounds.getWidth()),
-            static_cast<float>(bounds.getHeight()),
-            m_visible_timeline,
-            displayed_count,
-            m_tab->stringCount()),
+        .geometry = static_cast<const common::ui::TabLaneGeometry&>(lane->metrics),
         .x = event.position.x,
         .y = event.position.y,
         .modifiers =
@@ -448,7 +584,11 @@ void TabView::mouseDown(const juce::MouseEvent& event)
         }
     }
 
-    m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
+    if (const std::optional<core::ChartPointerEvent> pointer = makePointerEvent(event);
+        pointer.has_value())
+    {
+        m_on_pointer_event(core::ChartPointerPhase::Down, *pointer);
+    }
 }
 
 // Whether the span at `index` draws to its musical close (core::chartSpanRevealed), asked of the
@@ -567,17 +707,19 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 {
     // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
     // pointer travels outside it, exactly like any JUCE drag capture.
-    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->stringCount() > 0)
+    if (const std::optional<core::ChartPointerEvent> pointer = makePointerEvent(event);
+        m_on_pointer_event != nullptr && pointer.has_value())
     {
-        m_on_pointer_event(core::ChartPointerPhase::Drag, makePointerEvent(event));
+        m_on_pointer_event(core::ChartPointerPhase::Drag, *pointer);
     }
 }
 
 void TabView::mouseUp(const juce::MouseEvent& event)
 {
-    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->stringCount() > 0)
+    if (const std::optional<core::ChartPointerEvent> pointer = makePointerEvent(event);
+        m_on_pointer_event != nullptr && pointer.has_value())
     {
-        m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
+        m_on_pointer_event(core::ChartPointerPhase::Up, *pointer);
     }
 }
 
@@ -590,6 +732,7 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
     }
 
     m_visible_timeline = visible_timeline;
+    invalidateLaneMetrics();
     // A timeline with no duration draws no lane at all, so the legend column is one of the things
     // that flips with it.
     refreshLegendColumn();
@@ -618,17 +761,23 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 //
 // This lane is transparent, so both repaints reach the canvas beneath as well — which is what
 // keeps the tempo grid's own exclusion at this column in step without a second push.
-void TabView::setVisibleContentLeft(int content_left_x)
+//
+// The visible WIDTH bounds only the status line, which rides the pin with the chrome and stops
+// short of the window's right edge, so it is repainted where it was and where it now is too.
+void TabView::setVisibleContent(const int content_left_x, const int content_width)
 {
-    if (m_visible_content_left == content_left_x)
+    if (m_visible_content_left == content_left_x && m_visible_content_width == content_width)
     {
         return;
     }
 
     repaint(pinnedChromeBounds());
+    repaint(statusLineArea());
     m_visible_content_left = content_left_x;
-    refreshPinnedFhp(laneMetrics());
+    m_visible_content_width = content_width;
+    refreshPinnedFhp();
     repaint(pinnedChromeBounds());
+    repaint(statusLineArea());
 }
 
 // A new pair moves every mark, and the pinned placement is the one fact here that depends on where
@@ -649,7 +798,8 @@ void TabView::setTempoMaps(
                                                       .from = &m_published_map,
                                                       .to = &m_content_map,
                                                   }};
-    refreshPinnedFhp(laneMetrics());
+    invalidateLaneMetrics();
+    refreshPinnedFhp();
     repaint();
 }
 
@@ -664,13 +814,16 @@ void TabView::setState(
         return;
     }
 
-    // A running flash names notes by this projection's indices, which the new one reassigns.
+    // A running flash names notes by this projection's indices, which the new one reassigns; its
+    // sentence goes with it.
     if (tab != m_tab)
     {
         m_refusal.reset();
+        refreshStatusLine();
     }
     m_tab = std::move(tab);
     m_minimum_displayed_strings = minimum_displayed_strings;
+    invalidateLaneMetrics();
     snapPresenceToAnswers();
 
     // A lane-count change moves the legend panel — the count sets the font its width is measured
@@ -688,15 +841,22 @@ void TabView::setState(
 void TabView::paint(juce::Graphics& g)
 {
     // Bound to a local so the presence test and every read are provably one object. The answer
-    // carries the chart it was derived from, so nothing here re-dereferences m_tab on the
+    // carries the chart it was derived from, so nothing below re-dereferences m_tab on the
     // strength of this call having succeeded.
-    const std::optional<DrawableLane> lane = laneMetrics();
-    if (!lane.has_value())
+    if (const std::optional<DrawableLane> lane = laneMetrics(); lane.has_value())
     {
-        return;
+        paintLane(g, *lane);
     }
-    const common::ui::TabLaneMetrics& metrics = lane->metrics;
-    const common::core::ChartViewState& tab = lane->tab;
+    // THE STATUS LINE, over everything the lane drew and with or without a chart: a refusal of a
+    // tempo or tone edit needs none to say why.
+    paintStatusLine(g);
+}
+
+// The notation through the shared paint core, and the editor's overlays on it.
+void TabView::paintLane(juce::Graphics& g, const DrawableLane& lane) const
+{
+    const common::ui::TabLaneMetrics& metrics = lane.metrics;
+    const common::core::ChartViewState& tab = lane.tab;
     const juce::Rectangle<int> bounds = metrics.bounds;
 
     // How each note is presented: the rule lives in the editor core beside the hit test that must
@@ -755,22 +915,14 @@ void TabView::paint(juce::Graphics& g)
     // Every overlay that traces a mark — the selection ring, the refusal glow — reads the mark's
     // OUTLINE from one place per kind of mark, so the two can never disagree about a shape: a
     // head's is the paint core's own silhouette (re-deriving it here would draw a circle around a
-    // head the overlay does not know, such as the plectrum), a dot's is its disc, and a chip's is a
-    // rounded outline just outside its plate, following its corners, so the chip reads whole
-    // inside its ring rather than as a chip with a doubled edge. The ring is stroked centered on
-    // the outline at one and a half border-widths: on a head that sits between the head's own
-    // border and the accent glow, leaving the glow annulus readable on accented notes.
-    const auto plate_outline = [](const juce::Rectangle<float>& plate) {
-        const float stroke = overlayRingStroke(plate.getHeight());
-        juce::Path outline;
-        outline.addRoundedRectangle(
-            plate.expanded(stroke / 2.0f), common::ui::g_lane_chip_corner_radius + stroke / 2.0f);
-        return MarkOutline{.path = std::move(outline), .extent = plate.getHeight()};
-    };
-    const auto ring = [&g](const MarkOutline& mark, const juce::Colour colour) {
-        g.setColour(colour);
-        g.strokePath(mark.path, juce::PathStrokeType{overlayRingStroke(mark.extent)});
-    };
+    // head the overlay does not know, such as the plectrum), a dot's is its disc, and a BOXED
+    // mark's — a chip, a span-row rail — is an outline just outside its box, following its
+    // corners (a chip's rounded, a rail's square), so the box reads whole inside its ring rather
+    // than with its own ink buried under it (boxRingOutline). The ring is stroked centered on the
+    // outline at one and a half border-widths (strokeMarkRing): on a head that sits between the
+    // head's own border and the accent glow, leaving the glow annulus readable on accented notes;
+    // on a box it lies wholly outside. The span row's ring and glow are not drawn here: its rails
+    // and the chip on the ruler read as one shape, so the track viewport traces the two together.
 
     // The selection wears its ring on the FACE the caret stands on, which is what the next key acts
     // on: the marks, or — with the caret on a bend chip — that chip alone, the head unringed. The
@@ -876,8 +1028,9 @@ void TabView::paint(juce::Graphics& g)
                         std::get_if<common::core::KeyframeStopMark>(&keyframe.mark);
                     stop != nullptr)
                 {
-                    return plate_outline(
-                        common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box));
+                    return boxRingOutline(
+                        common::ui::paintTabSlideChip(g, metrics, note, stop->stop, box),
+                        common::ui::g_lane_chip_corner_radius);
                 }
                 return std::nullopt;
             case common::ui::TabKeyframeShape::Dot:
@@ -950,7 +1103,7 @@ void TabView::paint(juce::Graphics& g)
     // play-from-here mark is the position display. The paused play-from-here column behind
     // the content never shows inside the square: the track viewport cuts caretMaskYRange()
     // out of it.
-    if (const std::optional<juce::Rectangle<float>> square = caretSquare(*lane))
+    if (const std::optional<juce::Rectangle<float>> square = caretSquare(lane))
     {
         const float size = square->getWidth();
         g.setColour(editorTheme().lane_overlay);
@@ -959,19 +1112,18 @@ void TabView::paint(juce::Graphics& g)
 
     for (const MarkOutline& mark : selection_rings)
     {
-        ring(mark, accent);
+        strokeMarkRing(g, mark, accent);
     }
 
     // The selection's BEND CHIPS draw over the caret: a chip stands above its head, into the square
     // the caret draws there, and the amount it prints must stay readable. Each is repainted, and
     // wears the ring when the caret stands on the chips, the face the next key acts on.
-    const auto repaint_chip =
-        [&ring, &plate_outline, face, accent](const juce::Rectangle<float>& plate) {
-            if (face == core::ChartCaretFace::BendChip)
-            {
-                ring(plate_outline(plate), accent);
-            }
-        };
+    const auto repaint_chip = [&g, face, accent](const juce::Rectangle<float>& plate) {
+        if (face == core::ChartCaretFace::BendChip)
+        {
+            strokeMarkRing(g, boxRingOutline(plate, common::ui::g_lane_chip_corner_radius), accent);
+        }
+    };
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= tab.notes.size())
@@ -1101,50 +1253,8 @@ void TabView::paint(juce::Graphics& g)
     // lands in the column. It is ONE pass called once per paint; only where it sits in the
     // composition distinguishes it from the lane content. The none holds' hatched rails go down
     // first, in the same layer, so the spans inside a none hold draw over them.
-    paintNoneHolds(g, *lane);
+    paintNoneHolds(g, lane);
     common::ui::paintTabLaneFurniture(g, metrics, tab, revealed_shape);
-
-    // THE SELECTED SPAN OR NONE HOLD wears the accent outline on both its rails, traced on the very
-    // rectangles drawn (selectedSpanRowRails). Editor furniture, so it stays out of the game-shared
-    // paint core.
-    if (const std::optional<Rails> selected_rails = selectedSpanRowRails(*lane);
-        selected_rails.has_value())
-    {
-        const auto& [top_rail, bottom_rail] = *selected_rails;
-        g.setColour(accent);
-        g.drawRect(top_rail, overlayRingStroke(top_rail.getHeight()));
-        g.drawRect(bottom_rail, overlayRingStroke(bottom_rail.getHeight()));
-    }
-
-    // A REFUSED span or none hold glows on both its rails as every refused mark does, traced on
-    // the rectangles the selection outline strokes, over that outline. The glow reaches as far as
-    // a refused head's (the lane's head extent): a rail's own height is a few pixels, which would
-    // leave a sub-pixel glow no one sees.
-    if (m_refusal.has_value())
-    {
-        const float level = m_refusal->pulse.level();
-        const float extent = metrics.headSize();
-        const auto glow_rails = [&g, level, extent](const std::optional<Rails>& rails) {
-            if (!rails.has_value())
-            {
-                return;
-            }
-            for (const juce::Rectangle<float>& rail : {rails->first, rails->second})
-            {
-                juce::Path outline;
-                outline.addRectangle(rail);
-                paintRefusalGlow(g, outline, extent, level);
-            }
-        };
-        for (const std::size_t span : m_refusal->subject.spans)
-        {
-            glow_rails(drawnSpanRails(*lane, span));
-        }
-        for (const std::size_t none_hold : m_refusal->subject.none_holds)
-        {
-            glow_rails(drawnNoneHoldRails(*lane, none_hold));
-        }
-    }
 
     // THE GOVERNING FRET-HAND PLACEMENT, pinned on the panel exactly as the ruler pins the tempo
     // and time signature governing its own left edge: an FHP is a region-scoped value, so the panel
@@ -1188,28 +1298,30 @@ void TabView::paint(juce::Graphics& g)
                              : std::optional{DrawnChip{.fhp = &fhp, .box = box}};
     };
 
-    // THE SELECTED FRET-HAND CHIP wears the accent outline a selected keyframe chip wears — one
-    // selection idiom for every boxed mark — traced on the chip where it is drawn. Editor
-    // furniture, so it stays out of the game-shared paint core.
+    // THE SELECTED FRET-HAND CHIP wears the ring a selected keyframe chip wears, traced on the chip
+    // where it is drawn: one selection idiom for every boxed mark, a ring just outside the box
+    // (boxRingOutline, following the chip's rounded corners) so the chip itself stays readable.
+    // Editor furniture, so it stays out of the game-shared paint core.
     if (const std::optional<std::size_t>& selected = m_edit.selected_fret_hand_position;
         selected.has_value())
     {
         if (const std::optional<DrawnChip> chip = drawn_chip(*selected); chip.has_value())
         {
-            g.setColour(accent);
-            g.drawRect(chip->box, overlayRingStroke(chip->box.getHeight()));
+            strokeMarkRing(
+                g, boxRingOutline(chip->box, common::ui::g_lane_chip_corner_radius), accent);
         }
     }
 
     // A REFUSED fret-hand chip glows as every refused mark does, traced on the chip where it is
-    // drawn, over the selection's outline and under the pending box.
+    // drawn, over the selection's ring and under the pending box.
     if (m_refusal.has_value())
     {
         for (const std::size_t refused : m_refusal->subject.fret_hand_positions)
         {
             if (const std::optional<DrawnChip> chip = drawn_chip(refused); chip.has_value())
             {
-                const MarkOutline mark = plate_outline(chip->box);
+                const MarkOutline mark =
+                    boxRingOutline(chip->box, common::ui::g_lane_chip_corner_radius);
                 paintRefusalGlow(g, mark.path, mark.extent, m_refusal->pulse.level());
             }
         }
@@ -1240,9 +1352,9 @@ void TabView::paint(juce::Graphics& g)
         }
     }
 
-    // THE STRING LEGEND'S LETTERS, last of everything: each string's own pitch name on its own
-    // line. Last because they must stay readable whatever crosses the column — a rail, a chip or
-    // the canvas's own ink passing behind them rather than over them is what makes the letters
+    // THE STRING LEGEND'S LETTERS, last of the lane's own ink: each string's own pitch name on its
+    // own line. Last because they must stay readable whatever crosses the column — a rail, a chip
+    // or the canvas's own ink passing behind them rather than over them is what makes the letters
     // answer "which line is this string?" at any scroll position instead of only where nothing
     // else is drawn.
     common::ui::drawTabStringLegend(g, metrics, tab.open_strings, panel);
@@ -1250,10 +1362,12 @@ void TabView::paint(juce::Graphics& g)
 
 // The lane's metrics for the state and the bounds as they now stand — WITH the chart they came
 // from — or nothing when there is nothing to draw with: no chart, an empty lane, or a timeline with
-// no duration to map. THE ONE derivation — paint, the caret mask and the legend column all ask
-// this — so a geometry the mask reports can never be one the paint did not draw with, and the
-// chart travelling with it is what makes "laneMetrics answered, so m_tab is live" a fact the
-// type carries instead of a guard every caller must remember.
+// no duration to map. THE ONE derivation — paint, the caret mask, the legend column, the hit tests
+// and the track viewport's span-row overlay all ask this — so a geometry the mask reports can never
+// be one the paint did not draw with, and the chart travelling with it is what makes "laneMetrics
+// answered, so m_tab is live" a fact the type carries instead of a guard every caller must
+// remember. The metrics are built once per state and kept (m_lane_metrics): a paint, and the
+// overlay painted over it every frame the cursor moves, read the one build.
 std::optional<TabView::DrawableLane> TabView::laneMetrics() const
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
@@ -1264,15 +1378,27 @@ std::optional<TabView::DrawableLane> TabView::laneMetrics() const
         return std::nullopt;
     }
 
-    common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
-        bounds,
-        m_visible_timeline,
-        common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
-        tab->stringCount(),
-        m_string_colors,
-        m_shape_inks);
-    metrics.retime = m_retime;
-    return DrawableLane{.metrics = std::move(metrics), .tab = *tab};
+    if (!m_lane_metrics.has_value())
+    {
+        common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
+            bounds,
+            m_visible_timeline,
+            common::core::displayedStringCount(tab->stringCount(), m_minimum_displayed_strings),
+            tab->stringCount(),
+            m_string_colors,
+            m_shape_inks,
+            m_label_font);
+        metrics.retime = m_retime;
+        m_lane_metrics = std::move(metrics);
+    }
+    return DrawableLane{.metrics = *m_lane_metrics, .tab = *tab};
+}
+
+// Every input laneMetrics builds from passes through a setter that calls this, so the kept build
+// can never describe a state the lane no longer has.
+void TabView::invalidateLaneMetrics() noexcept
+{
+    m_lane_metrics.reset();
 }
 
 // Re-derives the legend panel at pin zero. Asked of the paint core rather than measured here, so
@@ -1305,7 +1431,7 @@ void TabView::refreshLegendColumn()
                 ? common::ui::tabStringLegendBounds(lane->metrics, lane->tab.open_strings, 0)
                 : juce::Rectangle<int>{};
     }
-    refreshPinnedFhp(lane);
+    refreshPinnedFhp();
 }
 
 // Re-derives the placement pinned on the panel: the one GOVERNING the window's left edge, unless
@@ -1318,11 +1444,13 @@ void TabView::refreshLegendColumn()
 // plus the clearance every pinned timeline value keeps, so the pin drops exactly when the incoming
 // chip would otherwise crowd it — and that incoming chip, drawn by the furniture pass at its own
 // column, scrolls on to the edge and becomes the next pin.
-void TabView::refreshPinnedFhp(const std::optional<DrawableLane>& lane)
+void TabView::refreshPinnedFhp()
 {
     m_pinned_fhp.reset();
     m_pinned_fhp_column = {};
 
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
     if (!lane.has_value() || m_legend_column.isEmpty())
     {
         return;
@@ -1428,6 +1556,7 @@ void TabView::moved()
 
 void TabView::resized()
 {
+    invalidateLaneMetrics();
     // The lane's height sets its font, which is what the legend column is measured in.
     refreshLegendColumn();
     publishCaretMask();
@@ -1447,14 +1576,61 @@ std::optional<juce::Rectangle<float>> TabView::selectedNoteHeadBounds() const
 // The selected span's or none hold's two rails as one box, the glyph a verb on it keeps on screen.
 std::optional<juce::Rectangle<float>> TabView::selectedSpanRowBounds() const
 {
+    return selectedSpanRow().transform(
+        [](const DrawnSpanRow& row) { return row.top_rail.getUnion(row.bottom_rail); });
+}
+
+// At most one of the two indices is published: the selection holds one marker.
+std::optional<DrawnSpanRow> TabView::selectedSpanRow() const
+{
+    if (const std::optional<std::size_t>& span = m_edit.selected_span; span.has_value())
+    {
+        return drawnSpanRow(*span);
+    }
+    if (const std::optional<std::size_t>& none_hold = m_edit.selected_none_hold;
+        none_hold.has_value())
+    {
+        return drawnNoneHoldRow(*none_hold);
+    }
+    return std::nullopt;
+}
+
+std::optional<DrawnSpanRow> TabView::drawnSpanRow(const std::size_t span) const
+{
     // Bound to a local so the presence test and every read are provably one object.
     const std::optional<DrawableLane> lane = laneMetrics();
     if (!lane.has_value())
     {
         return std::nullopt;
     }
-    return selectedSpanRowRails(*lane).transform(
-        [](const Rails& rails) { return rails.first.getUnion(rails.second); });
+    const float head_size = lane->metrics.headSize();
+    return drawnSpanRails(*lane, span).transform([span, head_size](const Rails& rails) {
+        return DrawnSpanRow{
+            .span = span,
+            .top_rail = rails.first,
+            .bottom_rail = rails.second,
+            .head_size = head_size,
+        };
+    });
+}
+
+std::optional<DrawnSpanRow> TabView::drawnNoneHoldRow(const std::size_t none_hold) const
+{
+    // Bound to a local so the presence test and every read are provably one object.
+    const std::optional<DrawableLane> lane = laneMetrics();
+    if (!lane.has_value())
+    {
+        return std::nullopt;
+    }
+    const float head_size = lane->metrics.headSize();
+    return drawnNoneHoldRails(*lane, none_hold).transform([head_size](const Rails& rails) {
+        return DrawnSpanRow{
+            .span = std::nullopt,
+            .top_rail = rails.first,
+            .bottom_rail = rails.second,
+            .head_size = head_size,
+        };
+    });
 }
 
 // The span's rails unless the projection has outrun the index or they are too short to draw.
@@ -1477,21 +1653,6 @@ std::optional<TabView::Rails> TabView::drawnNoneHoldRails(
         return std::nullopt;
     }
     return drawnOnly(noneHoldRails(lane, index));
-}
-
-// At most one of the two indices is published: the selection holds one marker.
-std::optional<TabView::Rails> TabView::selectedSpanRowRails(const DrawableLane& lane) const
-{
-    if (const std::optional<std::size_t>& span = m_edit.selected_span; span.has_value())
-    {
-        return drawnSpanRails(lane, *span);
-    }
-    if (const std::optional<std::size_t>& none_hold = m_edit.selected_none_hold;
-        none_hold.has_value())
-    {
-        return drawnNoneHoldRails(lane, *none_hold);
-    }
-    return std::nullopt;
 }
 
 // Drawn under the paint core's furniture, so a fret-hand chip standing on the top rail covers the

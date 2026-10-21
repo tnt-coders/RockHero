@@ -212,18 +212,21 @@ struct [[nodiscard]] ChartError
 };
 
 /*!
-\brief Whether a timeline marker — a section, a tone change, a fret-hand position — may start at a
-position: on the tempo map's grid and strictly before its terminal anchor.
+\brief Whether a timeline object — a note's onset, or a marker: a section, a tempo anchor, a tone
+change, a fret-hand position — may start at a position: on the tempo map's grid and strictly before
+its terminal anchor.
 
-THE one place rule for every marker kind, shared by each kind's validator and by the editor's
-projection of where its chord would land, so a chord never offers an insert the commit then
-refuses. A marker starting on the closing barline would govern a passage of no length.
+THE one place rule for every object that starts somewhere in the song, shared by each kind's
+validator (a note's is \ref validateChartNoteAlone) and by the editor's projection of where a
+marker's chord would land, so a chord never offers an insert the commit then refuses. Nothing starts
+on or past the closing barline: a marker there would govern a passage of no length, and a note
+there would sound after the song has ended.
 
 \param position Candidate start.
 \param tempo_map Tempo map the position must address.
 \return True when a marker may start there.
 */
-[[nodiscard]] bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map);
+[[nodiscard]] bool objectCanStartAt(const GridPosition& position, const TempoMap& tempo_map);
 
 /*!
 \brief The repair a chart normalization applied — one value per rule the normalizer owns.
@@ -440,7 +443,8 @@ This bounds the RING and nothing else. The span-implied note length \ref chartNo
 deliberately runs past it, because a re-strike stops a string without releasing the shape the
 fretting hand is holding — which is exactly what a repeat-box chain is made of.
 `note` need not be a member of `notes` — only its position and string are read, so a candidate
-placement asks the same question.
+placement asks the same question. The onset it measures to is \ref firstNoteOnStringAfter's, so a
+caller naming what holds a ring names the note this bound was read from.
 
 THE LOCALITY RULE, stated here once because it is a property of this bound: an onset inserted on a
 string can shorten the bound of exactly one other note, its same-string predecessor
@@ -458,12 +462,32 @@ bounds — the editor's plan gate re-judging only what an edit touched — needs
     const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
 
 /*!
+\brief The string's first note strictly after `position`: the onset that bounds the ring of a note
+standing at `position` on that string.
+
+The one walk that answers "when is this string struck again": \ref sustainBoundOf measures to the
+note it finds, and a caller naming what holds a ring at its bound asks it, so the bound and the
+note named for it are one answer. Notes standing AT `position` are on other strings, a duplicate
+slot aside, so they are passed over; every note is a strike, so the first later note on the string
+is the bound.
+
+\param notes Note stream sorted by (position, string).
+\param position Instant to look forward from.
+\param string One-based string.
+
+\return The note, or `notes.end()` when nothing later sounds on that string.
+*/
+[[nodiscard]] std::vector<ChartNote>::const_iterator firstNoteOnStringAfter(
+    const std::vector<ChartNote>& notes, GridPosition position, int string);
+
+/*!
 \brief The string's last note strictly before `position`: the one note whose ring an onset there
 bounds, and the only one whose ring can reach that instant.
 
-The mirror of \ref sustainBoundOf, which looks forward from a note to the onset bounding it; this
-looks back from an onset to the note it bounds (the locality rule there). Notes standing AT
-`position` are on other strings, a duplicate slot aside, so they are passed over.
+The mirror of \ref firstNoteOnStringAfter, which looks forward from a note to the onset bounding
+its ring; this looks back from an onset to the note it bounds (the locality rule at
+\ref sustainBoundOf). Notes standing AT `position` are on other strings, a duplicate slot aside, so
+they are passed over.
 
 \param notes Note stream sorted by (position, string).
 \param position Instant to look back from.
@@ -673,12 +697,13 @@ runs \ref normalizeSustainOverlaps before it validates, exactly as it runs the p
 Two halves, and only the first is a list of refusals: the structural rules no repair can express
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
 length, and no repair can invent the one a chart failed to state — a node off the string or behind
-its stop, a pinch without its node, a pressed note on a capo'd fret, a position off the grid, an
-onset, ring end or keyframe between two ticks of the lattice, a keyframe outside its sustain, out
-of order, or stating a negative fret or bend, a scrape without its terminal, a saved scrape still
-carrying a latent technique), and then the FIXPOINT — the note must already equal its own normal
-form (\ref normalizeChartNote). Every other rule a note can break on its own is stated once, as
-that normalizer's repair, and enforced here for free; nothing is restated as a refusal beside it.
+its stop, a pinch without its node, a pressed note on a capo'd fret, a position off the grid or at
+or past the song's end (\ref objectCanStartAt), an onset, ring end or keyframe between two ticks
+of the lattice, a keyframe outside its sustain, out of order, or stating a negative fret or bend, a
+scrape without its terminal, a saved scrape still carrying a latent technique), and then the
+FIXPOINT — the note must already equal its own normal form (\ref normalizeChartNote). Every other
+rule a note can break on its own is stated once, as that normalizer's repair, and enforced here for
+free; nothing is restated as a refusal beside it.
 Everything that reads ONE note lives here, so the editor's per-note eligibility can ask the whole
 question of the note as it would be written; only the ordering reads neighbours, and it stays in
 \ref validateChartNotes.

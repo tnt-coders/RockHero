@@ -23,14 +23,15 @@ constexpr float g_refusal_glow_layer_alpha{0.4f};
 
 } // namespace
 
-FlashPulse::FlashPulse(const FlashTrain train) noexcept
+FlashPulse::FlashPulse(const FlashTrain train, const std::optional<FlashHold> hold) noexcept
     : m_train{train}
+    , m_hold{hold}
     , m_started_ms{juce::Time::getMillisecondCounterHiRes()}
 {}
 
 bool FlashPulse::finished() const noexcept
 {
-    return progress() >= 1.0;
+    return progress() >= 1.0 && heldFinished();
 }
 
 // cos² over (pulses - 1/2) periods: lit as the train starts, dark between pulses, and dark again
@@ -41,12 +42,29 @@ float FlashPulse::level() const noexcept
     return static_cast<float>(wave * wave);
 }
 
+float FlashPulse::heldLevel() const noexcept
+{
+    if (!m_hold.has_value())
+    {
+        return 0.0f;
+    }
+    const double into_fade = elapsedSeconds() - m_hold->hold_seconds;
+    return static_cast<float>(std::clamp(1.0 - (into_fade / m_hold->fade_seconds), 0.0, 1.0));
+}
+
+bool FlashPulse::heldFinished() const noexcept
+{
+    return !m_hold.has_value() || elapsedSeconds() >= m_hold->hold_seconds + m_hold->fade_seconds;
+}
+
+double FlashPulse::elapsedSeconds() const noexcept
+{
+    return (juce::Time::getMillisecondCounterHiRes() - m_started_ms) / 1000.0;
+}
+
 double FlashPulse::progress() const noexcept
 {
-    return std::clamp(
-        (juce::Time::getMillisecondCounterHiRes() - m_started_ms) / (m_train.seconds * 1000.0),
-        0.0,
-        1.0);
+    return std::clamp(elapsedSeconds() / m_train.seconds, 0.0, 1.0);
 }
 
 // Even-odd over the outline and a box past the reach is the region outside the mark, so the glow
@@ -69,6 +87,14 @@ void paintRefusalGlow(
             2.0f * reach * static_cast<float>(layer) / static_cast<float>(g_refusal_glow_layers);
         g.strokePath(outline, juce::PathStrokeType{width});
     }
+}
+
+// The widest layer reaches exactly the reach outside the outline; its antialiased edge one pixel
+// more.
+juce::Rectangle<float> refusalGlowArea(
+    const juce::Rectangle<float> outline_bounds, const float extent)
+{
+    return outline_bounds.expanded(extent * g_refusal_glow_reach + 1.0f);
 }
 
 } // namespace rock_hero::editor::ui

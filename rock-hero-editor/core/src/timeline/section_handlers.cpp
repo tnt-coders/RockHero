@@ -38,27 +38,37 @@ const SongSectionSelection* EditorController::Impl::selectedSongSection() const
 // section already standing exactly there is restated (renamed) — which is what makes the double
 // press work: the first inserts and selects, and since the commit keeps the cursor on its slot, the
 // second finds that section there. Where none stands and a section may start, the verb is an
-// insert; at or past the terminal anchor it is nothing, so the chord is inert exactly where the
-// commit would refuse it rather than prompting for a name it cannot use.
-SectionChordTarget EditorController::Impl::sectionChordTarget() const
+// insert, whose name the prompt asks for; at or past the terminal anchor the press is refused
+// rather than prompting for a name the commit would refuse. The dispatcher answered first: the
+// Note Lock, and the paused-only marker plane.
+void EditorController::Impl::performActionImpl(EditorAction::SongSectionChord /*action*/)
 {
-    const std::optional<common::core::GridPosition> position = cursorPosition(placementQuantum());
-    if (!position.has_value())
+    if (const std::optional<common::core::GridPosition> position =
+            cursorPosition(placementQuantum());
+        position.has_value())
     {
-        return {};
+        performActionImpl(EditorAction::SongSectionAt{.position = *position});
     }
+}
+
+// The chord's rule at a place the ruler menu was opened over.
+void EditorController::Impl::performActionImpl(const EditorAction::SongSectionAt& action)
+{
+    const common::core::GridPosition position = action.position;
     const std::vector<common::core::SongSection>& sections = session().song().sections;
     if (const auto standing =
-            std::ranges::find(sections, *position, &common::core::SongSection::position);
+            std::ranges::find(sections, position, &common::core::SongSection::position);
         standing != sections.end())
     {
-        return RenameSectionTarget{.position = *position, .name = standing->name};
+        showMarkerPrompt(RenameSectionTarget{.position = position, .name = standing->name});
+        return;
     }
-    if (!common::core::markerCanStartAt(*position, session().song().tempo_map))
+    if (!common::core::objectCanStartAt(position, session().song().tempo_map))
     {
-        return {};
+        refuseAtSongEnd(MarkerVerb::AddSection);
+        return;
     }
-    return InsertSectionTarget{.position = *position};
+    showMarkerPrompt(InsertSectionTarget{.position = position});
 }
 
 void EditorController::Impl::onSongSectionSelected(

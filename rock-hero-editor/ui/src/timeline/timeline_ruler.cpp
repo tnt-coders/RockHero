@@ -3,6 +3,7 @@
 #include "keybinds/editor_command_id.h"
 #include "keybinds/editor_command_registry.h"
 #include "shared/editor_theme.h"
+#include "shared/mark_outline.h"
 #include "shared/text_metrics.h"
 #include "timeline/sticky_label.h"
 #include "timeline/timeline_cursor.h"
@@ -279,14 +280,14 @@ void TimelineRuler::setCursorPosition(
     // invalidates its own flag-wide strips around the old and new positions.
     const auto repaint_flag_strip =
         [this](const std::optional<common::core::TimePosition>& position) {
-            const std::optional<float> x =
-                position.has_value() ? localXForSeconds(position->seconds) : std::nullopt;
-            if (!x.has_value())
+            const std::optional<int> column =
+                position.has_value() ? localCursorColumn(*position) : std::nullopt;
+            if (!column.has_value())
             {
                 return;
             }
             const int pad = static_cast<int>(g_cursor_flag_half_width) + 1;
-            repaint(static_cast<int>(std::floor(*x)) - pad, 0, 2 * pad + 2, getHeight());
+            repaint(*column - pad, 0, (2 * pad) + 2, getHeight());
         };
     repaint_flag_strip(m_cursor_position);
     m_cursor_position = cursor_position;
@@ -352,19 +353,13 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawBeatTicks(g);
     drawMeasureLabels(g);
+    // A span chip is drawn on the lane's own ground, the rails' ground, so a derived chip ghosts
+    // exactly as its rails do. Its selection ring and refusal glow are not drawn here: the chip and
+    // its top rail read as one shape, so the track viewport traces the two together.
     for (const PlacedSpanChip& placed : m_span_chips)
     {
-        common::ui::drawTabSpanChip(g, m_chip_font, m_shape_inks, placed.chip);
-        // The selected span's chip wears the ring a selected section chip wears, on the box the
-        // paint core filled.
-        if (placed.index == m_selected_span)
-        {
-            g.setColour(editorTheme().accent);
-            g.drawRoundedRectangle(
-                common::ui::tabSpanChipBounds(m_chip_font, placed.chip),
-                g_chip_corner_radius,
-                1.0f);
-        }
+        common::ui::drawTabSpanChip(
+            g, m_chip_font, m_shape_inks, placed.chip, editorTheme().waveform_row_background);
     }
 
     drawSectionChips(g);
@@ -412,12 +407,26 @@ std::optional<juce::Rectangle<int>> TimelineRuler::selectedChipBounds() const
     {
         return std::nullopt;
     }
-    const juce::Rectangle<float> box = common::ui::tabSpanChipBounds(m_chip_font, span->chip);
+    return spanChipBox(span->index).transform([](const juce::Rectangle<float>& box) {
+        return box.getSmallestIntegerContainer();
+    });
+}
+
+// Rationale lives on the declaration in timeline_ruler.h.
+std::optional<juce::Rectangle<float>> TimelineRuler::spanChipBox(const std::size_t span) const
+{
+    const auto placed = std::ranges::find_if(
+        m_span_chips, [span](const PlacedSpanChip& chip) { return chip.index == span; });
+    if (placed == m_span_chips.end())
+    {
+        return std::nullopt;
+    }
+    const juce::Rectangle<float> box = common::ui::tabSpanChipBounds(m_chip_font, placed->chip);
     if (box.isEmpty())
     {
         return std::nullopt;
     }
-    return box.getSmallestIntegerContainer();
+    return box;
 }
 
 // Adopts the core's published marker-plane availability.
@@ -773,7 +782,7 @@ void TimelineRuler::showTempoContextMenu(const RulerChip* chip, const juce::Poin
 // rounded into the next beat, and names the beat it is IN, as the meter chord reads the cursor;
 // what a meter verb does there is the core's one rule, timeSignatureTargetAt. Only its insert is
 // Add's.
-std::optional<core::InsertTimeSignatureTarget> TimelineRuler::signatureInsertTargetAt(
+std::optional<common::core::GridPosition> TimelineRuler::signatureInsertPositionAt(
     const juce::Point<float> click) const
 {
     const std::optional<common::core::GridPosition> clicked =
@@ -782,11 +791,11 @@ std::optional<core::InsertTimeSignatureTarget> TimelineRuler::signatureInsertTar
     {
         return std::nullopt;
     }
-    core::TimeSignatureChordTarget target =
+    const core::TimeSignatureTarget target =
         core::timeSignatureTargetAt(m_tempo_map, common::core::beatStart(*clicked));
-    if (auto* const insert = std::get_if<core::InsertTimeSignatureTarget>(&target))
+    if (const auto* const insert = std::get_if<core::InsertTimeSignatureTarget>(&target))
     {
-        return std::move(*insert);
+        return insert->position;
     }
     return std::nullopt;
 }
@@ -798,12 +807,13 @@ std::vector<TimelineRuler::MarkerMenuRow> TimelineRuler::signatureRows(
     const juce::Point<float> click, const bool over_chip) const
 {
     std::vector<MarkerMenuRow> rows;
-    if (std::optional<core::InsertTimeSignatureTarget> insert = signatureInsertTargetAt(click);
-        insert.has_value())
+    if (const std::optional<common::core::GridPosition> insert_position =
+            signatureInsertPositionAt(click);
+        insert_position.has_value())
     {
         rows.push_back(
             {.text = core::markerVerbPromptRow(core::MarkerVerb::AddTimeSignature),
-             .action = [this, inserted = std::move(*insert)] {
+             .action = [this, inserted = *insert_position] {
                  m_listener->onTimeSignatureInsertPromptRequested(inserted);
              }});
     }
@@ -866,7 +876,8 @@ void TimelineRuler::setSpans(std::vector<RulerSpan> spans)
     repaint();
 }
 
-// Stores the selected span. A selection places no chip, so a repaint is the whole change.
+// Stores the selected span. A selection places no chip, so a repaint is the whole change: it
+// re-traces the ring the track viewport draws over this ruler's chip.
 void TimelineRuler::setSelectedSpan(const std::optional<std::size_t> span)
 {
     if (m_selected_span == span)
@@ -907,12 +918,10 @@ void TimelineRuler::setSelectedTempoMapChips(
 // Rationale lives on the declaration in timeline_ruler.h.
 void TimelineRuler::flashRefusal(std::vector<core::RulerChipKey> chips)
 {
-    if (chips.empty())
+    if (startRefusalFlash(m_chip_refusal, std::move(chips)))
     {
-        return;
+        repaint();
     }
-    flashOrJoinRefusal(m_chip_refusal, std::move(chips), joinRefused<core::RulerChipKey>);
-    repaint();
 }
 
 std::optional<float> TimelineRuler::chipRefusalLevel(const core::RulerChipKey& chip) const
@@ -978,13 +987,23 @@ std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) co
         common::core::TimePosition{seconds},
         m_timeline_range,
         m_content_width,
-        core::TimelinePositionClamping::RejectOutsideVisibleRange);
+        core::TimelinePositionClamping::ExtendPastVisibleRange);
     if (!content_x.has_value())
     {
         return std::nullopt;
     }
 
     return *content_x - static_cast<float>(m_view_x);
+}
+
+// The cursor's column is chosen on the canvas, where its end clamp lives, and only then offset
+// into the ruler, so the ruler's mark stands on the overlay's column even when the ruler runs past
+// the canvas's right edge (over the vertical scrollbar).
+std::optional<int> TimelineRuler::localCursorColumn(
+    const common::core::TimePosition position) const noexcept
+{
+    return cursorColumnForTimelinePosition(position, m_timeline_range, m_content_width)
+        .transform([this](const int content_column) { return content_column - m_view_x; });
 }
 
 // Each chip rides its span by the pinned-label rule every scrolling label obeys: at the span's
@@ -998,11 +1017,10 @@ void TimelineRuler::refreshSpanChips()
     for (std::size_t index = 0; index < m_spans.size(); ++index)
     {
         const RulerSpan& span = m_spans[index];
+        // Mapped exactly as the lane maps its rails, a span running past the timeline's end
+        // included, so the chip and its rails start and stop on the same columns.
         const std::optional<float> start_x = unboundedLocalXForSeconds(span.start_seconds);
-        // Held to the timeline's end, which the canvas stops at, so a span running past it still
-        // maps the column it stops at.
-        const std::optional<float> end_x =
-            unboundedLocalXForSeconds(std::min(span.end_seconds, m_timeline_range.end.seconds));
+        const std::optional<float> end_x = unboundedLocalXForSeconds(span.end_seconds);
         if (!start_x.has_value() || !end_x.has_value())
         {
             continue;
@@ -1416,26 +1434,28 @@ void TimelineRuler::drawChipFill(
     g.setColour(common::ui::g_chip_label_color);
 }
 
-// The theme accent, the same token the tone strip's selected region uses, so a selection reads the
-// same on every surface. A 1px stroke on the chip's own bounds, because the chip is only a label's
-// height and a heavier ring would swallow the fill it sits on.
-void TimelineRuler::drawChipSelectionRing(
-    juce::Graphics& g, const RulerChip& chip, const juce::Rectangle<float> bounds)
+// The selected chip's ring and the refused chip's glow trace one outline, the boxed-mark ring every
+// overlay wears (boxRingOutline): lying wholly outside the chip, it covers none of the fill or the
+// label, however small the chip. The ring takes the theme accent, the token the tab lane's
+// selection rings wear, so a selection reads the same on the ruler as on the notation (the tone
+// strip outlines its selected region in white instead, its accent already marking the active tone).
+void TimelineRuler::drawChipOverlays(
+    juce::Graphics& g, const RulerChip& chip, const juce::Rectangle<float> bounds,
+    const std::optional<float> refusal_level)
 {
-    if (!chip.selected)
+    if (!chip.selected && !refusal_level.has_value())
     {
         return;
     }
-    g.setColour(editorTheme().accent);
-    g.drawRoundedRectangle(bounds, g_chip_corner_radius, 1.0f);
-}
-
-void TimelineRuler::drawChipRefusalGlow(
-    juce::Graphics& g, const juce::Rectangle<float> bounds, const float refusal_level)
-{
-    juce::Path outline;
-    outline.addRoundedRectangle(bounds, g_chip_corner_radius);
-    paintRefusalGlow(g, outline, bounds.getHeight(), refusal_level);
+    const MarkOutline outline = boxRingOutline(bounds, g_chip_corner_radius);
+    if (chip.selected)
+    {
+        strokeMarkRing(g, outline, editorTheme().accent);
+    }
+    if (refusal_level.has_value())
+    {
+        paintRefusalGlow(g, outline.path, outline.extent, *refusal_level);
+    }
 }
 
 // Draws the section chip row — rounded fill, centered label, the selection ring — each chip glowing
@@ -1447,16 +1467,15 @@ void TimelineRuler::drawSectionChips(juce::Graphics& g) const
         const juce::Rectangle<float> bounds = chipBounds(chip, g_section_row_y);
         drawChipFill(g, bounds, editorTheme().section_chip);
         m_chip_font.draw(g, chip.label.text, bounds);
-        drawChipSelectionRing(g, chip, bounds);
-        const std::optional<float> refusal_level = chipRefusalLevel(
-            core::RulerChipKey{
-                .row = core::RulerChipRow::Section,
-                .start = m_section_source[chip.source_index].position,
-            });
-        if (refusal_level.has_value())
-        {
-            drawChipRefusalGlow(g, bounds, *refusal_level);
-        }
+        drawChipOverlays(
+            g,
+            chip,
+            bounds,
+            chipRefusalLevel(
+                core::RulerChipKey{
+                    .row = core::RulerChipRow::Section,
+                    .start = m_section_source[chip.source_index].position,
+                }));
     }
 }
 
@@ -1471,16 +1490,15 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
     {
         const juce::Rectangle<float> bounds = chipBounds(chip, g_tempo_row_y);
         drawChipFill(g, bounds, editorTheme().tempo_chip);
-        drawChipSelectionRing(g, chip, bounds);
-        const std::optional<float> refusal_level = chipRefusalLevel(
-            core::RulerChipKey{
-                .row = core::RulerChipRow::Tempo,
-                .start = m_tempo_map.anchors()[chip.source_index].position,
-            });
-        if (refusal_level.has_value())
-        {
-            drawChipRefusalGlow(g, bounds, *refusal_level);
-        }
+        drawChipOverlays(
+            g,
+            chip,
+            bounds,
+            chipRefusalLevel(
+                core::RulerChipKey{
+                    .row = core::RulerChipRow::Tempo,
+                    .start = m_tempo_map.anchors()[chip.source_index].position,
+                }));
         g.setColour(common::ui::g_chip_label_color);
         g.fillPath(
             m_tempo_glyph,
@@ -1509,16 +1527,15 @@ void TimelineRuler::drawSignatureChips(juce::Graphics& g)
             drawChipFill(g, bounds, editorTheme().signature_chip);
             m_chip_font.draw(g, chip.label.text, bounds);
         }
-        drawChipSelectionRing(g, chip, bounds);
-        const std::optional<float> refusal_level = chipRefusalLevel(
-            core::RulerChipKey{
-                .row = core::RulerChipRow::TimeSignature,
-                .start = common::core::measureDownbeat(reign.first_measure),
-            });
-        if (refusal_level.has_value())
-        {
-            drawChipRefusalGlow(g, bounds, *refusal_level);
-        }
+        drawChipOverlays(
+            g,
+            chip,
+            bounds,
+            chipRefusalLevel(
+                core::RulerChipKey{
+                    .row = core::RulerChipRow::TimeSignature,
+                    .start = common::core::measureDownbeat(reign.first_measure),
+                }));
     }
 }
 
@@ -1530,19 +1547,18 @@ void TimelineRuler::drawSignatureChips(juce::Graphics& g)
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
     // Mapped here, not at the push: the column has to follow the current scroll offset.
-    const std::optional<float> cursor_x =
-        m_cursor_position.has_value() ? localXForSeconds(m_cursor_position->seconds) : std::nullopt;
+    const std::optional<int> cursor_column =
+        m_cursor_position.has_value() ? localCursorColumn(*m_cursor_position) : std::nullopt;
     const juce::Colour line_color =
         m_cursor_paused ? editorTheme().paused_cursor : editorTheme().playback_cursor;
     const std::optional<int> column =
-        drawTimelineCursor(g, *this, cursor_x, g_ruler_body_top, line_color);
+        drawTimelineCursor(g, *this, cursor_column, g_ruler_body_top, line_color);
     if (!column.has_value())
     {
         return;
     }
 
-    // The flag's tip centers on the exact pixel column the line occupies, so the two can never
-    // land a pixel apart from independent rounding.
+    // The flag's tip centers on the pixel column the line occupies.
     const float tip_x = static_cast<float>(*column) + 0.5f;
     juce::Path flag;
     flag.startNewSubPath(tip_x - g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));

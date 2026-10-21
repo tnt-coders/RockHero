@@ -72,7 +72,7 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Flip the session's grid-snap switch, which decides the placement quantum. */
     ToggleGridSnap,
 
-    /*! \brief Flip the session's tempo lock, which refuses every tempo-anchor move while on. */
+    /*! \brief Flip the session's tempo lock, which freezes the tempo map and meters while on. */
     ToggleTempoLock,
 
     /*!
@@ -246,6 +246,39 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Author a fret-hand position at the cursor: restate the one there, else insert one. */
     AuthorFretHandPositionAtCursor,
+
+    /*! \brief The section chord: rename the section at the cursor's slot, else name a new one. */
+    SongSectionChord,
+
+    /*! \brief The section chord's rule at a place the ruler menu was opened over. */
+    SongSectionAt,
+
+    /*! \brief The tempo chord: type the span tempo of the anchor at the cursor, else insert one. */
+    TempoChord,
+
+    /*! \brief The time-signature chord: restate the meter on the cursor's beat, else insert one. */
+    TimeSignatureChord,
+
+    /*! \brief The time-signature chord's rule at the beat of a place the ruler menu named. */
+    TimeSignatureAt,
+
+    /*! \brief The tone chord: retone the region starting at the cursor's slot, else split one. */
+    ToneChord,
+
+    /*! \brief The tone chord's rule at a place the tone row's Alt-click or menu named. */
+    ToneChangeAt,
+
+    /*! \brief Ask for a tone's new name, the tone row's rename of the tone a region sounds. */
+    ToneRenamePrompt,
+
+    /*! \brief Ask for Scale Tempo's factor, titled by the form the Note Lock chooses. */
+    ScaleTempoPrompt,
+
+    /*! \brief `Enter`: restate the selected marker through its prompt or picker. */
+    RestateSelection,
+
+    /*! \brief `Ctrl+R`: rename the selected marker where its kind has a name. */
+    RenameSelection,
 
     /*! \brief Clear the selected fret-hand position's authored end fret back to the derived one. */
     ClearFretHandEnd,

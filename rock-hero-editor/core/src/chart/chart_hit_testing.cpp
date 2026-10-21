@@ -5,6 +5,7 @@
 #include <initializer_list>
 #include <optional>
 #include <rock_hero/common/core/shared/visible_events.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <utility>
 #include <vector>
@@ -15,22 +16,16 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Candidate index window for a lane-local x, widened by the head slack the paint core uses so
-// heads whose centers sit just outside the probed instant are still candidates.
+// Candidate index window for an x span: the notes whose ink can reach it, by the window the paint
+// core bounds its clip by (TabLaneGeometry::inkWindow), so a press can never miss a head the lane
+// drew.
 [[nodiscard]] std::pair<std::size_t, std::size_t> candidateRange(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
     float left_x, float right_x)
 {
-    const double duration = geometry.visible_timeline.duration().seconds;
-    const double seconds_per_pixel = duration / static_cast<double>(geometry.bounds_width);
-    const double slack_seconds =
-        static_cast<double>(geometry.max_note_height) * 3.0 * seconds_per_pixel;
-    const double span_start = geometry.visible_timeline.start.seconds +
-                              static_cast<double>(left_x) * seconds_per_pixel - slack_seconds;
-    const double span_end = geometry.visible_timeline.start.seconds +
-                            static_cast<double>(right_x) * seconds_per_pixel + slack_seconds;
+    const common::core::TimeRange window = geometry.inkWindow(left_x, right_x);
     return common::core::visibleEventRange(
-        tab.notes, tab.ring_end_prefix_max, span_start, span_end);
+        tab.notes, tab.ring_end_prefix_max, window.start.seconds, window.end.seconds);
 }
 
 // The nearest of one class of targets a press lands on, by horizontal distance to each centre. A

@@ -64,7 +64,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
 
         // The grid half already held above, so only the terminal half of the shared place rule can
         // fire here; it is asked the same way the tone chord's projection asks it.
-        if (!markerCanStartAt(region.start, tempo_map))
+        if (!objectCanStartAt(region.start, tempo_map))
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::RegionPastTerminalAnchor,

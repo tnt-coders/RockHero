@@ -153,7 +153,7 @@ Carried from plan 41 (they stand):
     redundant; a repeat off that grid cuts a derived short bar and is kept (`53863575`).
   - *The prompt:* one text field ("7/8") parsed in the core, as the BPM text is; the rules refuse
     a bad denominator; the chord's target is nothing while playing, with no song, or when the
-    cursor's measure downbeat fails `markerCanStartAt`.
+    cursor's measure downbeat fails `objectCanStartAt`.
   - *The cursor:* `selectMarker` dissolves the caret by re-reading its OLD token under the NEW
     map, which is different music. The verb shares the tempo verbs' `commitGridModel`, with time
     as truth: read the cursor place, commit, select the landed meter, move the cursor to the

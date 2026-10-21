@@ -60,7 +60,7 @@ so the stored name and the accepted name can never disagree.
 \brief Validates the structural song-section rules shared by editing and persistence.
 
 Checks non-empty names (after \ref trimmedSongSectionName), positions where a marker may start
-(\ref markerCanStartAt: on the tempo map's grid and strictly before the terminal anchor, since a
+(\ref objectCanStartAt: on the tempo map's grid and strictly before the terminal anchor, since a
 section starting on the closing barline would name a passage of no length — a section is a named
 instant anywhere on the grid, a measure downbeat or not), and strictly ascending positions —
 strictly, because two sections at one position would make "which section governs this moment"

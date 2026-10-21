@@ -230,8 +230,9 @@ them. A verb that re-addresses or re-meters the chart must leave it a fixpoint t
 started from for a gesture, whose plan describes the whole run: every press replays from it and
 normalizes ITS holds and positions, never the live ones, so a press stepping back restores a hold
 an earlier press cropped, extended or dropped, and a position it dropped. The duration gesture still
-reads its ring bounds from the live chart (\ref planAdjustSustain); the move gesture reads none —
-every bound it reads is a fact about the pre-gesture chart its own steps cannot change.
+reads its ring bounds from the live chart (\ref planAdjustSustain); the move gesture reads none
+there — every bound it reads is a fact about the pre-gesture chart its own steps cannot change, and
+the live chart only says whether a parked slide-out moved (\ref planMoveGesture).
 Slide-out-ness stays such a fact only because the verb refuses a step that would carry a point onto
 the ring's end (\ref planMoveSelection).
 
@@ -761,7 +762,9 @@ Two bounds the planner does state, because the rules carry neither. A stepped SL
 ring's END, and the end reaches the next strike on its own string exactly and no further, so a step
 onto that head lands there and a step PAST it parks on it — CLAMPED, not refused, which is the same
 answer the duration verb gives a ring grown into that head
-(\ref chartSteppedKeyframeOffset, \ref common::core::ringEndWithinBound). And an INTERIOR point
+(\ref chartSteppedKeyframeOffset, \ref common::core::ringEndWithinBound). Whether a press the
+clamp took moved anything is a question about the press, not the delta, so refusing one that did
+not is \ref planMoveGesture's. And an INTERIOR point
 stays STRICTLY BELOW the ring's end — the clamped end, so a step that would strand it on or past
 that head is refused rather than left for the gate's truncation to clip away: KIND IS NOT THIS
 VERB'S TO CHANGE, so a point that already is the slide-out drags the end with it and no other point
@@ -770,15 +773,14 @@ nothing, or one carrying vibrato, raises under a shrinking ring
 (\ref common::core::ringEndMayLandOnLastKeyframe); leftward it needs no ceiling of its own, since a
 shortening ring only ever moves away from the head that bounds it.
 
-The delta is the whole GESTURE's, not one press's: a run of arrow presses is one undo entry, so the
-caller replays its step list into a single delta (\ref chartMoveGestureDelta) and hands this planner
-the chart state the run STARTED from. Nothing here has to know that — the plan is expressed against
-the chart it is given, so a first press passes the live chart and every later one passes the
-pre-gesture chart the burst's own entry reconstructs. That is why the move needs no separate `base`
-parameter where the duration gesture does: every bound a move reads is a fact about the chart it is
-handed that its own steps cannot change — slide-out-ness included, which is what the end bound above
-buys — so the one chart argument serves as both the source of the objects and the stream the plan is
-diffed against.
+The delta is the whole GESTURE's, not one press's: a run of arrow presses is one undo entry, so
+\ref planMoveGesture replays its step list into a single delta (\ref chartMoveGestureDelta) and
+hands this planner the chart state the run STARTED from. Nothing here has to know that — the plan is
+expressed against the chart it is given, so a first press passes the live chart and every later one
+passes the pre-gesture chart the burst's own entry reconstructs. Every bound a move reads is a fact
+about the chart it is handed that its own steps cannot change — slide-out-ness included, which is
+what the end bound above buys — so the one chart argument serves as both the source of the objects
+and the stream the plan is diffed against.
 
 \param chart Chart the plan is expressed against: the live chart on a gesture's first press, the
 state the gesture started from on every later one.
@@ -799,6 +801,46 @@ so a note carried across a meter change keeps its real length and stays on the t
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartKeyframeKey>& keyframe_keys,
     common::core::Fraction whole_note_delta, int string_delta, std::string_view label);
+
+/*!
+\brief Plans one press of the move gesture: the whole run replayed into one delta, after the
+questions only the press can answer.
+
+The geometry is \ref planMoveSelection's, handed the run's delta (\ref chartMoveGestureDelta) and
+the chart the run started from. What this adds is what a delta cannot say — whether THIS press, the
+last of `steps`, moved anything — and a press that moved nothing because a bound held it is
+refused, as every key that does nothing is, so the shared gesture authority never records it and a
+run banks no press it would have to pay back:
+
+- A time press the grid's edge absorbs — the selection already at the start of the song stepped
+  earlier, or at its end stepped later — adds nothing to the delta. The world's edge is nothing to
+  light, so the refusal lights only the subject the controller adds.
+- A time press over slide-outs alone that the ring bound leaves where the live chart already has
+  them — each parked on the next head on its string, the clamp having taken the step — lights
+  those heads.
+
+A string press asks no time move of anything, so neither question is asked of it: over keyframes
+alone it moves nothing and is no refusal — the planner answers NoChange on a first press, and inside
+a run the plan the run already holds, which the gesture authority drops unrecorded.
+
+\param chart Chart being edited, live: where the previous press left each slide-out. On a gesture's
+first press it is `base`.
+\param tempo_map Tempo map supplying the meter of every measure.
+\param base Chart the gesture started from: the objects the run moves, and the chart the plan is
+diffed against.
+\param note_keys Notes the gesture started on, sorted ascending (the ChartSelection order).
+\param keyframe_keys Keyframes the gesture started on, sorted ascending, same precondition.
+\param steps The gesture's presses in press order; the last is the press being planned.
+\param label User-visible undo label.
+\return The plan the gesture's entry should hold; NoChange when the run describes no edit (or has
+        no steps); Invalid when the press moved nothing because a bound held it, or when
+        \ref planMoveSelection refuses the run.
+*/
+[[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planMoveGesture(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const common::core::Chart& base, const std::vector<ChartSlotKey>& note_keys,
+    const std::vector<ChartKeyframeKey>& keyframe_keys, const std::vector<ChartMoveStep>& steps,
+    std::string_view label);
 
 /*!
 \brief Plans retyping the stops a selection addresses toward a typed fret target.
@@ -924,12 +966,14 @@ the entry the gesture's first step pushed. On a gesture's first step `base` IS `
 result is an ordinary one-step edit.
 
 Two rules bound the replayed ring, and neither is fed back into the replay — they judge its answer,
-so a clamp never becomes the next step's starting value. A step both rules absorb for EVERY keyed
-note moves no ring at all, and this planner states nothing about it: the replay is a pure function
-of the step list, so it simply answers the plan it answered last time, and the shared gesture
-authority drops that press rather than recording it — so a lone note at its bound stops with no
-unseen overshoot to pay back. A chord member pinned beside a moving one is not that case: the step
-IS recorded, and the member rejoins where it parted.
+so a clamp never becomes the next step's starting value. A step the rules absorb for EVERY keyed
+note — each ring left where `chart`, the previous press's result, already has it — moves nothing, so
+it is REFUSED like any key that does nothing: the refusal lights what held each ring (the next note
+on its string at the growth bound, the last keyframe at a keyframe's floor, nothing beyond the note
+at the onset or a scrape's window) and logs why, and the shared gesture authority never records a
+refused step, so a lone note at its bound stops with no unseen overshoot to pay back. A chord
+member pinned beside a moving one is not that case: the step IS recorded, and the member rejoins
+where it parted.
 
 - Growth clamps at exact adjacency with the next onset on the note's own string
   (\ref common::core::sustainBoundOf), the model's one ceiling on a ring. A note pinned there
@@ -965,7 +1009,8 @@ Three consequences of the step's law, all intended:
 - A chord whose members sit at different offsets snaps each member to its OWN next line, because
   the replay runs per note from that note's own end. Members already sharing a line stay together.
 
-\param chart Chart being edited, live: the ring bounds, and the ring a floored note holds.
+\param chart Chart being edited, live: the ring bounds, the ring a floored note holds, and the ring
+a press that moves nothing leaves in place.
 \param tempo_map Tempo map supplying the meter each grid step lands in.
 \param base Chart the gesture started from: the pre-gesture rings, and the chart the plan is diffed
 against.
@@ -975,8 +1020,8 @@ binary-search this precondition).
 \return The plan the gesture's entry should hold; NoChange when the replay puts every ring back
         where `base` had it (or when there are no steps yet), which means the gesture describes no
         edit at all — the caller's answer is to RETIRE the entry it pushed rather than replace it
-        with one that describes nothing; Invalid when the gate refuses the result. A step that moved
-        no ring returns the PLAN the step before it returned, which is how the caller recognises it.
+        with one that describes nothing; Invalid when the step moved no ring (lighting what held
+        each) or the gate refuses the result.
 */
 [[nodiscard]] std::expected<JudgedChartPlan, PlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
@@ -989,7 +1034,9 @@ struct ChartRefusedNote
     /*! \brief Slot of the refused note. */
     ChartSlotKey note;
 
-    /*! \brief Why, in words for the log: the rule's own message, or the verb's. */
+    /*!
+    \brief Why, in words for the log and the lane line: the rule's own message, or the verb's.
+    */
     std::string reason;
 
     /*!

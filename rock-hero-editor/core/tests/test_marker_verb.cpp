@@ -21,6 +21,7 @@ TEST_CASE("Every marker verb's label is pinned", "[core][marker-verb]")
     CHECK(markerVerbLabel(MarkerVerb::SetTimeSignature) == "Set Time Signature");
     CHECK(markerVerbLabel(MarkerVerb::MoveTimeSignature) == "Move Time Signature");
     CHECK(markerVerbLabel(MarkerVerb::DeleteTimeSignature) == "Delete Time Signature");
+    CHECK(markerVerbLabel(MarkerVerb::InsertToneChange) == "Insert Tone Change");
     CHECK(markerVerbLabel(MarkerVerb::AddHandPosition) == "Add Hand Position");
     CHECK(markerVerbLabel(MarkerVerb::MoveHandPosition) == "Move Hand Position");
     CHECK(markerVerbLabel(MarkerVerb::SetHandPositionStartFret) == "Set Hand Position Start Fret");

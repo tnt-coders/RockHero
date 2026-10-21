@@ -92,12 +92,6 @@ void PreviewWindow::setHighwayState(std::shared_ptr<const common::core::HighwayV
     m_surface->setHighwayState(std::move(state));
 }
 
-// Forwards a refusal's highway marks to the surface that flashes them.
-void PreviewWindow::flashRefusal(std::shared_ptr<const common::ui::HighwayHighlight> highlight)
-{
-    m_surface->flashRefusal(std::move(highlight));
-}
-
 // Forwards the re-frame to the surface, which applies it after any pending state swap.
 void PreviewWindow::resetCamera()
 {

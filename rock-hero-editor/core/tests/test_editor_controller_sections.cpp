@@ -1,3 +1,5 @@
+#include "log_capture.h"
+
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -89,12 +91,11 @@ struct LoadedSectionEditor : SongEditorHarness
         seek(static_cast<double>(measure - 1) * 2.0);
     }
 
-    // What the section chord would do right now, as the surface reads it: the verb the core
-    // publishes, which is the whole of the chord's decision.
-    [[nodiscard]] SectionChordTarget publishedSectionChordTarget() const
+    // Presses the section chord and returns the prompt it asked the view for, which is the whole
+    // of the chord's decision; nothing where it asked none.
+    [[nodiscard]] std::optional<MarkerPrompt> pressSectionChord()
     {
-        const EditorViewState* const state = stateOrNull(view.last_state);
-        return state != nullptr ? state->section_chord_target : SectionChordTarget{};
+        return pressForPrompt(&EditorController::onSongSectionChordRequested);
     }
 
     // The published section views, which is where the selection outline is read from.
@@ -172,18 +173,18 @@ TEST_CASE("EditorController adds a section at the marker's measure", "[core][sec
     CHECK(editor.sections().front().name == "Chorus");
 }
 
-// The chord's whole decision is published as the VERB, so no surface reconstructs it: the core
+// The chord's whole decision is the PROMPT it asks for, so no surface reconstructs it: the core
 // reads the cursor's slot and answers insert-here or rename-this. The cursor is the PAUSED cursor
 // where no caret is armed and the caret where one is, so the chord is reachable without arming
 // first and the two readings are one rule rather than two.
-TEST_CASE("The published section chord names the verb at the cursor's slot", "[core][sections]")
+TEST_CASE("The section chord prompts for the verb at the cursor's slot", "[core][sections]")
 {
     LoadedSectionEditor editor{makeSectionSong(
         {SongSection{.position = downbeat(3), .name = "Chorus"}})};
 
     editor.seekToMeasure(2);
-    const SectionChordTarget parked = editor.publishedSectionChordTarget();
-    const auto* const parked_insert = std::get_if<InsertSectionTarget>(&parked);
+    const std::optional<MarkerPrompt> parked = editor.pressSectionChord();
+    const auto* const parked_insert = promptAs<InsertSectionTarget>(parked);
     REQUIRE(parked_insert != nullptr);
     CHECK(parked_insert->position == downbeat(2));
     // Nothing stands there, which is why the verb is an insert.
@@ -193,16 +194,16 @@ TEST_CASE("The published section chord names the verb at the cursor's slot", "[c
 
     // Arming a caret at that same cursor answers the same verb.
     editor.armCaretAtCursor();
-    const SectionChordTarget armed = editor.publishedSectionChordTarget();
-    const auto* const armed_insert = std::get_if<InsertSectionTarget>(&armed);
+    const std::optional<MarkerPrompt> armed = editor.pressSectionChord();
+    const auto* const armed_insert = promptAs<InsertSectionTarget>(armed);
     REQUIRE(armed_insert != nullptr);
     CHECK(armed_insert->position == downbeat(2));
 
     // A cursor exactly on a section's start renames it, on its own name — the name the core
-    // publishes with the verb, so the prompt needs no lookup of its own.
+    // hands the prompt with the verb, so the prompt needs no lookup of its own.
     editor.seekToMeasure(3);
-    const SectionChordTarget over_section = editor.publishedSectionChordTarget();
-    const auto* const rename = std::get_if<RenameSectionTarget>(&over_section);
+    const std::optional<MarkerPrompt> over_section = editor.pressSectionChord();
+    const auto* const rename = promptAs<RenameSectionTarget>(over_section);
     REQUIRE(rename != nullptr);
     CHECK(rename->position == downbeat(3));
     CHECK(rename->name == "Chorus");
@@ -210,8 +211,8 @@ TEST_CASE("The published section chord names the verb at the cursor's slot", "[c
     // Inside the section but off its start the verb is an insert there: a section is an instant,
     // not a measure, so standing in its passage addresses nothing.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{5.0});
-    const SectionChordTarget inside = editor.publishedSectionChordTarget();
-    const auto* const inside_insert = std::get_if<InsertSectionTarget>(&inside);
+    const std::optional<MarkerPrompt> inside = editor.pressSectionChord();
+    const auto* const inside_insert = promptAs<InsertSectionTarget>(inside);
     REQUIRE(inside_insert != nullptr);
     CHECK(inside_insert->position == GridPosition{.measure = 3, .beat = 3});
 }
@@ -225,15 +226,15 @@ TEST_CASE("The section chord names the cursor's placement slot", "[core][section
 
     // 3.8 s is measure 2, 3.6 beats in; the nearest quarter line is measure 3's downbeat.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.8});
-    const SectionChordTarget snapped = editor.publishedSectionChordTarget();
-    const auto* const snapped_insert = std::get_if<InsertSectionTarget>(&snapped);
+    const std::optional<MarkerPrompt> snapped = editor.pressSectionChord();
+    const auto* const snapped_insert = promptAs<InsertSectionTarget>(snapped);
     REQUIRE(snapped_insert != nullptr);
     CHECK(snapped_insert->position == downbeat(3));
 
     // With snap off the slot is the tick: three fifths of a beat past beat 4 of measure 2.
     turnGridSnapOff(editor.controller);
-    const SectionChordTarget unsnapped = editor.publishedSectionChordTarget();
-    const auto* const unsnapped_insert = std::get_if<InsertSectionTarget>(&unsnapped);
+    const std::optional<MarkerPrompt> unsnapped = editor.pressSectionChord();
+    const auto* const unsnapped_insert = promptAs<InsertSectionTarget>(unsnapped);
     REQUIRE(unsnapped_insert != nullptr);
     CHECK(
         unsnapped_insert->position ==
@@ -250,8 +251,8 @@ TEST_CASE("The section chord inserts and then renames at a mid-measure slot", "[
 
     // 3.0 s is beat 3 of measure 2 exactly.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{3.0});
-    const SectionChordTarget first = editor.publishedSectionChordTarget();
-    const auto* const insert = std::get_if<InsertSectionTarget>(&first);
+    const std::optional<MarkerPrompt> first = editor.pressSectionChord();
+    const auto* const insert = promptAs<InsertSectionTarget>(first);
     REQUIRE(insert != nullptr);
     CHECK(insert->position == pickup);
 
@@ -259,35 +260,47 @@ TEST_CASE("The section chord inserts and then renames at a mid-measure slot", "[
     REQUIRE(editor.sections().size() == 1);
     CHECK(editor.sections().front().position == pickup);
 
-    const SectionChordTarget second = editor.publishedSectionChordTarget();
-    const auto* const rename = std::get_if<RenameSectionTarget>(&second);
+    const std::optional<MarkerPrompt> second = editor.pressSectionChord();
+    const auto* const rename = promptAs<RenameSectionTarget>(second);
     REQUIRE(rename != nullptr);
     CHECK(rename->position == pickup);
     CHECK(rename->name == "Pickup");
 }
 
-// The verb is nothing exactly where the commit would refuse it, so the press is inert rather than
-// prompting for a name it cannot use: the terminal downbeat carries no section, a playing transport
-// closes the whole marker plane, and with no song there is nothing to hold a marker.
-TEST_CASE("The section chord is nothing where no section can start", "[core][sections]")
+// The press opens no prompt for a name the commit would refuse: the terminal downbeat carries no
+// section, so the press is refused there, logged and said on the lane; a playing transport closes
+// the whole marker plane, and with no song there is nothing to hold a marker, so there the press
+// says nothing.
+TEST_CASE("The section chord asks nothing where no section can start", "[core][sections]")
 {
+    const testing::LogCapture capture;
     LoadedSectionEditor editor{makeSectionSong({})};
+    const std::string sentence = "nothing can start at or past the end of the song";
 
     // Measure 5 beat 1 is the closing barline: a section there would name a passage of no length.
     editor.seekToMeasure(5);
-    const SectionChordTarget terminal = editor.publishedSectionChordTarget();
-    CHECK(std::holds_alternative<std::monostate>(terminal));
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    const std::optional<MarkerPrompt> terminal = editor.pressSectionChord();
+    CHECK_FALSE(terminal.has_value());
+    CHECK(editor.sections().empty());
+    CHECK(
+        capture.text().find(R"(Rejected marker edit label="Add Section" detail=")" + sentence) !=
+        std::string::npos);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().sentence == sentence);
 
     // A chord must never land a beat late off a moving transport, so it answers nothing at all.
     editor.transport.current_state.playing = true;
     editor.seekToMeasure(2);
-    const SectionChordTarget playing = editor.publishedSectionChordTarget();
-    CHECK(std::holds_alternative<std::monostate>(playing));
+    const std::optional<MarkerPrompt> playing = editor.pressSectionChord();
+    CHECK_FALSE(playing.has_value());
+    CHECK(editor.view.refusal_flashes.size() == flashes + 1);
 
     editor.transport.current_state.playing = false;
     editor.controller.onCloseRequested();
-    const SectionChordTarget closed = editor.publishedSectionChordTarget();
-    CHECK(std::holds_alternative<std::monostate>(closed));
+    const std::optional<MarkerPrompt> closed = editor.pressSectionChord();
+    CHECK_FALSE(closed.has_value());
+    CHECK(editor.view.refusal_flashes.size() == flashes + 1);
 }
 
 // The chord AUTHORS at the cursor and never reads the selection: a chip outlined elsewhere leaves
@@ -306,8 +319,8 @@ TEST_CASE("The section chord ignores the selected chip", "[core][sections]")
     REQUIRE(published.size() == 1);
     REQUIRE(published.front().selected);
 
-    const SectionChordTarget target = editor.publishedSectionChordTarget();
-    const auto* const insert = std::get_if<InsertSectionTarget>(&target);
+    const std::optional<MarkerPrompt> target = editor.pressSectionChord();
+    const auto* const insert = promptAs<InsertSectionTarget>(target);
     REQUIRE(insert != nullptr);
     CHECK(insert->position == downbeat(4));
 }
@@ -322,8 +335,8 @@ TEST_CASE(
     LoadedSectionEditor editor{makeSectionSong({})};
     editor.seekToMeasure(3);
     editor.armCaretAtCursor();
-    const SectionChordTarget before = editor.publishedSectionChordTarget();
-    REQUIRE(std::holds_alternative<InsertSectionTarget>(before));
+    const std::optional<MarkerPrompt> before = editor.pressSectionChord();
+    REQUIRE(promptAs<InsertSectionTarget>(before) != nullptr);
 
     editor.controller.onSongSectionInsertRequested(downbeat(3), "Chorus");
     REQUIRE(editor.sections().size() == 1);
@@ -331,16 +344,16 @@ TEST_CASE(
     REQUIRE(published.size() == 1);
     CHECK(published.front().selected);
 
-    const SectionChordTarget after = editor.publishedSectionChordTarget();
-    const auto* const rename = std::get_if<RenameSectionTarget>(&after);
+    const std::optional<MarkerPrompt> after = editor.pressSectionChord();
+    const auto* const rename = promptAs<RenameSectionTarget>(after);
     REQUIRE(rename != nullptr);
     CHECK(rename->position == downbeat(3));
     CHECK(rename->name == "Chorus");
 
     // Re-arming the caret changes nothing: the caret is the cursor, at the same slot.
     editor.armCaretAtCursor();
-    const SectionChordTarget rearmed = editor.publishedSectionChordTarget();
-    CHECK(std::holds_alternative<RenameSectionTarget>(rearmed));
+    const std::optional<MarkerPrompt> rearmed = editor.pressSectionChord();
+    CHECK(promptAs<RenameSectionTarget>(rearmed) != nullptr);
 }
 
 // A restate SELECTS its target, so the section the chord addressed is left under Enter, Delete and

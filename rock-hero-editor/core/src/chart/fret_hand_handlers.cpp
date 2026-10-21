@@ -131,58 +131,12 @@ namespace
     return kept;
 }
 
-// The fret-hand position chord's restate: the placement arriving at the cursor, which it selects.
-struct RestateAt
-{
-    common::core::GridPosition position;
-};
-
-// The fret-hand position chord's insert: the placement it will add, fret already defaulted.
-struct InsertAt
-{
-    common::core::FretHandPosition placement;
-};
-
-// What the fret-hand position chord does, or nothing.
-using FretHandPositionChordTarget = std::variant<std::monostate, RestateAt, InsertAt>;
-
 // Why a verb that needs a STORED position — Delete, the move — refuses a derived one, which stores
 // nothing to delete or move.
 [[nodiscard]] std::string derivedFretHandPositionRefusal(const FretHandPositionSelection& selection)
 {
     return common::core::formatHandPositionToken(selection.position) +
            " is derived, so nothing is stored there";
-}
-
-// THE fret-hand position chord's precedence, stated once: it authors at the cursor and never reads
-// the selection. A placement arriving exactly there is restated, which is what keeps a second
-// press from inserting a second placement on the first one's start; anywhere else a marker may
-// start, the verb is an insert, defaulted from the chart's hand events. Nothing without a chart,
-// without a cursor (playing, no song), or on the closing barline, so the chord is inert exactly
-// where the commit would refuse it.
-[[nodiscard]] FretHandPositionChordTarget fretHandPositionChordTarget(
-    const common::core::Arrangement* const arrangement,
-    const std::optional<common::core::GridPosition>& cursor,
-    const std::vector<common::core::FretHandEvent>& events, const common::core::TempoMap& tempo_map)
-{
-    if (arrangement == nullptr || !arrangement->chart.has_value() || !cursor.has_value())
-    {
-        return {};
-    }
-    const common::core::Chart& chart = *arrangement->chart;
-    const common::core::GridPosition position = *cursor;
-    if (std::ranges::contains(
-            chart.fret_hand_positions, position, &common::core::FretHandPosition::position))
-    {
-        return RestateAt{.position = position};
-    }
-    if (!common::core::markerCanStartAt(position, tempo_map))
-    {
-        return {};
-    }
-    return InsertAt{
-        .placement = defaultedPlacement(events, chart.tuning.capo, tempo_map, position)
-    };
 }
 
 } // namespace
@@ -209,47 +163,56 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectFretHan
     selectMarkerAt(MarkerRow::FretHandPosition, action.index);
 }
 
-// The fret-hand position chord runs its own target: the verb has nothing to prompt for, so the
-// precedence is decided and performed here, at the press, rather than published for a surface to
-// hand back. The cursor is read at the placement quantum — the slot an arrow press would arm on,
-// as the tone chord reads it. A restate only selects it, and a digit then retypes its fret; an
-// insert that lands is left SELECTED, so Delete and Alt+arrows act on it next.
+// THE fret-hand position chord's precedence, stated once and performed at the press, as every
+// marker chord's is. It authors at the cursor and never reads the selection; the cursor is read at
+// the placement quantum — the slot an arrow press would arm on, as the tone chord reads it. A
+// placement arriving exactly there is restated, which only selects it (a digit then retypes its
+// fret) and keeps a second press from inserting a second placement on the first one's start;
+// anywhere else a marker may start, a placement is inserted, defaulted from the chart's hand
+// events, and left SELECTED, so Delete and Alt+arrows act on it next. On the closing barline, where
+// nothing may start, the press is refused; without a chart or a cursor (playing, no song) it
+// addresses nothing and says nothing.
 void EditorController::Impl::performActionImpl(
     EditorAction::AuthorFretHandPositionAtCursor /*action*/)
 {
-    const FretHandPositionChordTarget target = fretHandPositionChordTarget(
-        session().currentArrangement(),
-        cursorPosition(placementQuantum()),
-        fretHandResolutions().events,
-        session().song().tempo_map);
-    if (const auto* const restate = std::get_if<RestateAt>(&target))
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::optional<common::core::GridPosition> cursor = cursorPosition(placementQuantum());
+    if (arrangement == nullptr || !arrangement->chart.has_value() || !cursor.has_value())
     {
-        selectMarker(FretHandPositionSelection{.position = restate->position});
+        return;
+    }
+    const common::core::Chart& chart = *arrangement->chart;
+    const common::core::GridPosition position = *cursor;
+    if (std::ranges::contains(
+            chart.fret_hand_positions, position, &common::core::FretHandPosition::position))
+    {
+        selectMarker(FretHandPositionSelection{.position = position});
         updateView();
         return;
     }
-    const auto* const insert = std::get_if<InsertAt>(&target);
-    if (insert == nullptr)
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    if (!common::core::objectCanStartAt(position, tempo_map))
     {
+        refuseAtSongEnd(MarkerVerb::AddHandPosition);
         return;
     }
 
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
-    after.placements.push_back(insert->placement);
+    after.placements.push_back(
+        defaultedPlacement(fretHandResolutions().events, chart.tuning.capo, tempo_map, position));
     // The subject is the place the insert addressed, which lights the derived chip standing there.
     if (commitMarkerModel(
             std::move(before),
             std::move(after),
             markerVerbLabel(MarkerVerb::AddHandPosition),
-            lightOf(FretHandPositionSelection{.position = insert->placement.position})) ==
-        MarkerCommit::Refused)
+            lightOf(FretHandPositionSelection{.position = position})) == MarkerCommit::Refused)
     {
         return;
     }
     // The insert selects what it made, and a selection made after the commit publishes with this
     // refresh: the commit's own publish ran before it existed.
-    selectMarker(FretHandPositionSelection{.position = insert->placement.position});
+    selectMarker(FretHandPositionSelection{.position = position});
     updateView();
 }
 
@@ -365,10 +328,11 @@ common::core::FhpViewState EditorController::Impl::fretHandEntryChip(
 }
 
 // Alt+Delete over a selected placement: its authored end fret is cleared, and the notes derive the
-// window's reach again. A position whose end is already derived — a derived position included,
-// which states nothing — has nothing to clear, so the verb does nothing: no commit, no undo entry,
-// and never the placement's own deletion, which is Delete's. The placement stays selected: its
-// position, which names it, is untouched.
+// window's reach again; the Note Lock refuses it at dispatch, before anything here answers. A
+// derived position stores nothing to clear, so it refuses as Delete and the move refuse it. An
+// authored one whose end is already derived is already so: no commit, no undo entry, and never the
+// placement's own deletion, which is Delete's. The placement stays selected: its position, which
+// names it, is untouched.
 void EditorController::Impl::performActionImpl(EditorAction::ClearFretHandEnd /*action*/)
 {
     const auto* const selection = std::get_if<FretHandPositionSelection>(&m_selection);
@@ -376,19 +340,22 @@ void EditorController::Impl::performActionImpl(EditorAction::ClearFretHandEnd /*
     {
         return;
     }
+    const std::string label = markerVerbLabel(MarkerVerb::ClearHandPositionEndFret);
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     const auto match = findPlacement(after.placements, selection->position);
-    if (match == after.placements.end() || !match->end_fret.has_value())
+    if (match == after.placements.end())
+    {
+        refuseMarkerVerb(label, derivedFretHandPositionRefusal(*selection), lightOf(*selection));
+        return;
+    }
+    if (!match->end_fret.has_value())
     {
         return;
     }
     match->end_fret.reset();
-    static_cast<void>(commitMarkerModel(
-        std::move(before),
-        std::move(after),
-        markerVerbLabel(MarkerVerb::ClearHandPositionEndFret),
-        lightOf(*selection)));
+    static_cast<void>(
+        commitMarkerModel(std::move(before), std::move(after), label, lightOf(*selection)));
 }
 
 // Deletes the selected placement. Nothing refuses an authored one — a chart with no placement left
@@ -398,10 +365,10 @@ void EditorController::Impl::performActionImpl(EditorAction::ClearFretHandEnd /*
 void EditorController::Impl::deleteSelectedFretHandPosition(
     const FretHandPositionSelection& selection)
 {
+    const std::string label = markerVerbLabel(MarkerVerb::DeleteHandPosition);
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
     const auto match = findPlacement(after.placements, selection.position);
-    const std::string label = markerVerbLabel(MarkerVerb::DeleteHandPosition);
     if (match == after.placements.end())
     {
         refuseMarkerVerb(label, derivedFretHandPositionRefusal(selection), lightOf(selection));
@@ -430,7 +397,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PruneFretHandPositi
     };
     if (after == before)
     {
-        m_refusal_log.markerEdit(label, "no stored hand position is redundant");
+        refuseMarkerVerb(label, "no stored hand position is redundant", RefusalLight{});
         return;
     }
     // Every stored position is its subject, which no one chip draws: only what a rule names lights.

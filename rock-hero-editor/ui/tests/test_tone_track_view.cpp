@@ -46,14 +46,12 @@ struct RecordingToneTrackListener final : public ToneTrackView::Listener
         boundary_move_count += 1;
     }
 
-    void onToneRenamePromptRequested(
-        std::string /*tone_document_ref*/, std::string /*current_name*/) override
+    void onToneRenamePromptRequested(std::string /*tone_document_ref*/) override
     {
         rename_count += 1;
     }
 
-    void onToneChangeInsertRequested(
-        common::core::GridPosition position, std::string /*containing_tone_document_ref*/) override
+    void onToneChangeInsertRequested(common::core::GridPosition position) override
     {
         last_insert_position = position;
         insert_count += 1;

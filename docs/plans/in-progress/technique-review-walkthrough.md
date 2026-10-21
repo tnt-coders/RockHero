@@ -158,9 +158,10 @@ Keep this list and the session task list in step.
   (`83f2afcd`, `83c6bc5a`): a shrinking ring holds at its last keyframe, the step landing on a keyframe
   that states only a fret AND a fret the path does not already hold there makes it the release (one
   carrying vibrato or a bend, or repeating the fret in force, holds the ring above it — both fixed
-  2026-09-21, `ringEndMayLandOnLastKeyframe`), and a released ring shrinks no further. **Feedback RULED
-  2026-09-21 (user): none** — a visible bound is not a refusal (`refusal-flash.md`). Nothing
-  remains here; tick this box at the next sighting of the gesture.
+  2026-09-21, `ringEndMayLandOnLastKeyframe`), and a released ring shrinks no further. **Feedback
+  RE-RULED 2026-10-20 (user): a press the floor holds is a refusal**, flashing the note and its last
+  keyframe (`refusal-flash.md`, reversing the 2026-09-21 "none"). Built; tick this box at the next
+  sighting of the gesture.
 - [x] **W7 — The legato assist and the technique toggle window.** The assist lives inside
   `planSetLegato`: when the hold test is the only blocker, the plan grows the predecessor's tail to
   the margin point and re-asks `resolveLegato` under the grown tail — the same only-blocker test,
@@ -263,9 +264,9 @@ Keep this list and the session task list in step.
     CLAMPED end AFTER the step, so a figure selected whole slides out together and an interior point
     the clamp would strand on the head is refused rather than clipped away by the gate; and the way
     past the shrink floor a silent or vibrato-carrying point raises is still moving that point LEFT.
-    The gesture consequence the clamp had to earn: a replayed run describing exactly the plan its
-    entry already holds is NOT recorded (`commitChartGestureStep`), so every further press into the
-    head costs nothing to come back from.
+    The gesture consequence the clamp had to earn: a further press into the head moves nothing, so
+    it is refused — the release and the head it is parked on flash (`planMoveGesture`, re-ruled
+    2026-10-20) — and NOT recorded, so it costs nothing to come back from.
   - **The display question, RULED AND BUILT 2026-09-27 (user).** A keyframe stating no fret
     INHERITS the fret in force — storage always did; the defect was the view state publishing only
     the fret-stating keyframes, so nothing else could be drawn or reached. Every keyframe is now

@@ -8,6 +8,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -119,13 +120,16 @@ struct NoteLockEditor : SongEditorHarness
     return song;
 }
 
-// The dense song, opened with the Note Lock on.
+// The dense song, opened with the Note Lock on and the Tempo Lock, which would refuse every tempo
+// edit, off.
 struct DenseNoteLockEditor : SongEditorHarness
 {
     explicit DenseNoteLockEditor(common::core::Song song = makeDenseSong())
     {
         open(std::move(song));
+        controller.onTempoLockToggleRequested();
         controller.onNoteLockToggleRequested();
+        REQUIRE_FALSE(state().tempo_lock);
         REQUIRE(state().note_lock);
     }
 };
@@ -457,28 +461,38 @@ TEST_CASE(
 }
 
 // While the lock holds the song's content, every edit that would change that content is refused —
-// logged, nothing written, no entry — and the plugin removal, which takes automation out of the
-// song, is unavailable. Turning the lock off opens them again.
+// logged, nothing written, no entry — the plugin removal, which takes automation out of the song,
+// among them: its control stays enabled and the press is refused like any other. A refused
+// automation write, which needs a plugin identity this fixture has none of, is pinned with the
+// tone automation tests.
 TEST_CASE("The Note Lock refuses every content edit", "[core][tempo][note-lock]")
 {
     NoteLockEditor editor;
     const SongTimeline before = editor.timeline();
     const std::size_t entries = editor.undoEntryCount();
 
-    SECTION("a typed note is refused at the plan, so its pending box is red")
+    SECTION("a typed note is refused before its pending box opens")
     {
         editor.seek(6.0);
         editor.armCaretAtCursor();
         editor.controller.onChartFretDigitTyped(5);
-        const std::optional<ChartPendingFretViewState>& pending =
-            editor.state().chart_edit.pending_fret;
-        REQUIRE(pending.has_value());
-        if (pending.has_value())
-        {
-            CHECK_FALSE(pending->valid);
-        }
-        editor.seek(2.0);
         CHECK_FALSE(editor.state().chart_edit.pending_fret.has_value());
+        CHECK(editor.view.refusal_flashes.size() == 1);
+    }
+    SECTION("a section chord at the song's end reports the lock, not the bound")
+    {
+        editor.seek(16.0);
+        CHECK_FALSE(
+            editor.pressForPrompt(&EditorController::onSongSectionChordRequested).has_value());
+        REQUIRE(editor.view.refusal_flashes.size() == 1);
+        CHECK(editor.view.refusal_flashes.back().sentence == g_note_lock_sentence);
+    }
+    SECTION("a section chord at a free slot opens no prompt")
+    {
+        editor.seek(6.0);
+        CHECK_FALSE(
+            editor.pressForPrompt(&EditorController::onSongSectionChordRequested).has_value());
+        CHECK(editor.view.refusal_flashes.size() == 1);
     }
     SECTION("a note delete is refused and flashes the notes it would take")
     {
@@ -513,28 +527,32 @@ TEST_CASE("The Note Lock refuses every content edit", "[core][tempo][note-lock]"
         editor.controller.onToneRegionCreateRequested(
             beatAt(4, 1), "00000000-0000-4000-8000-00000000beef", g_tone_document_ref);
     }
-    SECTION("automation points are refused")
+    SECTION("a plugin removal is refused, the plugin kept")
     {
-        editor.controller.onToneAutomationPointsEditRequested(
-            "loaded-instance",
-            "gain",
-            {common::core::ToneAutomationPoint{.position = beatAt(2, 1), .norm_value = 0.3F}});
-    }
-    SECTION("the plugin removal is unavailable until the lock is off")
-    {
-        CHECK_FALSE(editor.state().signal_chain.remove_plugins_enabled);
-        editor.controller.onNoteLockToggleRequested();
         CHECK(editor.state().signal_chain.remove_plugins_enabled);
+        const std::size_t plugins = editor.state().signal_chain.plugins.size();
+        REQUIRE(plugins > 0);
+        editor.controller.onRemovePluginRequested("loaded-instance");
+        CHECK(editor.state().signal_chain.plugins.size() == plugins);
+        CHECK(editor.view.refusal_flashes.size() == 1);
     }
 
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == entries);
+    // Every refusal flashes the lock's button, the thing that stood in the way, and says the
+    // sentence its record logs — a chart plan's and a marker verb's alike.
+    for (const RefusalFlash& flash : editor.view.refusal_flashes)
+    {
+        CHECK(flash.locks == std::vector{LockControl::Note});
+        CHECK(flash.sentence == g_note_lock_sentence);
+    }
 }
 
-// The lock names nothing on the lane, so a refused plan lights what it froze: a Shape over a time
-// selection would take the hold standing inside it, and that hold's span flashes.
-TEST_CASE(
-    "A Shape the Note Lock refuses flashes the hold it would take", "[core][chart][note-lock]")
+// The lock answers Ctrl+H before the picker opens, so nothing is asked that only a refusal could
+// answer; a picker answer arriving anyway (one opened before the lock engaged) is refused too. The
+// time selection is no refusal target, so the lock's button glows alone, and the hold inside the
+// selection stands.
+TEST_CASE("Ctrl+H under the Note Lock opens no picker", "[core][chart][note-lock]")
 {
     common::core::Song song = makeEightMeasureSong();
     std::optional<common::core::Chart>& song_chart = song.arrangements.front().chart;
@@ -553,16 +571,6 @@ TEST_CASE(
     DenseNoteLockEditor editor{std::move(song)};
     // A grid step is a beat, so the selection below is stated in beats: 5:1 to 8:1, over the hold.
     editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
-    const std::shared_ptr<const common::core::ChartViewState> tab = editor.state().tab;
-    REQUIRE(tab != nullptr);
-    if (tab == nullptr)
-    {
-        return;
-    }
-    const auto held = std::ranges::find_if(
-        tab->shapes, [](const common::core::ShapeViewState& shape) { return shape.held; });
-    REQUIRE(held != tab->shapes.end());
-    const auto held_span = static_cast<std::size_t>(std::distance(tab->shapes.begin(), held));
     editor.seek(8.0);
     for (int beat = 0; beat < 12; ++beat)
     {
@@ -571,11 +579,10 @@ TEST_CASE(
     }
     const std::size_t entries = editor.undoEntryCount();
     const std::size_t flashes = editor.view.refusal_flashes.size();
-
-    // Ctrl+H, choosing Shape.
     const std::size_t asked = editor.view.shown_hold_pickers.size();
+
     editor.controller.onHoldRequested();
-    REQUIRE(editor.view.shown_hold_pickers.size() == asked + 1);
+    CHECK(editor.view.shown_hold_pickers.size() == asked);
     editor.controller.onHoldChoiceRequested(common::core::UnnamedGrip{});
 
     const std::optional<common::core::Chart>& after =
@@ -586,17 +593,16 @@ TEST_CASE(
         CHECK(after->shape_holds == holds);
     }
     CHECK(editor.undoEntryCount() == entries);
-    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
-    const std::vector<std::size_t>& spans = editor.view.refusal_flashes.back().spans;
-    CHECK(std::ranges::find(spans, held_span) != spans.end());
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 2);
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Note});
+    CHECK(editor.view.refusal_flashes.back().spans.empty());
 }
 
-// A digit on a selected keyframe is refused at the plan, and each keystroke of the entry flashes
-// what it would have retyped: the first digit arms the red box and flashes the keyframe, and the
-// second, widening the same entry, flashes the same targets again — joining the pulse the first
-// started rather than lighting anything new.
+// A digit on a selected keyframe is refused before any entry opens: each keystroke flashes the
+// selection it would have retyped beside the lock's button, and no pending box appears to type
+// into.
 TEST_CASE(
-    "A fret entry the Note Lock refuses flashes its targets at each digit",
+    "A fret digit the Note Lock refuses flashes its targets and opens no entry",
     "[core][chart][note-lock]")
 {
     FakeTransport transport;
@@ -639,20 +645,14 @@ TEST_CASE(
     REQUIRE(view.refusal_flashes.size() == flashes + 2);
     CHECK(view.refusal_flashes.back().keyframes == selected_keyframes);
     CHECK(view.refusal_flashes.back().notes == selected_notes);
-    // The second digit widened the one entry rather than starting another.
+    CHECK(view.refusal_flashes.back().locks == std::vector{LockControl::Note});
     const EditorViewState* const typed = stateOrNull(view.last_state);
     REQUIRE(typed != nullptr);
     if (typed == nullptr)
     {
         return;
     }
-    const std::optional<ChartPendingFretViewState>& pending = typed->chart_edit.pending_fret;
-    REQUIRE(pending.has_value());
-    if (pending.has_value())
-    {
-        CHECK(pending->text == "12");
-        CHECK_FALSE(pending->valid);
-    }
+    CHECK_FALSE(typed->chart_edit.pending_fret.has_value());
 }
 
 // Off, the same verbs land: the refusal is the lock's and nothing else's.
@@ -667,6 +667,137 @@ TEST_CASE("With the Note Lock off the content verbs land", "[core][tempo][note-l
     editor.controller.onSongSectionInsertRequested(beatAt(5, 1), "Bridge");
     CHECK(editor.sections().size() == sections + 1);
     CHECK(editor.undoEntryCount() == entries + 1);
+}
+
+// The lock answers first: a note at the song's start moved earlier meets the lock before the
+// song's start, so the sentence is the lock's.
+TEST_CASE("A locked note at the song's start reports the lock, not the bound", "[core][note-lock]")
+{
+    const testing::LogCapture capture;
+    DenseNoteLockEditor editor;
+    editor.seek(0.0);
+    editor.armCaretAtCursor();
+    REQUIRE_FALSE(editor.state().chart_edit.selected_notes.empty());
+    const SongTimeline before = editor.timeline();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.pressAlt(ChartStepDirection::Left);
+    CHECK(editor.timeline() == before);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().sentence == g_note_lock_sentence);
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Note});
+    CHECK(capture.text().find("start of the song") == std::string::npos);
+}
+
+// Undo and redo bypass the lock on purpose: a lock guards new intentions, and undo only reproduces
+// history already consented to. An edit made with the lock off undoes and redoes with it on.
+TEST_CASE("Undo and redo under the Note Lock replay the history", "[core][note-lock]")
+{
+    NoteLockEditor editor;
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE_FALSE(editor.state().note_lock);
+    const std::size_t sections = editor.sections().size();
+    editor.controller.onSongSectionInsertRequested(beatAt(5, 1), "Bridge");
+    REQUIRE(editor.sections().size() == sections + 1);
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE(editor.state().note_lock);
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.sections().size() == sections);
+    editor.controller.onRedoRequested();
+    CHECK(editor.sections().size() == sections + 1);
+    CHECK(editor.view.refusal_flashes.size() == flashes);
+}
+
+// A key with nothing to act on is inert, lock or no lock: with nothing selected the editor-wide
+// move and delete name no lock, so neither lock flashes.
+TEST_CASE("Stray keys with nothing selected flash nothing under either lock", "[core][note-lock]")
+{
+    SongEditorHarness editor;
+    editor.open(makeEightMeasureSong());
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE(editor.state().note_lock);
+    REQUIRE(editor.state().tempo_lock);
+    const SongTimeline before = editor.timeline();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.pressAlt(ChartStepDirection::Right);
+    editor.pressAlt(ChartStepDirection::Left);
+    editor.controller.onSelectionDeleteRequested();
+    CHECK(editor.timeline() == before);
+    CHECK(editor.view.refusal_flashes.size() == flashes);
+}
+
+// The menu rows ask the core for their prompt as the keys do, so the lock governing a row answers
+// before anything opens: under it the row opens nothing and the lock flashes; with it off the row
+// opens the prompt the equivalent key opens.
+TEST_CASE("A locked menu row opens no prompt and flashes the lock", "[core][note-lock][tempo-lock]")
+{
+    SongEditorHarness editor;
+    editor.open(makeEightMeasureSong());
+    REQUIRE(editor.state().tempo_lock);
+    REQUIRE_FALSE(editor.state().note_lock);
+    std::function<void()> press;
+    LockControl lock = LockControl::Note;
+    std::size_t opens = 0;
+
+    SECTION("the ruler's section insert row")
+    {
+        press = [&editor] { editor.controller.onSongSectionAtRequested(beatAt(4, 1)); };
+        opens = MarkerPrompt{InsertSectionTarget{}}.index();
+    }
+    SECTION("the ruler's meter insert row")
+    {
+        press = [&editor] { editor.controller.onTimeSignatureAtRequested(beatAt(4, 3)); };
+        lock = LockControl::Tempo;
+        opens = MarkerPrompt{InsertTimeSignatureTarget{}}.index();
+    }
+    SECTION("the tone row's insert row")
+    {
+        press = [&editor] { editor.controller.onToneChangeAtRequested(beatAt(3, 1)); };
+        opens = MarkerPrompt{SplitToneRegionTarget{}}.index();
+    }
+    SECTION("the tone row's rename row")
+    {
+        press = [&editor] {
+            editor.controller.onToneRenamePromptRequested(std::string{g_tone_document_ref});
+        };
+        opens = MarkerPrompt{RenameToneTarget{}}.index();
+    }
+    SECTION("the Scale Tempo command and the tempo row's row")
+    {
+        press = [&editor] { editor.controller.onScaleTempoPromptRequested(); };
+        lock = LockControl::Tempo;
+        opens = MarkerPrompt{ScaleTempoTarget{}}.index();
+    }
+    const auto toggle = [&editor, lock] {
+        if (lock == LockControl::Note)
+        {
+            editor.controller.onNoteLockToggleRequested();
+        }
+        else
+        {
+            editor.controller.onTempoLockToggleRequested();
+        }
+    };
+    if (lock == LockControl::Note)
+    {
+        toggle();
+    }
+    const std::size_t prompts = editor.view.shown_marker_prompts.size();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    press();
+    CHECK(editor.view.shown_marker_prompts.size() == prompts);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{lock});
+
+    toggle();
+    press();
+    REQUIRE(editor.view.shown_marker_prompts.size() == prompts + 1);
+    CHECK(editor.view.shown_marker_prompts.back().index() == opens);
+    CHECK(editor.view.refusal_flashes.size() == flashes + 1);
 }
 
 // The switch is session state: off at every open, whatever the session before it left, and

@@ -73,16 +73,15 @@ constexpr float g_junction_x{80.0f};
     return common::ui::tabNoteLayout(makeGeometry(), tab->notes[index]).bend_chip;
 }
 
-// What Enter would do right now.
-[[nodiscard]] RestateTarget restateOf(const FakeEditorView& view)
+// Presses Enter and reports whether it opened the bend picker, which is what Enter does on a bend
+// chip; it asks for no marker prompt either way.
+[[nodiscard]] bool enterOpensBendPicker(EditorController& controller, const FakeEditorView& view)
 {
-    const EditorViewState* const state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    if (state == nullptr)
-    {
-        return {};
-    }
-    return state->restate_target;
+    const std::size_t pickers = view.shown_bend_pickers.size();
+    const std::size_t prompts = view.shown_marker_prompts.size();
+    controller.onSelectionRestateRequested();
+    CHECK(view.shown_marker_prompts.size() == prompts);
+    return view.shown_bend_pickers.size() > pickers;
 }
 
 struct BendFixture
@@ -353,7 +352,7 @@ TEST_CASE("The caret steps between a bent point's mark and its chip", "[core][ch
     BendFixture fixture{std::move(chart)};
     click(fixture.controller, g_junction_x, g_string_3_y);
     REQUIRE(caretOf(fixture.view).face == ChartCaretFace::Mark);
-    CHECK(std::holds_alternative<std::monostate>(restateOf(fixture.view)));
+    CHECK_FALSE(enterOpensBendPicker(fixture.controller, fixture.view));
 
     const std::vector<ChartKeyframeRef> junction{
         ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}
@@ -364,7 +363,7 @@ TEST_CASE("The caret steps between a bent point's mark and its chip", "[core][ch
     CHECK(on_chip.string == 3);
     CHECK_THAT(on_chip.seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
     CHECK(chartEdit(fixture.view).selected_keyframes == junction);
-    CHECK(std::holds_alternative<OpenBendPickerTarget>(restateOf(fixture.view)));
+    CHECK(enterOpensBendPicker(fixture.controller, fixture.view));
 
     fixture.controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     CHECK(caretOf(fixture.view).face == ChartCaretFace::Mark);

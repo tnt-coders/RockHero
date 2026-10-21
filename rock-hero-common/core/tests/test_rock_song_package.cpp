@@ -1764,9 +1764,10 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .keyframes = {},
         },
         // A pick slide rides the same stability gate so the canonical attack+path spelling
-        // can never churn across load/save cycles.
+        // can never churn across load/save cycles. Inside the fixture map's two bars, since no
+        // note may start on the closing barline.
         ChartNote{
-            .position = GridPosition{.measure = 3, .beat = 1},
+            .position = GridPosition{.measure = 2, .beat = 3},
             .string = 1,
             .fret = 12,
             .sustain = Fraction{3, 16},

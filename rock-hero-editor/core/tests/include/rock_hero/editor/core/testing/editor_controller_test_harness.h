@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iterator>
@@ -67,6 +68,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #ifndef TEST_SETTINGS_DIR
@@ -88,6 +90,26 @@ constexpr const char* g_tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef
 
 /*! \brief Tone reference FakeLiveRig mints; the load baseline assigns it to ref-less songs. */
 constexpr const char* g_minted_tone_ref = "tones/1f0e9d8c-7b6a-4c5d-8e9f-0a1b2c3d4e5f/tone.json";
+
+/*! \brief The Note Lock's sentence, which each refusal it makes logs and the lane line says. */
+constexpr std::string_view g_note_lock_sentence =
+    "Note Lock is on: the song's content is frozen while it holds the notes in time";
+
+/*! \brief The Tempo Lock's sentence, which each refusal it makes logs and the lane line says. */
+constexpr std::string_view g_tempo_lock_sentence =
+    "Tempo Lock is on: the tempo map and time signatures are frozen";
+
+/*!
+\brief The record a lock's refusal of an action leaves in the log.
+\param action The refused action's name.
+\param sentence The lock's sentence.
+\return The record's text from its name on.
+*/
+[[nodiscard]] inline std::string lockedActionRecord(
+    const std::string_view action, const std::string_view sentence)
+{
+    return std::format(R"(Refused locked action action="{}" detail="{}")", action, sentence);
+}
 
 /*! \brief Short alias for the shared configurable audio-device fake. */
 using ConfigurableAudioDeviceConfiguration =
@@ -140,6 +162,12 @@ public:
     void showChartHoldPicker(ChartHoldPicker picker) override
     {
         shown_hold_pickers.push_back(std::move(picker));
+    }
+
+    // Records each marker chord's prompt request, in request order.
+    void showMarkerPrompt(const MarkerPrompt& prompt) override
+    {
+        shown_marker_prompts.push_back(prompt);
     }
 
     // Records each refusal flash, in request order.
@@ -232,6 +260,7 @@ public:
     std::vector<ChartHarmonicNodePicker> shown_harmonic_pickers{};
     std::vector<ChartBendPicker> shown_bend_pickers{};
     std::vector<ChartHoldPicker> shown_hold_pickers{};
+    std::vector<MarkerPrompt> shown_marker_prompts{};
     std::vector<RefusalFlash> refusal_flashes{};
     std::vector<int> renumber_flashes{};
     int timeline_start_reveal_count{0};
@@ -2355,6 +2384,27 @@ inline void addKnownPlugin(
     controller.onSelectedPluginInsertRequested(std::move(plugin_id));
 }
 
+// Presses the marker verb whose controller intent `press` names — a chord, Enter or Ctrl+R — and
+// returns the prompt it asked the view for: nothing where it asked none, because it acted at once,
+// was refused or addressed nothing.
+[[nodiscard]] inline std::optional<MarkerPrompt> promptAfterPress(
+    EditorController& controller, const FakeEditorView& view, void (EditorController::*press)())
+{
+    const std::size_t asked = view.shown_marker_prompts.size();
+    (controller.*press)();
+    if (view.shown_marker_prompts.size() == asked)
+    {
+        return std::nullopt;
+    }
+    return view.shown_marker_prompts.back();
+}
+
+// The prompt a chord press asked for, as the alternative T; null where it asked another or none.
+template <typename T> [[nodiscard]] const T* promptAs(const std::optional<MarkerPrompt>& prompt)
+{
+    return prompt.has_value() ? std::get_if<T>(&*prompt) : nullptr;
+}
+
 // Owns a controller whose every song-facing port is its own recording fake, with the view attached.
 // Construction opens nothing, so a suite fixture built on it configures the fakes its scenarios
 // read at load (a rig load result, automatable parameters) first and then calls open(). The
@@ -2412,6 +2462,12 @@ struct SongEditorHarness
             throw std::logic_error("editor pushed no view state");
         }
         return *view.last_state;
+    }
+
+    // Presses the marker verb whose controller intent `press` names (promptAfterPress).
+    [[nodiscard]] std::optional<MarkerPrompt> pressForPrompt(void (EditorController::*press)())
+    {
+        return promptAfterPress(controller, view, press);
     }
 
     [[nodiscard]] const common::core::TempoMap& tempoMap() const

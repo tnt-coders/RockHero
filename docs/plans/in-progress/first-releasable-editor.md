@@ -120,8 +120,9 @@ unenforced rulings, and a set of defects on supported material.
   path does not already hold there — makes it the release (`83c6bc5a`), and a released ring shrinks
   no further — the move verb is the fall's
   handle. Pinned end to end by "A ring lands on its last keyframe inside one gesture"
-  (`test_chart_sustain_gesture.cpp`). The feedback question closed the same day: a visible bound
-  is not a refusal, so the floor is silent (`refusal-flash.md`). TWO defects were found and fixed
+  (`test_chart_sustain_gesture.cpp`). The feedback question closed the same day as a silent
+  floor, and was re-ruled 2026-10-20: a press a bound held is a refusal, so the shrink the floor
+  stops flashes the note and its last keyframe (`refusal-flash.md`). TWO defects were found and fixed
   while closing it, both the same shape — a landing that cost the keyframe its meaning:
   - the landing was also taken on a keyframe carrying vibrato or a bend, which the
     release's bare-fret law then stripped, and a mid-hold vibrato keyframe left stating nothing new

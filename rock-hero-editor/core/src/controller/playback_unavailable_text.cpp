@@ -40,7 +40,6 @@ std::string playbackUnavailableText(ActionUnavailableReason reason)
         case ActionUnavailableReason::PluginChainFull:
         case ActionUnavailableReason::NoPluginCandidates:
         case ActionUnavailableReason::NoLoadedPlugins:
-        case ActionUnavailableReason::NoteLocked:
         {
             return "Playback disabled.";
         }

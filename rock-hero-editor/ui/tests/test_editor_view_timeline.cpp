@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
@@ -80,11 +81,8 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         last_tempo_insert_position = position;
     }
 
-    void onTimeSignatureInsertPromptRequested(
-        const core::InsertTimeSignatureTarget& target) override
-    {
-        last_signature_insert = target;
-    }
+    void onTimeSignatureInsertPromptRequested(common::core::GridPosition /*position*/) override
+    {}
 
     void onScaleTempoPromptRequested() override
     {
@@ -120,9 +118,6 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     // Position the tempo menu last asked an anchor for, and how often a restate was asked for.
     std::optional<common::core::GridPosition> last_tempo_insert_position{};
     int restate_count{0};
-
-    // Insert the signature menu last asked a time signature for.
-    std::optional<core::InsertTimeSignatureTarget> last_signature_insert{};
 
     // How often the tempo menu asked for the Scale Tempo prompt.
     int scale_tempo_count{0};
@@ -161,7 +156,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
 [[nodiscard]] common::ui::TabLaneMetrics spanChipLaneMetrics()
 {
     return common::ui::makeTabLaneMetrics(
-        juce::Rectangle<int>{0, 0, 401, 240},
+        juce::Rectangle<int>{0, 0, 400, 240},
         common::core::TimeRange{
             .start = common::core::TimePosition{0.0},
             .end = common::core::TimePosition{4.0},
@@ -169,7 +164,8 @@ struct RecordingRulerListener final : TimelineRuler::Listener
         6,
         6,
         common::ui::testing::fixtureStringColors(),
-        common::ui::testing::fixtureTabShapeInks());
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
 }
 
 // A blank span chip's width in that lane: a one-figure fret-hand chip's.
@@ -222,7 +218,7 @@ struct RecordingRulerListener final : TimelineRuler::Listener
     };
 }
 
-// Lays a ruler over the meter-change map across 401 px, 40 px per second: the signature chips
+// Lays a ruler over the meter-change map across 400 px, 40 px per second: the signature chips
 // stand at x = 0 (measure 1) and x = 160 (measure 2), and measure 3's downbeat at x = 280.
 void showMeterChangeMap(TimelineRuler& ruler)
 {
@@ -232,7 +228,7 @@ void showMeterChangeMap(TimelineRuler& ruler)
     };
     const common::core::TempoMap tempo_map = makeMeterChangeTempoMap();
     constexpr common::core::Fraction grid_note_value{1, 4};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -254,7 +250,7 @@ void showMeterChangeMap(TimelineRuler& ruler)
     };
 }
 
-// Lays a ruler over the short-bar map across 401 px, 40 px per second: the signature chips stand
+// Lays a ruler over the short-bar map across 400 px, 40 px per second: the signature chips stand
 // at x = 0 (4/4), x = 160 (the derived 2/4) and x = 240 (3/4).
 void showShortBarMap(TimelineRuler& ruler)
 {
@@ -264,7 +260,7 @@ void showShortBarMap(TimelineRuler& ruler)
     };
     const common::core::TempoMap tempo_map = makeShortBarTempoMap();
     constexpr common::core::Fraction grid_note_value{1, 4};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -347,19 +343,21 @@ void showShortBarMap(TimelineRuler& ruler)
 [[nodiscard]] float canvasXForTime(
     const TrackViewport& track_viewport, const juce::Component& track_content, double seconds)
 {
-    const auto x = cursorXForTimelinePosition(
+    const auto x = core::timelineXForPosition(
         common::core::TimePosition{seconds},
         track_viewport.canvasTimeline(),
-        track_content.getWidth());
+        track_content.getWidth(),
+        core::TimelinePositionClamping::ClampToVisibleRange);
     REQUIRE(x.has_value());
     return x.value_or(0.0f);
 }
 
-// The same column rounded to the pixel the grid, the cursor, and the caret all draw in.
+// The same x resolved to the pixel column the grid, the cursor, and the caret all draw in.
 [[nodiscard]] int canvasColumnForTime(
     const TrackViewport& track_viewport, const juce::Component& track_content, double seconds)
 {
-    return static_cast<int>(std::round(canvasXForTime(track_viewport, track_content, seconds)));
+    return core::timelineColumnForX(
+        canvasXForTime(track_viewport, track_content, seconds), track_content.getWidth());
 }
 
 } // namespace
@@ -376,7 +374,7 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 100, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -386,7 +384,7 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 101px maps seconds * 25: the measure tick at x = 0 spans the whole
+    // One measure across 100px maps seconds * 25: the measure tick at x = 0 spans the whole
     // ruler body (y = 50) while the beat tick at x = 75 fills only the bottom band (y = 62),
     // leaving the body's upper rows at that column as plain ruler chrome.
     CHECK(image.getPixelAt(0, 50) == editorTheme().grid_measure);
@@ -405,7 +403,7 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 8};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 200, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -435,7 +433,7 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -454,7 +452,7 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100, so the "Verse" chip's left edge sits at
+    // One measure across 400px maps seconds * 100, so the "Verse" chip's left edge sits at
     // x = 100; the probe sits in the chip's left margin at the row's mid-height, clear of the
     // centered glyphs and the rounded corners.
     CHECK(image.getPixelAt(102, 7) == editorTheme().section_chip);
@@ -465,6 +463,45 @@ TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-rule
     // No section starts near the left edge, so that stretch of the row stays chip-free.
     const juce::Colour row_background = image.getPixelAt(390, 7);
     CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 40, 11}, row_background) == 0);
+}
+
+// A selected section chip wears the boxed-mark ring every overlay wears: a 1.5-pixel stroke lying
+// wholly OUTSIDE the chip, so the column just left of its edge is the accent and the chip's own
+// edge column keeps its fill.
+TEST_CASE("TimelineRuler rings a selected section chip just outside it", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setSectionLabels(
+        std::vector<RulerSectionLabel>{
+            RulerSectionLabel{
+                .seconds = 1.0,
+                .position = common::core::GridPosition{.measure = 1, .beat = 2},
+                .name = "Verse",
+                .selected = true,
+            },
+        });
+
+    // The chip's left edge stands at x = 100 (one measure across 400 px maps seconds * 100), and
+    // its row is y 2 on; the probes sit at the row's mid-height, clear of the rounded corners.
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+    CHECK(image.getPixelAt(99, 7) == editorTheme().accent);
+    CHECK(image.getPixelAt(100, 7) == editorTheme().section_chip);
+    CHECK(image.getPixelAt(102, 1) == editorTheme().accent);
+    CHECK(image.getPixelAt(102, 2) == editorTheme().section_chip);
 }
 
 // A section is a named instant anywhere on the grid, and its mark in the ruler is its chip's
@@ -481,7 +518,7 @@ TEST_CASE("TimelineRuler marks a mid-measure section at its own instant", "[ui][
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -503,7 +540,7 @@ TEST_CASE("TimelineRuler marks a mid-measure section at its own instant", "[ui][
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100, so the section's column is x = 150: the
+    // One measure across 400px maps seconds * 100, so the section's column is x = 150: the
     // leader's on-dot row inside the tempo row (y = 21) carries the section color, and the chip's
     // left margin stands on the same column.
     CHECK(image.getPixelAt(150, 21) == editorTheme().section_chip);
@@ -527,7 +564,7 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
     constexpr common::core::Fraction grid_note_value{1, 4};
     const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
     TimelineRuler ruler{lane.shape_inks};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -542,7 +579,7 @@ TEST_CASE("TimelineRuler stands span chips on its bottom edge", "[ui][timeline-r
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100: the chord chip's left edge at x = 100, the
+    // One measure across 400px maps seconds * 100: the chord chip's left edge at x = 100, the
     // arpeggio's at x = 200, both probed in their left padding, clear of the beat ticks they cover
     // and of the label.
     const int inside_y = g_timeline_ruler_height - 4;
@@ -587,7 +624,7 @@ TEST_CASE(
     const common::ui::TabLaneMetrics lane = spanChipLaneMetrics();
     const auto render = [&](const std::vector<RulerSpan>& spans) {
         TimelineRuler ruler{lane.shape_inks};
-        ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+        ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
         ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
         ruler.setGrid(tempo_map, grid_note_value);
         ruler.setGridLines(
@@ -638,7 +675,8 @@ TEST_CASE(
 }
 
 // A span chip is the span row's marker on the ruler: a press on one reports its span's index and
-// seeks nothing, and the selected span's chip wears an outline and answers selectedChipBounds.
+// seeks nothing, and the selected span's chip answers selectedChipBounds. Its ring is not the
+// ruler's: the chip and its top rail read as one shape, which the track viewport rings.
 TEST_CASE("TimelineRuler span chips report clicks and outline the selected", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -650,7 +688,7 @@ TEST_CASE("TimelineRuler span chips report clicks and outline the selected", "[u
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
     RecordingRulerListener listener;
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -670,7 +708,7 @@ TEST_CASE("TimelineRuler span chips report clicks and outline the selected", "[u
     CHECK_FALSE(ruler.selectedChipBounds().has_value());
     const juce::Image plain = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100: the chips' left edges stand at x = 100 and 200
+    // One measure across 400px maps seconds * 100: the chips' left edges stand at x = 100 and 200
     // on the ruler's bottom edge.
     const auto inside_y = static_cast<float>(g_timeline_ruler_height - 4);
     ruler.mouseDown(makeMouseDownEvent(ruler, 102.0f, inside_y));
@@ -688,23 +726,70 @@ TEST_CASE("TimelineRuler span chips report clicks and outline the selected", "[u
         CHECK(chip->getBottom() == g_timeline_ruler_height);
         CHECK(chip->getHeight() == chipHeight());
 
-        // The outline marks the selected chip's columns, and only those.
-        const juce::Image outlined = ruler.createComponentSnapshot(ruler.getLocalBounds());
-        const auto differs = [&plain, &outlined](const int x_from, const int x_to) {
-            for (int x = x_from; x <= x_to; ++x)
+        // The ruler's own render does not change: the selection draws nothing on it.
+        const juce::Image selected = ruler.createComponentSnapshot(ruler.getLocalBounds());
+        int differing = 0;
+        for (int x = 0; x < ruler.getWidth(); ++x)
+        {
+            for (int y = 0; y < g_timeline_ruler_height; ++y)
             {
-                for (int y = 0; y < g_timeline_ruler_height; ++y)
+                if (plain.getPixelAt(x, y) != selected.getPixelAt(x, y))
                 {
-                    if (plain.getPixelAt(x, y) != outlined.getPixelAt(x, y))
-                    {
-                        return true;
-                    }
+                    ++differing;
                 }
             }
-            return false;
-        };
-        CHECK(differs(chip->getX(), chip->getRight() - 1));
-        CHECK_FALSE(differs(100, 190));
+        }
+        CHECK(differing == 0);
+    }
+}
+
+// The ruler and the tab lane map time through the one mapping, so a span's chip on the ruler and
+// its rails in the lane start on the same column at the same canvas. Probed late in a 1000 px
+// canvas over ten seconds, where a mapping spread over [0, width - 1] would stand the chip at
+// 924.075, a pixel left of the rail at 925.
+TEST_CASE("TimelineRuler starts a span chip on its lane rail's column", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange canvas{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{10.0},
+    };
+    constexpr int canvas_width = 1000;
+    constexpr double span_start = 9.25;
+    constexpr double span_end = 9.75;
+    const common::ui::TabLaneMetrics lane = common::ui::makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, canvas_width, 240},
+        canvas,
+        6,
+        6,
+        common::ui::testing::fixtureStringColors(),
+        common::ui::testing::fixtureTabShapeInks(),
+        common::ui::chipLabelFont());
+    TimelineRuler ruler{lane.shape_inks};
+    ruler.setBounds(0, 0, canvas_width, g_timeline_ruler_height);
+    ruler.setTimelineView(canvas, canvas_width, 0);
+    ruler.setGridLines({});
+    ruler.setProjectLoaded(true);
+    ruler.setSpans(
+        std::vector<RulerSpan>{
+            RulerSpan{
+                .start_seconds = span_start,
+                .end_seconds = span_end,
+                .arpeggio = false,
+                .held = true,
+            },
+        });
+    ruler.setSelectedSpan(0);
+
+    const juce::Rectangle<float> top_rail =
+        common::ui::tabShapeRailBounds(lane, span_start, lane.x(span_end)).first;
+    REQUIRE_FALSE(top_rail.isEmpty());
+    const std::optional<juce::Rectangle<int>> chip = ruler.selectedChipBounds();
+    REQUIRE(chip.has_value());
+    if (chip.has_value())
+    {
+        CHECK(chip->getX() == 925);
+        CHECK(chip->getX() == static_cast<int>(std::floor(top_rail.getX())));
     }
 }
 
@@ -723,17 +808,17 @@ TEST_CASE("TimelineRuler holds a scrolled span's chip at its left edge", "[ui][t
     REQUIRE(spanChipBlankWidth(lane) < past_chip);
     const juce::Colour chord{lane.shape_inks.chord};
 
-    // Eight seconds across 801px maps seconds * 100; scrolled 150px in, the ruler's left edge is
+    // Eight seconds across 800px maps seconds * 100; scrolled 150px in, the ruler's left edge is
     // 1.5 s. Each case is one chord span starting at `start` and ending at `end`.
     const auto render = [&lane](const double start, const double end) {
         TimelineRuler ruler{lane.shape_inks};
-        ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+        ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
         ruler.setTimelineView(
             common::core::TimeRange{
                 .start = common::core::TimePosition{0.0},
                 .end = common::core::TimePosition{8.0},
             },
-            801,
+            800,
             150);
         ruler.setGridLines({});
         ruler.setProjectLoaded(true);
@@ -827,7 +912,7 @@ TEST_CASE("TimelineRuler section chips report clicks by position", "[ui][timelin
 
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
     RecordingRulerListener listener;
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -905,7 +990,7 @@ TEST_CASE(
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
 
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
 
     // x = 160 is 1.6 s, 0.6 of a beat into 1:2 at one beat per second.
@@ -935,7 +1020,7 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
-    // An anchor on every beat, a tenth of a second apart: 10 px apart across 401 px, far closer
+    // An anchor on every beat, a tenth of a second apart: 10 px apart across 400 px, far closer
     // than one tempo chip is wide.
     std::vector<common::core::BeatAnchor> anchors;
     for (int index = 0; index <= 40; ++index)
@@ -954,7 +1039,7 @@ TEST_CASE("TimelineRuler never suppresses the selected tempo chip", "[ui][timeli
 
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
     RecordingRulerListener listener;
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -989,7 +1074,7 @@ TEST_CASE("TimelineRuler glows a refused tempo chip", "[ui][timeline-ruler]")
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -1037,7 +1122,7 @@ TEST_CASE("TimelineRuler fills a tempo chip's height with its quarter note", "[u
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4000);
     constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -1224,7 +1309,7 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
-    // 401 px over 4 s is 100 px per second, so the 1:3 anchor at 2 s stands at x = 200.
+    // 400 px over 4 s is 100 px per second, so the 1:3 anchor at 2 s stands at x = 200.
     const common::core::TempoMap tempo_map{
         common::core::testing::commonTime(),
         std::vector{anchor("1:1", 0), anchor("1:3", 2000), anchor("2:1", 4000)},
@@ -1234,7 +1319,7 @@ TEST_CASE("TimelineRuler tempo chip drag asks for the pointer's travel", "[ui][t
 
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
     RecordingRulerListener listener;
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
@@ -1308,14 +1393,14 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // Two 4/4 measures across an 801px canvas map content x to seconds * 100; a 401px ruler
+    // Two 4/4 measures across an 800px canvas map content x to seconds * 100; a 400px ruler
     // scrolled to view x 200 puts the left edge at 2.0s, mid-measure 1, with measure 1's own
     // downbeat scrolled out of view.
     constexpr common::core::TimeRange two_measure_window{
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{8.0},
     };
-    constexpr int content_width = 801;
+    constexpr int content_width = 800;
     constexpr int view_x = 200;
     const common::core::TempoMap tempo_map{
         common::core::testing::commonTime(),
@@ -1325,7 +1410,7 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
         },
     };
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(two_measure_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
     ruler.setGridLines(
@@ -1335,7 +1420,7 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
             two_measure_window,
             content_width,
             view_x,
-            view_x + 401));
+            view_x + 400));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -1356,13 +1441,13 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // Two 4/4 measures across an 801px canvas map content x to seconds * 100; view x 385 puts
+    // Two 4/4 measures across an 800px canvas map content x to seconds * 100; view x 385 puts
     // measure 2's downbeat at local x 15, inside the collision distance of the pinned "1".
     constexpr common::core::TimeRange two_measure_window{
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{8.0},
     };
-    constexpr int content_width = 801;
+    constexpr int content_width = 800;
     constexpr int view_x = 385;
     const common::core::TempoMap tempo_map{
         common::core::testing::commonTime(),
@@ -1372,7 +1457,7 @@ TEST_CASE(
         },
     };
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(two_measure_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
     ruler.setGridLines(
@@ -1382,7 +1467,7 @@ TEST_CASE(
             two_measure_window,
             content_width,
             view_x,
-            view_x + 401));
+            view_x + 400));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -1402,14 +1487,14 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // Anchors at 0s (60bpm span), 4s (120bpm span), and a 6s terminal across an 801px canvas;
+    // Anchors at 0s (60bpm span), 4s (120bpm span), and a 6s terminal across an 800px canvas;
     // view x 376 puts the 4s tempo change at local x 24, inside the collision distance of the
     // much wider pinned marking.
     constexpr common::core::TimeRange timeline_window{
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{8.0},
     };
-    constexpr int content_width = 801;
+    constexpr int content_width = 800;
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
         common::core::testing::commonTime(),
@@ -1420,7 +1505,7 @@ TEST_CASE(
         },
     };
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(timeline_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
     ruler.setGridLines(
@@ -1430,7 +1515,7 @@ TEST_CASE(
             timeline_window,
             content_width,
             view_x,
-            view_x + 401));
+            view_x + 400));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -1451,13 +1536,13 @@ TEST_CASE(
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
-    // A 4/4 measure then a 3/4 measure across an 801px canvas; view x 376 puts the signature
+    // A 4/4 measure then a 3/4 measure across an 800px canvas; view x 376 puts the signature
     // change's downbeat at 4s at local x 24, inside the collision distance of the pinned "4/4".
     constexpr common::core::TimeRange timeline_window{
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{8.0},
     };
-    constexpr int content_width = 801;
+    constexpr int content_width = 800;
     constexpr int view_x = 376;
     const common::core::TempoMap tempo_map{
         common::core::testing::metersAt(
@@ -1470,7 +1555,7 @@ TEST_CASE(
         },
     };
     TimelineRuler ruler{common::ui::testing::fixtureTabShapeInks()};
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 400, g_timeline_ruler_height);
     ruler.setTimelineView(timeline_window, content_width, view_x);
     ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
     ruler.setGridLines(
@@ -1480,7 +1565,7 @@ TEST_CASE(
             timeline_window,
             content_width,
             view_x,
-            view_x + 401));
+            view_x + 400));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -3243,60 +3328,57 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
     CHECK(controller.chart_fret_shift_count == 1);
 }
 
-// Verifies cursor geometry uses a pushed visible range plus a separately read position.
+// Verifies cursor geometry uses a pushed visible range plus a separately read position, resolved to
+// the whole-pixel column the cursor draws in: the visible range spans the full width, a fractional
+// x takes the column it rounds into, and the visible end (x == width) holds the last column.
 TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui][editor-view]")
 {
-    const auto midpoint_cursor = cursorXForTimelinePosition(
+    const auto midpoint_cursor = cursorColumnForTimelinePosition(
         common::core::TimePosition{5.0},
         common::core::TimeRange{
             .start = common::core::TimePosition{}, .end = common::core::TimePosition{10.0}
         },
-        201);
-    REQUIRE(midpoint_cursor.has_value());
-    CHECK(optionalValueForApprox(midpoint_cursor) == Catch::Approx(100.0f));
+        200);
+    CHECK(midpoint_cursor == std::optional{100});
 
-    const auto offset_cursor = cursorXForTimelinePosition(
+    const auto offset_cursor = cursorColumnForTimelinePosition(
         common::core::TimePosition{12.0},
         common::core::TimeRange{
             .start = common::core::TimePosition{10.0}, .end = common::core::TimePosition{14.0}
         },
-        101);
-    REQUIRE(offset_cursor.has_value());
-    CHECK(optionalValueForApprox(offset_cursor) == Catch::Approx(50.0f));
+        100);
+    CHECK(offset_cursor == std::optional{50});
 
-    const auto fractional_cursor = cursorXForTimelinePosition(
+    const auto fractional_cursor = cursorColumnForTimelinePosition(
         common::core::TimePosition{1.25},
         common::core::TimeRange{
             .start = common::core::TimePosition{}, .end = common::core::TimePosition{4.0}
         },
-        101);
-    REQUIRE(fractional_cursor.has_value());
-    CHECK(optionalValueForApprox(fractional_cursor) == Catch::Approx(31.25f));
+        100);
+    CHECK(fractional_cursor == std::optional{31});
 
-    const auto before_start_cursor = cursorXForTimelinePosition(
+    const auto before_start_cursor = cursorColumnForTimelinePosition(
         common::core::TimePosition{-1.0},
         common::core::TimeRange{
             .start = common::core::TimePosition{}, .end = common::core::TimePosition{4.0}
         },
-        101);
-    REQUIRE(before_start_cursor.has_value());
-    CHECK(optionalValueForApprox(before_start_cursor) == Catch::Approx(0.0f));
+        100);
+    CHECK(before_start_cursor == std::optional{0});
 
-    const auto after_end_cursor = cursorXForTimelinePosition(
+    const auto after_end_cursor = cursorColumnForTimelinePosition(
         common::core::TimePosition{9.0},
         common::core::TimeRange{
             .start = common::core::TimePosition{}, .end = common::core::TimePosition{4.0}
         },
-        101);
-    REQUIRE(after_end_cursor.has_value());
-    CHECK(optionalValueForApprox(after_end_cursor) == Catch::Approx(100.0f));
+        100);
+    CHECK(after_end_cursor == std::optional{99});
 
-    CHECK_FALSE(cursorXForTimelinePosition(
+    CHECK_FALSE(cursorColumnForTimelinePosition(
                     common::core::TimePosition{1.0},
                     common::core::TimeRange{
                         .start = common::core::TimePosition{}, .end = common::core::TimePosition{}
                     },
-                    101)
+                    100)
                     .has_value());
 }
 

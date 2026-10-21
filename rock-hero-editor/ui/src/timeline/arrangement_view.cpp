@@ -40,27 +40,28 @@ struct WaveformDrawRequest
     return intersection;
 }
 
-// Maps a timeline range into the visible portion of the arrangement view.
+// Maps a timeline range into the visible portion of the arrangement view, through the one
+// time-to-x mapping clamped to the visible range.
 [[nodiscard]] juce::Rectangle<int> boundsForTimelineRange(
     common::core::TimeRange timeline_range, common::core::TimeRange visible_timeline,
     juce::Rectangle<int> view_bounds) noexcept
 {
-    const double visible_duration = visible_timeline.duration().seconds;
-    if (view_bounds.isEmpty() || visible_duration <= 0.0)
+    const auto x_of = [&](common::core::TimePosition position) {
+        return core::timelineXForPosition(
+            position,
+            visible_timeline,
+            view_bounds.getWidth(),
+            core::TimelinePositionClamping::ClampToVisibleRange);
+    };
+    const std::optional<float> start_x = x_of(timeline_range.start);
+    const std::optional<float> end_x = x_of(timeline_range.end);
+    if (view_bounds.isEmpty() || !start_x.has_value() || !end_x.has_value())
     {
         return {};
     }
 
-    const double start_ratio =
-        (timeline_range.start.seconds - visible_timeline.start.seconds) / visible_duration;
-    const double end_ratio =
-        (timeline_range.end.seconds - visible_timeline.start.seconds) / visible_duration;
-    const double left_ratio = std::clamp(std::min(start_ratio, end_ratio), 0.0, 1.0);
-    const double right_ratio = std::clamp(std::max(start_ratio, end_ratio), 0.0, 1.0);
-
-    const auto view_width = static_cast<double>(view_bounds.getWidth());
-    const int left = view_bounds.getX() + static_cast<int>(std::floor(left_ratio * view_width));
-    const int right = view_bounds.getX() + static_cast<int>(std::ceil(right_ratio * view_width));
+    const int left = view_bounds.getX() + static_cast<int>(std::floor(std::min(*start_x, *end_x)));
+    const int right = view_bounds.getX() + static_cast<int>(std::ceil(std::max(*start_x, *end_x)));
 
     return juce::Rectangle<int>{
         left,
@@ -70,32 +71,25 @@ struct WaveformDrawRequest
     };
 }
 
-// Converts local paint bounds back into the timeline range represented by those pixels.
+// Converts local paint bounds back into the timeline range represented by those pixels, through
+// the inverse of the same mapping.
 [[nodiscard]] common::core::TimeRange timelineRangeForBounds(
     juce::Rectangle<int> timeline_bounds, common::core::TimeRange visible_timeline,
     juce::Rectangle<int> view_bounds) noexcept
 {
-    const double visible_duration = visible_timeline.duration().seconds;
-    if (timeline_bounds.isEmpty() || view_bounds.isEmpty() || visible_duration <= 0.0)
+    const auto position_at = [&](int x) {
+        return core::timelinePositionForX(
+            static_cast<float>(x - view_bounds.getX()), visible_timeline, view_bounds.getWidth());
+    };
+    const std::optional<common::core::TimePosition> start = position_at(timeline_bounds.getX());
+    const std::optional<common::core::TimePosition> end = position_at(timeline_bounds.getRight());
+    if (timeline_bounds.isEmpty() || view_bounds.isEmpty() || !start.has_value() ||
+        !end.has_value())
     {
         return {};
     }
 
-    const auto view_width = static_cast<double>(view_bounds.getWidth());
-    const double start_ratio = std::clamp(
-        static_cast<double>(timeline_bounds.getX() - view_bounds.getX()) / view_width, 0.0, 1.0);
-    const double end_ratio = std::clamp(
-        static_cast<double>(timeline_bounds.getRight() - view_bounds.getX()) / view_width,
-        0.0,
-        1.0);
-    const double start_seconds =
-        visible_timeline.start.seconds + std::min(start_ratio, end_ratio) * visible_duration;
-    const double end_seconds =
-        visible_timeline.start.seconds + std::max(start_ratio, end_ratio) * visible_duration;
-    return common::core::TimeRange{
-        .start = common::core::TimePosition{start_seconds},
-        .end = common::core::TimePosition{end_seconds},
-    };
+    return common::core::TimeRange{.start = *start, .end = *end};
 }
 
 // Builds the draw range and bounds for the repaint-clipped portion of arrangement audio.

@@ -35,20 +35,31 @@ flowchart TB
 
 Three consequences keep the rows pixel-aligned:
 
-- **One time window.** Every row maps time to pixels with the same linear function
-  (`timelineXForPosition` in `editor/core/timeline/timeline_geometry.h`, or its local
-  equivalent):
+- **One time window.** Every row, the ruler, the grid scan and the cursor map time to pixels
+  through ONE function, `common::core::timelineXForSeconds` (`common/core/timeline/timeline_x.h`,
+  with its inverse `timelineSecondsForX`):
 
   ```cpp
-  float xForSeconds(double seconds, common::core::TimeRange visible_timeline, int width)
+  constexpr double timelineXForSeconds(double seconds, TimeRange visible_timeline, double width)
   {
-      const double duration = visible_timeline.duration().seconds;
-      return static_cast<float>(
-          (seconds - visible_timeline.start.seconds) / duration * static_cast<double>(width));
+      return (seconds - visible_timeline.start.seconds) / visible_timeline.duration().seconds *
+             width;
   }
   ```
 
-  over the same range, which `TrackViewport` hands to every row it hosts
+  The editor reaches it through `timelineXForPosition` / `timelinePositionForX`
+  (`editor/core/timeline/timeline_geometry.h`), which add only the outside-range policy (clamp,
+  reject, or extend past the edges) and the guard against unmappable geometry; the shared tab
+  lane reaches it through `TabLaneGeometry::x`. Never restate the arithmetic: two copies that
+  spread the range over different spans (`[0, width - 1]` against `[0, width]`) stand a span chip
+  a pixel off its rail and the grid off the notes late in a song. The visible end maps
+  to `x == width`, the right edge of the last column, so a one-pixel **point mark** there (the
+  cursor at the song's end, the grid's terminal line) has no column of its own;
+  `timelineColumnForX` is the one place that holds it in the last column, and the cursor's column
+  is chosen through it in canvas space (`cursorColumnForTimelinePosition`) so the overlay, the paused
+  column and the pinned ruler draw the same pixel.
+
+  The rows all map over the same range, which `TrackViewport` hands to every row it hosts
   (`TrackViewport::canvasTimeline`, pushed from the canvas layout). That range is the session's
   `visible_timeline` from the pushed `EditorViewState` **preceded by a gutter's worth of time**:
   the canvas starts a little before the timeline does, so the first beat's note head — heads are
@@ -98,21 +109,27 @@ placement slot is renamed, otherwise one is inserted there (2026-09-14; `F2` is 
 the BPM prompt through the core's published restate verb, `Alt+←/→` and a drag move its time
 freely (a drag is one gesture and one undo entry, below), and a right-click on the tempo row opens Add
 Tempo Anchor, Set Tempo... and Delete Tempo Anchor, plus Scale Tempo... wherever the row is clicked
-(`TimelineRuler::tempoMenuAt`), which runs the same `ScaleTempo` command as the Edit menu's item
-(plan 66: every span's tempo multiplied by a typed factor, one entry, in the form the Note Lock
-chooses — every address scaled and every time held with the lock on, every anchor re-timed on its
-address with it off; see \ref guide_musical_time). The two moves — and only they — answer to the
-**Tempo Lock**, a session switch that is on at every song open and never saved: while it is on,
-`refuseLockedTempoAnchorMove` (`tempo_handlers.cpp`) refuses each nudge and every drag event with
-the refusal flash on the chip and a log line, and inserting, deleting and typing a tempo stay
-available. Its toggle is the toolbar button right of the grid selector (`ModeToggleButton`,
-`ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
+(`TimelineRuler::tempoMenuAt`), which asks the core for the same Scale Tempo prompt as the Edit
+menu's item (`onScaleTempoPromptRequested`, the `ScaleTempoPrompt` action; plan 66: every span's
+tempo multiplied by a typed factor, one entry, in the form the Note Lock chooses — every address
+scaled and every time held with the lock on, every anchor re-timed on its address with it off; see
+\ref guide_musical_time). Every menu row raises an intent the core runs as an action, as the
+keys do, so a row is refused exactly where its key would be. The **Tempo Lock**, a session switch
+that is on at every song open and never saved, freezes the tempo map and the time signatures:
+while it is on, every tempo and meter verb — insert, Set Tempo, delete, each nudge and drag event,
+the release, Scale Tempo in both forms, every time-signature verb — is refused at dispatch
+(`refuseLockedAction` reading `governingLock`), before any prompt opens, with the selection and the
+Tempo Lock's button glowing and the sentence "Tempo Lock is on: the tempo map and time signatures
+are frozen" logged and on the lane line. Its toggle is the toolbar button right of the grid
+selector (`ModeToggleButton`, `ui/src/shared/mode_toggle_button.h`) and the ticked "Tempo Lock" row under "Grid & Zoom" in the
 chart menu, one command (`ToggleTempoLock`) behind both. Its pair, 4 px to its right, is the **Note
 Lock** (`ToggleNoteLock`), off at every song open and never saved: while it is on, the song's
 content is frozen where it sounds — every tempo verb keeps every object's time and re-addresses
 it instead of moving it with the beat, each from the content the lock engaged on so the rounding
-never stacks, and every verb that would change a note, a marker or an automation point is refused
-(\ref guide_musical_time). A chip drag, with the Note Lock on or off, writes
+never stacks, and every verb that would change a note, a section, a tone region, a hand position
+or hold, or an automation point is refused at dispatch, the Note Lock's button glowing beside what
+the edit acted on (\ref guide_musical_time). Undo and redo answer to neither lock: they reproduce
+history already consented to. A chip drag, with the Note Lock on or off, writes
 nothing until the release (plan 66 decision 7): each pointer event holds the move, and the core
 publishes two maps beside the session's `tempo_map`. The **grid map** is the map the release would
 land; `EditorView::setState` hands it to `TrackViewport::setGrid`, so the canvas grid lines and
@@ -203,8 +220,8 @@ Two channels exist, and choosing the right one matters:
 - **Sampled live data.** Anything that moves at playback rate — the transport position, meter
   levels, live parameter values — is deliberately *not* in derived state. Views sample it
   through the const port references bundled in `EditorView::AudioPorts` at render cadence, using
-  `juce::VBlankAttachment` (never `juce::Timer`). The cursor repaints only a narrow strip
-  (`repaintCursorStrip`), not the whole canvas.
+  `juce::VBlankAttachment` (never `juce::Timer`). The cursor repaints only the narrow strips of
+  the columns it leaves and enters (`repaintCursorColumns`), not the whole canvas.
 
 If you are adding something that changes when the *user edits*, push it; if it changes because
 *audio is playing*, sample it.
@@ -300,21 +317,44 @@ theme's red, pulsing twice: the subject the key acted on and, where another auth
 its way, that culprit — the note a move would land on, the ring whose statement an edit would cut
 off, the predecessor a head cannot join, the neighbour hold a push would empty, the notes a hold
 runs on past, the neighbour meter a step reaches, the anchors and meters a tempo rule names. Where
-the two are one thing it glows once; with no subject on screen (a prompt's text, no chart) only the
-log speaks. A light is targets of any kinds, named as the selection names them and glowed as one
-set (`RefusalLight` of `RefusalTarget`s, `controller/refusal_light.h`): each refusing site adds
-what it knows (`PlanRefused::lit`, `ChartRefusedNote::lit`), and the controller adds the subject it
-holds (`reportChartPlanRefusal`, `reportChartRefusedNotes`, `reportChartFretEntryRefusal`,
-`refuseShapeHoldVerb`, `refuseMarkerVerb`), all through the one path `flashRefusalLight` in
+the two are one thing it glows once; with no subject on screen (a prompt's text, no chart) only
+the sentence speaks. A light is targets of any kinds, named as the selection names them and glowed
+as one set (`RefusalLight` of `RefusalTarget`s, `controller/refusal_light.h`): each refusing site
+adds what it knows (`PlanRefused::lit`, `ChartRefusedNote::lit`), and the controller adds the
+subject it holds (`reportChartPlanRefusal`, `reportChartRefusedNotes`,
+`reportChartFretEntryRefusal`, `refuseShapeHoldVerb`, `refuseMarkerVerb`), all through the one path `flashRefusalLight` in
 `chart_handlers.cpp`, which resolves each target through the authority its surface draws it by and
 hands the view one `RefusalFlash` through `IEditorView::flashRefusal`. `EditorView::flashRefusal`
-gives each surface its share: the tab lane (`TabView::flashRefusal`) glows notes, keyframes,
-fret-hand position chips and the rails of spans and none holds; the ruler
-(`TimelineRuler::flashRefusal`, through `TrackViewport::flashRefusal`) its section, tempo and
-time-signature chips, found by row and start (`RulerChipKey`); the tone row
-(`ToneTrackView::flashRefusal`) its regions by id; and the 3D preview its spans' rails and its
-positions' floor numbers (\ref guide_3d_highway). No painter knows which target was the subject
-and which the culprit. The reason is logged beside the subject the verb planned over (the
+gives each surface its share: the tab lane (`TabView::flashRefusal`) glows notes, keyframes and
+fret-hand position chips; the track viewport (`TrackViewport::flashRefusal`) glows spans and none
+holds, a span's chip and rails as one shape, on the outline its selection ring strokes (a refused
+span's chip lights with its rails); the ruler (`TimelineRuler::flashRefusal`, through
+`TrackViewport::flashRefusal`) its section, tempo and time-signature chips, found by row and start
+(`RulerChipKey`); the tone row
+(`ToneTrackView::flashRefusal`) its regions by id; and the toolbar (`EditorView` itself) the lock
+button that stood in the way (`LockControl`), when a lock refused the action. The 3D preview glows
+nothing: unless it could light every target it lights none (\ref guide_3d_highway). No painter knows which target was the subject
+and which the culprit. The flash carries the sentence too (`RefusalFlash::sentence`, the very
+reason the log records, which `flashRefusalLight` takes beside the light — a per-note refusal's
+first note's): the tab lane's STATUS LINE (`TabView::paintStatusLine`) says it in the theme's red,
+in its own regular-weight 14 px face (`tabStatusLineFont`, two pixels over the bold chip labels),
+on a translucent plate as tall as that face (`common::ui::chipHeight`) at the lane's top-left —
+just under the fret-hand chips' row
+(`common::ui::tabFhpChipRow`), past the string legend, pinned to the window's left edge and stopping
+short of its right one, the text ellipsized there — chart or no chart. The sentence never rides the
+glow's pulses, which would take it dark before it could be read: it HOLDS at full ink and then fades
+(`g_refusal_line_hold` beside `g_refusal_flash_train` in `flash_pulse.h`, read off the same
+`FlashPulse` clock through `heldLevel`), and the lane's one refusal record retires once both the
+glow's train and the line's fade have run. The subject is never spelled there, because the glow is
+the subject; a new refusal replaces the record and restarts its clock, so the line says the newest
+refusal's sentence, or nothing where that refusal says none (a record holds the line's hold only
+where it carries a sentence, and otherwise retires with its glows).
+Between refusals the same line says how many notes are selected ("3 notes selected"), from two up,
+so the selection's size reads even with its highlights scrolled off; the transport strip carries no
+count, and its master meter takes the width. The line's text and plate are composed when the
+selection or the flash changes (`TabView::refreshStatusLine`), never in the paint, and a frame
+repaints only a level that moved — the lane while its glows pulse, the line while it fades, nothing
+through the hold. The reason is logged beside the subject the verb planned over (the
 selection, or the operand a modifying key took from the caret; a marker or hold verb's label), and
 only the named notes for a per-note verb that applied to the rest. Every chart refusal, a refused
 fret entry's included, leaves the one record `RefusalLog::chartEdit` writes,
@@ -322,11 +362,18 @@ fret entry's included, leaves the one record `RefusalLog::chartEdit` writes,
 WHAT. A held key or a drag refuses once per event, so `RefusalLog` (`shared/refusal_log.h`, the one
 writer of chart and marker refusals) writes a run of identical records once and counts the rest:
 the run's count line, the record again with `repeats=N` appended, goes out when a different record
-ends the run or the controller goes. A visible bound, such as a ring's end stopping at the next
-head, is not a refusal and flashes nothing. Every 2D surface runs one pulse and one glow
+ends the run or the controller goes. A press a bound held is a refusal like any other: a ring's
+end stopped at the next head on its string flashes the note and that head, one its last keyframe
+stops shrinking flashes that keyframe, a slide-out parked on the next head flashes that head, and
+a move earlier from the song's start or later from its end flashes the selection
+(`planAdjustSustain`, `planMoveGesture`). Every 2D surface runs one pulse and one glow
 (`FlashPulse` on `g_refusal_flash_train`, and `paintRefusalGlow`, in
-`ui/src/shared/flash_pulse.h`); the ruler's renumber flash runs on the same `FlashPulse` with a
-train of its own. The design record, with every refusal's subject and culprit, is
+`ui/src/shared/flash_pulse.h`) and one rule (`startRefusalFlash`): the newest refusal REPLACES each
+surface's flash — what it lights and says — and restarts its clock, so every surface it reaches
+pulses in step, a held key that keeps being refused (naming the same thing each time) reads as a
+steady full glow that pulses out on release, and a refusal never re-lights what an earlier,
+different one named. A refusal naming nothing on a surface clears that surface's flash. The
+ruler's renumber flash runs on the same `FlashPulse` with a train of its own. The design record, with every refusal's subject and culprit, is
 `docs/plans/in-progress/refusal-flash.md`.
 
 **The SPLIT (`Shift+L`) and the CUT (a bare digit or `Insert` inside a ring) divide a ring by ONE
@@ -612,8 +659,11 @@ beside the tone region's in the same two dispatches; step 6 takes the tone regio
 verbatim by being cursor-coupled, which is affordable only because a chip click
 **seeks nothing** — a chip is an object, not a position, so selecting one does not immediately
 clear itself; step 4 needs nothing, since the Esc ladder's last rung already clears whatever the
-variant holds; and step 7 is a 1px `EditorTheme::accent` outline on the chip, the same token the
-tone strip's selected region outlines with.
+variant holds; and step 7 is the boxed-mark ring every overlay wears (`boxRingOutline`,
+`shared/mark_outline.h`): an `EditorTheme::accent` stroke of `overlayRingStroke` lying wholly
+outside the chip, so it covers none of the fill or the label, the token the tab lane's selection
+rings wear. A refused chip glows on that same outline. (The tone strip outlines its selected region in white instead: its
+accent already marks the active tone.)
 
 # The rows
 
@@ -659,8 +709,8 @@ refused window misses. The ruler resolves its own chips in its
 own view the same way, and on the same condition: only while the marker plane is open
 (`setMarkerEditsEnabled`, fed from `EditorViewState::marker_edits_enabled`). While it is closed
 there is no selection to make, so a chip press is an ordinary press — the ruler seeks, and this
-lane hands it to the chart. The selected placement's chip wears the accent outline, from
-`ChartEditViewState::selected_fret_hand_position`. The yielding
+lane hands it to the chart. The selected placement's chip wears the accent ring just outside its
+box, as a selected keyframe chip does, from `ChartEditViewState::selected_fret_hand_position`. The yielding
 component is the *cursor overlay*, whose `hitTest` returns false wherever a pass-through
 predicate — installed in `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the
 point. Its data is a seconds-resolved projection
@@ -692,7 +742,11 @@ fret-hand chips, so the chip stands on the RULER's bottom edge, directly on the 
 are) through `TrackViewport::setSpans`, which passes them on only while the lane prints its text
 (`TabView::printsText`), and `TimelineRuler` places and paints the chips over its tick band. The
 ruler's ceiling keeps a clear row between a chip and the measure numbers' ink, lowering any chip
-that would reach it, though at the chip height the chip stands clear below it.
+that would reach it, though at the chip height the chip stands clear below it. The chip and its top
+rail read as ONE shape — the chip's left edge is the rail's (the one time-to-x mapping places both),
+and its base is the rail's top — so the chip is drawn on the lane's own ground
+(`EditorTheme::waveform_row_background`, handed to `drawTabSpanChip`) before its ghost composites:
+a derived chip then reads as exactly its ghosted rail's ink, and no ruler tick shows through it.
 
 Every chip in the editor — the ruler's section, tempo and time-signature chips, the fret-hand,
 capo and span chips, and the automation lanes' name and "+" chips — prints its label in ONE face
@@ -917,6 +971,10 @@ in `TabView::paint`:
 4. **The governing fret-hand chip** stands on the panel — see below.
 5. **The letters last**, over all of it.
 
+The span row's selection ring and refusal glow are not in this list: they trace a span's chip on the
+ruler and its rails in the lane as one shape, so `TrackViewport::paintOverChildren` draws them over
+both views.
+
 **The canvas beneath does NOT stop at the column.** `TrackViewport::Content::paint` draws
 `drawTempoGridDots` across the whole canvas, because the dots are canvas ink exactly like the
 waveform beside them and canvas ink shows through the tint at whatever the knob says. That keeps
@@ -932,10 +990,11 @@ the bounds, the projection or the lane count change) and never asked on the pain
 reader of the column — the exclusion, the tint, the letters, the scroll repaint, the hit test and
 the canvas's grid — reads that one rectangle.
 
-The panel is **screen-pinned**, not canvas-pinned: `TabView::setVisibleContentLeft` takes the
-viewport's left edge from `TrackViewport::updateRulerView`, the same push the tone rows already
-take, so the letters live over the origin gutter at rest and stay at the window's left edge while
-the follow scrolls the canvas under them. The scroll repaint is held to the column the chrome
+The panel is **screen-pinned**, not canvas-pinned: `TabView::setVisibleContent` takes the
+viewport's left edge (and its width, which only the status line reads) from
+`TrackViewport::updateRulerView`, the same push the tone rows already take, so the letters live
+over the origin gutter at rest and stay at the window's left edge while the follow scrolls the
+canvas under them. The scroll repaint is held to the column the chrome
 leaves and the column it arrives in — the viewport blits the rest, and a per-frame full-row repaint
 would re-rasterize the whole visible chart for one column of chrome.
 
@@ -1036,10 +1095,21 @@ projected event already carries both of its ends. A span, derived or held, is se
 keyboard on the walk's span row (\ref guide_keyboard) and with the pointer on its rails or its ruler
 chip (`TabView::spanAt`, `TimelineRuler::spanChipAt`, both hit-testing the paint core's own
 geometry: `tabShapeRailBounds`, `tabShapeStopX`, `tabSpanChipBounds`); its index is published as
-`ChartEditViewState::selected_span`, the selected span wears the accent outline on both rails and on
-its chip (`TimelineRuler::setSelectedSpan`), and being selected is the fourth reveal ground. A held
-span draws solid and a derived one at the derived fret-hand chip's weight (`ShapeViewState::held`,
-`common::ui::g_ghost_opacity`), rails, brackets and chip alike. A none hold
+`ChartEditViewState::selected_span`, and being selected is the fourth reveal ground. The selected
+span wears ONE accent outline around its chip and top rail together and a second around its bottom
+rail (`spanRowOutline`, `shared/mark_outline.h`), stroked by `TrackViewport::paintOverChildren`:
+neither the ruler nor the lane can draw it, since each clips at its own edge and the shape runs
+across their seam. The outline steps from the chip's top down its side and out along the rail's top,
+its concave corner square; it reads the chip's box from the ruler (`TimelineRuler::spanChipBox`) and
+the rails from the lane (`TabView::selectedSpanRow`) at paint time, holds the rails to the view's
+visible area — so a lane scrolled up under the ruler leaves a thinner step, or the chip ringed
+alone — and is clipped to the ruler and the view, never the scrollbars. A selected none hold, which
+stands no chip, wears a closed ring around each rail. Each ring lies just outside its boxes, never
+on them: a rail is only three pixels tall, so a ring inside it would cover the very ink that says
+whether the span is a chord box or an arpeggio, held or derived — or, on a selected none hold, the
+hatch. A refused span or none hold glows on the same outlines (`TrackViewport::flashRefusal`). A held span draws solid and a derived one at
+the derived fret-hand chip's weight (`ShapeViewState::held`, `common::ui::g_ghost_opacity`),
+rails, brackets and chip alike. A none hold
 (`ChartViewState::none_holds`, merged where two meet) draws its rails as a slashed hatch in
 `EditorTheme::none_hold_rail`, clipped to the rail band (`fillHatchedRail`), beneath the furniture
 (`TabView::paintNoneHolds`, before `paintTabLaneFurniture`), so a chord box standing inside it draws
@@ -1376,10 +1446,10 @@ All of these compile clean when forgotten:
 3. **Viewport wiring** in `TrackViewport`: construct/parent the row in its canvas, stack it in
    the layout, and plumb `setVisibleTimeline` (from `pushCanvasTimeline`, never from
    `EditorView::setState` — see "one time window" above), `setGridLines` (if it draws the grid),
-   `setVisibleContentLeft` (if it pins anything to the window's left edge — chips, labels, the
-   tab lane's string legend), and height into the canvas layout. If the row
-   can host an armed caret, publish its caret mask through the upward channel (see above) —
-   the viewport must never poll it.
+   `setVisibleContentLeft` (if it pins anything to the window's left edge — chips, labels; the
+   tab lane's `setVisibleContent` also takes the visible width for its status line), and height
+   into the canvas layout. If the row can host an armed caret, publish its caret mask through
+   the upward channel (see above) — the viewport must never poll it.
 4. **`EditorView::setState` fan-out** — the row exists but renders defaults forever without it.
 5. **A `selected...Bounds()` accessor**, if the row can draw the selected object. The window-follow
    rule "a verb on a selection centres it if it was not fully on screen" asks the surface that drew

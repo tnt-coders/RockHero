@@ -1,6 +1,7 @@
 #include "track_viewport.h"
 
 #include "shared/editor_theme.h"
+#include "shared/mark_outline.h"
 #include "tab/tab_view.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/cursor_overlay.h"
@@ -13,6 +14,7 @@
 #include <cmath>
 #include <compare>
 #include <limits>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {
@@ -59,6 +61,33 @@ constexpr double g_wide_measure_pad_fraction{0.1};
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
 {
     return std::abs(delta) > g_min_mouse_wheel_delta;
+}
+
+// The pixels a ring or a glow around a part of a span-row mark can reach, from the part's box
+// alone: the box grown by a whole ring stroke at the box's own height (no smaller than the stroke
+// of any outline traced inside it) and then by the glow's reach (refusalGlowArea). It holds both
+// the ring and the glow, so a paint tests it before building any outline.
+[[nodiscard]] juce::Rectangle<int> overlayReach(
+    const juce::Rectangle<float> box, const float glow_extent)
+{
+    return refusalGlowArea(box.expanded(overlayRingStroke(box.getHeight())), glow_extent)
+        .getSmallestIntegerContainer();
+}
+
+// Calls visit for each part of a span-row mark that shows — the chip fused with its top rail, and
+// the bottom rail — with the part's box and a callable building its outline, so the outline is
+// built only where a caller asks for it.
+template <typename Boxes, typename Visit>
+void forEachSpanRowPart(const Boxes& boxes, const Visit& visit)
+{
+    if (const juce::Rectangle<float> fused = boxes.chip.getUnion(boxes.top_rail); !fused.isEmpty())
+    {
+        visit(fused, [&boxes] { return spanRowOutline(boxes.chip, boxes.top_rail); });
+    }
+    if (!boxes.bottom_rail.isEmpty())
+    {
+        visit(boxes.bottom_rail, [&boxes] { return boxRingOutline(boxes.bottom_rail, 0.0f); });
+    }
 }
 
 } // namespace
@@ -123,27 +152,18 @@ void TrackViewport::Content::setGridSnap(const bool grid_snap)
 }
 
 // Stores the paused cursor column and its caret-square mask and repaints only the strips the
-// column leaves and enters — the same narrow-invalidation pattern the overlay and ruler
-// cursors use. The full-height strips cover mask-only changes at an unchanged column too.
-void TrackViewport::Content::setPausedCursorX(
-    std::optional<float> x, std::optional<juce::Range<float>> mask_y)
+// column leaves and enters (repaintCursorColumns, as the overlay's cursor does). The full-height
+// strips cover mask-only changes at an unchanged column too.
+void TrackViewport::Content::setPausedCursorColumn(
+    const std::optional<int> column, const std::optional<juce::Range<float>> mask_y)
 {
-    if (x == m_paused_cursor_x && mask_y == m_paused_cursor_mask_y)
+    if (column == m_paused_cursor_column && mask_y == m_paused_cursor_mask_y)
     {
         return;
     }
 
-    const auto repaint_strip = [this](std::optional<float> column) {
-        if (!column.has_value())
-        {
-            return;
-        }
-        constexpr int pad = 3;
-        repaint(static_cast<int>(std::floor(*column)) - pad, 0, 2 * pad + 3, getHeight());
-    };
-    repaint_strip(m_paused_cursor_x);
-    repaint_strip(x);
-    m_paused_cursor_x = x;
+    repaintCursorColumns(*this, m_paused_cursor_column, column);
+    m_paused_cursor_column = column;
     m_paused_cursor_mask_y = mask_y;
 }
 
@@ -184,14 +204,13 @@ void TrackViewport::Content::paint(juce::Graphics& g)
         // The paused play-from-here column (the marker model): drawn over the grid but BEHIND
         // every track-row component, so while editing it shows in every gap without ever covering
         // a note or its fret number. During playback the overlay's moving line takes over in front
-        // and this hides. The 1px width and the rounding match drawTimelineCursor exactly, so the
-        // column and the ruler's mark above it land in the same pixel and read as one line. The
-        // armed caret square's span is cut out rather than painted over: ONLY the cursor hides
-        // behind the caret, so the grid and strings the square overlaps stay visible.
-        if (m_paused_cursor_x.has_value())
+        // and this hides. The column is cursorColumnForTimelinePosition's, as the ruler's mark
+        // above it is, so the two land in the same pixel and read as one line. The armed caret
+        // square's span is cut out rather than painted over: ONLY the cursor hides behind the
+        // caret, so the grid and strings the square overlaps stay visible.
+        if (m_paused_cursor_column.has_value())
         {
-            const int column = std::clamp(
-                static_cast<int>(std::round(*m_paused_cursor_x)), 0, bounds.getWidth() - 1);
+            const int column = *m_paused_cursor_column;
             const int height = bounds.getHeight();
             const int mask_top =
                 m_paused_cursor_mask_y.has_value()
@@ -264,6 +283,7 @@ TrackViewport::TrackViewport(
         updatePlaybackFollow();
         advanceWindowGlide();
         updateRulerCursor();
+        stepSpanRowRefusal();
     })
 {
     setComponentID("track_viewport");
@@ -272,6 +292,14 @@ TrackViewport::TrackViewport(
     m_viewport.on_visible_area_changed = [this] {
         updateRulerView();
         refreshTimelineGridForViewChange();
+        // The span row's outline reaches over the pinned ruler, which a vertical scroll does not
+        // repaint, while it moves the rails under the chip. The ruler is repainted whole rather
+        // than where the outline now stands: where it stood before the scroll is gone, and the
+        // view repaints its own part.
+        if (m_tab_view.selectedSpanRow().has_value() || m_span_row_refusal.has_value())
+        {
+            repaint(m_timeline_ruler.getBounds());
+        }
     };
 
     m_viewport.setScrollBarsShown(true, true);
@@ -460,7 +488,8 @@ void TrackViewport::setSpans(std::vector<RulerSpan> spans)
     m_timeline_ruler.setSpans(std::move(spans));
 }
 
-// Forwards the selected span to the pinned ruler, which outlines its chip.
+// Forwards the selected span to the pinned ruler, which answers for its chip; the ring around the
+// chip and its rails is this shell's (paintOverChildren), re-traced by the ruler's repaint.
 void TrackViewport::setSelectedSpan(const std::optional<std::size_t> span)
 {
     m_timeline_ruler.setSelectedSpan(span);
@@ -480,12 +509,100 @@ void TrackViewport::setSelectedTempoMapChips(
     m_timeline_ruler.setSelectedTempoMapChips(tempo_anchor, signature_measure);
 }
 
-// Forwards a refusal's ruler chips to the ruler and its tone regions to the tone row, the surfaces
-// that draw them.
+// Rationale lives on the declaration in track_viewport.h. The ruler chips and tone regions reach
+// the views that draw them; the span row's marks are this shell's to glow.
 void TrackViewport::flashRefusal(const core::RefusalFlash& flash)
 {
     m_timeline_ruler.flashRefusal(flash.ruler_chips);
     m_tone_track_view.flashRefusal(flash.tone_regions);
+    // The area is taken on both sides of the replacement: the old marks' glow repaints away and
+    // the new marks' repaints in.
+    const juce::Rectangle<int> before = spanRowGlowArea();
+    if (startRefusalFlash(
+            m_span_row_refusal,
+            SpanRowRefusal{.spans = flash.spans, .none_holds = flash.none_holds}))
+    {
+        repaint(before.getUnion(spanRowGlowArea()));
+    }
+}
+
+// The area is taken while the flash still runs, so the frame that retires it repaints the glow's
+// last extent away.
+void TrackViewport::stepSpanRowRefusal()
+{
+    const juce::Rectangle<int> area = spanRowGlowArea();
+    if (retireFinishedFlash(m_span_row_refusal))
+    {
+        repaint(area);
+    }
+}
+
+juce::Rectangle<int> TrackViewport::visibleViewArea() const noexcept
+{
+    return m_viewport.getBounds().withSize(m_viewport.getViewWidth(), m_viewport.getViewHeight());
+}
+
+// The rails are held to the view's visible area, so a lane scrolled up under the pinned ruler
+// leaves a thinner rail under the chip, or none, and the outline encloses only what shows.
+std::optional<TrackViewport::SpanRowBoxes> TrackViewport::spanRowBoxes(
+    const DrawnSpanRow& row) const
+{
+    const juce::Rectangle<float> view = visibleViewArea().toFloat();
+    const SpanRowBoxes boxes{
+        .chip =
+            row.span.has_value()
+                ? getLocalArea(
+                      &m_timeline_ruler,
+                      m_timeline_ruler.spanChipBox(*row.span).value_or(juce::Rectangle<float>{}))
+                : juce::Rectangle<float>{},
+        .top_rail = getLocalArea(&m_tab_view, row.top_rail).getIntersection(view),
+        .bottom_rail = getLocalArea(&m_tab_view, row.bottom_rail).getIntersection(view),
+        .glow_extent = row.head_size,
+    };
+    if (boxes.chip.isEmpty() && boxes.top_rail.isEmpty() && boxes.bottom_rail.isEmpty())
+    {
+        return std::nullopt;
+    }
+    return boxes;
+}
+
+template <typename Visit> void TrackViewport::forEachRefusedSpanRow(const Visit& visit) const
+{
+    if (!m_span_row_refusal.has_value())
+    {
+        return;
+    }
+    // Bound once, so the optional-access check sees the guard reach both loops below.
+    const SpanRowRefusal& subject = m_span_row_refusal->subject;
+    const auto visit_drawn = [this, &visit](const std::optional<DrawnSpanRow>& row) {
+        if (const std::optional<SpanRowBoxes> boxes =
+                row.and_then([this](const DrawnSpanRow& drawn) { return spanRowBoxes(drawn); });
+            boxes.has_value())
+        {
+            visit(*boxes);
+        }
+    };
+    for (const std::size_t span : subject.spans)
+    {
+        visit_drawn(m_tab_view.drawnSpanRow(span));
+    }
+    for (const std::size_t none_hold : subject.none_holds)
+    {
+        visit_drawn(m_tab_view.drawnNoneHoldRow(none_hold));
+    }
+}
+
+// The glow's coarse reach around each part (overlayReach), which holds the glow itself.
+juce::Rectangle<int> TrackViewport::spanRowGlowArea() const
+{
+    juce::Rectangle<int> area;
+    forEachRefusedSpanRow([&area](const SpanRowBoxes& boxes) {
+        forEachSpanRowPart(
+            boxes, [&area, &boxes](const juce::Rectangle<float> part, const auto& /*outline*/) {
+                area = area.getUnion(overlayReach(part, boxes.glow_extent));
+            });
+    });
+    return area;
 }
 
 // Forwards a landed time-signature edit to the ruler, which draws the measure numbers.
@@ -542,6 +659,53 @@ void TrackViewport::setRestoredZoomPixelsPerSecond(double pixels_per_second)
 void TrackViewport::paint(juce::Graphics& g)
 {
     g.fillAll(editorTheme().timeline_backdrop);
+}
+
+// Rationale lives on the declaration in track_viewport.h. The drawable area is the ruler and the
+// view, never the scrollbars. Each part is tested against this paint's clip from its box alone
+// (overlayReach) before its outline is built, so a cursor-strip repaint that does not cross the
+// span row builds no path.
+void TrackViewport::paintOverChildren(juce::Graphics& g)
+{
+    const std::optional<SpanRowBoxes> selected = m_tab_view.selectedSpanRow().and_then(
+        [this](const DrawnSpanRow& row) { return spanRowBoxes(row); });
+    if (!selected.has_value() && !m_span_row_refusal.has_value())
+    {
+        return;
+    }
+    const juce::Graphics::ScopedSaveState saved{g};
+    juce::RectangleList<int> drawable{m_timeline_ruler.getBounds()};
+    drawable.add(visibleViewArea());
+    g.reduceClipRegion(drawable);
+
+    if (selected.has_value())
+    {
+        const juce::Colour accent = editorTheme().accent;
+        const float glow_extent = selected->glow_extent;
+        forEachSpanRowPart(
+            *selected,
+            [&g, accent, glow_extent](const juce::Rectangle<float> part, const auto& outline) {
+                if (g.clipRegionIntersects(overlayReach(part, glow_extent)))
+                {
+                    strokeMarkRing(g, outline(), accent);
+                }
+            });
+    }
+
+    if (m_span_row_refusal.has_value())
+    {
+        const float level = m_span_row_refusal->pulse.level();
+        forEachRefusedSpanRow([&g, level](const SpanRowBoxes& boxes) {
+            forEachSpanRowPart(
+                boxes, [&g, level, &boxes](const juce::Rectangle<float> part, const auto& outline) {
+                    if (g.clipRegionIntersects(overlayReach(part, boxes.glow_extent)))
+                    {
+                        const MarkOutline mark = outline();
+                        paintRefusalGlow(g, mark.path, boxes.glow_extent, level);
+                    }
+                });
+        });
+    }
 }
 
 // Keeps the viewport responsive while preserving zoom-derived content bounds.
@@ -651,11 +815,15 @@ int TrackViewport::scaledContentWidth() const noexcept
 
 // Maps a timeline time onto the canvas the viewport scrolls: the canvas range paired with the
 // canvas width, which every content-coordinate consumer here — the follow window, the zoom
-// pivot, the focus reveal, the paused column — needs to agree on.
+// pivot, the focus reveal — needs to agree on. The paused column is a point mark, so it takes the
+// cursor's column (cursorColumnForTimelinePosition) over the same pair instead.
 std::optional<float> TrackViewport::contentXForTime(double seconds) const noexcept
 {
-    return cursorXForTimelinePosition(
-        common::core::TimePosition{seconds}, canvasTimeline(), m_content.getWidth());
+    return core::timelineXForPosition(
+        common::core::TimePosition{seconds},
+        canvasTimeline(),
+        m_content.getWidth(),
+        core::TimelinePositionClamping::ClampToVisibleRange);
 }
 
 // Calculates the lowest pixel density needed to fit the whole timeline in view. The gutter is part
@@ -1116,8 +1284,8 @@ void TrackViewport::updateRulerView()
         canvasTimeline(), m_content.getWidth(), m_viewport.getViewPositionX());
     // The tab lane, the tone row and the automation lanes scroll with the content, so they need the
     // viewport left edge to pin their labels there (the ruler is a separate pinned overlay and does
-    // not).
-    m_tab_view.setVisibleContentLeft(m_viewport.getViewPositionX());
+    // not); the tab lane's status line also stops short of the visible run's right edge.
+    m_tab_view.setVisibleContent(m_viewport.getViewPositionX(), m_viewport.getViewWidth());
     m_tone_track_view.setVisibleContentLeft(m_viewport.getViewPositionX());
     m_tone_automation_lanes_view.setVisibleContentLeft(m_viewport.getViewPositionX());
 }
@@ -1250,8 +1418,11 @@ void TrackViewport::updateRulerCursor()
 
     m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
     m_cursor_overlay.setPausedCursorHidden(chart_or_lane_caret);
-    m_content.setPausedCursorX(
-        paused_column_visible ? contentXForTime(mark_seconds) : std::optional<float>{},
+    m_content.setPausedCursorColumn(
+        paused_column_visible
+            ? cursorColumnForTimelinePosition(
+                  common::core::TimePosition{mark_seconds}, canvasTimeline(), m_content.getWidth())
+            : std::nullopt,
         caret_mask_y);
 }
 

@@ -178,8 +178,8 @@ private:
     // Fraction default of 0/1 is a degenerate step.
     common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
 
-    // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
-    std::optional<float> m_cursor_x{};
+    // The column the overlay last drew its cursor in, if a cursor is currently mappable.
+    std::optional<int> m_cursor_column{};
 
     // Transient snap guide reported by an active track-row drag, if one is showing.
     std::optional<TimelineSnapGuide> m_snap_guide{};

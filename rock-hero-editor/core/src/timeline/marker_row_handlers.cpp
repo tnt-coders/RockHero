@@ -403,13 +403,27 @@ void EditorController::Impl::finishMarkerCommit()
     updateView();
 }
 
-// The sentence goes to the log and the light to the screen, so the painter never learns which
-// target was the subject and which stood in its way.
+// The record goes to the log and the light with its sentence to the screen, so the painter never
+// learns which target was the subject and which stood in its way.
 void EditorController::Impl::refuseMarkerVerb(
     const std::string_view label, const std::string_view reason, const RefusalLight& lit)
 {
     m_refusal_log.markerEdit(label, reason);
-    flashRefusalLight(lit);
+    flashRefusalLight(lit, reason);
+}
+
+void EditorController::Impl::refuseAtSongEnd(const MarkerVerb verb)
+{
+    refuseMarkerVerb(
+        markerVerbLabel(verb), "nothing can start at or past the end of the song", RefusalLight{});
+}
+
+void EditorController::Impl::showMarkerPrompt(const MarkerPrompt& prompt)
+{
+    if (m_view != nullptr)
+    {
+        m_view->showMarkerPrompt(prompt);
+    }
 }
 
 void EditorController::Impl::onTempoAnchorSelected(const common::core::GridPosition position)
@@ -533,63 +547,67 @@ std::optional<RetoneRegionTarget> EditorController::Impl::selectedRegionTarget()
     };
 }
 
-// Enter's verb, dispatched on the selection's kind here so the view opens what it names and
+// Enter, decided at the press on the selection's kind, so the view opens what it is handed and
 // decides nothing: a section restates on its name, a tempo anchor on the tempo of the span it
 // opens, a tone region on its tone (the signal chain has no keyboard model to drill into), the "+"
 // row opens the parameter picker, a bend chip the caret stands on restates its bend through the
 // picker `B` opens, and every other kind has no restate — a fret-hand position included, since its
-// fret has no entry to re-open.
-RestateTarget EditorController::Impl::restateTarget() const
+// fret has no entry to re-open — so the press does nothing.
+void EditorController::Impl::performActionImpl(EditorAction::RestateSelection /*action*/)
 {
     if (chartCaretFace() == ChartCaretFace::BendChip)
     {
-        return OpenBendPickerTarget{};
+        runAction(EditorAction::ChooseChartBend{.plane = ChartEntryPlane::Note});
+        return;
     }
     if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();
         section.has_value())
     {
-        return *section;
+        showMarkerPrompt(*section);
     }
-    if (const std::optional<SetTempoTarget> tempo = selectedTempoTarget(); tempo.has_value())
+    else if (const std::optional<SetTempoTarget> tempo = selectedTempoTarget(); tempo.has_value())
     {
-        return *tempo;
+        showMarkerPrompt(*tempo);
     }
-    if (const std::optional<SetTimeSignatureTarget> meter = selectedTimeSignatureTarget();
-        meter.has_value())
+    else if (
+        const std::optional<SetTimeSignatureTarget> meter = selectedTimeSignatureTarget();
+        meter.has_value()
+    )
     {
-        return *meter;
+        showMarkerPrompt(*meter);
     }
-    if (const std::optional<RetoneRegionTarget> region = selectedRegionTarget(); region.has_value())
+    else if (
+        const std::optional<RetoneRegionTarget> region = selectedRegionTarget(); region.has_value()
+    )
     {
-        return *region;
+        showMarkerPrompt(*region);
     }
-    if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
+    else if (std::holds_alternative<AddAutomationLaneRowSelection>(m_selection))
     {
-        return OpenAutomationPickerTarget{};
+        showMarkerPrompt(OpenAutomationPickerTarget{});
     }
-    return {};
 }
 
-// Ctrl+R's verb: rename the selection where its kind has a name — a section's own, a tone region's
-// TONE, shared by every region on it — and nothing elsewhere, the synthesized default tone
-// included, which has no document to name. Read from the selection directly rather than from
-// Enter's verb, so the day Enter's meaning on a region changes this one does not move with it.
-RenameTarget EditorController::Impl::renameTarget() const
+// Ctrl+R, decided at the press: rename the selection where its kind has a name — a section's own,
+// a tone region's TONE, shared by every region on it — and do nothing elsewhere, the synthesized
+// default tone included, which has no document to name. Read from the selection directly rather
+// than from Enter's verb, so the day Enter's meaning on a region changes this one does not move
+// with it.
+void EditorController::Impl::performActionImpl(EditorAction::RenameSelection /*action*/)
 {
     if (const std::optional<RenameSectionTarget> section = selectedSectionTarget();
         section.has_value())
     {
-        return *section;
+        showMarkerPrompt(*section);
     }
-    if (const std::optional<RetoneRegionTarget> region = selectedRegionTarget();
-        region.has_value() && !region->tone_document_ref.empty())
+    else if (
+        const std::optional<RetoneRegionTarget> region = selectedRegionTarget(); region.has_value()
+    )
     {
-        return RenameToneTarget{
-            .tone_document_ref = region->tone_document_ref,
-            .name = toneNameForRef(region->tone_document_ref),
-        };
+        // The tone row's own rename, so the two cannot open on different names.
+        performActionImpl(
+            EditorAction::ToneRenamePrompt{.tone_document_ref = region->tone_document_ref});
     }
-    return {};
 }
 
 } // namespace rock_hero::editor::core

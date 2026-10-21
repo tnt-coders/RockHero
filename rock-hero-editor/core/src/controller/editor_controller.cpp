@@ -51,6 +51,7 @@
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
@@ -351,6 +352,50 @@ namespace
         {
             return "AuthorFretHandPositionAtCursor";
         }
+        case EditorAction::Id::SongSectionChord:
+        {
+            return "SongSectionChord";
+        }
+        case EditorAction::Id::SongSectionAt:
+        {
+            return "SongSectionAt";
+        }
+        case EditorAction::Id::TempoChord:
+        {
+            return "TempoChord";
+        }
+        case EditorAction::Id::TimeSignatureChord:
+        {
+            return "TimeSignatureChord";
+        }
+        case EditorAction::Id::TimeSignatureAt:
+        {
+            return "TimeSignatureAt";
+        }
+        case EditorAction::Id::ToneChord:
+        {
+            return "ToneChord";
+        }
+        case EditorAction::Id::ToneChangeAt:
+        {
+            return "ToneChangeAt";
+        }
+        case EditorAction::Id::ToneRenamePrompt:
+        {
+            return "ToneRenamePrompt";
+        }
+        case EditorAction::Id::ScaleTempoPrompt:
+        {
+            return "ScaleTempoPrompt";
+        }
+        case EditorAction::Id::RestateSelection:
+        {
+            return "RestateSelection";
+        }
+        case EditorAction::Id::RenameSelection:
+        {
+            return "RenameSelection";
+        }
         case EditorAction::Id::ClearFretHandEnd:
         {
             return "ClearFretHandEnd";
@@ -411,6 +456,76 @@ namespace
 void logEditorActionRequested(EditorAction::Id action)
 {
     RH_LOG_INFO("editor.controller", "Action requested action={:?}", actionIdText(action));
+}
+
+// The lock an operand-governed action (ActionLock::Operand) answers to: the grid's own markers to
+// the Tempo Lock, content to the Note Lock. A selection holding nothing to act on — none at all, an
+// empty chart selection, a time span or the "+" row, which the editor-wide move and delete do
+// nothing with — answers to no lock, so a stray key stays inert, as with no lock on. One case per
+// kind, so a new selection kind cannot compile without saying which lock governs it.
+[[nodiscard]] std::optional<LockControl> operandLock(const EditorSelection& selection)
+{
+    return std::visit(
+        common::core::Overloaded{
+            [](const std::monostate&) -> std::optional<LockControl> { return std::nullopt; },
+            [](const ChartSelection& chart) -> std::optional<LockControl> {
+                return chart.empty() ? std::nullopt : std::optional{LockControl::Note};
+            },
+            [](const TimeSelection&) -> std::optional<LockControl> { return std::nullopt; },
+            [](const AddAutomationLaneRowSelection&) -> std::optional<LockControl> {
+                return std::nullopt;
+            },
+            [](const TempoAnchorSelection&) -> std::optional<LockControl> {
+                return LockControl::Tempo;
+            },
+            [](const TimeSignatureSelection&) -> std::optional<LockControl> {
+                return LockControl::Tempo;
+            },
+            [](const ToneRegionSelection&) -> std::optional<LockControl> {
+                return LockControl::Note;
+            },
+            [](const SongSectionSelection&) -> std::optional<LockControl> {
+                return LockControl::Note;
+            },
+            [](const SpanSelection&) -> std::optional<LockControl> { return LockControl::Note; },
+            [](const NoneHoldSelection&) -> std::optional<LockControl> {
+                return LockControl::Note;
+            },
+            [](const FretHandPositionSelection&) -> std::optional<LockControl> {
+                return LockControl::Note;
+            },
+            [](const AutomationPointSelection&) -> std::optional<LockControl> {
+                return LockControl::Note;
+            },
+        },
+        selection);
+}
+
+// The toolbar lock an action answers to, its table entry resolved (operandLock for the editor-wide
+// move and delete).
+[[nodiscard]] std::optional<LockControl> lockGoverning(
+    const ActionLock governing, const EditorSelection& selection)
+{
+    switch (governing)
+    {
+        case ActionLock::None:
+        {
+            return std::nullopt;
+        }
+        case ActionLock::Note:
+        {
+            return LockControl::Note;
+        }
+        case ActionLock::Tempo:
+        {
+            return LockControl::Tempo;
+        }
+        case ActionLock::Operand:
+        {
+            return operandLock(selection);
+        }
+    }
+    return std::nullopt;
 }
 
 void logEditorActionAvailabilityRejected(EditorAction::Id action, std::string_view reason)
@@ -1042,6 +1157,62 @@ void EditorController::onFretHandPositionSelected(const std::size_t index)
 void EditorController::onFretHandPositionChordRequested()
 {
     m_impl->runAction(EditorAction::AuthorFretHandPositionAtCursor{});
+}
+
+void EditorController::onSongSectionChordRequested()
+{
+    m_impl->runAction(EditorAction::SongSectionChord{});
+}
+
+void EditorController::onTempoChordRequested()
+{
+    m_impl->runAction(EditorAction::TempoChord{});
+}
+
+void EditorController::onTimeSignatureChordRequested()
+{
+    m_impl->runAction(EditorAction::TimeSignatureChord{});
+}
+
+void EditorController::onToneChordRequested()
+{
+    m_impl->runAction(EditorAction::ToneChord{});
+}
+
+void EditorController::onSongSectionAtRequested(const common::core::GridPosition position)
+{
+    m_impl->runAction(EditorAction::SongSectionAt{.position = position});
+}
+
+void EditorController::onTimeSignatureAtRequested(const common::core::GridPosition position)
+{
+    m_impl->runAction(EditorAction::TimeSignatureAt{.position = position});
+}
+
+void EditorController::onToneChangeAtRequested(const common::core::GridPosition position)
+{
+    m_impl->runAction(EditorAction::ToneChangeAt{.position = position});
+}
+
+void EditorController::onToneRenamePromptRequested(std::string tone_document_ref)
+{
+    m_impl->runAction(
+        EditorAction::ToneRenamePrompt{.tone_document_ref = std::move(tone_document_ref)});
+}
+
+void EditorController::onScaleTempoPromptRequested()
+{
+    m_impl->runAction(EditorAction::ScaleTempoPrompt{});
+}
+
+void EditorController::onSelectionRestateRequested()
+{
+    m_impl->runAction(EditorAction::RestateSelection{});
+}
+
+void EditorController::onSelectionRenameRequested()
+{
+    m_impl->runAction(EditorAction::RenameSelection{});
 }
 
 void EditorController::onFretHandPositionEndClearRequested()
@@ -1847,7 +2018,7 @@ void EditorController::Impl::runAction(EditorAction::Action action)
         }
     }
 
-    if (!prepareAction(action_id))
+    if (!prepareAction(action_id) || refuseLockedAction(action_id))
     {
         return;
     }
@@ -1876,6 +2047,60 @@ bool EditorController::Impl::prepareAction(EditorAction::Id action)
         m_busy.supersede();
     }
 
+    return true;
+}
+
+// One case per lock, so a lock the toolbar gains cannot compile without its sentence.
+std::optional<PlanRefused> EditorController::Impl::lockRefusal(const LockControl lock) const
+{
+    switch (lock)
+    {
+        case LockControl::Tempo:
+        {
+            if (!m_grid_session.tempo_lock)
+            {
+                return std::nullopt;
+            }
+            return PlanRefused{
+                .reason = "Tempo Lock is on: the tempo map and time signatures are frozen",
+                .lit = RefusalLight{.targets = {LockControl::Tempo}},
+            };
+        }
+        case LockControl::Note:
+        {
+            if (!m_grid_session.note_lock.has_value())
+            {
+                return std::nullopt;
+            }
+            return PlanRefused{
+                .reason = "Note Lock is on: the song's content is frozen while it holds the notes "
+                          "in time",
+                .lit = RefusalLight{.targets = {LockControl::Note}},
+            };
+        }
+    }
+    return std::nullopt;
+}
+
+// Rationale lives on the declaration in editor_controller_impl.h. The subject is the selection as
+// it stands: no verb has run to say what it would change, and the selection is what the press
+// addressed.
+bool EditorController::Impl::refuseLockedAction(const EditorAction::Id action)
+{
+    const std::optional<LockControl> lock = lockGoverning(governingLock(action), m_selection);
+    if (!lock.has_value())
+    {
+        return false;
+    }
+    const std::optional<PlanRefused> refused = lockRefusal(*lock);
+    if (!refused.has_value())
+    {
+        return false;
+    }
+    m_refusal_log.lockedAction(actionIdText(action), refused->reason);
+    RefusalLight lit = selectionLight(m_selection);
+    lit.add(refused->lit);
+    flashRefusalLight(lit, refused->reason);
     return true;
 }
 
@@ -2623,7 +2848,6 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_chart_selection = !chartSelection().empty(),
         .has_span_row_selection = selectsSpanRow(m_selection),
         .has_armed_caret = armedChartCaret() != nullptr,
-        .note_locked = m_grid_session.note_lock.has_value(),
     };
 }
 
@@ -2844,14 +3068,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         }
     }
     state.focus_count = m_focus_count;
-    // Where a marker verb would land, from the one authority that decides it, so no surface needs
-    // a marker rule of its own.
-    state.section_chord_target = sectionChordTarget();
-    state.tempo_chord_target = tempoChordTarget();
-    state.time_signature_chord_target = timeSignatureChordTarget();
-    state.tone_chord_target = toneChordTarget();
-    state.restate_target = restateTarget();
-    state.rename_target = renameTarget();
     state.grid_note_value = m_grid_session.note_value;
     state.grid_snap = m_grid_session.snap;
     state.grid_snap_warning_prompt = m_grid_session.snap_warning_prompt;
@@ -3065,28 +3281,21 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 m_chart_gesture->geometry.bounds_height > 0.0f)
             {
                 const ChartPointerGesture& gesture = *m_chart_gesture;
-                const double seconds_per_pixel =
-                    gesture.geometry.visible_timeline.duration().seconds /
-                    static_cast<double>(gesture.geometry.bounds_width);
-                const auto start_offset =
-                    static_cast<double>(std::min(gesture.anchor_x, gesture.current_x));
-                const auto end_offset =
-                    static_cast<double>(std::max(gesture.anchor_x, gesture.current_x));
+                const common::ui::TabLaneGeometry& geometry = gesture.geometry;
+                // Stated in the lane's published time, which the view maps back through the
+                // lane's own x, so the box lands under the pointer whatever the lane re-times.
+                const auto seconds_at = [&geometry](const float x) {
+                    return geometry.publishedSeconds(geometry.drawnSecondsAt(x));
+                };
                 const float top = std::min(gesture.anchor_y, gesture.current_y);
                 const float bottom = std::max(gesture.anchor_y, gesture.current_y);
                 state.chart_edit.marquee = ChartMarqueeViewState{
-                    .start_seconds = gesture.geometry.visible_timeline.start.seconds +
-                                     start_offset * seconds_per_pixel,
-                    .end_seconds = gesture.geometry.visible_timeline.start.seconds +
-                                   end_offset * seconds_per_pixel,
-                    .top_fraction = std::clamp(
-                        (top - gesture.geometry.bounds_y) / gesture.geometry.bounds_height,
-                        0.0f,
-                        1.0f),
+                    .start_seconds = seconds_at(std::min(gesture.anchor_x, gesture.current_x)),
+                    .end_seconds = seconds_at(std::max(gesture.anchor_x, gesture.current_x)),
+                    .top_fraction =
+                        std::clamp((top - geometry.bounds_y) / geometry.bounds_height, 0.0f, 1.0f),
                     .bottom_fraction = std::clamp(
-                        (bottom - gesture.geometry.bounds_y) / gesture.geometry.bounds_height,
-                        0.0f,
-                        1.0f),
+                        (bottom - geometry.bounds_y) / geometry.bounds_height, 0.0f, 1.0f),
                 };
             }
             // The pending fret entry: a retype's box rides every affected object — the heads and

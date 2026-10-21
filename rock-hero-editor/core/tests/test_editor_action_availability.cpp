@@ -1,6 +1,7 @@
 #include "controller/editor_action_availability.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <initializer_list>
 #include <optional>
 
 namespace rock_hero::editor::core
@@ -52,30 +53,70 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
     CHECK_FALSE(isActionAvailable(ActionId::CancelBusyOperation, non_cancellable_busy));
 }
 
-// The Note Lock holds the song's automation with the rest of its content, so removing a plugin,
-// which takes the plugin's automation out of the song, waits for the lock; the other chain verbs
-// change no content and stay open.
-TEST_CASE("The Note Lock closes only the plugin removal", "[core][editor-action]")
+// The Note Lock holds the song's automation with the rest of its content, so removing a plugin
+// and importing over a tone, which take automation out of the song, answer to it; the other chain
+// verbs change no content and answer to no lock.
+TEST_CASE(
+    "The Note Lock governs only the chain verbs that drop automation", "[core][editor-action]")
 {
-    ActionConditions conditions{
-        .has_project = true,
-        .has_loaded_arrangement = true,
-        .has_plugin_candidates = true,
-        .has_plugin_insert_capacity = true,
-        .has_loaded_plugins = true,
-        .note_locked = true,
-    };
+    CHECK(governingLock(ActionId::RemovePlugin) == ActionLock::Note);
+    CHECK(governingLock(ActionId::ImportToneFile) == ActionLock::Note);
+    CHECK(governingLock(ActionId::MovePlugin) == ActionLock::None);
+    CHECK(governingLock(ActionId::InsertSelectedPlugin) == ActionLock::None);
+    CHECK(governingLock(ActionId::OpenPlugin) == ActionLock::None);
+    CHECK(governingLock(ActionId::ToggleNoteLock) == ActionLock::None);
+}
 
-    CHECK(
-        whyUnavailable(ActionId::RemovePlugin, conditions) == ActionUnavailableReason::NoteLocked);
-    CHECK(actionUnavailableReasonTag(ActionUnavailableReason::NoteLocked) == "note-locked");
-    CHECK(isActionAvailable(ActionId::MovePlugin, conditions));
-    CHECK(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
-    CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
-    CHECK(isActionAvailable(ActionId::ToggleNoteLock, conditions));
+// The marker verbs decided at the press are actions like the position chord: paused-only with the
+// whole marker plane, closed while busy, and each answering to the lock of the verb it asks for —
+// Enter and Ctrl+R to the selection's.
+TEST_CASE("The marker verbs decided at the press gate and lock as actions", "[core][editor-action]")
+{
+    ActionConditions paused;
+    paused.has_project = true;
+    paused.has_loaded_arrangement = true;
+    ActionConditions playing = paused;
+    playing.transport_playing = true;
+    ActionConditions busy = paused;
+    busy.busy = true;
 
-    conditions.note_locked = false;
-    CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
+    for (const ActionId action :
+         {ActionId::SongSectionChord,
+          ActionId::SongSectionAt,
+          ActionId::TempoChord,
+          ActionId::TimeSignatureChord,
+          ActionId::TimeSignatureAt,
+          ActionId::ToneChord,
+          ActionId::ToneChangeAt,
+          ActionId::ToneRenamePrompt,
+          ActionId::ScaleTempoPrompt,
+          ActionId::RestateSelection,
+          ActionId::RenameSelection})
+    {
+        CHECK(isActionAvailable(action, paused));
+        CHECK(whyUnavailable(action, playing) == ActionUnavailableReason::TransportPlaying);
+        CHECK_FALSE(isActionAvailable(action, busy));
+    }
+
+    for (const ActionId action :
+         {ActionId::SongSectionChord,
+          ActionId::SongSectionAt,
+          ActionId::ToneChord,
+          ActionId::ToneChangeAt,
+          ActionId::ToneRenamePrompt})
+    {
+        CHECK(governingLock(action) == ActionLock::Note);
+    }
+    for (const ActionId action :
+         {ActionId::TempoChord,
+          ActionId::TimeSignatureChord,
+          ActionId::TimeSignatureAt,
+          ActionId::ScaleTempoPrompt})
+    {
+        CHECK(governingLock(action) == ActionLock::Tempo);
+    }
+    CHECK(governingLock(ActionId::RestateSelection) == ActionLock::Operand);
+    CHECK(governingLock(ActionId::RenameSelection) == ActionLock::Operand);
 }
 
 // Verifies that project write and close actions are disabled without a loaded project.

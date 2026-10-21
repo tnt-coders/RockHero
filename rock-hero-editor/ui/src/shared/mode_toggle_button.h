@@ -26,6 +26,12 @@ class ModeToggleButton final : public juce::DrawableButton
 {
 public:
     /*!
+    \brief The on-state ring's corner radius, in pixels: the outline a refusal glow around the
+    button follows, as a chip's glow follows its chip.
+    */
+    static constexpr float g_ring_corner_radius{3.0f};
+
+    /*!
     \brief Creates the button over its mode's icon pair.
     \param name Component name.
     \param on_icon The filled glyph shown while the mode is on.

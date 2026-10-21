@@ -1,6 +1,7 @@
 #include "keybinds/editor_command_registry.h"
 
 #include <algorithm>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <functional>
 #include <iterator>
@@ -29,29 +30,25 @@ using testing::getStopButton;
     return mappings->keyPressed(key, &view);
 }
 
-// The anchor the tempo prompt tests publish a SetTempoTarget for.
+// The anchor the tempo prompt tests ask a SetTempoTarget prompt for.
 constexpr common::core::GridPosition g_tempo_anchor{.measure = 3, .beat = 1};
 
-// What a prompt test expects the prompt to show: its title and the published starting text.
+// What a prompt test expects the prompt to show: its title and the starting text it was handed.
 struct ShownPrompt
 {
     const char* title;
     const char* text;
 };
 
-// The tempo prompt the tempo tests publish a span tempo of 137 for.
+// The tempo prompt the tempo tests hand a span tempo of 137 to.
 constexpr ShownPrompt g_tempo_prompt{.title = "Set Tempo", .text = "137"};
 
-// Performs a command that should open a text prompt, checks the prompt shows the expected title and
-// starting text, types into it and accepts. The prompt's result arrives asynchronously, so one real
-// dispatch loop delivers it, stopped by a message posted after the result's: one call per test,
-// because JUCE's quit flag latches per MessageManager.
-void acceptPrompt(
-    EditorView& view, const EditorCommandId command, const ShownPrompt& shown,
-    const juce::String& typed)
+// Checks the open text prompt shows the expected title and starting text, types into it and
+// accepts. The prompt's result arrives asynchronously, so one real dispatch loop delivers it,
+// stopped by a message posted after the result's: one call per test, because JUCE's quit flag
+// latches per MessageManager.
+void answerPrompt(const ShownPrompt& shown, const juce::String& typed)
 {
-    const juce::ApplicationCommandTarget::InvocationInfo info{toJuceCommandId(command)};
-    CHECK(view.perform(info));
     auto* const prompt = dynamic_cast<juce::AlertWindow*>(
         juce::ModalComponentManager::getInstance()->getModalComponent(0));
     REQUIRE(prompt != nullptr);
@@ -69,16 +66,15 @@ void acceptPrompt(
 
 } // namespace
 
-// The marker verbs read the core's published VERB and nothing else — not the drawn selection, not
-// a project gate of their own. A chord never SELECTS the marker at the cursor and the restate does
-// not read the selection's flags, so a chord over an outlined chip authors nothing, and with every
-// verb published as nothing all four presses are inert: no select, no author, no prompt raised.
-// Inert rather than declined, which is what keeps JUCE from sounding the system alert for a chord
-// its own mapping set matched.
+// The marker verbs — the chords, Enter and Ctrl+R — forward to the core, which decides at the press
+// and asks back for the prompt it lands on; the view reads neither the drawn selection nor a
+// project gate of its own. So a chord over an outlined chip selects and authors nothing in the
+// view, and Enter does not rename the chip drawn selected. Never declined, which is what keeps JUCE
+// from sounding the system alert for a chord its own mapping set matched.
 //
 // The branches that DO act open modal prompts or popup menus, which a headless view test cannot
 // dismiss; what each verb names is pinned in the core's own suites instead.
-TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor-view]")
+TEST_CASE("EditorView forwards every marker verb", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -141,12 +137,18 @@ TEST_CASE("EditorView marker verbs read only the published target", "[ui][editor
     CHECK(controller.last_renamed_tone_document_ref.empty());
     CHECK_FALSE(controller.last_inserted_tempo_anchor_position.has_value());
     CHECK_FALSE(controller.last_time_signature_set_position.has_value());
+    CHECK(controller.section_chord_count == 1);
+    CHECK(controller.tempo_chord_count == 1);
+    CHECK(controller.time_signature_chord_count == 1);
+    CHECK(controller.tone_chord_count == 1);
+    CHECK(controller.selection_restate_count == 1);
+    CHECK(controller.selection_rename_count == 1);
     CHECK(juce::TopLevelWindow::getNumTopLevelWindows() == windows_before);
 }
 
-// The tempo chord's insert has nothing to prompt for: with an insert published, Ctrl+B forwards the
-// published beat. Ctrl+Shift+B, the same letter's select half, still jumps to the tempo row.
-TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor-view]")
+// Ctrl+B forwards the tempo chord, which the core decides at the press. Ctrl+Shift+B, the same
+// letter's select half, still jumps to the tempo row.
+TEST_CASE("EditorView forwards the tempo chord", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -159,15 +161,13 @@ TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor
         fixtureHighwayThemeRegistry()
     };
 
-    constexpr common::core::GridPosition beat{.measure = 2, .beat = 3};
     core::EditorViewState state{};
     state.project_loaded = true;
-    state.tempo_chord_target = core::InsertTempoAnchorTarget{.position = beat};
     view.setState(state);
 
     const juce::KeyPress ctrl_b{'b', juce::ModifierKeys{juce::ModifierKeys::commandModifier}, 0};
     CHECK(pressCommandKey(view, ctrl_b));
-    CHECK(controller.last_inserted_tempo_anchor_position == std::optional{beat});
+    CHECK(controller.tempo_chord_count == 1);
 
     const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
     REQUIRE(mappings != nullptr);
@@ -181,9 +181,9 @@ TEST_CASE("EditorView forwards the tempo chord's published insert", "[ui][editor
         toJuceCommandId(EditorCommandId::CaretJumpTempoRow));
 }
 
-// The tempo chord over an anchor opens the tempo prompt, prefilled with the span tempo the core
-// published; accepting it hands the raw text back for the core to parse.
-TEST_CASE("EditorView opens the tempo prompt the tempo chord publishes", "[ui][editor-view]")
+// The tempo chord over an anchor asks for the tempo prompt, prefilled with the span tempo the core
+// handed over; accepting it hands the raw text back for the core to parse.
+TEST_CASE("EditorView opens the tempo prompt a chord asks for", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -198,44 +198,19 @@ TEST_CASE("EditorView opens the tempo prompt the tempo chord publishes", "[ui][e
 
     core::EditorViewState state{};
     state.project_loaded = true;
-    state.tempo_chord_target = core::SetTempoTarget{.position = g_tempo_anchor, .bpm_text = "137"};
     view.setState(state);
 
-    acceptPrompt(view, EditorCommandId::InsertTempoAnchor, g_tempo_prompt, "140");
+    view.showMarkerPrompt(core::SetTempoTarget{.position = g_tempo_anchor, .bpm_text = "137"});
+    answerPrompt(g_tempo_prompt, "140");
     CHECK(controller.last_tempo_span_bpm_position == std::optional{g_tempo_anchor});
     CHECK(controller.last_tempo_span_bpm_text == "140");
     CHECK_FALSE(controller.last_inserted_tempo_anchor_position.has_value());
 }
 
-// Enter on a selected tempo chip opens the same prompt through the published restate verb.
-TEST_CASE("EditorView opens the tempo prompt Enter's restate publishes", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{
-        controller,
-        viewAudioPorts(transport, thumbnail_factory),
-        juce::File{},
-        fixtureHighwayThemeRegistry()
-    };
-
-    core::EditorViewState state{};
-    state.project_loaded = true;
-    state.restate_target = core::SetTempoTarget{.position = g_tempo_anchor, .bpm_text = "137"};
-    view.setState(state);
-
-    acceptPrompt(view, EditorCommandId::RestateSelection, g_tempo_prompt, "136.5");
-    CHECK(controller.last_tempo_span_bpm_position == std::optional{g_tempo_anchor});
-    CHECK(controller.last_tempo_span_bpm_text == "136.5");
-}
-
-// The meter chord's insert opens the meter prompt titled as its undo entry, prefilled with the
-// meter governing the measure the core published; accepting it hands the raw text back for that
-// measure, for the core to parse.
-TEST_CASE(
-    "EditorView opens the meter prompt the meter chord's insert publishes", "[ui][editor-view]")
+// The meter chord's insert asks for the meter prompt titled as its undo entry, prefilled with the
+// meter governing the beat the core handed over; accepting it hands the raw text back for that
+// beat, for the core to parse.
+TEST_CASE("EditorView opens the meter prompt a chord's insert asks for", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -251,23 +226,17 @@ TEST_CASE(
     core::EditorViewState state{};
     state.project_loaded = true;
     constexpr common::core::GridPosition beat{.measure = 5, .beat = 3};
-    state.time_signature_chord_target =
-        core::InsertTimeSignatureTarget{.position = beat, .meter_text = "4/4"};
     view.setState(state);
 
-    acceptPrompt(
-        view,
-        EditorCommandId::InsertTimeSignature,
-        ShownPrompt{.title = "Add Time Signature", .text = "4/4"},
-        "7/8");
+    view.showMarkerPrompt(core::InsertTimeSignatureTarget{.position = beat, .meter_text = "4/4"});
+    answerPrompt(ShownPrompt{.title = "Add Time Signature", .text = "4/4"}, "7/8");
     CHECK(controller.last_time_signature_set_position == std::optional{beat});
     CHECK(controller.last_time_signature_set_text == "7/8");
 }
 
 // Over a measure whose downbeat carries a time signature, the meter chord restates it: the same
 // prompt, titled as the restate's undo entry and prefilled with the meter standing there.
-TEST_CASE(
-    "EditorView opens the meter prompt the meter chord's restate publishes", "[ui][editor-view]")
+TEST_CASE("EditorView opens the meter prompt a chord's restate asks for", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -283,55 +252,19 @@ TEST_CASE(
     core::EditorViewState state{};
     state.project_loaded = true;
     constexpr common::core::GridPosition start{.measure = 3, .beat = 1};
-    state.time_signature_chord_target =
-        core::SetTimeSignatureTarget{.position = start, .meter_text = "3/4"};
     view.setState(state);
 
-    acceptPrompt(
-        view,
-        EditorCommandId::InsertTimeSignature,
-        ShownPrompt{.title = "Set Time Signature", .text = "3/4"},
-        "6/8");
+    view.showMarkerPrompt(core::SetTimeSignatureTarget{.position = start, .meter_text = "3/4"});
+    answerPrompt(ShownPrompt{.title = "Set Time Signature", .text = "3/4"}, "6/8");
     CHECK(controller.last_time_signature_set_position == std::optional{start});
     CHECK(controller.last_time_signature_set_text == "6/8");
 }
 
-// Enter on a selected time-signature chip opens the restate prompt through the published restate
-// verb; a chip double-click asks for that same verb (the ruler's own suite pins that half).
-TEST_CASE("EditorView opens the meter prompt Enter's restate publishes", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{
-        controller,
-        viewAudioPorts(transport, thumbnail_factory),
-        juce::File{},
-        fixtureHighwayThemeRegistry()
-    };
-
-    core::EditorViewState state{};
-    state.project_loaded = true;
-    constexpr common::core::GridPosition start{.measure = 7, .beat = 1};
-    state.restate_target = core::SetTimeSignatureTarget{.position = start, .meter_text = "5/4"};
-    view.setState(state);
-
-    acceptPrompt(
-        view,
-        EditorCommandId::RestateSelection,
-        ShownPrompt{.title = "Set Time Signature", .text = "5/4"},
-        " 7 / 8 ");
-    CHECK(controller.last_time_signature_set_position == std::optional{start});
-    CHECK(controller.last_time_signature_set_text == " 7 / 8 ");
-}
-
 // Scale Tempo is an Edit-menu verb, greyed while the marker plane is closed (no song, or the
-// transport playing), when performing it opens nothing. Open, it raises the factor prompt, empty so
-// an accidental Enter scales nothing, and hands the typed text back raw for the core to parse. The
-// tempo row's "Scale Tempo..." row runs this same command (the ruler suite pins the row). The
-// prompt is titled as the entry it will record: with the Note Lock off, the stretch.
-TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
+// transport playing), when performing it asks nothing. Open, it asks the core, which answers with
+// the Tempo Lock first and only then asks back for the prompt, so the view opens nothing of its
+// own. The tempo row's "Scale Tempo..." row runs this same command (the ruler suite pins the row).
+TEST_CASE("EditorView Scale Tempo asks the core for its prompt", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -352,25 +285,21 @@ TEST_CASE("EditorView Scale Tempo opens the factor prompt", "[ui][editor-view]")
     CHECK_FALSE(closed_item.isEnabled);
     const juce::ApplicationCommandTarget::InvocationInfo info{scale_command};
     CHECK(view.perform(info));
-    CHECK(juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0);
+    CHECK(controller.scale_tempo_prompt_count == 0);
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
     state.marker_edits_enabled = true;
     view.setState(state);
     CHECK(requiredMenuItem(view.getMenuForIndex(1, "Edit"), scale_command).isEnabled);
-
-    REQUIRE_FALSE(state.note_lock);
-    acceptPrompt(
-        view,
-        EditorCommandId::ScaleTempo,
-        ShownPrompt{.title = "Scale Tempo (notes follow the beat)", .text = ""},
-        "3/2");
-    CHECK(controller.last_scale_tempo_text == std::optional<std::string>{"3/2"});
+    CHECK(view.perform(info));
+    CHECK(controller.scale_tempo_prompt_count == 1);
+    CHECK(juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0);
 }
 
-// With the Note Lock on the same command opens the same prompt titled as the relabel, so the
-// charter reads which form the factor will take before typing it.
-TEST_CASE("EditorView titles the Scale Tempo prompt by the Note Lock", "[ui][editor-view]")
+// The prompt the core asks back for opens empty, so an accidental Enter scales nothing, titled as
+// the core named it — the entry it will record — and hands the typed text back raw for the core to
+// parse.
+TEST_CASE("EditorView opens the Scale Tempo prompt the core names", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -382,17 +311,12 @@ TEST_CASE("EditorView titles the Scale Tempo prompt by the Note Lock", "[ui][edi
         juce::File{},
         fixtureHighwayThemeRegistry()
     };
-
     core::EditorViewState state = makeLoadedEditorState(20.0);
     state.marker_edits_enabled = true;
-    state.note_lock = true;
     view.setState(state);
 
-    acceptPrompt(
-        view,
-        EditorCommandId::ScaleTempo,
-        ShownPrompt{.title = "Scale Tempo (notes keep their time)", .text = ""},
-        "2");
+    view.showMarkerPrompt(core::ScaleTempoTarget{.label = "Scale Tempo (notes keep their time)"});
+    answerPrompt(ShownPrompt{.title = "Scale Tempo (notes keep their time)", .text = ""}, "2");
     CHECK(controller.last_scale_tempo_text == std::optional<std::string>{"2"});
 }
 
@@ -1235,11 +1159,10 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     CHECK(audio_button.getText() == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
 }
 
-// Verifies the transport-strip selection-count chip prints "999 notes" between the readout and the
-// meter; appears from two selected chart notes up, reporting the selection size; and hides below
-// that threshold: typing acts on the whole selection, so its size must stay visible even when the
-// highlighted notes scroll off-screen.
-TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
+// The transport strip carries no selection count — the tab lane's status line says it — so the
+// master meter takes the strip's right edge past the centred playback block at its full preferred
+// width, 384 px, on a 1280 px window.
+TEST_CASE("EditorView gives the master meter the strip's right edge", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1252,46 +1175,12 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
         fixtureHighwayThemeRegistry()
     };
     view.setBounds(0, 0, 1280, 800);
-    const auto& selection_count_chip =
-        findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
     const auto& position_display =
         findRequiredDescendant<juce::Label>(view, "transport_position_display");
     const auto& master_meter = findRequiredDescendant<juce::Component>(view, "master_output_meter");
-    CHECK(selection_count_chip.getX() > position_display.getRight());
     CHECK(master_meter.isVisible());
-    CHECK(selection_count_chip.getRight() <= master_meter.getX());
-    CHECK(
-        juce::GlyphArrangement::getStringWidth(selection_count_chip.getFont(), "999 notes") <=
-        static_cast<float>(
-            selection_count_chip.getWidth() -
-            selection_count_chip.getBorderSize().getLeftAndRight()));
-
-    // The default state carries no chart selection, so the chip stays hidden.
-    view.setState(core::EditorViewState{});
-    CHECK_FALSE(selection_count_chip.isVisible());
-
-    // A single selected note is still below the two-note threshold.
-    core::EditorViewState state = makeLoadedEditorState(20.0);
-    state.chart_edit.selected_notes = {0};
-    view.setState(state);
-    CHECK_FALSE(selection_count_chip.isVisible());
-
-    // Two selected notes reveal the chip with the "N notes" count.
-    state.chart_edit.selected_notes = {0, 1};
-    view.setState(state);
-    CHECK(selection_count_chip.isVisible());
-    CHECK(selection_count_chip.getText() == "2 notes");
-
-    // The count is derived from the selection size, not a fixed label.
-    state.chart_edit.selected_notes = {0, 1, 2};
-    view.setState(state);
-    CHECK(selection_count_chip.isVisible());
-    CHECK(selection_count_chip.getText() == "3 notes");
-
-    // Dropping back below the threshold hides the chip again.
-    state.chart_edit.selected_notes = {0};
-    view.setState(state);
-    CHECK_FALSE(selection_count_chip.isVisible());
+    CHECK(master_meter.getX() > position_display.getRight());
+    CHECK(master_meter.getWidth() == 384);
 }
 
 // The selection-centring rule follows the shortcuts-dialog categories — the verbs that act on the
@@ -1423,6 +1312,63 @@ TEST_CASE(
     testing::clickButton(button);
     CHECK(controller.note_lock_toggle_count == 1);
     CHECK(button.getToggleState());
+}
+
+// A refusal the Note Lock caused glows the lock's own toolbar button, in the invalid ink the
+// timeline's marks glow in, around the button and not on its neighbour, the Tempo Lock's.
+TEST_CASE("EditorView glows the lock button a refusal names", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureHighwayThemeRegistry()
+    };
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(makeLoadedEditorState(20.0));
+    const auto& note_lock = findRequiredDescendant<ModeToggleButton>(view, "note_lock_button");
+    const auto& tempo_lock = findRequiredDescendant<ModeToggleButton>(view, "tempo_lock_button");
+
+    // How red the band just below a button's middle half is: its mean red over green, which the
+    // glow raises. The middle half, so a glow spilling past a neighbour's edge never reaches it.
+    const auto redness_below = [&view](const juce::Component& button) {
+        const juce::Rectangle<int> band = button.getBounds()
+                                              .reduced(button.getWidth() / 4, 0)
+                                              .withY(button.getBottom() + 1)
+                                              .withHeight(3);
+        const juce::Image image = view.createComponentSnapshot(band, true, 1.0f);
+        double sum = 0.0;
+        for (int y = 0; y < image.getHeight(); ++y)
+        {
+            for (int x = 0; x < image.getWidth(); ++x)
+            {
+                const juce::Colour pixel = image.getPixelAt(x, y);
+                sum += static_cast<double>(pixel.getRed()) - static_cast<double>(pixel.getGreen());
+            }
+        }
+        return sum / std::max(1, image.getWidth() * image.getHeight());
+    };
+    const double note_before = redness_below(note_lock);
+    const double tempo_before = redness_below(tempo_lock);
+
+    view.flashRefusal(
+        core::RefusalFlash{
+            .notes = {},
+            .spans = {},
+            .none_holds = {},
+            .fret_hand_positions = {},
+            .keyframes = {},
+            .ruler_chips = {},
+            .tone_regions = {},
+            .locks = {core::LockControl::Note},
+            .sentence = {},
+        });
+    CHECK(redness_below(note_lock) > note_before + 40.0);
+    CHECK_THAT(redness_below(tempo_lock), Catch::Matchers::WithinAbs(tempo_before, 1e-9));
 }
 
 // The startup restore raises the interrupted-restore prompt before the main window shows; it opens

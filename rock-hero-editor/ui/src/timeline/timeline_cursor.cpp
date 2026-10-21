@@ -1,71 +1,57 @@
 #include "timeline_cursor.h"
 
-#include "shared/editor_theme.h"
-
-#include <algorithm>
-#include <cmath>
+#include <initializer_list>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {
 
-// Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
-std::optional<float> cursorXForTimelinePosition(
+// The cursor is a one-pixel point mark, so its column is chosen here, in canvas space, through
+// the one point-mark column rule: every surface drawing it (the overlay, the content's paused
+// column, the pinned ruler) then reads the same column whatever its own width.
+std::optional<int> cursorColumnForTimelinePosition(
     common::core::TimePosition position, common::core::TimeRange visible_timeline,
     int width) noexcept
 {
     return core::timelineXForPosition(
-        position, visible_timeline, width, core::TimelinePositionClamping::ClampToVisibleRange);
+               position,
+               visible_timeline,
+               width,
+               core::TimelinePositionClamping::ClampToVisibleRange)
+        .transform([width](const float x) { return core::timelineColumnForX(x, width); });
 }
 
-// Invalidates the union of old/new subpixel cursor strips, including antialias padding.
-void repaintCursorStrip(
-    juce::Component& component, std::optional<float> previous_cursor_x,
-    std::optional<float> next_cursor_x)
+// Two strips rather than one spanning both, so a cursor that jumps repaints only where it was and
+// where it lands; the repaint manager merges them where they touch. A few pixels of margin either
+// side of the column, which Component::repaint holds to the component.
+void repaintCursorColumns(
+    juce::Component& component, const std::optional<int> previous_column,
+    const std::optional<int> next_column)
 {
-    if ((!previous_cursor_x.has_value() && !next_cursor_x.has_value()) ||
-        component.getWidth() <= 0 || component.getHeight() <= 0)
+    constexpr int margin = 3;
+    for (const std::optional<int>& column : {previous_column, next_column})
     {
-        return;
+        if (column.has_value())
+        {
+            component.repaint(*column - margin, 0, (2 * margin) + 1, component.getHeight());
+        }
     }
-
-    float left_x = 0.0f;
-    float right_x = 0.0f;
-    if (previous_cursor_x.has_value() && next_cursor_x.has_value())
-    {
-        left_x = std::min(*previous_cursor_x, *next_cursor_x);
-        right_x = std::max(*previous_cursor_x, *next_cursor_x);
-    }
-    else
-    {
-        const float cursor_x = previous_cursor_x.has_value() ? *previous_cursor_x : *next_cursor_x;
-        left_x = cursor_x;
-        right_x = cursor_x;
-    }
-
-    constexpr int padding = 3;
-    const int left = std::max(0, static_cast<int>(std::floor(left_x)) - padding);
-    const int right =
-        std::min(component.getWidth(), static_cast<int>(std::ceil(right_x)) + padding + 1);
-    component.repaint(left, 0, right - left, component.getHeight());
 }
 
-// Rounds, clamps, and fills the shared cursor column so every timeline view draws the transport
-// cursor identically.
+// Fills the shared cursor column so every timeline view draws the transport cursor identically.
+// The column is never clamped here: cursorColumnForTimelinePosition already held the end inside
+// the canvas, so a column outside this component is one scrolled past its edge.
 std::optional<int> drawTimelineCursor(
-    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top,
-    juce::Colour color)
+    juce::Graphics& g, const juce::Component& component, const std::optional<int> column,
+    const int top, const juce::Colour color)
 {
-    if (!cursor_x.has_value() || component.getWidth() <= 0)
+    if (!column.has_value() || *column < 0 || *column >= component.getWidth())
     {
         return std::nullopt;
     }
-
-    const int cursor_column =
-        std::clamp(static_cast<int>(std::round(*cursor_x)), 0, component.getWidth() - 1);
     g.setColour(color);
-    g.fillRect(cursor_column, top, 1, component.getHeight() - top);
-    return cursor_column;
+    g.fillRect(*column, top, 1, component.getHeight() - top);
+    return column;
 }
 
 std::optional<common::core::GridPosition> musicalGridPositionForX(

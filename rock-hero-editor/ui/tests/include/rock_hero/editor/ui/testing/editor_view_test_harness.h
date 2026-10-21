@@ -17,7 +17,6 @@
 #include <filesystem>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <limits>
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
@@ -64,18 +63,6 @@ using testing::makeMouseDownEvent;
 
 /*! \brief Short alias for the shared recording thumbnail factory fake. */
 using RecordingThumbnailFactory = common::audio::testing::RecordingThumbnailFactory;
-
-/*!
-\brief Returns NaN for empty optionals so Approx checks fail without unchecked optional access.
-\tparam Value Numeric value type accepted by Catch2 Approx.
-\param value Optional value read from view state.
-\return Contained value, or quiet NaN when the optional is empty.
-*/
-template <typename Value>
-[[nodiscard]] inline Value optionalValueForApprox(const std::optional<Value>& value)
-{
-    return value.value_or(std::numeric_limits<Value>::quiet_NaN());
-}
 
 // Fake transport gives the cursor path a position source without exposing Engine.
 class FakeTransport final : public common::audio::ITransport

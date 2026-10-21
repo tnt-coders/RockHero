@@ -15,7 +15,6 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/decimal_text.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -64,13 +63,40 @@ namespace
     return latest;
 }
 
+// A whole-map verb's subject: every anchor, lit as its chip.
+[[nodiscard]] RefusalLight tempoMapLight(const common::core::TempoMap& tempo_map)
+{
+    RefusalLight light;
+    for (const common::core::BeatAnchor& anchor : tempo_map.anchors())
+    {
+        light.add(TempoAnchorSelection{.position = anchor.position});
+    }
+    return light;
+}
+
 } // namespace
+
+// Rationale lives on the declaration in editor_controller_impl.h.
+template <typename Edit>
+std::optional<common::core::TempoMap> EditorController::Impl::judgeTempoEdit(
+    const std::string_view verb, const Edit& edit, const RefusalLight& subject)
+{
+    TempoMapEditResult edited = edit(session().song().tempo_map);
+    if (!edited.has_value())
+    {
+        RefusalLight lit = subject;
+        lit.add(edited.error().lit);
+        refuseMarkerVerb(verb, edited.error().message, lit);
+        return std::nullopt;
+    }
+    return std::move(*edited);
+}
 
 // Rationale lives on the declaration in editor_controller_impl.h. Both branches land through one
 // `land`, so each verb states its commit once, whichever the toggle chose. The new map is built
 // from the session's map in both: a held nudge run needs no origin of its own, since a move states
 // its anchor's time absolutely, and under the lock the content's origin is the lock's. A refusal,
-// the edit's or the funnel's, lights the verb's subject with whatever stood in its way.
+// the judge's or the funnel's, lights the verb's subject with whatever stood in its way.
 template <typename Edit>
 void EditorController::Impl::commitTempoEdit(
     const std::string_view verb, const Edit& edit, const TempoCommit& landing, RefusalLight subject)
@@ -98,12 +124,9 @@ void EditorController::Impl::commitTempoEdit(
             subject);
     };
 
-    const common::core::TempoMap& current = session().song().tempo_map;
-    TempoMapEditResult edited = edit(current);
+    std::optional<common::core::TempoMap> edited = judgeTempoEdit(verb, edit, subject);
     if (!edited.has_value())
     {
-        subject.add(edited.error().lit);
-        refuseMarkerVerb(verb, edited.error().message, subject);
         return;
     }
     const common::core::TempoMap tempo_map = std::move(*edited);
@@ -147,40 +170,35 @@ SongTimelineSnapshot EditorController::Impl::timeKeptSnapshot(
     return SongTimelineSnapshot{.timeline = timeKeptTimeline(origin, tempo_map)};
 }
 
-std::optional<std::string> EditorController::Impl::noteLockRefusal() const
-{
-    if (!m_grid_session.note_lock.has_value())
-    {
-        return std::nullopt;
-    }
-    return "Note Lock is on: the song's content is frozen while it holds the notes in time";
-}
-
 // The tempo chord authors at the cursor and never reads the selection: the cursor's placement slot,
 // the tone chord's read — the grid line with snap on, the tick with snap off. An anchor already
 // standing there is restated — the BPM prompt for the span it opens — which is what makes the
 // double press work: the first inserts and selects, and since the commit keeps the cursor on its
 // musical place, the second finds that anchor on the same slot. Where none stands and a marker may
-// start, the verb is an insert; at or past the terminal it is nothing, since the terminal opens no
-// span and nothing may start after it.
-TempoChordTarget EditorController::Impl::tempoChordTarget() const
+// start, the verb is an insert, which has nothing to prompt for and lands at once; at or past the
+// terminal, which opens no span and after which nothing may start, the press is refused. The
+// dispatcher answered first: the Tempo Lock, and the paused-only marker plane, which the insert
+// shares, so it lands without a second dispatch.
+void EditorController::Impl::performActionImpl(EditorAction::TempoChord /*action*/)
 {
     const std::optional<common::core::GridPosition> position = cursorPosition(placementQuantum());
     if (!position.has_value())
     {
-        return {};
+        return;
     }
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     if (std::optional<std::string> bpm_text = spanBpmTextAt(tempo_map, *position);
         bpm_text.has_value())
     {
-        return SetTempoTarget{.position = *position, .bpm_text = std::move(*bpm_text)};
+        showMarkerPrompt(SetTempoTarget{.position = *position, .bpm_text = std::move(*bpm_text)});
+        return;
     }
-    if (!common::core::markerCanStartAt(*position, tempo_map))
+    if (!common::core::objectCanStartAt(*position, tempo_map))
     {
-        return {};
+        refuseAtSongEnd(MarkerVerb::AddTempoAnchor);
+        return;
     }
-    return InsertTempoAnchorTarget{.position = *position};
+    performActionImpl(EditorAction::InsertTempoAnchor{.position = *position});
 }
 
 // A selection naming an anchor that is gone answers nothing.
@@ -278,6 +296,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTempoSpanB
         lightOf(TempoAnchorSelection{.position = action.position}));
 }
 
+// The prompt is titled as the entry it will record, which names the form the Note Lock chooses;
+// the Tempo Lock answered at dispatch, before it opens.
+void EditorController::Impl::performActionImpl(EditorAction::ScaleTempoPrompt /*action*/)
+{
+    showMarkerPrompt(
+        ScaleTempoTarget{.label = scaleTempoLabel(m_grid_session.note_lock.has_value())});
+}
+
 // The prompt hands back raw text, so the parse is the core's: text that is not a factor, or one
 // past the bound, changes nothing and records nothing, exactly as a refused commit does.
 void EditorController::Impl::onScaleTempoRequested(const std::string& text)
@@ -285,8 +311,8 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
     const std::expected<common::core::Fraction, std::string> factor = parseScaleFactor(text);
     if (!factor.has_value())
     {
-        m_refusal_log.markerEdit(
-            scaleTempoLabel(m_grid_session.note_lock.has_value()), factor.error());
+        refuseMarkerVerb(
+            scaleTempoLabel(m_grid_session.note_lock.has_value()), factor.error(), RefusalLight{});
         return;
     }
     runAction(EditorAction::ScaleTempo{.factor = *factor});
@@ -300,12 +326,14 @@ void EditorController::Impl::onScaleTempoRequested(const std::string& text)
 // free factor rounds the content it scaled and the lock's origin would otherwise no longer be what
 // the song shows. The relabel is not the stretch laid under the held content — it re-places the
 // meters and the anchors, where the lock's own path keeps a verb's map — so it is the one tempo
-// verb that does not reach commitTempoEdit's lock branch. Neither form moves an anchor by hand, so
-// the Tempo Lock does not apply, and nothing is selected after either: the relabel sends every
+// verb that does not reach commitTempoEdit's lock branch. The Tempo Lock refuses both forms at
+// dispatch. The whole map is the subject of both forms, lit as every anchor's chip. Nothing is
+// selected after either: the relabel sends every
 // address the old selection held to other music.
 void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& action)
 {
     std::string label = scaleTempoLabel(m_grid_session.note_lock.has_value());
+    const RefusalLight subject = tempoMapLight(session().song().tempo_map);
     if (!m_grid_session.note_lock.has_value())
     {
         const double cover_until_seconds = latestAudioEndSeconds(session().song());
@@ -319,8 +347,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
                 .anchor = std::nullopt,
                 .focus = EntryFocus::None,
             },
-            // The whole map is its subject, which no chip draws: only what a rule names lights.
-            RefusalLight{});
+            subject);
         return;
     }
 
@@ -329,10 +356,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         scaledTimeline(before.timeline, action.factor);
     if (!scaled.has_value())
     {
-        m_refusal_log.markerEdit(label, scaled.error());
+        refuseMarkerVerb(label, scaled.error(), subject);
         return;
     }
-    // The whole song is its subject, which no chip draws: only what a rule names lights.
     const MarkerCommit committed = commitGridModel(
         std::move(before),
         SongTimelineSnapshot{.timeline = std::move(*scaled)},
@@ -340,7 +366,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ScaleTempo& a
         MarkerRow::Tempo,
         std::nullopt,
         EntryFocus::None,
-        RefusalLight{});
+        subject);
     if (committed == MarkerCommit::Landed)
     {
         engageNoteLock();
@@ -362,10 +388,6 @@ void EditorController::Impl::moveSelectedTempoAnchor(
         // The selection went stale; moving nothing is the answer.
         return;
     }
-    if (refuseLockedTempoAnchorMove(selection, "nudging"))
-    {
-        return;
-    }
     const std::int64_t step = tempoAnchorNudgeMilliseconds(m_timeline_zoom_pixels_per_second);
     moveSelectedTempoAnchorTo(
         selection,
@@ -382,9 +404,11 @@ void EditorController::Impl::onTempoAnchorMoveRequested(
 // One event of a tempo-chip drag. An event writes nothing (plan 66 decision 7): the drag is one
 // gesture, so its move is HELD for the release to commit once, and the event only publishes the
 // map the release would land for the grid and content to draw (tempoDragPreview). It is judged
-// now, so a refused event keeps the last legal time held. The move is asked only of the SELECTED
-// anchor, the one the press selected: selecting here instead would let an event after Esc
-// released the anchor quietly grab it again.
+// now, by the judge the commit uses, so a refused event keeps the last legal time held; under the
+// Tempo Lock the dispatcher refuses every event first, so nothing is held and nothing previews
+// however far the pointer goes, and the flash joins its running pulse train. The move
+// is asked only of the SELECTED anchor, the one the press selected: selecting here instead would
+// let an event after Esc released the anchor quietly grab it again.
 void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnchor& action)
 {
     const TempoAnchorSelection dragged{.position = action.position};
@@ -393,19 +417,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
     {
         return;
     }
-    // Refused at every event, so nothing lands and no entry opens however far the pointer goes; the
-    // flash joins its running pulse train rather than restarting per event.
-    if (refuseLockedTempoAnchorMove(dragged, "dragging"))
+    const std::optional<common::core::TempoMap> moved = judgeTempoEdit(
+        markerVerbLabel(MarkerVerb::MoveTempoAnchor),
+        [&action](const common::core::TempoMap& tempo_map) {
+            return moveTempoAnchor(tempo_map, action.position, action.milliseconds);
+        },
+        lightOf(dragged));
+    if (!moved.has_value())
     {
-        return;
-    }
-    if (const TempoMapEditResult moved =
-            moveTempoAnchor(session().song().tempo_map, action.position, action.milliseconds);
-        !moved.has_value())
-    {
-        RefusalLight lit = lightOf(dragged);
-        lit.add(moved.error().lit);
-        refuseMarkerVerb(markerVerbLabel(MarkerVerb::MoveTempoAnchor), moved.error().message, lit);
         return;
     }
     m_held_tempo_anchor_milliseconds = action.milliseconds;
@@ -414,23 +433,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveTempoAnch
 
 // Every chip-press release reports here, the core and not the ruler deciding whether the drag
 // moved: only a held time has anything to commit, so the rest end before the action pipeline
-// logs or gates them.
+// logs or gates them. The drag ENDS here, whatever answers its commit: the held time is taken and
+// the preview's end published first, so a release the Tempo Lock refuses — a bound key can lock
+// mid-drag — leaves no preview of a move that never landed. The projections are keyed on the chart
+// revision, which only a landed commit moves, so that publish re-projects nothing.
 void EditorController::Impl::onTempoAnchorDragReleased()
-{
-    if (m_held_tempo_anchor_milliseconds.has_value())
-    {
-        runAction(EditorAction::ReleaseTempoAnchorDrag{});
-    }
-}
-
-// Commits the time a drag held, as one move from the map the drag started on, which it never wrote:
-// the very commit one Alt+arrow press makes, so the drag is one entry, one engine resync and one
-// re-projection, and with the Note Lock on its one whole-song re-address. The preview ends with
-// the drag whatever the commit does, so the release publishes that first; the projections are
-// keyed on the chart revision, which only a landed commit moves, so that publish re-projects
-// nothing. The lock is asked again because the release IS the move, and a bound key can lock
-// mid-drag.
-void EditorController::Impl::performActionImpl(EditorAction::ReleaseTempoAnchorDrag /*action*/)
 {
     const std::optional<std::int64_t> held =
         std::exchange(m_held_tempo_anchor_milliseconds, std::nullopt);
@@ -439,13 +446,18 @@ void EditorController::Impl::performActionImpl(EditorAction::ReleaseTempoAnchorD
     {
         return;
     }
-    // A copy: the commit re-selects the anchor it lands.
-    const TempoAnchorSelection dragged = *anchor;
+    const common::core::GridPosition position = anchor->position;
     updateView();
-    if (!refuseLockedTempoAnchorMove(dragged, "dragging"))
-    {
-        moveSelectedTempoAnchorTo(dragged, *held);
-    }
+    runAction(EditorAction::ReleaseTempoAnchorDrag{.position = position, .milliseconds = *held});
+}
+
+// Commits the time a drag held, as one move from the map the drag started on, which it never wrote:
+// the very commit one Alt+arrow press makes, so the drag is one entry, one engine resync and one
+// re-projection, and with the Note Lock on its one whole-song re-address.
+void EditorController::Impl::performActionImpl(const EditorAction::ReleaseTempoAnchorDrag& action)
+{
+    moveSelectedTempoAnchorTo(
+        TempoAnchorSelection{.position = action.position}, action.milliseconds);
 }
 
 // Derived on every publish rather than stored, so it can never outlive the map it moves: a held
@@ -504,23 +516,6 @@ void EditorController::Impl::performActionImpl(EditorAction::ToggleNoteLock /*ac
     disarmChartVerbWindow();
     engageNoteLock();
     updateView();
-}
-
-// Rationale lives on the declaration in editor_controller_impl.h. The lock guards anchor TIMES
-// only, which is why the insert, delete and typed-tempo verbs never ask here.
-bool EditorController::Impl::refuseLockedTempoAnchorMove(
-    const TempoAnchorSelection& selection, const std::string_view gesture)
-{
-    if (!m_grid_session.tempo_lock)
-    {
-        return false;
-    }
-    refuseMarkerVerb(
-        markerVerbLabel(MarkerVerb::MoveTempoAnchor),
-        "Tempo Lock is on: " + std::string{gesture} + " the tempo anchor at " +
-            common::core::formatGridPositionToken(selection.position) + " is blocked",
-        lightOf(selection));
-    return true;
 }
 
 // The one tail every tempo-anchor move ends in, whatever drives it. A move never changes the

@@ -43,7 +43,7 @@ merge the two.
   tail-crosses-the-edge notes.
 - Repaint discipline: start with the tone views' repaint-on-visible-left-change; if scroll or
   window-shift profiling shows the full tab repaint costing too much, narrow to old+new left-edge
-  strip repaints (the `repaintCursorStrip` pattern in timeline_cursor.h).
+  strip repaints (the `repaintCursorColumns` pattern in timeline_cursor.h).
 
 ## Non-goals / notes
 

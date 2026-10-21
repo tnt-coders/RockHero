@@ -180,12 +180,17 @@ public:
     virtual void onGridSnapWarningDecision(GridSnapWarningDecision decision) = 0;
 
     /*!
-    \brief Handles a request to flip the tempo lock, the session switch that guards anchor times.
+    \brief Handles a request to flip the tempo lock, the session switch that freezes the tempo map
+    and the time signatures.
 
-    While the lock is on, every tempo-anchor MOVE — the chip drag and `Alt+←/→` — is refused with
-    the refusal flash and a log line; inserting, deleting and typing a tempo stay available. The
-    switch is session-only like grid snap: nothing persists it, and every project boundary resets
-    it on.
+    While the lock is on, every tempo and meter verb — inserting, deleting or typing a tempo or a
+    time signature, Scale Tempo, every anchor and meter move, the chip drag and `Alt+←/→` alike,
+    and the tempo and meter chords — is refused before anything else answers: no bound is checked
+    and no prompt opens. The log carries the lock's sentence and the refusal flash glows the
+    selection beside the lock's own toolbar button. Undo and redo bypass both locks on purpose: a
+    lock guards new intentions, and undo only reproduces history already consented to; the
+    toggles themselves are not undoable. The switch is session-only like grid snap: nothing
+    persists it, and every project boundary resets it on.
     */
     virtual void onTempoLockToggleRequested() = 0;
 
@@ -197,8 +202,11 @@ public:
     object's time and re-addresses its grid position, so the grid moves under the notes instead of
     the notes moving with the beat; each edit re-addresses the content as it stood when the lock
     engaged, so the rounding onto the tick lattice never stacks across edits. Every edit that would
-    change a note, a marker or an automation point is refused while it is on. The switch is
-    session-only like grid snap: nothing persists it, and every project boundary resets it off.
+    change the song's content — a note, a hold, a fret-hand position, a section, a tone region or
+    an automation point — is refused while it is on, before anything else answers, and the refusal
+    flash glows the selection beside the lock's own toolbar button. Undo and redo bypass the lock
+    on purpose, as they bypass the Tempo Lock. The switch is session-only like grid snap: nothing
+    persists it, and every project boundary resets it off.
     */
     virtual void onNoteLockToggleRequested() = 0;
 
@@ -681,19 +689,121 @@ public:
     placement arriving exactly at the cursor is restated, which — with no fret entry yet — only
     selects it; anywhere else a placement may start, one is inserted stating the fret already
     standing at the cursor (the nut window where nothing stands yet), so inserting moves no hand,
-    and left selected. Inert while playing, with no song, with no chart, and on the song's closing
-    barline.
+    and left selected. Inert while playing, with no song and with no chart; on the song's closing
+    barline, where nothing may start, it is refused, as every marker chord is there.
     */
     virtual void onFretHandPositionChordRequested() = 0;
+
+    /*!
+    \brief Handles the section chord (`Ctrl+M`): rename the section standing exactly at the
+    cursor's placement slot, else insert one there.
+
+    The marker grammar, decided at the press: the cursor — the armed caret, else the paused cursor —
+    is read here and never the selection, and the view is asked for the rename or the name prompt
+    (\ref IEditorView::showMarkerPrompt). A second press after an insert renames what the first
+    made, since the commit keeps the cursor on its slot. Inert while playing and with no song; on
+    the closing barline, where nothing may start, refused with a log line and the lane's sentence.
+    */
+    virtual void onSongSectionChordRequested() = 0;
+
+    /*!
+    \brief Handles the tempo chord (`Ctrl+B`): type the tempo of the span the anchor standing at the
+    cursor's placement slot opens, else insert an anchor there.
+
+    The section chord's grammar. The insert has nothing to prompt for, so it lands at once, pinning
+    the time the map already gives the slot, and is left selected; the restate asks the view for
+    the tempo prompt (\ref IEditorView::showMarkerPrompt). Inert while playing and with no song;
+    at the terminal anchor, which opens no span, refused as the section chord is.
+    */
+    virtual void onTempoChordRequested() = 0;
+
+    /*!
+    \brief Handles the time-signature chord (`Ctrl+/`): restate the reign starting on the beat the
+    cursor is in, else insert a time signature there.
+
+    The section chord's grammar, read at the BEAT the cursor is in, since a meter starts a bar: both
+    ask the view for the meter prompt (\ref IEditorView::showMarkerPrompt), opened on the meter
+    standing or governing there. Inert while playing and with no song; at the end of the song
+    refused as the section chord is.
+    */
+    virtual void onTimeSignatureChordRequested() = 0;
+
+    /*!
+    \brief Handles the tone chord (`Ctrl+T`): retone the region starting exactly at the cursor's
+    placement slot, else split the region the cursor stands inside.
+
+    The section chord's grammar: either asks the view for the tone picker
+    (\ref IEditorView::showMarkerPrompt), which leaves out the tone the region sounds now. Inert
+    while playing and with no song; on the closing barline, which holds no region to split,
+    refused as the section chord is.
+    */
+    virtual void onToneChordRequested() = 0;
+
+    /*!
+    \brief Handles the section verb at a clicked place, the ruler menu's insert row: the section
+    chord's rule read at `position` instead of the cursor.
+    \param position The grid slot the menu was opened over.
+    */
+    virtual void onSongSectionAtRequested(common::core::GridPosition position) = 0;
+
+    /*!
+    \brief Handles the time-signature verb at a clicked place, the ruler menu's insert row: the
+    meter chord's rule read at the beat `position` is in instead of the cursor's.
+    \param position The place the menu was opened over.
+    */
+    virtual void onTimeSignatureAtRequested(common::core::GridPosition position) = 0;
+
+    /*!
+    \brief Handles the tone verb at a clicked place, the tone row's Alt-click and its menu's insert
+    row: the tone chord's rule read at `position` instead of the cursor.
+    \param position The grid slot clicked.
+    */
+    virtual void onToneChangeAtRequested(common::core::GridPosition position) = 0;
+
+    /*!
+    \brief Handles the tone row's rename of a region's tone (its double-click and its menu's
+    Rename): the prompt opened on the tone's current name, as `Ctrl+R` opens it on a selected
+    region (\ref IEditorView::showMarkerPrompt). Does nothing for a region of the synthesized
+    default tone, which has no document to name.
+    \param tone_document_ref The tone the clicked region sounds.
+    */
+    virtual void onToneRenamePromptRequested(std::string tone_document_ref) = 0;
+
+    /*!
+    \brief Handles the Scale Tempo command (the Edit menu's item and the tempo row's row): the
+    factor prompt titled by the form the Note Lock chooses (\ref scaleTempoLabel), unless the Tempo
+    Lock refuses it first.
+    */
+    virtual void onScaleTempoPromptRequested() = 0;
+
+    /*!
+    \brief Handles `Enter`: restate the selected marker.
+
+    Decided at the press on the selection's kind, never the cursor's: a section's name, a tempo
+    anchor's span tempo, a time signature's meter and a tone region's tone each ask the view for
+    their prompt or picker (\ref IEditorView::showMarkerPrompt), as does the "+" row's parameter
+    picker; a bend chip the caret stands on opens the bend picker, as `B` does. Every other kind has
+    no restate, and the press does nothing — Enter never ADDS a marker.
+    */
+    virtual void onSelectionRestateRequested() = 0;
+
+    /*!
+    \brief Handles `Ctrl+R`: rename the selected marker where its kind has a name.
+
+    A section's own name, or a tone region's TONE — the document every region on that tone shares —
+    through the prompt the view is asked for (\ref IEditorView::showMarkerPrompt). Does nothing on
+    every kind with no name of its own and on a region of the synthesized default tone, which has no
+    document to name.
+    */
+    virtual void onSelectionRenameRequested() = 0;
 
     /*!
     \brief Handles `Alt+Delete` over a selected fret-hand position: clear its authored end fret.
 
     The window's end returns to the one the notes derive, and the placement stays selected. A
-    derived position is authored first, stating the fret standing there, as every stating verb on
-    one does. Does nothing where the selection is no placement or an authored one's end is already
-    derived — never deleting the placement, which is Delete's — and is inert while playing and with
-    no chart.
+    derived position stores no end to clear, so it is refused, as Delete and the move refuse it.
+    Does nothing where the selection is no position or an authored one's end is already derived —
+    never deleting the placement, which is Delete's — and is inert while playing and with no chart.
     */
     virtual void onFretHandPositionEndClearRequested() = 0;
 
@@ -778,8 +888,7 @@ public:
     Refused when an anchor already stands there or the position lies at or past the terminal
     anchor.
 
-    \param position Grid position the anchor is asked for, as the published tempo chord or the
-    ruler menu named it.
+    \param position Grid position the anchor is asked for, as the ruler menu named it.
     */
     virtual void onTempoAnchorInsertRequested(common::core::GridPosition position) = 0;
 
@@ -821,7 +930,7 @@ public:
     is refused and logged, changing nothing. With the Note Lock on every grid address is scaled
     and every time holds; with it off every anchor keeps its address and is re-timed about the
     first, so the notes follow the beat. Either lands as one undo entry labelled with its form
-    (\ref scaleTempoLabel). The Tempo Lock does not block it.
+    (\ref scaleTempoLabel). The Tempo Lock refuses it, as it refuses every tempo verb.
 
     \param text Factor as typed.
     */

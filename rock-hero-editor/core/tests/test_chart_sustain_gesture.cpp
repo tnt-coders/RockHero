@@ -198,8 +198,10 @@ TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core]
         CHECK(chart->notes[2] == start);
     }
     // And a run that nets to zero leaves NO entry: it describes nothing, so it is taken back out
-    // rather than replaced with an empty one the user would have to Ctrl+Z past.
+    // rather than replaced with an empty one the user would have to Ctrl+Z past. Every press of it
+    // moved the ring, so none flashed.
     CHECK(fixture.undoEntryCount() == entries_before);
+    CHECK(fixture.view.refusal_flashes.empty());
 }
 
 // The case the gesture exists for: a chord whose members have different room. The bounded member
@@ -229,6 +231,8 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
     CHECK(fixture.ringAt(2, 2) == common::core::Fraction{5, 4});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
+    // The pinned member is no refusal: its neighbour moved, so the press happened and is recorded.
+    CHECK(fixture.view.refusal_flashes.empty());
 
     // The step back is the one that put the bounded member there, so it rejoins its neighbour on
     // the same ring they parted from: the clamp never entered the replay.
@@ -252,12 +256,12 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
 }
 
 // The floor is the bound's mirror image: a ring the replay would take to zero holds where it is
-// instead of vanishing. A lone note's step into the floor moves nothing — the replay answers the
-// plan the entry already holds — so the gesture authority never records it, and the next grow is
-// the first visible step back with no unseen overshoot to pay. THIS is where that is asserted: the
-// planner states nothing about it (`planAdjustSustain` is a pure function of the step list).
-TEST_CASE("An emptied ring holds and the steps into the floor are not recorded", "[core][chart]")
+// instead of vanishing. A lone note's step into the floor moves nothing, so it is REFUSED: the note
+// flashes alone — the onset holding it is the note's own — the log says why, and the gesture
+// records no step, so the next grow is the first visible step back with no unseen overshoot to pay.
+TEST_CASE("An emptied ring holds and the steps into the floor are refused", "[core][chart]")
 {
+    const testing::LogCapture capture;
     GestureFixture fixture;
     REQUIRE(fixture.load());
 
@@ -267,18 +271,60 @@ TEST_CASE("An emptied ring holds and the steps into the floor are not recorded",
 
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 4});
+    CHECK(fixture.view.refusal_flashes.empty());
     // 2 - 2 is not a ring, so the note keeps the one it has, and the press is not part of the run.
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 4});
+    REQUIRE(fixture.view.refusal_flashes.size() == 1);
+    CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{2});
+    CHECK(fixture.view.refusal_flashes[0].keyframes.empty());
+    CHECK(capture.text().find("ring cannot shrink to nothing") != std::string::npos);
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 4});
+    CHECK(fixture.view.refusal_flashes.size() == 2);
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
     // One grow is one step back: the run replays the single shrink it holds and this grow, lands
-    // on the start, and leaves no entry behind.
+    // on the start, and leaves no entry behind — a press that moved, so nothing flashes.
     fixture.step(1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1, 2});
     CHECK(fixture.undoEntryCount() == entries_before);
+    CHECK(fixture.view.refusal_flashes.size() == 2);
+}
+
+// The growth bound refuses the same way, and lights what bounds it: a tail grown against the next
+// onset on its own string flashes the note and that onset, the log says why, and the refused press
+// banks nothing, so one shrink is one visible step back.
+TEST_CASE("A tail grown against its string's next onset flashes it", "[core][chart]")
+{
+    const testing::LogCapture capture;
+    GestureFixture fixture;
+    REQUIRE(fixture.load());
+
+    // The string-1 note at measure 2, bounded by the measure-3 note on its string four quarters
+    // later; the fixture's ring snaps onto the grid on the first step.
+    click(fixture.controller, 40.0f, 220.0f);
+    for (int index = 0; index < 4; ++index)
+    {
+        fixture.step(1);
+    }
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.view.refusal_flashes.empty());
+    const std::size_t entries = fixture.undoEntryCount();
+
+    fixture.step(1);
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.undoEntryCount() == entries);
+    REQUIRE(fixture.view.refusal_flashes.size() == 1);
+    // The note the press tried to grow, and the measure-3 onset that stood in its way.
+    CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0, 2});
+    CHECK(
+        capture.text().find("ring already reaches the next note on its string") !=
+        std::string::npos);
+
+    fixture.step(-1);
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3, 4});
+    CHECK(fixture.view.refusal_flashes.size() == 1);
 }
 
 // The floor a keyframe raises: a pitched glide's last junction bounds its ring, so a shrink that
@@ -288,9 +334,9 @@ TEST_CASE("An emptied ring holds and the steps into the floor are not recorded",
 // never sounded there, so the junction becomes the SLIDE-OUT and the glide an unpitched slide-out —
 // the tail meeting the waypoint is how a charter authors one. From there the ring holds: the ribbon
 // cannot pass its own end point, and the slide-out's length is the point's to change (the move
-// verb). The held steps are not recorded, so the first grow after them moves the tail at once — and
-// a point never moves because the ring did: the ribbon runs on past the junction, which is a
-// pitched stop again.
+// verb). The held steps are refused, lighting the junction that holds the ring, and never recorded,
+// so the first grow after them moves the tail at once — and a point never moves because the ring
+// did: the ribbon runs on past the junction, which is a pitched stop again.
 TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -323,11 +369,18 @@ TEST_CASE("A ring lands on its last keyframe inside one gesture", "[core][chart]
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
     CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK(slides_out());
-    // A slide-out needs its own leg, so the ring holds here.
+    // A slide-out needs its own leg, so the ring holds here, and the press is refused: the note it
+    // tried to shrink flashes with the keyframe holding it.
+    CHECK(fixture.view.refusal_flashes.empty());
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 3) == common::core::Fraction{1});
     CHECK(one_keyframe_at(common::core::Fraction{1}));
     CHECK(slides_out());
+    REQUIRE(fixture.view.refusal_flashes.size() == 1);
+    CHECK(fixture.view.refusal_flashes[0].notes == std::vector<std::size_t>{0});
+    CHECK(
+        fixture.view.refusal_flashes[0].keyframes ==
+        std::vector<ChartKeyframeRef>{ChartKeyframeRef{.note_index = 0, .keyframe_index = 0}});
 
     // The held press left no trace: one grow is one visible step — and the junction stays where
     // it was, a pitched stop again with the ribbon running on past it.

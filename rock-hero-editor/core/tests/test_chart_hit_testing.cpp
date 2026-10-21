@@ -67,11 +67,12 @@ namespace
 }
 
 // 20-second window across 400x240: 20 px/s, 40px lanes; string 1 centers at y = 220, string 2
-// at y = 180.
-[[nodiscard]] common::ui::TabLaneGeometry makeGeometry(float width = 400.0f)
+// at y = 180. A lane drawn inside a larger component stands at `left`, its time measured from
+// there.
+[[nodiscard]] common::ui::TabLaneGeometry makeGeometry(float width = 400.0f, float left = 0.0f)
 {
     return common::ui::makeTabLaneGeometry(
-        0.0f,
+        left,
         0.0f,
         width,
         240.0f,
@@ -296,6 +297,19 @@ TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart
     const std::vector<ChartHitTarget> empty =
         chartTargetsInBox(tab, geometry, 300.0f, 0.0f, 380.0f, 240.0f);
     CHECK(empty.empty());
+}
+
+// The candidate window inverts the lane's own x, so a lane standing anywhere in its host reaches
+// the heads it drew: a press and a box over the first head, placed 1000 px to the right.
+TEST_CASE("Chart hit testing measures time from the lane's own left edge", "[core][chart]")
+{
+    const common::core::ChartViewState tab = makeTabState();
+    const common::ui::TabLaneGeometry geometry = makeGeometry(400.0f, 1000.0f);
+
+    CHECK(chartHitTarget(tab, geometry, geometry.x(2.0), 220.0f) == noteTarget(0));
+    CHECK(
+        chartTargetsInBox(tab, geometry, 1020.0f, 200.0f, 1060.0f, 240.0f) ==
+        std::vector<ChartHitTarget>{noteTarget(0)});
 }
 
 // Selection keys resolve back to projection indices through the sorted chart note stream, and

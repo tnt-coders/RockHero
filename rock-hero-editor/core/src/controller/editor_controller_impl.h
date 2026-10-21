@@ -649,8 +649,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onToneRegionToneRequested(std::string region_id, std::string tone_document_ref);
     void onToneRegionNewToneRequested(std::string region_id, std::string name);
-    // What the tone chord would do at the cursor right now (the published verb).
-    [[nodiscard]] ToneChordTarget toneChordTarget() const;
+    // The tone chord, decided at the press (see the definition for the rule), and the same rule at
+    // a clicked place, which the chord reads at the cursor.
+    void performActionImpl(EditorAction::ToneChord action);
+    void performActionImpl(const EditorAction::ToneChangeAt& action);
+    // The tone row's rename of a region's tone: the rename prompt on the tone's current name.
+    void performActionImpl(const EditorAction::ToneRenamePrompt& action);
     // Song sections (src/timeline/section_handlers.cpp). Song-level, so they reach the session's
     // section list directly rather than any arrangement's chart.
     void onSongSectionSelected(std::optional<common::core::GridPosition> position);
@@ -658,9 +662,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimeSignatureSelected(int measure);
     void onSongSectionInsertRequested(common::core::GridPosition position, std::string name);
     void onSongSectionRenameRequested(common::core::GridPosition position, std::string name);
-    // What the section chord would do at the cursor right now (the published verb; see the
-    // definition for the rule it derives).
-    [[nodiscard]] SectionChordTarget sectionChordTarget() const;
+    // The section chord, decided at the press (see the definition for the rule), and the same rule
+    // at a clicked place, which the chord reads at the cursor.
+    void performActionImpl(EditorAction::SongSectionChord action);
+    void performActionImpl(const EditorAction::SongSectionAt& action);
     // Moves the selected section one placement-quantum line (the Alt+arrow dispatch for the section
     // alternative). Left or Right only; the move dispatch refuses a vertical direction for every
     // marker kind.
@@ -678,9 +683,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // arrangement and commits the whole song timeline as the time-signature verbs do; off the lock
     // it is a tempo-map edit like a typed tempo's and ends in commitTempoEdit.
     void onScaleTempoRequested(const std::string& text);
-    // What the tempo chord would do at the cursor right now (the published verb; see the
-    // definition for the rule it derives).
-    [[nodiscard]] TempoChordTarget tempoChordTarget() const;
+    // The Scale Tempo command: the factor prompt titled by the form the Note Lock chooses.
+    void performActionImpl(EditorAction::ScaleTempoPrompt action);
+    // The tempo chord, decided at the press (see the definition for the rule).
+    void performActionImpl(EditorAction::TempoChord action);
     // Moves the selected anchor one on-screen pixel in time (the Alt+arrow dispatch for the tempo
     // alternative). Left or Right only; the move dispatch refuses a vertical direction for every
     // marker kind.
@@ -701,17 +707,25 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         EntryFocus focus;
     };
     using TempoCommit = std::variant<TempoGridCommit, TempoAnchorSelection>;
+    // THE front half every tempo-map edit is judged by, the ones that commit (commitTempoEdit) and
+    // a tempo-chip drag's events, which only hold the time they would commit: `edit`'s own rules
+    // over the session's map. The Tempo Lock answered before either was dispatched
+    // (refuseLockedAction). A refusal is logged under `verb` and lights `subject` with whatever
+    // stood in its way; the edited map otherwise. Defined in tempo_handlers.cpp, its only user.
+    template <typename Edit>
+    [[nodiscard]] std::optional<common::core::TempoMap> judgeTempoEdit(
+        std::string_view verb, const Edit& edit, const RefusalLight& subject);
     // THE step every tempo-map edit ends in (an insert, a typed tempo, a delete, a move, Scale
-    // Tempo's stretch): `edit` makes the verb's new map from the session's map, and `landing` says
-    // how it commits. With the Note Lock off the grid is truth, so the map alone is committed and
-    // content moves with its beat; with it on, the content the lock holds is laid under the new
-    // map so every time holds (plan 66 decision 5; timeKeptSnapshot), and the cursor is carried
-    // from its place now to the same time under the new map. A refused edit or re-address is
-    // logged under `verb` and lights `subject` — the anchor the verb acts on, which for an insert
-    // is its place and lights whatever anchor already holds it, and nothing for a whole-map verb —
-    // with whatever the broken rule names. The subject is the verb's to state, never read off the
-    // landing: a delete lands no anchor, yet a refused one has its anchor still standing to light.
-    // Defined in tempo_handlers.cpp, its only user.
+    // Tempo's stretch): the edit judged (judgeTempoEdit), then `landing` says how it commits. With
+    // the Note Lock off the grid is truth, so the map alone is committed and content moves with its
+    // beat; with it on, the content the lock holds is laid under the new map so every time holds
+    // (plan 66 decision 5; timeKeptSnapshot), and the cursor is carried from its place now to the
+    // same time under the new map. A refused edit or re-address is logged under `verb` and lights
+    // `subject` — the anchor the verb acts on, which for an insert is its place and lights
+    // whatever anchor already holds it, and every anchor for a whole-map verb — with whatever
+    // stood in its way. The subject is the verb's to state, never read off the landing: a delete
+    // lands no anchor, yet a refused one has its anchor still standing to light. Defined in
+    // tempo_handlers.cpp, its only user.
     template <typename Edit>
     void commitTempoEdit(
         std::string_view verb, const Edit& edit, const TempoCommit& landing, RefusalLight subject);
@@ -726,31 +740,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // stands first, since that content is the truth the edit must hold. The ONE reader of the
     // lock's origin.
     [[nodiscard]] SongTimelineSnapshot timeKeptSnapshot(const common::core::TempoMap& tempo_map);
-    // THE Note Lock's refusal: while the lock is on, the words every edit that would move or
-    // change the song's content is turned down with, which each refusing site wraps in its own
-    // refusal beside what it lights; nothing while it is off. Asked by the marker funnel's judge,
-    // the chart funnel and the pending fret entry's plan, and the automation points verb.
-    [[nodiscard]] std::optional<std::string> noteLockRefusal() const;
     // The map a held tempo-chip drag would commit (EditorViewState::grid_map), derived from the
     // session's map on every publish so it can never outlive the map it moves.
     [[nodiscard]] std::optional<common::core::TempoMap> tempoDragPreview() const;
     // Deletes the selected anchor (the Delete-key dispatch for the tempo alternative).
     void deleteSelectedTempoAnchor(const TempoAnchorSelection& selection);
-    // THE TEMPO LOCK's one refusal, asked by each move driver before it moves: while the lock is
-    // on it refuses the move on the anchor's chip (refuseMarkerVerb), naming the driving `gesture`
-    // ("dragging", "nudging"), and returns true; with the lock off it returns false and does
-    // nothing.
-    [[nodiscard]] bool refuseLockedTempoAnchorMove(
-        const TempoAnchorSelection& selection, std::string_view gesture);
     // Time signatures (src/timeline/meter_handlers.cpp). Song-level like the tempo map they belong
     // to, and wider than any other marker: a meter edit keeps every object's time and re-addresses
     // it in every arrangement, so each verb commits the whole song timeline. The row's markers
     // are every reign start, the derived short bar's included (TempoMap::reigns): a stating verb
     // on a derived start authors it, Delete and the move refuse it.
     void onTimeSignatureSetRequested(common::core::GridPosition position, const std::string& text);
-    // What the time-signature chord would do at the cursor right now (the published verb; see
-    // the definition for the rule it derives).
-    [[nodiscard]] TimeSignatureChordTarget timeSignatureChordTarget() const;
+    // The time-signature chord, decided at the press (see the definition for the rule), and the
+    // same rule at a clicked place, which the chord reads at the cursor.
+    void performActionImpl(EditorAction::TimeSignatureChord action);
+    void performActionImpl(const EditorAction::TimeSignatureAt& action);
     // Moves the selected time signature one beat of the meter before it (the Alt+arrow dispatch
     // for the meter alternative). Left or Right only; the move dispatch refuses a vertical
     // direction for every marker kind.
@@ -912,7 +916,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
     void performActionImpl(const EditorAction::SetTimeSignature& action);
     void performActionImpl(const EditorAction::MoveTempoAnchor& action);
-    void performActionImpl(EditorAction::ReleaseTempoAnchorDrag action);
+    void performActionImpl(const EditorAction::ReleaseTempoAnchorDrag& action);
     void performActionImpl(const EditorAction::ScaleTempo& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
@@ -1122,20 +1126,41 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // refusal lights flashes red. A whole plan refused is logged against its subject — what the
     // verb planned over — and flashes the subject together with what the refusing site lit
     // (PlanRefused::lit); a NoChange is an honest no-op and reports nothing. A per-note refusal
-    // flashes the note with what stood in its way (ChartRefusedNote::lit). Called after any
-    // apply, because the flash is addressed in the projection the view is showing.
+    // flashes the note with what stood in its way (ChartRefusedNote::lit), and the screen says the
+    // first note's reason. Called after any apply, because the flash is addressed in the
+    // projection the view is showing.
     void reportChartPlanRefusal(const PlanRefusal& refusal, const ChartSelection& subject);
     void reportChartRefusedNotes(std::span<const ChartRefusedNote> refused);
     // The flash's one path: every target of a light resolved through the authority its surface
     // draws it by — the note and keyframe keys through the two resolvedChartEdit reads the
     // selection by, a span, none hold or hand chip through its row's marker index, a ruler chip by
-    // its row and start, a tone region by its id — and handed to the view as one flash. Nothing
-    // where nothing resolves.
-    void flashRefusalLight(const RefusalLight& lit);
+    // its row and start, a tone region by its id, a lock by its toolbar control — and handed to the
+    // view as one flash carrying `sentence`, the reason the caller logged, which the screen shows
+    // even where nothing in the light resolves.
+    void flashRefusalLight(const RefusalLight& lit, std::string_view sentence);
     // THE refusal of a marker verb, the funnel's and every verb's own alike: the reason logged
     // under the verb's label, and `lit` — the verb's subject with whatever stood in its way —
-    // flashed as one light.
+    // flashed as one light carrying the reason.
     void refuseMarkerVerb(std::string_view label, std::string_view reason, const RefusalLight& lit);
+    // THE refusal of a marker verb addressed at or past the song's end, where nothing may start:
+    // the one sentence under the verb's label, lighting nothing, since the closing barline draws
+    // no chip.
+    void refuseAtSongEnd(MarkerVerb verb);
+    // THE LOCKS' SENTENCES: while `lock` is on, the words every action it governs is turned down
+    // with, and its light, the lock's own toolbar control — the thing that stood in the way;
+    // nothing while it is off. Read only by refuseLockedAction.
+    [[nodiscard]] std::optional<PlanRefused> lockRefusal(LockControl lock) const;
+    // THE LOCKS' FIRST ANSWER: while the lock that governs `action` (governingLock; for the
+    // editor-wide move and delete, Enter and Ctrl+R, the selection's kind) is on, refuses it
+    // before anything else answers — no planning, no bound, no prompt — logging the lock's
+    // sentence under the action's name and flashing the selection beside the lock's button, and
+    // returns true; false, refusing nothing, otherwise. Asked by the dispatcher alone, before
+    // every action runs (runAction): every verb that could write, a marker verb's prompt
+    // included, is an action, so no verb spells a lock of its own.
+    [[nodiscard]] bool refuseLockedAction(EditorAction::Id action);
+    // Hands a marker verb's prompt to the view (IEditorView::showMarkerPrompt); dropped with no
+    // view attached. The verb asking for it was dispatched, so its lock has already answered.
+    void showMarkerPrompt(const MarkerPrompt& prompt);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
@@ -1286,7 +1311,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // warning; the warning is unconditional, so nothing about the asking is stored either.
         bool snap_warning_prompt{false};
 
-        // Whether the tempo lock is on, refusing every tempo-anchor move.
+        // Whether the tempo lock is on, freezing the tempo map and the time signatures
+        // (refuseLockedAction).
         bool tempo_lock{true};
 
         // THE NOTE LOCK: present while it is on, holding the song's content as it stood when the
@@ -1295,7 +1321,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // lock-on, however many edits are made; re-addressing the song as it stands would round
         // the already-rounded places again at every edit. The origin stays true because nothing
         // else moves content while the lock is on: every content verb is refused
-        // (noteLockRefusal), a meter edit keeps every place exactly, and the two writes that do
+        // (refuseLockedAction), a meter edit keeps every place exactly, and the two writes that do
         // move content — Scale Tempo and the settle sweep — re-engage the lock on what they wrote
         // (engageNoteLock). Whether the history still stands on the origin's run is the history's
         // own fact (EditorUndoHistory::holdsBase); where it does not, the next tempo edit
@@ -1765,11 +1791,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // quantum the kind places on; nothing while the transport plays or with no song loaded.
     [[nodiscard]] std::optional<common::core::GridPosition> cursorPosition(
         common::core::Fraction quantum) const;
-    // What Enter and Ctrl+R would do to the selection right now (the published verbs). Each reads
-    // the selection through the two payload lookups below, so neither verb's meaning depends on
-    // the other's.
-    [[nodiscard]] RestateTarget restateTarget() const;
-    [[nodiscard]] RenameTarget renameTarget() const;
+    // Enter and Ctrl+R, decided at the press on the selection. Each reads the selection through the
+    // payload lookups below, so neither verb's meaning depends on the other's.
+    void performActionImpl(EditorAction::RestateSelection action);
+    void performActionImpl(EditorAction::RenameSelection action);
     // The selected section, as the rename verb would address it; nothing when no section is
     // selected or the selected one is gone.
     [[nodiscard]] std::optional<RenameSectionTarget> selectedSectionTarget() const;

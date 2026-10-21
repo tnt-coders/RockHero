@@ -332,13 +332,15 @@ struct TabLaneMetrics : TabLaneGeometry
 \param chart_string_count String count declared by the displayed chart.
 \param palette String colors the lane draws with.
 \param shape_inks Inks the lane's span rails are painted with: its theme's \ref TabShapeInks.
+\param chip_font The chip label font (\ref chipLabelFont), which does not scale with the lane, so
+       the host builds it once and every paint call reuses it rather than measuring it again.
 \param style Optional style variants; the default reproduces the editor lane exactly.
 \return Metrics every drawer of the paint call reads.
 */
 [[nodiscard]] TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
     int chart_string_count, StringColorPalette palette, TabShapeInks shape_inks,
-    TabLaneStyle style = {});
+    const TabLaneFont& chip_font, TabLaneStyle style = {});
 
 /*!
 \brief Returns the outline of the silhouette this note's head is drawn with.
@@ -548,13 +550,27 @@ void drawTabStringLegend(
     juce::Rectangle<int> panel);
 
 /*!
+\brief Returns the row the fret-hand-position chips stand in: a pixel under the lane's top edge,
+over the span rails, \ref chipHeight tall.
+
+The row's one statement, read by \ref tabFhpChipBounds and by a host that lays its own overlay
+clear of every chip — the editor's lane status line stands just below it.
+
+\param bounds Full tablature lane bounds.
+\param chip_font The chip label font (\ref chipLabelFont).
+\return The row's top and bottom, in the bounds' space.
+*/
+[[nodiscard]] juce::Range<float> tabFhpChipRow(
+    juce::Rectangle<int> bounds, const TabLaneFont& chip_font);
+
+/*!
 \brief Returns the box one fret-hand-position chip fills with its left edge at \p left_x.
 
 The chip's geometry, exported for the same reason the legend panel's is: a host that PINS a chip
 needs its width before it draws it — the pin yields to an incoming marker that comes within a
 label's clearance of it — and a host measuring the text itself would be a second authority on a
-width derived from the chip font (\ref TabLaneMetrics::chip_font). The chip stands
-\ref chipHeight tall.
+width derived from the chip font (\ref TabLaneMetrics::chip_font). The chip stands in
+\ref tabFhpChipRow.
 
 \param metrics Metrics from makeTabLaneMetrics for the lane the chip rides.
 \param fhp The placement the chip states.
@@ -731,16 +747,22 @@ narrower than the blank chip. The chip stands \ref chipHeight tall; where that e
 \ref TabSpanChip::stop_x, narrowing to the room left before it and drawing nothing when that leaves
 it under a pixel. A label prints only where the room holds the chip's whole labelled width and the
 ceiling leaves the chip its own height; otherwise the label is dropped entire, never clipped or
-shrunk, and the chip draws blank. A derived span's chip, ground and label alike, composites at
+shrunk, and the chip draws blank. A derived span's chip, fill and label alike, composites at
 \ref g_ghost_opacity, as its rails do (\ref TabSpanChip::held).
+
+The chip's silhouette is first cleared to \p ground, the colour its lane's rails are drawn over, so
+a ghosted chip composites over exactly what its rails composite over and reads as the same ink:
+nothing the host drew beneath the chip (a ruler's ticks) shows through it.
 
 \param g Graphics context to draw into.
 \param font The chip label font (\ref chipLabelFont).
 \param inks The span inks of the lane the chip names, as its rails are painted.
 \param chip The chip and the column it stops at.
+\param ground The ground the lane's rails are drawn over.
 */
 void drawTabSpanChip(
-    juce::Graphics& g, const TabLaneFont& font, TabShapeInks inks, const TabSpanChip& chip);
+    juce::Graphics& g, const TabLaneFont& font, TabShapeInks inks, const TabSpanChip& chip,
+    juce::Colour ground);
 
 /*!
 \brief Returns the box \ref drawTabSpanChip fills for a chip, so a host's hit test and selection

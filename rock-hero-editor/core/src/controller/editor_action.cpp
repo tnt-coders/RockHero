@@ -311,6 +311,50 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::AuthorFretHandPositionAtCursor;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SongSectionChord>)
+    {
+        return EditorAction::Id::SongSectionChord;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SongSectionAt>)
+    {
+        return EditorAction::Id::SongSectionAt;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::TempoChord>)
+    {
+        return EditorAction::Id::TempoChord;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::TimeSignatureChord>)
+    {
+        return EditorAction::Id::TimeSignatureChord;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::TimeSignatureAt>)
+    {
+        return EditorAction::Id::TimeSignatureAt;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ToneChord>)
+    {
+        return EditorAction::Id::ToneChord;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ToneChangeAt>)
+    {
+        return EditorAction::Id::ToneChangeAt;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ToneRenamePrompt>)
+    {
+        return EditorAction::Id::ToneRenamePrompt;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ScaleTempoPrompt>)
+    {
+        return EditorAction::Id::ScaleTempoPrompt;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::RestateSelection>)
+    {
+        return EditorAction::Id::RestateSelection;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::RenameSelection>)
+    {
+        return EditorAction::Id::RenameSelection;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::ClearFretHandEnd>)
     {
         return EditorAction::Id::ClearFretHandEnd;

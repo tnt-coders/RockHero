@@ -95,15 +95,6 @@ struct ActionConditions
 
     /*! \brief True when the chart caret is armed on some slot, string or lane. */
     bool has_armed_caret{false};
-
-    /*!
-    \brief True while the Note Lock holds the song's content in time.
-
-    The content verbs refuse at their commit funnels under it, where the refusal can name and flash
-    what it turned down; the one action gated here is the plugin removal, which takes the plugin's
-    automation points out of the song with it.
-    */
-    bool note_locked{false};
 };
 
 /*!
@@ -170,10 +161,39 @@ enum class ActionUnavailableReason : std::uint8_t
 
     /*! \brief The live rig has no loaded plugin instances. */
     NoLoadedPlugins,
-
-    /*! \brief The Note Lock is on, and the action would take content out of the song. */
-    NoteLocked,
 };
+
+/*!
+\brief Which lock governs an action: while it is on, the lock's refusal is the action's first
+answer, before any planning, bound or prompt.
+
+A lock guards new intentions, so undo and redo answer to neither — they only reproduce history
+already consented to — and neither does a lock's own toggle, which is not undoable.
+*/
+enum class ActionLock : std::uint8_t
+{
+    /*! \brief No lock refuses the action: it changes nothing a lock freezes. */
+    None,
+
+    /*! \brief The Note Lock refuses it: it would change the song's content. */
+    Note,
+
+    /*! \brief The Tempo Lock refuses it: it would change the tempo map or a time signature. */
+    Tempo,
+
+    /*!
+    \brief The selection the action acts on decides: a tempo anchor or a time signature answers to
+    the Tempo Lock, every other kind to the Note Lock.
+    */
+    Operand,
+};
+
+/*!
+\brief Names the lock that governs an action, the one statement every lock refusal reads.
+\param action Action to evaluate.
+\return The governing lock.
+*/
+[[nodiscard]] ActionLock governingLock(EditorAction::Id action) noexcept;
 
 /*!
 \brief Reports whether an action intentionally takes over an active busy operation.

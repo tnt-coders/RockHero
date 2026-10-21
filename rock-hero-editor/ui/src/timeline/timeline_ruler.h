@@ -213,11 +213,10 @@ public:
         The listener owns the prompt: a time signature needs its meter typed, and the ruler must
         not raise one.
 
-        \param target The insert the core's meter rule (\ref core::timeSignatureTargetAt) names
-        at the beat the menu was opened over; the menu offers the row only where it names one.
+        \param position The beat the menu was opened over, where the core's meter rule
+        (\ref core::timeSignatureTargetAt) names an insert; the menu offers the row only there.
         */
-        virtual void onTimeSignatureInsertPromptRequested(
-            const core::InsertTimeSignatureTarget& target) = 0;
+        virtual void onTimeSignatureInsertPromptRequested(common::core::GridPosition position) = 0;
 
         /*!
         \brief Called when the tempo row's menu asks to scale the whole song's tempo.
@@ -388,11 +387,12 @@ public:
     void setSpans(std::vector<RulerSpan> spans);
 
     /*!
-    \brief Stores which span is selected, its chip drawn with the accent outline a selected section
-    chip wears.
+    \brief Stores which span is selected, the chip \ref selectedChipBounds answers for.
 
-    Its own setter, because a selection places no chip: a changed selection repaints and moves
-    nothing. An unchanged selection returns early because every controller state push repeats it.
+    The ruler draws no ring of its own on a span chip: the chip and its top rail read as one shape,
+    so the track viewport strokes one outline around both. Its own setter, because a selection
+    places no chip: a changed selection repaints, which re-traces that outline, and moves nothing.
+    An unchanged selection returns early because every controller state push repeats it.
 
     \param span Index of the selected span in the spans given (\ref setSpans), or empty when none
     is selected.
@@ -425,10 +425,10 @@ public:
     \brief Flashes the ruler chips a refusal lights: each glows red a couple of times, then the
     rows stand as they were.
 
-    A flash arriving while one runs joins it on the running pulse, so a drag or a held key reads as
-    one pulse train. A chip is found by its row and its marker's start at paint time, so a chip out
-    of view draws no glow. A refusal lighting no chip starts no pulse, so it never cuts short the
-    pulse a later chip refusal would join.
+    The newest refusal replaces the running flash and restarts its clock (startRefusalFlash), so a
+    drag or a held key that keeps being refused reads as a steady glow, in step with every other
+    surface the refusal reaches. A chip is found by its row and its marker's start at paint time,
+    so a chip out of view draws no glow. A refusal lighting no chip clears the ruler's flash.
 
     \param chips The refused chips; empty when the refusal lights none on the ruler.
     */
@@ -491,6 +491,18 @@ public:
     \return The chip's bounds, or empty.
     */
     [[nodiscard]] std::optional<juce::Rectangle<int>> selectedChipBounds() const;
+
+    /*!
+    \brief One span's chip box as drawn, in this ruler's coordinates, pinned at the ruler's left
+    edge or standing at its span's start.
+
+    Read at paint time by the track viewport, which traces the chip and its top rail as one shape.
+    Exact rather than rounded, so the outline meets the rail's own float edges.
+
+    \param span Index of the span in the spans given (\ref setSpans).
+    \return The chip's box, or empty where the span shows no chip.
+    */
+    [[nodiscard]] std::optional<juce::Rectangle<float>> spanChipBox(std::size_t span) const;
 
     /*!
     \brief The slot a right-click at a point inserts on: where the tempo menu's "Add Tempo Anchor"
@@ -597,9 +609,15 @@ private:
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
 
     // The same mapping without the ruler's own bounds: a column left of or past the ruler, for a
-    // mark whose anchor has scrolled off while part of it still shows. Empty only outside the
-    // timeline.
+    // mark whose anchor has scrolled off while part of it still shows. Empty only when the
+    // geometry cannot map.
     [[nodiscard]] std::optional<float> unboundedLocalXForSeconds(double seconds) const noexcept;
+
+    // The play-from-here mark's column in ruler-local coordinates: the cursor's canvas column
+    // (cursorColumnForTimelinePosition) less the scroll offset, unbounded so the shared cursor
+    // drawer decides whether it falls on the ruler.
+    [[nodiscard]] std::optional<int> localCursorColumn(
+        common::core::TimePosition position) const noexcept;
 
     // Rebuilds the span chips from the spans: each visible chip, its column and the column its
     // span's marks stop at, which bounds its width.
@@ -659,16 +677,14 @@ private:
     // the same bounds.
     static void drawChipFill(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour fill);
 
-    // Outlines a chip that stands for the selected marker, drawn after the chip's face so a
-    // ghost's ring is as solid as any other.
-    static void drawChipSelectionRing(
-        juce::Graphics& g, const RulerChip& chip, juce::Rectangle<float> bounds);
+    // Rings a chip that stands for the selected marker and glows one a running refusal lights,
+    // both on the one outline just outside the chip; drawn after the chip's face so a ghost's ring
+    // and glow are as solid as any other.
+    static void drawChipOverlays(
+        juce::Graphics& g, const RulerChip& chip, juce::Rectangle<float> bounds,
+        std::optional<float> refusal_level);
 
-    // Draws the refusal glow spreading from a chip's outline at a running flash's level.
-    static void drawChipRefusalGlow(
-        juce::Graphics& g, juce::Rectangle<float> bounds, float refusal_level);
-
-    // The running refusal flash's level where it has joined the chip, else nothing.
+    // The running refusal flash's level where it lights the chip, else nothing.
     [[nodiscard]] std::optional<float> chipRefusalLevel(const core::RulerChipKey& chip) const;
 
     // Draws the section chip row with its labels centered, and the refusal glow around a refused
@@ -727,10 +743,10 @@ private:
     // Opens the signature row's menu (signatureMenuAt), selecting the chip the click landed on.
     void showSignatureContextMenu(const RulerChip* chip, juce::Point<float> click);
 
-    // The insert the signature menu's "Add Time Signature" opens for a right-click at a point: the
-    // core's meter rule read at the beat the click is in, when that rule names an insert; empty
-    // otherwise, or when the geometry cannot map the click.
-    [[nodiscard]] std::optional<core::InsertTimeSignatureTarget> signatureInsertTargetAt(
+    // The beat the signature menu's "Add Time Signature" inserts at for a right-click at a point:
+    // the beat the click is in, where the core's meter rule names an insert; empty otherwise, or
+    // when the geometry cannot map the click.
+    [[nodiscard]] std::optional<common::core::GridPosition> signatureInsertPositionAt(
         juce::Point<float> click) const;
 
     // The signature menu's rows for a click: Add when it offers an insert, Set and Delete over a
@@ -845,8 +861,8 @@ private:
     ChipRow m_tempo_row{};
     ChipRow m_signature_row{};
 
-    // The chip refusal flash while it runs: every refused chip it has joined, named by row and
-    // start because a chip row rebuild reassigns chips, and its pulse.
+    // The chip refusal flash while it runs: the newest refusal's chips, named by row and start
+    // because a chip row rebuild reassigns chips, and its pulse.
     std::optional<PulsedFlash<std::vector<core::RulerChipKey>>> m_chip_refusal{};
 
     // The renumber flash while it runs: the first renumbered measure, the first whose number

@@ -55,6 +55,12 @@ enum class MarkerVerb : std::uint8_t
     /*! \brief Deletes a time signature. */
     DeleteTimeSignature,
 
+    /*!
+    \brief Inserts a tone change, splitting the region it lands in; its undo entry names the tone
+    instead.
+    */
+    InsertToneChange,
+
     /*! \brief Adds a fret-hand position. */
     AddHandPosition,
 

@@ -99,22 +99,20 @@ namespace
                : 0.01F;
 }
 
-// The lanes view's ÷width forward pixel map (xForSeconds), replicated so the controller's
-// move/insert drag hit-tests and window-clamps against the same pixels the view draws. This is a
-// forward map for resolving which point a press falls on and where the editable window's edges sit
-// — NOT a snap path: every position SNAP on the lane (caret arm, insert ghost, Alt placement, drag)
-// runs through the one ÷(width - 1) placement seam, laneSnapPositionForX, so the lane has a single
-// horizontal snap authority as the chart does.
+// The lanes view's forward pixel map (xForSeconds): the one time-to-x mapping, unclamped, so the
+// controller's move/insert drag hit-tests and window-clamps against the same pixels the view
+// draws. This is a forward map for resolving which point a press falls on and where the editable
+// window's edges sit — NOT a snap path: every position SNAP on the lane (caret arm, insert ghost,
+// Alt placement, drag) runs through the one placement seam, laneSnapPositionForX, so the lane has
+// a single horizontal snap authority as the chart does.
 [[nodiscard]] std::optional<float> laneXForSeconds(
     double seconds, common::core::TimeRange visible_timeline, int content_width)
 {
-    const double duration = visible_timeline.duration().seconds;
-    if (content_width <= 0 || duration <= 0.0)
-    {
-        return std::nullopt;
-    }
-    return static_cast<float>(
-        (seconds - visible_timeline.start.seconds) / duration * static_cast<double>(content_width));
+    return timelineXForPosition(
+        common::core::TimePosition{seconds},
+        visible_timeline,
+        content_width,
+        TimelinePositionClamping::ExtendPastVisibleRange);
 }
 
 // Maps a lane-local pixel y onto a normalised value inside one lane's value band, clamped to the
@@ -136,7 +134,7 @@ namespace
 }
 
 // Snaps a lane-local pixel x through the exact placement seam an Alt+click / drag commit uses:
-// timelinePositionForX inverts the pixel to a click time (÷ (width - 1), clamped), then
+// timelinePositionForX inverts the pixel to a click time (clamped to the visible range), then
 // nearestTempoGridPosition on the placement quantum. That is musicalGridPositionForX bit-for-bit,
 // the one snap authority the ghost already rides.
 [[nodiscard]] std::optional<common::core::GridPosition> laneSnapPositionForX(
@@ -676,7 +674,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     ToneModelSnapshot after = before;
     const std::string tone_name = toneNameForRef(action.tone_document_ref);
     const std::string label =
-        "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name);
+        tone_name.empty() ? markerVerbLabel(MarkerVerb::InsertToneChange) : "Insert " + tone_name;
     // The subject is the region the insert splits: the one holding the place it addressed.
     RefusalLight subject = regionLightAt(before.tone_track, action.position);
     if (const auto created = common::core::createToneRegion(
@@ -831,38 +829,69 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
 // The tone chord authors at the cursor and never reads the selection: a region starting EXACTLY at
 // the cursor's placement slot is restated (retoned) — a region's start is the tone change that
 // opens it, the first region's included, since restating that repoints the opening tone and a split
-// there would be zero-width — and a slot strictly inside a region splits it. The terminal position
-// holds no region to split, so there the verb is nothing, inert exactly where the commit would
-// refuse.
-ToneChordTarget EditorController::Impl::toneChordTarget() const
+// there would be zero-width — and a slot strictly inside a region splits it; either opens the tone
+// picker. The terminal position holds no region to split, so the press is refused there rather
+// than opening a picker for a split the commit would refuse. The dispatcher answered first: the
+// Note Lock, and the paused-only marker plane.
+void EditorController::Impl::performActionImpl(EditorAction::ToneChord /*action*/)
 {
-    const std::optional<common::core::GridPosition> position = cursorPosition(placementQuantum());
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (!position.has_value() || arrangement == nullptr)
+    if (const std::optional<common::core::GridPosition> position =
+            cursorPosition(placementQuantum());
+        position.has_value())
     {
-        return {};
+        performActionImpl(EditorAction::ToneChangeAt{.position = *position});
+    }
+}
+
+// The chord's rule at a place the tone row's Alt-click or menu named.
+void EditorController::Impl::performActionImpl(const EditorAction::ToneChangeAt& action)
+{
+    const common::core::GridPosition position = action.position;
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return;
     }
     // The region whose start is the last at or before the slot; the first region starts at the
     // song's start, so only a slot before it — impossible for a paused cursor — finds nothing.
     const common::core::ToneRegion* const region =
-        common::core::toneRegionAt(arrangement->tone_track, *position);
+        common::core::toneRegionAt(arrangement->tone_track, position);
     if (region == nullptr)
     {
-        return {};
+        return;
     }
-    if (region->start == *position)
+    if (region->start == position)
     {
-        return RetoneRegionTarget{
-            .region_id = region->id, .tone_document_ref = region->tone_document_ref
-        };
+        showMarkerPrompt(
+            RetoneRegionTarget{
+                .region_id = region->id, .tone_document_ref = region->tone_document_ref
+            });
+        return;
     }
-    if (!common::core::markerCanStartAt(*position, session().song().tempo_map))
+    if (!common::core::objectCanStartAt(position, session().song().tempo_map))
     {
-        return {};
+        refuseAtSongEnd(MarkerVerb::InsertToneChange);
+        return;
     }
-    return SplitToneRegionTarget{
-        .position = *position, .containing_tone_document_ref = region->tone_document_ref
-    };
+    showMarkerPrompt(
+        SplitToneRegionTarget{
+            .position = position, .containing_tone_document_ref = region->tone_document_ref
+        });
+}
+
+// The tone row names the tone it clicked, so the rename reads no selection; the name it opens on is
+// the catalog's, never the row's copy.
+void EditorController::Impl::performActionImpl(const EditorAction::ToneRenamePrompt& action)
+{
+    if (action.tone_document_ref.empty())
+    {
+        return;
+    }
+    showMarkerPrompt(
+        RenameToneTarget{
+            .tone_document_ref = action.tone_document_ref,
+            .name = toneNameForRef(action.tone_document_ref),
+        });
 }
 
 // Points one tone region at a tone. The target is either a tone already in the catalog or one to
@@ -1310,17 +1339,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
     {
         return;
     }
-    // The points are content the Note Lock holds in time, so the lock refuses them as it refuses
-    // every marker; this verb lands outside the marker funnel, so it asks here.
-    if (const std::optional<std::string> locked = noteLockRefusal(); locked.has_value())
-    {
-        m_refusal_log.markerEdit(
-            automationPointsLabel(automationParameterName(
-                identity->second.tone_document_ref, action.instance_id, action.param_id)),
-            *locked);
-        return;
-    }
-
     if (!action.points.empty())
     {
         const common::core::ToneParameterAutomation candidate{
@@ -1428,7 +1446,7 @@ void EditorController::Impl::seekAndArmLaneCaret(
 // would actually land — Alt held, not busy, and paused (armed-create is a paused-only gesture).
 // The event carries the raw lane-local pixel x plus the geometry it was mapped against, and the
 // snap runs through laneSnapPositionForX — the exact placement seam an Alt+click and the drag
-// commit share (timelinePositionForX ÷ (width - 1) then the placement quantum's lattice),
+// commit share (timelinePositionForX then the placement quantum's lattice),
 // so the ring lands on the identical slot the click would with no sub-pixel drift. The occupancy
 // gate that keeps the ring honest lives at publish time (deriveViewState, against the published
 // lanes): mouse placement refuses an occupied slot (onToneAutomationPointerDown's Alt branch), so
@@ -1607,8 +1625,8 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
     }
 
     // Empty editable lane area. Both the plain caret arm and the Alt on-curve insert snap the pixel
-    // through the one placement seam — laneSnapPositionForX (timelinePositionForX ÷ (width - 1)
-    // then the placement quantum's lattice) — mirroring the chart's single chartPlacementAt
+    // through the one placement seam — laneSnapPositionForX (timelinePositionForX then the
+    // placement quantum's lattice) — mirroring the chart's single chartPlacementAt
     // consumed by both its caret arm and its Alt insert. So the caret lands on the identical slot
     // an Alt+click or the insert ghost would at the same pixel. A degenerate geometry that maps no
     // slot only refreshes the dismissed ghost.
@@ -1734,7 +1752,7 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
     const bool lock_value = event.modifiers.shift && horizontal_dominant;
     const bool lock_position = event.modifiers.shift && !horizontal_dominant;
 
-    // Clamp x inside the editable window (÷width, the view's own xForSeconds), then snap and clamp
+    // Clamp x inside the editable window (the view's own xForSeconds), then snap and clamp
     // musically between the temporal neighbors so the committed list stays strictly ascending.
     const common::core::TimeRange window = activeToneRegionWindow();
     const std::optional<float> window_start =
@@ -2178,13 +2196,22 @@ void EditorController::Impl::deleteSelectedAutomationPoint(
 // Moves the selected automation point (the move-intent dispatch for the automation
 // alternative), replaying its lane's points with the change through the one points-edit
 // intent. Up/Down steps the value — one real state on a discrete parameter, else 0.01; Left/Right
-// steps the time axis to the adjacent line of the placement quantum's lattice, refusing steps that
-// collapse (map edge) or reverse direction (nearest-line bounce-back) and clamping strictly between
-// the neighbors and inside the active region's window. Every refusal — stale selection included —
-// is a silent no-op.
+// steps the time axis to the adjacent line of the placement quantum's lattice, strictly between the
+// neighbours and inside the active region's window. Every refusal is logged under the lane's label.
+// The Note Lock refuses the move at dispatch, before any bound the step would meet. Of the bounds,
+// the value's range, the song's edges and a neighbour light nothing, since a point is no refusal
+// target, and the window lights the region whose edge held it. A stale
+// selection moves nothing and says nothing, as every verb over a selection naming nothing.
 void EditorController::Impl::moveSelectedAutomationPoint(
     const AutomationPointSelection& selection, ChartStepDirection direction)
 {
+    const auto label = [&] {
+        return automationPointsLabel(automationParameterName(
+            activeToneDocumentRef(), selection.instance_id, selection.param_id));
+    };
+    const auto refuse = [&](const std::string_view reason, const RefusalLight& lit) {
+        refuseMarkerVerb(label(), reason, lit);
+    };
     const std::vector<common::core::ToneAutomationPoint>* const lane_points =
         lanePointsFor(selection.instance_id, selection.param_id);
     if (lane_points == nullptr)
@@ -2218,16 +2245,22 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         const float raw = point->norm_value + (direction == ChartStepDirection::Up ? step : -step);
         const float new_value =
             snappedLaneValue(std::clamp(raw, 0.0F, 1.0F), is_discrete, discrete_value_count);
-        // Exact inequality via is_neq keeps -Wfloat-equal builds clean; snapped-value
-        // no-change detection is deliberately exact.
-        if (std::is_neq(new_value <=> point->norm_value))
+        // Exact equality via is_eq keeps -Wfloat-equal builds clean; snapped-value no-change
+        // detection is deliberately exact. A step lands on its own value only at the range's end.
+        if (std::is_eq(new_value <=> point->norm_value))
         {
-            std::vector<common::core::ToneAutomationPoint> points = *lane_points;
-            points[point_index].norm_value = new_value;
-            onToneAutomationPointsEditRequested(
-                selection.instance_id, selection.param_id, std::move(points));
-            updateView();
+            refuse(
+                direction == ChartStepDirection::Up
+                    ? "automation point is already at the top of its range"
+                    : "automation point is already at the bottom of its range",
+                RefusalLight{});
+            return;
         }
+        std::vector<common::core::ToneAutomationPoint> points = *lane_points;
+        points[point_index].norm_value = new_value;
+        onToneAutomationPointsEditRequested(
+            selection.instance_id, selection.param_id, std::move(points));
+        updateView();
         return;
     }
 
@@ -2235,21 +2268,21 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         steppedNudgePosition(selection.position, direction == ChartStepDirection::Right);
     if (!step.has_value())
     {
+        refuse("automation point would leave the song", RefusalLight{});
         return;
     }
     const common::core::GridPosition new_position = *step;
-    if (point != lane_points->begin() && !(std::prev(point)->position < new_position))
+    if ((point != lane_points->begin() && !(std::prev(point)->position < new_position)) ||
+        (std::next(point) != lane_points->end() && !(new_position < std::next(point)->position)))
     {
-        return;
-    }
-    if (std::next(point) != lane_points->end() && !(new_position < std::next(point)->position))
-    {
+        refuse("automation point cannot step onto or past its neighbour", RefusalLight{});
         return;
     }
     const common::core::TimeRange window = activeToneRegionWindow();
     const double new_seconds = session().song().tempo_map.secondsAt(new_position);
     if (new_seconds < window.start.seconds || new_seconds >= window.end.seconds)
     {
+        refuse("automation point would leave its tone region", regionLight(activeToneRegionId()));
         return;
     }
     std::vector<common::core::ToneAutomationPoint> points = *lane_points;

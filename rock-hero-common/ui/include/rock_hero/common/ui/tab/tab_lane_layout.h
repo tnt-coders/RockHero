@@ -339,6 +339,10 @@ struct TabLaneGeometry
     /*!
     \brief Maps a timeline time onto the lane's horizontal axis, through \ref retime when the
     host set one.
+
+    Places the time with \ref common::core::timelineXForSeconds, the one mapping every timeline
+    surface shares, so the lane's notes and rails land on the editor ruler's and grid's pixels.
+
     \param seconds Timeline time to map, as the lane was handed it.
     \return Horizontal pixel position in the bounds' coordinate space.
     */
@@ -353,10 +357,37 @@ struct TabLaneGeometry
     [[nodiscard]] double publishedSeconds(double drawn_seconds) const noexcept;
 
     /*!
+    \brief The time the lane draws at a horizontal position: the inverse of \ref x short of its
+    re-time, measured from the bounds' left edge as \ref x measures.
+
+    Drawn time, which a pixel slack widens; \ref publishedSeconds then takes it back to the time
+    the lane's content was handed.
+
+    \param position Horizontal position in the bounds' coordinate space.
+    \return Timeline time as the lane draws it.
+    */
+    [[nodiscard]] double drawnSecondsAt(float position) const noexcept;
+
+    /*!
     \brief Returns the timeline seconds one horizontal pixel spans: the inverse of \ref x's scale.
     \return Seconds per pixel.
     */
     [[nodiscard]] double secondsPerPixel() const noexcept;
+
+    /*!
+    \brief Returns the window of content time whose events can put ink between two horizontal
+    positions: the positions mapped back through \ref x's inverse and widened by the slack heads
+    and icons reach around their onset, three \ref max_note_height in pixels, so an event whose
+    onset sits just outside still counts.
+
+    The one statement of that window: the paint core bounds its clip by it and a hit test its
+    candidates, so neither can find an event the other misses.
+
+    \param from_x Left position, in the bounds' coordinate space.
+    \param to_x Right position, in the bounds' coordinate space.
+    \return The window in the times the lane was handed (\ref publishedSeconds).
+    */
+    [[nodiscard]] common::core::TimeRange inkWindow(float from_x, float to_x) const noexcept;
 
     /*!
     \brief Vertical lane center for a chart string, accounting for extra lanes below the chart.

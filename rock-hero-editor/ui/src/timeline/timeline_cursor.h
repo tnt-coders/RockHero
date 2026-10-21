@@ -14,51 +14,50 @@ namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Computes a cursor x coordinate for a timeline position and visible range.
+\brief Computes the pixel column the one-pixel transport cursor draws in for a timeline position.
+
+The time-to-x mapping clamped to the visible range, resolved to its column by
+core::timelineColumnForX, which holds the visible end inside the last column. Chosen in canvas
+space, so a surface narrower or wider than the canvas (the pinned ruler) draws the same column by
+subtracting its scroll offset.
 
 \param position Current transport position.
 \param visible_timeline Visible timeline range.
 \param width Drawing width in pixels.
-\return Subpixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
+\return The cursor's column, in [0, width - 1], or empty when no cursor can be mapped.
 */
-[[nodiscard]] std::optional<float> cursorXForTimelinePosition(
+[[nodiscard]] std::optional<int> cursorColumnForTimelinePosition(
     common::core::TimePosition position, common::core::TimeRange visible_timeline,
     int width) noexcept;
 
 /*!
-\brief Invalidates only the strip spanning the old and new cursor positions.
-
-Repaints a narrow full-height band over a timeline component instead of the whole component, so
-cursor motion stays cheap. The band includes a few pixels of padding for the cursor line's
-antialiasing. Passing two positions invalidates their union; passing one invalidates that single
-strip.
-
+\brief Invalidates only the narrow full-height strips around the cursor column it leaves and the
+one it enters, so cursor motion stays cheap.
 \param component Full-height timeline component to invalidate.
-\param previous_cursor_x Last drawn subpixel cursor x, if any.
-\param next_cursor_x New subpixel cursor x, if any.
+\param previous_column Column the cursor was drawn in, if any.
+\param next_column Column it now draws in, if any.
 */
-void repaintCursorStrip(
-    juce::Component& component, std::optional<float> previous_cursor_x,
-    std::optional<float> next_cursor_x);
+void repaintCursorColumns(
+    juce::Component& component, std::optional<int> previous_column, std::optional<int> next_column);
 
 /*!
 \brief Draws the one-pixel transport cursor column shared by every timeline view.
 
-The subpixel cursor x rounds and clamps into the component's column range so the cursor stays
-visible at both edges, matching the shared clamping in cursorXForTimelinePosition consumers. The
-column runs from top to the component's bottom edge; views whose cursor must not cover header
-rows pass their header height as top.
+The column (from cursorColumnForTimelinePosition, offset into this component's space) draws
+nothing where it falls outside the component: it is scrolled past its edge. The column runs from
+top to the component's bottom edge; views whose cursor must not cover header rows pass their
+header height as top.
 
 \param g Graphics context of the component being painted.
 \param component Timeline component the cursor is drawn over.
-\param cursor_x Subpixel cursor x, if a cursor is currently mappable.
+\param column The cursor's column in this component's space, if a cursor is currently mappable.
 \param top Local y where the cursor column starts.
 \param color Cursor color: playback_cursor while playing, paused_cursor for the paused mark.
-\return The pixel column the cursor was drawn in, so adornments (the ruler's flag) can center
-on the exact drawn pixel; empty when nothing was drawn.
+\return The column the cursor was drawn in, so adornments (the ruler's flag) center on the drawn
+pixel; empty when nothing was drawn.
 */
 std::optional<int> drawTimelineCursor(
-    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top,
+    juce::Graphics& g, const juce::Component& component, std::optional<int> column, int top,
     juce::Colour color);
 
 /*!

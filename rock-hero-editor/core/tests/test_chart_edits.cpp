@@ -1393,21 +1393,35 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
         // Exactly onto the head, then past it: one plan, because the clamp IS where the step lands.
         parked(common::core::Fraction{1, 4});
         parked(common::core::Fraction{1, 2});
-        // A FURTHER press in the same direction is HELD, not NoChange: the plan is diffed against
-        // the PRE-GESTURE chart, which still holds the whole-note ring, so the replay describes the
-        // same edit the previous press did — an identical entry replacing itself, nothing visible
-        // moving. NoChange is the other case, a FIRST press on a slide-out already parked there.
-        parked(common::core::Fraction{3, 4});
-        const auto past = planMoveSelection(
-            repicked, tempo_map, {}, slide_out, common::core::Fraction{1, 2}, 0, "Move Keyframe");
-        const auto further = planMoveSelection(
-            repicked, tempo_map, {}, slide_out, common::core::Fraction{3, 4}, 0, "Move Keyframe");
-        REQUIRE(past.has_value());
-        REQUIRE(further.has_value());
-        if (past.has_value() && further.has_value())
+        // A FURTHER press in the same direction, with the live chart holding the parked ring the
+        // press before it landed, moves nothing: the clamp leaves the slide-out where it already
+        // is, so the gesture planner REFUSES the press, lighting the head it is parked on, and a
+        // gesture records no step it would have to pay back.
+        const ChartMoveStep right{
+            .note_value = g_quarter_grid, .direction = ChartStepDirection::Right
+        };
+        const auto onto =
+            planMoveGesture(repicked, tempo_map, repicked, {}, slide_out, {right}, "Move Keyframe");
+        REQUIRE(onto.has_value());
+        if (onto.has_value())
         {
-            CHECK(past->plan.inserted == further->plan.inserted);
-            CHECK(past->plan.removed == further->plan.removed);
+            common::core::Chart live = repicked;
+            applyAndValidate(live, tempo_map, *onto);
+            const auto further = planMoveGesture(
+                live, tempo_map, repicked, {}, slide_out, {right, right}, "Move Keyframe");
+            REQUIRE_FALSE(further.has_value());
+            if (!further.has_value())
+            {
+                const auto* const refused = std::get_if<PlanRefused>(&further.error());
+                REQUIRE(refused != nullptr);
+                if (refused != nullptr)
+                {
+                    CHECK(
+                        refused->reason == "slide-out already reaches the next note on its string");
+                    CHECK(
+                        litNotes(refused->lit) == std::vector{keyAt({.measure = 3, .beat = 2}, 1)});
+                }
+            }
         }
         // A shorter step still lands where it was aimed, close to the head included.
         const auto inside = planMoveSelection(
@@ -1422,11 +1436,12 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             CHECK(common::core::endStatedFretOrNull(*glide) != nullptr);
         }
     }
-    SECTION("a slide-out already on the head answers NoChange")
+    SECTION("a slide-out already on the head is refused as a press")
     {
-        // A FIRST press whose whole step the clamp eats describes no edit at all, so it arms no
-        // gesture and the next press in the other direction starts from the current ring rather
-        // than paying back a step that moved nothing.
+        // A FIRST press whose whole step the clamp eats describes no edit, so the geometry answers
+        // NoChange; the PRESS moved nothing because the head held it, so the gesture planner
+        // refuses it, lighting that head. It arms no gesture, and the next press in the other
+        // direction starts from the current ring.
         common::core::Chart parked;
         parked.tuning.strings = chart.tuning.strings;
         common::core::ChartNote glide =
@@ -1442,6 +1457,24 @@ TEST_CASE("planMoveSelection drags the ring's end with its slide-out", "[core][c
             parked, tempo_map, {}, at_head, common::core::Fraction{1, 4}, 0, "Move Keyframe");
         REQUIRE_FALSE(plan.has_value());
         CHECK(std::holds_alternative<PlanNoChange>(plan.error()));
+        const auto pressed = planMoveGesture(
+            parked,
+            tempo_map,
+            parked,
+            {},
+            at_head,
+            {ChartMoveStep{.note_value = g_quarter_grid, .direction = ChartStepDirection::Right}},
+            "Move Keyframe");
+        REQUIRE_FALSE(pressed.has_value());
+        if (!pressed.has_value())
+        {
+            const RefusalLight* const lit = litOf(pressed.error());
+            REQUIRE(lit != nullptr);
+            if (lit != nullptr)
+            {
+                CHECK(litNotes(*lit) == std::vector{keyAt({.measure = 3, .beat = 2}, 1)});
+            }
+        }
         // And stepping BACK moves again: the ring shortens with the slide-out, which never had a
         // ceiling in that direction.
         const auto back = planMoveSelection(
@@ -2075,12 +2108,21 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
         CHECK(plan->plan.label == "Shrink Sustain");
     }
 
-    // With nothing left that can shrink, the press changes nothing at all: NoChange, the same
-    // answer every planner gives for an empty diff.
+    // With nothing left that can shrink, the press moves nothing at all, so it is refused: the
+    // onset holds the ring, and nothing beyond the note stands in its way.
     const std::vector<ChartSlotKey> only_short{keyAt({.measure = 2, .beat = 1}, 1)};
     const auto unchanged = planAdjustSustain(chart, tempo_map, chart, only_short, steps);
     REQUIRE_FALSE(unchanged.has_value());
-    CHECK(std::holds_alternative<PlanNoChange>(unchanged.error()));
+    if (!unchanged.has_value())
+    {
+        const auto* const refused = std::get_if<PlanRefused>(&unchanged.error());
+        REQUIRE(refused != nullptr);
+        if (refused != nullptr)
+        {
+            CHECK(refused->reason == "ring cannot shrink to nothing");
+            CHECK(refused->lit.targets.empty());
+        }
+    }
 }
 
 // What the step list exists for: a GRID step moves the ring's END onto the adjacent grid line, so
@@ -2425,9 +2467,9 @@ TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][cha
     }
 }
 
-// A tail already sitting at the bound stays there rather than being rewritten to the same value,
-// so the press has nothing to plan.
-TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][chart]")
+// A tail already sitting at the bound stays there, so the press moved nothing and is refused,
+// lighting the onset that bounds it.
+TEST_CASE("planAdjustSustain refuses a tail already at the bound", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2442,7 +2484,16 @@ TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][
     const auto plan =
         planAdjustSustain(chart, tempo_map, chart, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(plan.has_value());
-    CHECK(std::holds_alternative<PlanNoChange>(plan.error()));
+    if (!plan.has_value())
+    {
+        const auto* const refused = std::get_if<PlanRefused>(&plan.error());
+        REQUIRE(refused != nullptr);
+        if (refused != nullptr)
+        {
+            CHECK(refused->reason == "ring already reaches the next note on its string");
+            CHECK(litNotes(refused->lit) == std::vector{keyAt({.measure = 1, .beat = 3}, 1)});
+        }
+    }
 }
 
 // Empty keys and an empty step list both plan no sustain change — from a stream that IS the base,
@@ -2541,12 +2592,10 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
 
 // A ring the replay would empty holds the value it CURRENTLY has — read from the live chart, not
 // from the gesture's start. Holding the start value instead would grow the note back on a shrink
-// press. A step into the floor therefore moves NOTHING, and the planner says so the only way a pure
-// function of the step list can: it answers the plan it answered last time. DROPPING that press so
-// the run banks no overshoot is the shared gesture authority's (`commitChartGestureStep` compares
-// the replay against the plan its entry already holds), and the controller-level twin in
-// `test_chart_sustain_gesture.cpp` is where that is asserted — so nothing here pops a step.
-TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core][chart]")
+// press. A step into the floor therefore moves NOTHING, so the planner refuses it, and the caller
+// records only the steps it planned: the run it is left holding has no unseen overshoot to pay
+// back.
+TEST_CASE("planAdjustSustain refuses a step into the floor", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -2558,19 +2607,22 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
     common::core::Chart live = chart;
     std::vector<ChartSustainStep> steps;
     // A press as the caller makes it: the step is appended, the whole run replays over `base`, and
-    // the live chart is walked to what the plan describes. The plan comes back so a caller can ask
-    // whether the press moved anything.
+    // the live chart is walked to what the plan describes — or, where the planner refused, the step
+    // is taken back off, since a refused step never happened. The refusal's reason comes back,
+    // empty for a press that moved.
     const auto press = [&](bool grow) {
         steps.push_back(gridStep(g_quarter_grid, grow));
-        std::expected<JudgedChartPlan, PlanRefusal> plan =
+        const std::expected<JudgedChartPlan, PlanRefusal> plan =
             planAdjustSustain(live, tempo_map, base, keys, steps);
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
+        if (!plan.has_value())
         {
-            live.notes = base.notes;
-            REQUIRE(applyChartChange(live, plan->plan).has_value());
+            steps.pop_back();
+            const auto* const refused = std::get_if<PlanRefused>(&plan.error());
+            return refused != nullptr ? refused->reason : std::string{};
         }
-        return plan;
+        live.notes = base.notes;
+        REQUIRE(applyChartChange(live, plan->plan).has_value());
+        return std::string{};
     };
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which
     // no step below expects, so the caller's own comparison fails.
@@ -2579,48 +2631,28 @@ TEST_CASE("planAdjustSustain holds an emptied ring and repeats its plan", "[core
             noteAt(live.notes, {.measure = 2, .beat = 1}, 1);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
-    // Whether two presses describe the same edit, which is the question the gesture authority asks.
-    // The label is left out of it: it names the run's NET direction, which a run standing still has
-    // no new value for.
-    const auto describes_the_same = [](const std::expected<JudgedChartPlan, PlanRefusal>& lhs,
-                                       const std::expected<JudgedChartPlan, PlanRefusal>& rhs) {
-        return lhs.has_value() && rhs.has_value() && lhs->plan.removed == rhs->plan.removed &&
-               lhs->plan.inserted == rhs->plan.inserted;
-    };
 
-    static_cast<void>(press(/*grow=*/false));
+    CHECK(press(/*grow=*/false).empty());
     CHECK(ring() == common::core::Fraction{1, 2});
-    const auto second = press(/*grow=*/false);
+    CHECK(press(/*grow=*/false).empty());
     CHECK(ring() == common::core::Fraction{1, 4});
     // The next line IS the onset, so the ring holds where the previous step left it rather than
-    // being clamped to some invented floor or restored to its dotted-half start — and the plan is
-    // the one before it, to the note. It stays that way for every further press into the floor.
-    const auto floored = press(/*grow=*/false);
+    // being clamped to some invented floor or restored to its dotted-half start, and the press is
+    // refused. It stays that way for every further press into the floor.
+    CHECK(press(/*grow=*/false) == "ring cannot shrink to nothing");
     CHECK(ring() == common::core::Fraction{1, 4});
-    CHECK(describes_the_same(floored, second));
-    const auto still_floored = press(/*grow=*/false);
+    CHECK(press(/*grow=*/false) == "ring cannot shrink to nothing");
     CHECK(ring() == common::core::Fraction{1, 4});
-    CHECK(describes_the_same(still_floored, second));
+    CHECK(steps.size() == 2);
 
-    // The run the caller is left holding, having dropped both of those presses: two shrinks. The
-    // first grow off it is the first step back, with no unseen overshoot to pay.
-    std::vector<ChartSustainStep> recorded{
-        gridStep(g_quarter_grid, false),
-        gridStep(g_quarter_grid, false),
-        gridStep(g_quarter_grid, true)
-    };
-    const auto regrown = planAdjustSustain(live, tempo_map, base, keys, recorded);
-    REQUIRE(regrown.has_value());
-    if (regrown.has_value())
-    {
-        live.notes = base.notes;
-        REQUIRE(applyChartChange(live, regrown->plan).has_value());
-        CHECK(ring() == common::core::Fraction{1, 2});
-    }
-    // A run that replays back to its start describes nothing: NoChange is what tells the caller to
-    // take the gesture's entry back out and walk the chart to `base`.
-    recorded.push_back(gridStep(g_quarter_grid, true));
-    const auto closed = planAdjustSustain(live, tempo_map, base, keys, recorded);
+    // The first grow off the run is the first step back, with no unseen overshoot to pay.
+    CHECK(press(/*grow=*/true).empty());
+    CHECK(ring() == common::core::Fraction{1, 2});
+    // A run that replays back to its start MOVED its ring, so it is no refusal: it describes
+    // nothing, and NoChange is what tells the caller to take the gesture's entry back out and walk
+    // the chart to `base`.
+    steps.push_back(gridStep(g_quarter_grid, true));
+    const auto closed = planAdjustSustain(live, tempo_map, base, keys, steps);
     REQUIRE_FALSE(closed.has_value());
     CHECK(std::holds_alternative<PlanNoChange>(closed.error()));
 }
@@ -2745,6 +2777,147 @@ TEST_CASE("planAdjustSustain returns a grown slide-out to an unpitched slide", "
         {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
     REQUIRE_FALSE(returned.has_value());
     CHECK(std::holds_alternative<PlanNoChange>(returned.error()));
+}
+
+// THE GRID'S EDGE IS A BOUND: a time press the edge absorbs adds nothing to the run's delta, so it
+// moved nothing and the gesture planner refuses it — on a first press and inside a run alike, so a
+// refused press is never recorded. The edge is nothing on screen, so the refusal lights nothing of
+// its own; the controller adds the selection.
+TEST_CASE("planMoveGesture refuses a press the song's start absorbs", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {makeTestNote({.measure = 1, .beat = 2}, 1, 3)};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 2}, 1)};
+    const ChartMoveStep left{.note_value = g_quarter_grid, .direction = ChartStepDirection::Left};
+    // The refusal's reason and light, or a reason naming no refusal where the planner answered a
+    // plan or NoChange. Assertion-free: it is read inside CHECK expressions.
+    const auto refusal = [](const std::expected<JudgedChartPlan, PlanRefusal>& planned) {
+        const auto* const refused =
+            planned.has_value() ? nullptr : std::get_if<PlanRefused>(&planned.error());
+        return refused != nullptr ? std::pair{refused->reason, refused->lit.targets.empty()}
+                                  : std::pair{std::string{"no refusal"}, false};
+    };
+
+    // One press reaches the downbeat, the song's start.
+    const auto first = planMoveGesture(chart, tempo_map, chart, keys, {}, {left}, "Move Note");
+    REQUIRE(first.has_value());
+    if (!first.has_value())
+    {
+        return;
+    }
+    common::core::Chart live = chart;
+    applyAndValidate(live, tempo_map, *first);
+    REQUIRE(live.notes.size() == 1);
+    CHECK(live.notes.front().position == common::core::GridPosition{.measure = 1, .beat = 1});
+
+    // Inside the run, the next press earlier has nowhere to go.
+    CHECK(
+        refusal(planMoveGesture(live, tempo_map, chart, keys, {}, {left, left}, "Move Note")) ==
+        std::pair{std::string{"already at the start of the song"}, true});
+    // And a first press from the start gives the same answer.
+    const std::vector<ChartSlotKey> at_start{keyAt({.measure = 1, .beat = 1}, 1)};
+    CHECK(
+        refusal(planMoveGesture(live, tempo_map, live, at_start, {}, {left}, "Move Note")) ==
+        std::pair{std::string{"already at the start of the song"}, true});
+}
+
+// A STRING press asks no time move of anything, so over keyframes alone it moves nothing and is no
+// refusal: NoChange on a first press, and the plan the run already holds inside one — which the
+// gesture authority drops unrecorded — even with the slide-out parked on the next head, where a
+// TIME press would be refused.
+TEST_CASE(
+    "planMoveGesture answers a string press over keyframes alone with no move", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes.push_back(makeTestNote({.measure = 3, .beat = 2}, 1, 3));
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartKeyframeKey> slide_out{keyframeKeyAt(
+        glideOnset(), 1, common::core::Fraction{1})};
+    const ChartMoveStep right{.note_value = g_quarter_grid, .direction = ChartStepDirection::Right};
+    const ChartMoveStep up{.note_value = g_quarter_grid, .direction = ChartStepDirection::Up};
+
+    const auto first =
+        planMoveGesture(chart, tempo_map, chart, {}, slide_out, {up}, "Move Keyframe");
+    REQUIRE_FALSE(first.has_value());
+    CHECK(std::holds_alternative<PlanNoChange>(first.error()));
+
+    // A run that parked the slide-out on the head, then a string press.
+    const auto onto =
+        planMoveGesture(chart, tempo_map, chart, {}, slide_out, {right}, "Move Keyframe");
+    REQUIRE(onto.has_value());
+    if (!onto.has_value())
+    {
+        return;
+    }
+    common::core::Chart live = chart;
+    applyAndValidate(live, tempo_map, *onto);
+    const auto across =
+        planMoveGesture(live, tempo_map, chart, {}, slide_out, {right, up}, "Move Keyframe");
+    REQUIRE(across.has_value());
+    if (across.has_value())
+    {
+        CHECK(across->plan.inserted == onto->plan.inserted);
+        CHECK(across->plan.removed == onto->plan.removed);
+    }
+}
+
+// NOTHING STARTS AT OR PAST THE SONG'S END, a note no more than a marker (objectCanStartAt). The
+// move's delta is measured at the selection's EARLIEST object, so a later selected note can be
+// carried onto the terminal while the anchor still has room: the gate refuses that landing,
+// lighting the note it judged. With the anchor itself on the terminal — a slide-out ending the
+// song's last ring — the step has nowhere to go, and the press is refused as the edge's.
+TEST_CASE("planMoveGesture refuses a move onto the song's end", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const common::core::GridPosition terminal = common::core::terminalGridPosition(tempo_map);
+    REQUIRE(terminal == common::core::GridPosition{.measure = 9, .beat = 1});
+    const ChartMoveStep right{.note_value = g_quarter_grid, .direction = ChartStepDirection::Right};
+    // The refusal's reason and the notes it lights, or a reason naming no refusal where the planner
+    // answered a plan or NoChange. Assertion-free: it is read inside CHECK expressions.
+    const auto refusal = [](const std::expected<JudgedChartPlan, PlanRefusal>& planned) {
+        const auto* const refused =
+            planned.has_value() ? nullptr : std::get_if<PlanRefused>(&planned.error());
+        return refused != nullptr
+                   ? std::pair{refused->reason, litNotes(refused->lit)}
+                   : std::pair{std::string{"no refusal"}, std::vector<ChartSlotKey>{}};
+    };
+
+    SECTION("a later note carried onto the terminal")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeTestNote({.measure = 8, .beat = 1}, 1, 3),
+            makeTestNote({.measure = 8, .beat = 4}, 2, 5),
+        };
+        const std::vector<ChartSlotKey> keys{
+            keyAt({.measure = 8, .beat = 1}, 1), keyAt({.measure = 8, .beat = 4}, 2)
+        };
+        CHECK(
+            refusal(
+                planMoveGesture(chart, tempo_map, chart, keys, {}, {right}, "Move Selection")) ==
+            std::pair{
+                std::string{"a note cannot start at or past the end of the song at 9:1"},
+                std::vector{keyAt(terminal, 2)},
+            });
+    }
+    SECTION("a slide-out on the terminal")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote last =
+            makeTestNote({.measure = 8, .beat = 1}, 1, 5, common::core::Fraction{1});
+        last.keyframes = {common::core::Keyframe{.offset = common::core::Fraction{1}, .fret = 9}};
+        chart.notes = {std::move(last)};
+        const std::vector<ChartKeyframeKey> slide_out{keyframeKeyAt(
+            {.measure = 8, .beat = 1}, 1, common::core::Fraction{1})};
+        CHECK(
+            refusal(planMoveGesture(
+                chart, tempo_map, chart, {}, slide_out, {right}, "Move Keyframe")) ==
+            std::pair{std::string{"already at the end of the song"}, std::vector<ChartSlotKey>{}});
+    }
 }
 
 // Applying a removal-and-insertion whose preconditions hold swaps in the new stream.

@@ -6,6 +6,7 @@
 #include <iterator>
 #include <rock_hero/common/core/chart/bend_travel.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
+#include <rock_hero/common/core/timeline/timeline_x.h>
 
 namespace rock_hero::common::ui
 {
@@ -41,16 +42,14 @@ float tabLaneCenterY(
     return std::floor(bounds_y + ((lane_index + 0.5f) * lane_height)) + 0.5f;
 }
 
-// Maps a timeline time onto the lane's horizontal axis, measured from the bounds' left edge just
-// as laneY measures from its top: a host that places the lane inside a larger component reads
-// positions in that component's own space.
+// Places a timeline time through the one time-to-x mapping, measured from the bounds' left edge
+// just as laneY measures from its top: a host that places the lane inside a larger component
+// reads positions in that component's own space.
 float TabLaneGeometry::x(double seconds) const noexcept
 {
     const double drawn_seconds = retime.has_value() ? (*retime)(seconds) : seconds;
-    const double duration = visible_timeline.duration().seconds;
-    return bounds_x + static_cast<float>(
-                          (drawn_seconds - visible_timeline.start.seconds) / duration *
-                          static_cast<double>(bounds_width));
+    return bounds_x + static_cast<float>(common::core::timelineXForSeconds(
+                          drawn_seconds, visible_timeline, static_cast<double>(bounds_width)));
 }
 
 double TabLaneGeometry::publishedSeconds(double drawn_seconds) const noexcept
@@ -65,6 +64,28 @@ double TabLaneGeometry::publishedSeconds(double drawn_seconds) const noexcept
 double TabLaneGeometry::secondsPerPixel() const noexcept
 {
     return visible_timeline.duration().seconds / static_cast<double>(bounds_width);
+}
+
+// Measured from the bounds' left edge, where x measures time from, before the inverse mapping.
+double TabLaneGeometry::drawnSecondsAt(const float position) const noexcept
+{
+    return common::core::timelineSecondsForX(
+        static_cast<double>(position - bounds_x),
+        visible_timeline,
+        static_cast<double>(bounds_width));
+}
+
+// Rationale lives on the declaration in tab_lane_layout.h. The slack is pixels, so it widens the
+// drawn window before the re-time takes it back to the content's times.
+common::core::TimeRange TabLaneGeometry::inkWindow(
+    const float from_x, const float to_x) const noexcept
+{
+    const double slack_seconds = static_cast<double>(max_note_height) * 3.0 * secondsPerPixel();
+    return common::core::TimeRange{
+        .start =
+            common::core::TimePosition{publishedSeconds(drawnSecondsAt(from_x) - slack_seconds)},
+        .end = common::core::TimePosition{publishedSeconds(drawnSecondsAt(to_x) + slack_seconds)},
+    };
 }
 
 // Vertical lane center for a chart string, accounting for extra user lanes below the chart.

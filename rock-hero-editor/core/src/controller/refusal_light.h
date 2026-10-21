@@ -10,6 +10,7 @@ carries it.
 #include "controller/editor_selection.h"
 
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <string>
 #include <variant>
 #include <vector>
@@ -24,10 +25,13 @@ The selection's own identity types rather than a second key set, so a refusal an
 a note, a keyframe or a marker the one way: by its slot, its hold's or marker's start, its meter's
 first measure or its tone region's id — the chart's and the song's identity axis, never a
 projection index or a time in seconds, because a refusal is decided where no projection exists.
+A lock is named by its toolbar control, which no selection names: when a lock is the reason, the
+lock is what stood in the way.
 */
 using RefusalTarget = std::variant<
     ChartNoteKey, ChartKeyframeKey, SpanSelection, NoneHoldSelection, FretHandPositionSelection,
-    SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ToneRegionSelection>;
+    SongSectionSelection, TempoAnchorSelection, TimeSignatureSelection, ToneRegionSelection,
+    LockControl>;
 
 /*!
 \brief What a refusal lights: targets of any kinds, which the view glows as one set.
@@ -60,12 +64,6 @@ struct RefusalLight
     \param light Light to merge in.
     */
     void add(const RefusalLight& light);
-
-    /*!
-    \brief Reports whether the light names nothing.
-    \return True when no target was added.
-    */
-    [[nodiscard]] bool empty() const noexcept;
 };
 
 /*!
@@ -124,7 +122,10 @@ the subject it planned over before the flash (\ref RefusalLight).
 */
 struct PlanRefused
 {
-    /*! \brief Why, in words for the log: the rule's own message, or the planner's bound. */
+    /*!
+    \brief Why, in words for the log and the lane's status line: the rule's own message, or the
+    planner's bound.
+    */
     std::string reason;
 
     /*! \brief What the refusing site lights. */
@@ -139,7 +140,7 @@ editor silent — no caller can tell "this edit is not allowed" from "this edit 
 nothing can report the former without lying about the latter. The pending fret entry is the
 consumer that needs the split: a provisional value that plans to a no-op is VALID and must not
 paint red. A sum rather than a kind beside a string, so only a refusal can carry a reason; the
-reason goes to the log, and what the screen shows is the refusal flash.
+reason goes to the log, and the screen shows it with the refusal flash.
 */
 using PlanRefusal = std::variant<PlanNoChange, PlanRefused>;
 

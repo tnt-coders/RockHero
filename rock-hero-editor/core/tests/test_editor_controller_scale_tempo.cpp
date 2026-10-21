@@ -47,8 +47,9 @@ using common::core::testing::beatAt;
     return song;
 }
 
-// A controller with a song loaded and the Note Lock set as asked. Opened with the eight-measure
-// song unless given another.
+// A controller with a song loaded, the Note Lock set as asked and the Tempo Lock off, which every
+// open turns on and which refuses Scale Tempo. Opened with the eight-measure song unless given
+// another.
 struct ScaleEditor : SongEditorHarness
 {
     explicit ScaleEditor(const bool note_lock, common::core::Song song = makeEightMeasureSong())
@@ -58,7 +59,9 @@ struct ScaleEditor : SongEditorHarness
         {
             controller.onNoteLockToggleRequested();
         }
+        controller.onTempoLockToggleRequested();
         REQUIRE(state().note_lock == note_lock);
+        REQUIRE_FALSE(state().tempo_lock);
     }
 
     [[nodiscard]] const common::core::Chart& chart() const
@@ -110,12 +113,10 @@ void checkAnchorsRestored(const SongTimeline& before, const SongTimeline& after)
 // With the Note Lock on, x2 doubles every span's tempo and every address on the whole-note axis
 // while every time holds: the terminal 9:1 lands on 17:1 still at 16 s, the sections and notes on
 // the measures twice as far in, and the whole song is one entry, labelled as the form that ran.
-// The Tempo Lock, on at every open, does not block it.
 TEST_CASE(
     "Locked Scale Tempo lands the whole song as one entry, every time held", "[core][scale-tempo]")
 {
     ScaleEditor editor{true};
-    REQUIRE(editor.state().tempo_lock);
 
     editor.scale("2");
     CHECK(editor.undoEntryCount() == 1);
@@ -302,20 +303,23 @@ TEST_CASE("Locked Scale Tempo carries the cursor onto its note", "[core][scale-t
     CHECK(chart.notes.back().position == landed);
     CHECK(editor.transport.seek_call_count == seeks);
     CHECK_THAT(editor.transport.position().seconds, WithinULP(sounded, 0));
-    CHECK(
-        editor.state().tempo_chord_target ==
-        TempoChordTarget{InsertTempoAnchorTarget{.position = landed}});
+    // The section chord asks for nothing but the cursor's slot, so it reads where the cursor
+    // stands; asked with the Note Lock, which refuses the chord first, off.
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE_FALSE(editor.state().note_lock);
+    const std::optional<MarkerPrompt> slot =
+        editor.pressForPrompt(&EditorController::onSongSectionChordRequested);
+    CHECK(slot == std::optional<MarkerPrompt>{InsertSectionTarget{.position = landed}});
 }
 
 // With the Note Lock off, Scale Tempo stretches: every anchor keeps its address and its distance
 // from the first anchor halves, so every span's tempo doubles, and the terminal grows to cover the
 // audio as a typed tempo's does. Every note, section, meter and hand position keeps its address, so
 // each moves in time exactly as its beat does; the cursor too. One entry, labelled as the form
-// that ran; the Tempo Lock, on at every open, does not block it.
+// that ran.
 TEST_CASE("Unlocked Scale Tempo stretches the map and keeps every address", "[core][scale-tempo]")
 {
     ScaleEditor editor{false, makeThreeSpanSong()};
-    REQUIRE(editor.state().tempo_lock);
     const SongTimeline before = editor.timeline();
     editor.seek(3.0);
     const int seeks = editor.transport.seek_call_count;
@@ -452,6 +456,25 @@ TEST_CASE("Unlocked Scale Tempo refuses a factor collapsing two anchors", "[core
     editor.scale("16");
     CHECK(editor.timeline() == before);
     CHECK(editor.undoEntryCount() == 0);
+}
+
+// The command asks the core for its prompt, which titles it as the entry it will record: the form
+// the Note Lock chooses, read where the lock lives rather than off the published state.
+TEST_CASE("Scale Tempo's prompt is titled by the form the Note Lock chooses", "[core][scale-tempo]")
+{
+    const bool note_lock = GENERATE(true, false);
+    CAPTURE(note_lock);
+    ScaleEditor editor{note_lock};
+    const std::size_t prompts = editor.view.shown_marker_prompts.size();
+
+    editor.controller.onScaleTempoPromptRequested();
+    REQUIRE(editor.view.shown_marker_prompts.size() == prompts + 1);
+    CHECK(
+        editor.view.shown_marker_prompts.back() ==
+        MarkerPrompt{ScaleTempoTarget{
+            .label = note_lock ? "Scale Tempo (notes keep their time)"
+                               : "Scale Tempo (notes follow the beat)",
+        }});
 }
 
 } // namespace rock_hero::editor::core

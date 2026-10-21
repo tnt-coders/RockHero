@@ -422,9 +422,8 @@ struct KeyboardPositionViewState
 /*!
 \brief The verb that renames a section: the one starting at a position, under its current name.
 
-Published as a marker chord's or a selection verb's answer
-(\ref EditorViewState::section_chord_target, \ref EditorViewState::restate_target,
-\ref EditorViewState::rename_target); the view opens the rename prompt this names and nothing else.
+The prompt the section chord, `Enter` and `Ctrl+R` ask for on a section (\ref MarkerPrompt); the
+view opens the rename prompt this names and nothing else.
 */
 struct RenameSectionTarget
 {
@@ -458,21 +457,9 @@ struct InsertSectionTarget
 };
 
 /*!
-\brief What `Ctrl+M` would do right now: rename the section standing exactly at the cursor's slot,
-insert one there, or nothing.
-
-THE section chord's answer, derived once in the core from the cursor — the armed caret, else the
-paused cursor — and never from the selection. Nothing while the transport plays, with no song, or
-where a section cannot stand (the terminal anchor), so the chord is inert exactly where the
-commit would refuse it, and the view keeps no gate of its own.
-*/
-using SectionChordTarget = std::variant<std::monostate, RenameSectionTarget, InsertSectionTarget>;
-
-/*!
 \brief The verb that types the tempo of the span a tempo anchor opens.
 
-Published as the tempo chord's or the restate verb's answer
-(\ref EditorViewState::tempo_chord_target, \ref EditorViewState::restate_target); the view opens
+The prompt the tempo chord and `Enter` ask for on an anchor (\ref MarkerPrompt); the view opens
 the BPM prompt this names and nothing else.
 */
 struct SetTempoTarget
@@ -489,32 +476,6 @@ struct SetTempoTarget
     */
     bool operator==(const SetTempoTarget&) const = default;
 };
-
-/*!
-\brief The verb that inserts a tempo anchor at a grid position the core has already found free and
-able to carry one.
-*/
-struct InsertTempoAnchorTarget
-{
-    /*! \brief Grid position the new anchor will stand at. */
-    common::core::GridPosition position{};
-
-    /*!
-    \brief Compares two targets field by field.
-    \return True when both name the same position.
-    */
-    bool operator==(const InsertTempoAnchorTarget&) const = default;
-};
-
-/*!
-\brief What `Ctrl+B` would do right now: type the tempo of the span the anchor standing exactly at
-the cursor's placement slot opens, insert an anchor there, or nothing.
-
-The tempo twin of \ref SectionChordTarget: derived from the cursor read at the placement quantum
-(the grid note value with snap on, the tick with snap off), never from the selection. Nothing while
-the transport plays, with no song, or at or past the terminal anchor, which opens no span.
-*/
-using TempoChordTarget = std::variant<std::monostate, SetTempoTarget, InsertTempoAnchorTarget>;
 
 /*!
 \brief The verb that repoints a tone region at another tone: the region, and the tone it sounds
@@ -555,15 +516,6 @@ struct SplitToneRegionTarget
 };
 
 /*!
-\brief What `Ctrl+T` would do right now: retone the region starting exactly at the cursor, split
-the region the cursor stands inside, or nothing.
-
-The tone chord's answer, the twin of \ref SectionChordTarget: derived from the cursor at the
-placement quantum, nothing while playing, with no song, or on the terminal position.
-*/
-using ToneChordTarget = std::variant<std::monostate, RetoneRegionTarget, SplitToneRegionTarget>;
-
-/*!
 \brief The verb that renames a tone document: the document, under its current name.
 */
 struct RenameToneTarget
@@ -581,6 +533,22 @@ struct RenameToneTarget
     bool operator==(const RenameToneTarget&) const = default;
 };
 
+/*!
+\brief Scale Tempo's factor prompt, titled by the form the Note Lock chooses (\ref scaleTempoLabel),
+so the charter reads before typing whether the notes keep their time or follow the beat.
+*/
+struct ScaleTempoTarget
+{
+    /*! \brief The prompt's title: the undo label of the form that will run. */
+    std::string label{};
+
+    /*!
+    \brief Compares two targets field by field.
+    \return True when both carry the same title.
+    */
+    bool operator==(const ScaleTempoTarget&) const = default;
+};
+
 /*! \brief The verb that opens the automation parameter picker the "+" row offers. */
 struct OpenAutomationPickerTarget
 {
@@ -591,38 +559,23 @@ struct OpenAutomationPickerTarget
     bool operator==(const OpenAutomationPickerTarget&) const = default;
 };
 
-/*! \brief The verb that opens the bend picker on the bend a selected bend chip prints. */
-struct OpenBendPickerTarget
-{
-    /*!
-    \brief Compares two picker targets, which are always the same verb.
-    \return Always true.
-    */
-    bool operator==(const OpenBendPickerTarget&) const = default;
-};
-
 /*!
-\brief What `Enter` would do to the selection right now: rename a selected section, type the tempo
-of a selected tempo anchor's span, retype a selected time signature's meter, retone a selected tone
-region, open the "+" row's picker, open the bend picker on a bend chip, or nothing.
+\brief A prompt or picker a marker verb asks the view to open (\ref IEditorView::showMarkerPrompt):
+rename or insert a section, type a span's tempo, restate or insert a meter, retone or split a tone
+region, rename a tone, type Scale Tempo's factor, or open the "+" row's parameter picker.
 
-The selection's own verb, dispatched on its kind here rather than in the view: restating a section
-is renaming it, restating a tempo anchor is typing its span's tempo, restating a time signature is
-typing its meter, restating a tone region is repointing it, restating a bend is choosing its amount.
+Every marker verb decides at the press, in the core, exactly as the hold picker is decided: the
+chords read the cursor, the menu rows the place clicked, and the selection verbs (`Enter`,
+`Ctrl+R`) the selection; the lock governing the verb answers first, the precedence is applied
+there, and only the prompt it lands on reaches the view, which looks nothing up. A verb
+that needs no prompt (a tempo anchor inserted at a free beat) acts without one, one whose picker
+has a request of its own (`Enter` on a bend chip, which opens the bend picker) makes that request,
+and one with nothing to do sends nothing.
 */
-using RestateTarget = std::variant<
-    std::monostate, RenameSectionTarget, SetTempoTarget, SetTimeSignatureTarget, RetoneRegionTarget,
-    OpenAutomationPickerTarget, OpenBendPickerTarget>;
-
-/*!
-\brief What `Ctrl+R` would do to the selection right now: rename a selected section, rename a
-selected tone region's TONE, or nothing.
-
-Nothing for every kind with no name of its own — tempo anchors, time signatures, the "+" row,
-automation points, notes — and for a region on the synthesized default tone, which has no document
-to name.
-*/
-using RenameTarget = std::variant<std::monostate, RenameSectionTarget, RenameToneTarget>;
+using MarkerPrompt = std::variant<
+    RenameSectionTarget, InsertSectionTarget, SetTempoTarget, SetTimeSignatureTarget,
+    InsertTimeSignatureTarget, RetoneRegionTarget, SplitToneRegionTarget, RenameToneTarget,
+    ScaleTempoTarget, OpenAutomationPickerTarget>;
 
 /*!
 \brief A grid slot resolved for drawing: where a typed value would land.
@@ -964,16 +917,27 @@ struct RulerChipKey
     friend auto operator<=>(const RulerChipKey& lhs, const RulerChipKey& rhs) = default;
 };
 
+/*! \brief A lock toggle on the toolbar, in the order the toolbar shows them. */
+enum class LockControl : std::uint8_t
+{
+    /*! \brief The Tempo Lock, which freezes the tempo map and the time signatures. */
+    Tempo,
+
+    /*! \brief The Note Lock, which freezes the song's content in time. */
+    Note,
+};
+
 /*!
 \brief Everything a refused edit lights, for the view to flash red as one: the thing the edit tried
-to change and the thing that stood in its way, on whichever surfaces draw them.
+to change and the thing that stood in its way, on whichever surfaces draw them, and the sentence
+saying why.
 
 One flash type across every lane, so a refusal naming a note and the hold beside it, or a chip and
 the notes under it, glows as one pulse. Each surface glows the fields it draws and never knows which
 target was the subject and which the culprit. The tab-lane fields are indices into the projections
 \ref EditorViewState::tab carries (the same object as the highway's chart), valid for the instance
-they were derived with, exactly as the selection's are (\ref ChartEditViewState); the ruler chips
-and the tone regions are named as their surfaces resolve them.
+they were derived with, exactly as the selection's are (\ref ChartEditViewState); the ruler chips,
+the tone regions and the toolbar locks are named as their surfaces resolve them.
 */
 struct RefusalFlash
 {
@@ -1008,6 +972,15 @@ struct RefusalFlash
 
     /*! \brief The refused tone regions by region id, ascending, each once. */
     std::vector<std::string> tone_regions{};
+
+    /*! \brief The toolbar locks that stood in the way, ascending, each once. */
+    std::vector<LockControl> locks{};
+
+    /*!
+    \brief Why the edit was refused: the reason the refusal log records, which the tab lane's
+    status line shows while the flash runs. The subject is not spelled: the glow is the subject.
+    */
+    std::string sentence{};
 };
 
 /*!
@@ -1288,57 +1261,6 @@ struct EditorViewState
     std::uint64_t keyboard_move_count{0};
 
     /*!
-    \brief What the section chord (`Ctrl+M`) would do at the cursor right now.
-
-    The marker grammar, published as the VERB rather than as a position for the view to reason
-    about: the core reads the cursor — the armed caret, else the paused cursor at the placement
-    quantum — and answers rename-this, insert-here or nothing. The view opens the
-    prompt the verb names; it never looks up a section itself, and it keeps no playback or no-song
-    gate of its own, since "nothing" is that gate.
-    */
-    SectionChordTarget section_chord_target{};
-
-    /*!
-    \brief What the tempo chord (`Ctrl+B`) would do at the cursor right now.
-
-    The tempo twin of \ref section_chord_target, read at the same slot: type the tempo of the span
-    the anchor standing there opens, insert an anchor there, or nothing.
-    */
-    TempoChordTarget tempo_chord_target{};
-
-    /*!
-    \brief What the time-signature chord (`Ctrl+/`) would do at the cursor right now.
-
-    The meter twin of \ref tempo_chord_target, read at the downbeat of the measure the cursor is
-    in: retype the meter standing there, insert one there, or nothing.
-    */
-    TimeSignatureChordTarget time_signature_chord_target{};
-
-    /*!
-    \brief What the tone chord (`Ctrl+T`) would do at the cursor right now.
-
-    The tone twin of \ref section_chord_target, read at the placement quantum: retone the region
-    starting exactly at the cursor, split the region the cursor stands inside, or nothing.
-    */
-    ToneChordTarget tone_chord_target{};
-
-    /*!
-    \brief What `Enter` would do to the selection right now.
-
-    The selection's own verb, so the view dispatches on no kind of its own: the core names the
-    rename, the retone or the picker, or nothing when nothing selected has a restate.
-    */
-    RestateTarget restate_target{};
-
-    /*!
-    \brief What `Ctrl+R` would do to the selection right now.
-
-    Rename the selected section, rename the selected region's tone, or nothing for every kind
-    without a name of its own.
-    */
-    RenameTarget rename_target{};
-
-    /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
 
     A 1/8 grid means eighth notes in every meter. Initialized to the editor default because the
@@ -1368,10 +1290,11 @@ struct EditorViewState
     bool grid_snap_warning_prompt{false};
 
     /*!
-    \brief Whether the tempo lock is on, refusing every tempo-anchor move.
+    \brief Whether the tempo lock is on, freezing the tempo map and the time signatures: every
+    tempo and meter edit is refused.
 
     A session fact like grid_snap: never persisted, and reset to true at every project boundary.
-    The toolbar button and the menu tick render it; the controller alone refuses the moves.
+    The toolbar button and the menu tick render it; the controller alone refuses the edits.
     */
     bool tempo_lock{true};
 

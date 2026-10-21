@@ -20,9 +20,8 @@ opened on the meter the chip prints.
 
 On an authored change the typed meter restates it; on a derived short bar it AUTHORS it — a stored
 change is inserted at the bar's place — as a stating verb on a derived fret-hand position authors
-the position first. Published as the time-signature chord's or the restate verb's answer
-(\ref EditorViewState::time_signature_chord_target, \ref EditorViewState::restate_target); the
-prompt's typed text goes back through `IEditorController::onTimeSignatureSetRequested`.
+the position first. The prompt the time-signature chord and `Enter` ask for (`MarkerPrompt`); its
+typed text goes back through `IEditorController::onTimeSignatureSetRequested`.
 */
 struct SetTimeSignatureTarget
 {
@@ -65,10 +64,10 @@ struct InsertTimeSignatureTarget
 \brief What a meter verb at a beat would do: state the reign starting there, insert a time
 signature there, or nothing.
 
-The meter twin of `TempoChordTarget`. As `Ctrl+/`'s answer it is read at the beat the cursor is
-in, never from the selection, and it is nothing while the transport plays or with no song.
+For `Ctrl+/` it is read at the beat the cursor is in, never from the selection; nothing is the end
+of the song, where no meter may start.
 */
-using TimeSignatureChordTarget =
+using TimeSignatureTarget =
     std::variant<std::monostate, SetTimeSignatureTarget, InsertTimeSignatureTarget>;
 
 /*!
@@ -85,7 +84,7 @@ short bar.
 \param beat The beat, with no sub-beat offset (\ref common::core::beatStart).
 \return The restate-or-author, the insert, or nothing.
 */
-[[nodiscard]] TimeSignatureChordTarget timeSignatureTargetAt(
+[[nodiscard]] TimeSignatureTarget timeSignatureTargetAt(
     const common::core::TempoMap& tempo_map, common::core::GridPosition beat);
 
 } // namespace rock_hero::editor::core

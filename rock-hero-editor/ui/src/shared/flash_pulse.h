@@ -1,16 +1,14 @@
 /*!
 \file flash_pulse.h
 \brief The editor's one-shot flashes: the one pulse clock every flash runs on, the record of a
-running flash, and the refusal flash's glow and join.
+running flash, and the refusal flash's glow and its one replacement rule.
 */
 
 #pragma once
 
-#include <algorithm>
 #include <juce_graphics/juce_graphics.h>
 #include <optional>
 #include <utility>
-#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -32,11 +30,33 @@ surface that flashes a refused element.
 inline constexpr FlashTrain g_refusal_flash_train{.pulses = 2.0, .seconds = 0.6};
 
 /*!
+\brief How a held mark rides a flash's clock: at full ink for a while, then fading linearly out.
+*/
+struct FlashHold
+{
+    /*! \brief How long the mark stands at full ink from the flash's start, in seconds. */
+    double hold_seconds{};
+
+    /*! \brief How long it then takes to fade to nothing, in seconds. */
+    double fade_seconds{};
+};
+
+/*!
+\brief How the tab lane's status line holds a refusal's sentence on the refusal flash's clock: long
+enough to read at full ink, then a short fade. A sentence never rides the glow's pulses, which would
+take it dark between them before it could be read.
+*/
+inline constexpr FlashHold g_refusal_line_hold{.hold_seconds = 2.5, .fade_seconds = 0.4};
+
+/*!
 \brief The pulse train of one running flash: lit as it starts, dark between pulses, and dark again
 as it ends.
 
 Every flash runs on one of these, so the pulse shape is stated once and each flash only names its
-train.
+train. Its start is also the one clock a mark HELD on the flash reads (\ref heldLevel), so a held
+mark and the pulsing glows of one flash can never drift apart. A flash that holds a mark carries the
+hold, so \ref finished is the ONE answer to whether the flash still shows anything, which the
+surface retiring the flash reads.
 */
 class FlashPulse
 {
@@ -44,12 +64,14 @@ public:
     /*!
     \brief Starts the pulse train now.
     \param train How many times the flash lights, over how long.
+    \param hold How a mark held on the flash stands and fades, or empty where it holds none.
     */
-    explicit FlashPulse(FlashTrain train) noexcept;
+    explicit FlashPulse(FlashTrain train, std::optional<FlashHold> hold = std::nullopt) noexcept;
 
     /*!
-    \brief Reports whether every pulse has run, so the surface retires its flash.
-    \return True once the train's whole duration has passed.
+    \brief Reports whether the flash has nothing left to show, so the surface retires it.
+    \return True once the train's whole duration has passed and, where the flash holds a mark, the
+            hold and its fade have too.
     */
     [[nodiscard]] bool finished() const noexcept;
 
@@ -59,12 +81,31 @@ public:
     */
     [[nodiscard]] float level() const noexcept;
 
+    /*!
+    \brief Returns the level of the mark held on this flash's clock instead of pulsing on its train.
+    \return Level in [0, 1]: 1 through the hold, falling linearly to 0 across the fade; 0 for a
+            flash that holds no mark.
+    */
+    [[nodiscard]] float heldLevel() const noexcept;
+
+    /*!
+    \brief Reports whether the mark held on this flash's clock has faded out.
+    \return True once the hold and the fade have both passed, or for a flash that holds no mark.
+    */
+    [[nodiscard]] bool heldFinished() const noexcept;
+
 private:
+    // How long the flash has run, in seconds: the one clock its train and every hold read.
+    [[nodiscard]] double elapsedSeconds() const noexcept;
+
     // How far the train has run, in [0, 1].
     [[nodiscard]] double progress() const noexcept;
 
     // The train's shape.
     FlashTrain m_train{};
+
+    // How the mark held on the flash stands and fades, or empty where it holds none.
+    std::optional<FlashHold> m_hold{};
 
     // When the train began, in milliseconds on JUCE's high-resolution counter.
     double m_started_ms{};
@@ -117,53 +158,48 @@ so it never tints the mark it surrounds.
 void paintRefusalGlow(juce::Graphics& g, const juce::Path& outline, float extent, float level);
 
 /*!
-\brief Adds each refused element not already in \p into, in arrival order.
-
-A union, never an append: an element reported twice — by one press's two reports, or a held key's
-repeats — would be stroked twice, and stacked strokes lose the pulse.
-
-\param into The elements already glowing.
-\param from The elements a further refusal names.
+\brief The area the refusal glow around a mark can paint, for a surface that repaints only there.
+\param outline_bounds The bounds of the mark's outline.
+\param extent The mark's size, as given to \ref paintRefusalGlow.
+\return The outline's bounds grown by the glow's reach and a pixel of antialiasing.
 */
-template <typename Element>
-void joinRefused(std::vector<Element>& into, const std::vector<Element>& from)
-{
-    for (const Element& element : from)
-    {
-        // A predicate, not a value find: under clang, the MSVC STL sends a value find over a
-        // trivially comparable 16-byte element down a vectorized path that has no 16-byte case,
-        // which fails to compile.
-        if (std::ranges::none_of(into, [&element](const Element& held) { return held == element; }))
-        {
-            into.push_back(element);
-        }
-    }
-}
+[[nodiscard]] juce::Rectangle<float> refusalGlowArea(
+    juce::Rectangle<float> outline_bounds, float extent);
 
 /*!
-\brief Starts a refusal flash over \p refused, or joins the one still running.
+\brief Starts a refusal flash over \p refused, replacing whatever the surface's flash lit before.
 
-A flash whose pulses have run counts as none, even where no frame has retired it yet (a surface off
-screen), so a new refusal starts its own pulse instead of joining a finished one. A refusal arriving
-while one runs joins it on the running pulse, so a held key or a drag reads as one train.
+THE one rule of every surface that flashes a refusal: the newest refusal REPLACES the surface's
+flash — what it lights and what it says — and restarts its clock. Every surface a refusal reaches
+therefore pulses in step from it, and a held key or a drag that keeps being refused, naming the same
+thing each event, reads as a steady full glow that pulses out once the refusals stop. A refusal
+never re-lights what an earlier, different refusal named, which would lie about what was just
+refused; and one naming nothing on the surface clears it, since the newest refusal has nothing to
+show there.
 
+\tparam Refused The surface's record of what the flash lights; it answers empty().
 \param flash The surface's refusal flash, empty while none runs.
-\param refused What the new refusal names.
-\param join Merges \p refused into the running flash's record.
+\param refused What the new refusal names on the surface.
+\param hold How a mark the record holds stands and fades (the tab lane's sentence), or empty where
+       it holds none, so the flash retires with its train.
+\return True when the surface has something to repaint: a flash ran before, or runs now.
 */
-template <typename Refused, typename Join>
-void flashOrJoinRefusal(
-    std::optional<PulsedFlash<Refused>>& flash, Refused refused, const Join& join)
+template <typename Refused>
+[[nodiscard]] bool startRefusalFlash(
+    std::optional<PulsedFlash<Refused>>& flash, Refused refused,
+    const std::optional<FlashHold> hold = std::nullopt)
 {
-    if (flash.has_value() && !flash->pulse.finished())
+    const bool was_running = flash.has_value();
+    if (refused.empty())
     {
-        join(flash->subject, refused);
-        return;
+        flash.reset();
+        return was_running;
     }
     flash = PulsedFlash<Refused>{
         .subject = std::move(refused),
-        .pulse = FlashPulse{g_refusal_flash_train},
+        .pulse = FlashPulse{g_refusal_flash_train, hold},
     };
+    return true;
 }
 
 } // namespace rock_hero::editor::ui

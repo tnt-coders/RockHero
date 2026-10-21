@@ -2092,11 +2092,10 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     metrics.chip_font.draw(g, text, box);
 }
 
-// The visible time span one paint call can show: the clip, held to the lane's own bounds and
-// widened by the pixel slack heads and icons reach around their onset, since an event whose onset
-// sits just outside the clip still has ink inside it. The clip is intersected here so a host
-// drawing the lane inside a larger component cannot have that component's other columns read as
-// visible time.
+// The visible time span one paint call can show: the lane's ink window over the clip
+// (TabLaneGeometry::inkWindow), in content's own times so a note re-timed into the clip from
+// outside it is found. The clip is held to the lane's own bounds here so a host drawing the lane
+// inside a larger component cannot have that component's other columns read as visible time.
 [[nodiscard]] common::core::TimeRange tabVisibleSpan(
     const TabLaneMetrics& metrics, juce::Rectangle<int> clip_bounds)
 {
@@ -2104,23 +2103,7 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     assert(metrics.bounds.getWidth() > 0);
 
     const juce::Rectangle<int> clip = clip_bounds.getIntersection(metrics.bounds);
-    const double seconds_per_pixel = metrics.secondsPerPixel();
-    const double slack_seconds =
-        static_cast<double>(metrics.max_note_height) * 3.0 * seconds_per_pixel;
-    // Clip columns relative to the lane's left edge, which is where x() measures time from.
-    const int clip_from = clip.getX() - metrics.bounds.getX();
-    const int clip_to = clip.getRight() - metrics.bounds.getX();
-    // The span is asked of content's own times, so the drawn window is re-timed back to the map
-    // they were resolved under; a note re-timed into the clip from outside it is found the same
-    // way.
-    return common::core::TimeRange{
-        .start = common::core::TimePosition{metrics.publishedSeconds(
-            metrics.visible_timeline.start.seconds +
-            static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds)},
-        .end = common::core::TimePosition{metrics.publishedSeconds(
-            metrics.visible_timeline.start.seconds +
-            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds)},
-    };
+    return metrics.inkWindow(static_cast<float>(clip.getX()), static_cast<float>(clip.getRight()));
 }
 
 // THE ONE STATEMENT of where a label sits when it prints ON a string line: text centred on the
@@ -2482,7 +2465,8 @@ juce::Colour TabLaneMetrics::baseColor(int chart_string) const
 
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
-    int chart_string_count, StringColorPalette palette, TabShapeInks shape_inks, TabLaneStyle style)
+    int chart_string_count, StringColorPalette palette, TabShapeInks shape_inks,
+    const TabLaneFont& chip_font, TabLaneStyle style)
 {
     // The header states these as preconditions and the geometry below DIVIDES by both, so a
     // violation is undefined behaviour rather than a wrong picture: an empty bounds zeroes the
@@ -2508,7 +2492,7 @@ TabLaneMetrics makeTabLaneMetrics(
     // one number rather than two that happen to agree.
     metrics.fret_font = boldFont(metrics.fretTextHeight());
     metrics.fraction_font = boldFont(metrics.fretTextHeight() * g_bend_fraction_scale);
-    metrics.chip_font = chipLabelFont();
+    metrics.chip_font = chip_font;
     metrics.palette = palette;
     metrics.shape_inks = shape_inks;
     return metrics;
@@ -2588,12 +2572,20 @@ juce::Rectangle<float> tabFhpChipBounds(
         return {};
     }
 
+    const juce::Range<float> row = tabFhpChipRow(metrics.bounds, metrics.chip_font);
     return juce::Rectangle<float>{
         left_x,
-        static_cast<float>(metrics.bounds.getY()) + 1.0f,
+        row.getStart(),
         boxedChipWidth(metrics.chip_font, tabFhpChipText(fhp)),
-        chipHeight(metrics.chip_font)
+        row.getLength()
     };
+}
+
+// Rationale lives on the declaration in tab_paint_core.h.
+juce::Range<float> tabFhpChipRow(const juce::Rectangle<int> bounds, const TabLaneFont& chip_font)
+{
+    const float top = static_cast<float>(bounds.getY()) + 1.0f;
+    return juce::Range<float>{top, top + chipHeight(chip_font)};
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
@@ -2754,7 +2746,8 @@ juce::Rectangle<float> tabSpanChipBounds(const TabLaneFont& font, const TabSpanC
 
 // Rationale lives on the declaration in tab_paint_core.h.
 void drawTabSpanChip(
-    juce::Graphics& g, const TabLaneFont& font, const TabShapeInks inks, const TabSpanChip& chip)
+    juce::Graphics& g, const TabLaneFont& font, const TabShapeInks inks, const TabSpanChip& chip,
+    const juce::Colour ground)
 {
     const SpanChipLayout layout = spanChipLayout(font, chip);
     if (layout.box.isEmpty())
@@ -2766,12 +2759,6 @@ void drawTabSpanChip(
     // Only the top corners round; the base meets the line square. JUCE holds the radius to half
     // the width, so a narrowed chip's two curves never cross.
     const juce::Rectangle<float> box = layout.box;
-    // A DERIVED span's chip draws as a ghost, a hold's solid, as its rails do (drawShapeSpan).
-    std::optional<ScopedTransparencyLayer> ghost;
-    if (!chip.held && g.clipRegionIntersects(layerBounds(box)))
-    {
-        ghost.emplace(g, layerBounds(box), g_ghost_opacity);
-    }
     juce::Path outline;
     outline.addRoundedRectangle(
         box.getX(),
@@ -2784,6 +2771,16 @@ void drawTabSpanChip(
         true,
         false,
         false);
+    // The silhouette stands on the rails' own ground first, so a ghost below composites over what
+    // its rails composite over.
+    g.setColour(ground);
+    g.fillPath(outline);
+    // A DERIVED span's chip draws as a ghost, a hold's solid, as its rails do (drawShapeSpan).
+    std::optional<ScopedTransparencyLayer> ghost;
+    if (!chip.held && g.clipRegionIntersects(layerBounds(box)))
+    {
+        ghost.emplace(g, layerBounds(box), g_ghost_opacity);
+    }
     g.setColour(juce::Colour{inks.of(chip.arpeggio)});
     g.fillPath(outline);
 

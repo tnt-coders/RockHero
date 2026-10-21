@@ -153,19 +153,21 @@ Before the ruling, caret-only settled the playback question without a gate, beca
 a paused transport; the ruling moves that answer into the authority. The ruler's own menu inserts at
 the CLICK's slot ("Insert Section Here"), the pointer form, so it needs neither gate.
 
-### One precedence, published as a verb
+### One precedence, decided at the press
 
-The precedence lives in the CORE, once, and reaches each surface as the VERB that chord would
-perform. `EditorViewState::section_chord_target` is nothing /
-`RenameSectionTarget{position, name}` / `InsertSectionTarget{position}`;
-`EditorViewState::tone_chord_target` is nothing /
-`RetoneRegionTarget{region_id, tone_document_ref}` /
-`SplitToneRegionTarget{position, containing_tone_document_ref}`. The UI opens the prompt or picker
-the variant names and decides nothing. `Enter`'s verb is published the same way as `restate_target`
-(nothing / `RenameSectionTarget` / `RetoneRegionTarget` / `OpenAutomationPickerTarget`) and
-`Ctrl+R`'s as `rename_target` (nothing / `RenameSectionTarget` /
-`RenameToneTarget{tone_document_ref, name}`), so a new selection verb adds a projection rather than
-a UI ladder arm.
+The precedence lives in the CORE, once, and is applied when the chord is pressed: the view forwards
+the press, and the core asks back for the prompt or picker it lands on
+(`IEditorView::showMarkerPrompt`) — `RenameSectionTarget{position, name}` /
+`InsertSectionTarget{position}` for the section chord, `RetoneRegionTarget{region_id,
+tone_document_ref}` / `SplitToneRegionTarget{position, containing_tone_document_ref}` for the tone
+chord — or refuses at the closing barline. The UI opens what it is handed and decides nothing.
+(The chord verbs were first published in the view state; that published form was retired
+2026-10-20, so the press, not a projection, carries the decision.) `Enter` and `Ctrl+R` take the
+same shape on the selection: Enter asks for `RenameSectionTarget` / `SetTempoTarget` /
+`SetTimeSignatureTarget` / `RetoneRegionTarget` / `OpenAutomationPickerTarget` (a bend chip's Enter
+makes the bend verb's own request), and Ctrl+R for `RenameSectionTarget` /
+`RenameToneTarget{tone_document_ref, name}`, so a new selection verb adds a branch in the core
+rather than a UI ladder arm.
 
 - **Built 2026-09-13:** `performMarkerChord`, a file-local template in `editor_view.cpp`, taking the
   selected marker, the marker at the cursor, and three callables for restate / select / insert.
@@ -365,7 +367,7 @@ Building one means:
    marker that is gone, and the publish. A verb must not call `updateView()` itself except to
    publish a selection it makes AFTER a landed commit. A verb that refuses before it has a model
    to hand over logs through the funnel's own `m_refusal_log.markerEdit`, and where the kind may
-   start is `markerCanStartAt` (common core), asked by its validator and its chord alike. Each verb
+   start is `objectCanStartAt` (common core), asked by its validator and its chord alike. Each verb
    with a fixed label names it once in `MarkerVerb` (`editor/core/timeline/marker_verb.h`): the
    undo entry, the refusal log, the prompt title, the ruler row and a one-verb command's registry
    name all read `markerVerbLabel`, and a row that opens a prompt reads `markerVerbPromptRow`.

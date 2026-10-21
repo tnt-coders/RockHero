@@ -85,29 +85,6 @@ struct HighwayOverlayRect
 };
 
 /*!
-\brief Marks on the board a host lights in one color, such as the editor's refusal flash.
-
-The indices address the chart of the view state the renderer draws
-(\ref common::core::HighwayViewState::chart), so a set is valid only for the state it was built
-against; an index outside the chart lights nothing. The renderer glows each member as it draws it
-and never knows why it is lit.
-*/
-struct HighwayHighlight
-{
-    /*! \brief Indices of the lit hand-posture spans in the chart's span order, whose rails glow. */
-    std::vector<std::size_t> shapes{};
-
-    /*!
-    \brief Indices of the lit fret-hand positions in the chart's placement order, whose upcoming
-    floor numbers lean toward \ref color.
-    */
-    std::vector<std::size_t> fret_hand_positions{};
-
-    /*! \brief The color every lit mark wears, as 0xAARRGGBB. */
-    ArgbColor color{0};
-};
-
-/*!
 \brief Renders the note highway from the shared headless scene model.
 
 One renderer serves both products: the game shell and the editor preview each own a bgfx device
@@ -222,19 +199,6 @@ public:
            and reaches the window under an arcade monitor's scan lines and phosphor stripes.
     */
     void setTheme(HighwayTheme theme, StringColorPalette palette, bool crt);
-
-    /*!
-    \brief Lights a set of marks from the next frame, at a level the host restates per frame.
-
-    The set is shared, not copied, and the level is a plain number, so restating both every frame
-    allocates nothing. A null set or a level of zero or less lights nothing, which is also the state
-    before the first call: a host that never highlights never calls this.
-
-    \param highlight The marks to light and their color; null for none.
-    \param level How strongly they are lit, in [0, 1]: lit spans' rails glow at this fraction of
-           a rail's own intensity, and lit placements' floor numbers lean this far toward the color.
-    */
-    void setHighlight(std::shared_ptr<const HighwayHighlight> highlight, float level);
 
     /*!
     \brief Encodes one frame of the highway into the render views, through the CRT look when the

@@ -56,6 +56,10 @@ std::string markerVerbLabel(const MarkerVerb verb)
         {
             return "Delete Time Signature";
         }
+        case MarkerVerb::InsertToneChange:
+        {
+            return "Insert Tone Change";
+        }
         case MarkerVerb::AddHandPosition:
         {
             return "Add Hand Position";

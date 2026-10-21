@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <initializer_list>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <stdexcept>
 #include <string>
@@ -187,6 +189,36 @@ inline void clickButton(juce::Button& button)
     auto& component = static_cast<juce::Component&>(button);
     component.mouseDown(event);
     component.mouseUp(event);
+}
+
+/*!
+\brief Returns the squared distance between two colors' RGB, the one measure a pixel's color class
+is decided by.
+\param lhs One color.
+\param rhs The other.
+\return The sum of the squared channel differences.
+*/
+[[nodiscard]] inline int squaredColorDistance(const juce::Colour lhs, const juce::Colour rhs)
+{
+    const int red = lhs.getRed() - rhs.getRed();
+    const int green = lhs.getGreen() - rhs.getGreen();
+    const int blue = lhs.getBlue() - rhs.getBlue();
+    return (red * red) + (green * green) + (blue * blue);
+}
+
+/*!
+\brief Classifies a pixel as the nearest of the colors a probe knows can stand there, so the
+probe holds whatever antialiasing level a platform's rasterizer lands on.
+\param pixel The pixel read back.
+\param known The colors the pixel can be.
+\return The nearest of \p known, the first on a tie.
+*/
+[[nodiscard]] inline juce::Colour nearestColor(
+    const juce::Colour pixel, const std::initializer_list<juce::Colour> known)
+{
+    return std::ranges::min(known, {}, [pixel](const juce::Colour candidate) {
+        return squaredColorDistance(pixel, candidate);
+    });
 }
 
 } // namespace rock_hero::editor::ui::testing

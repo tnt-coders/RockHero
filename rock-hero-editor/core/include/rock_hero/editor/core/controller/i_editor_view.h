@@ -106,15 +106,31 @@ public:
     virtual void showChartHoldPicker(ChartHoldPicker picker) = 0;
 
     /*!
+    \brief Asks the view to open the prompt or picker a marker verb decided on at the press: a
+    chord (`Ctrl+M`, `Ctrl+B`, `Ctrl+/`, `Ctrl+T`), `Enter`, `Ctrl+R`, a ruler or tone row's menu
+    row, or Scale Tempo.
+
+    A one-shot request like the hold picker: the core read the cursor, the place or the selection
+    and chose the verb, so the view opens exactly what it is handed and looks nothing up. Each
+    prompt's answer goes back through the intent it names; dismissing changes nothing. With no view
+    attached the request is dropped.
+
+    \param prompt The prompt or picker to open, with its starting text or the tone it leaves out.
+    */
+    virtual void showMarkerPrompt(const MarkerPrompt& prompt) = 0;
+
+    /*!
     \brief Asks the view to flash what an edit's refusal lights: every target glows red a couple of
-    times, on whichever surface draws it, and stays as it was.
+    times, on whichever surface draws it, and stays as it was, while the tab lane's status line
+    says why on the same pulse.
 
     A one-shot effect rather than view state: the pulse has a lifetime of its own, and a refusal
-    changes nothing a re-derivation could compare. Why the edit was refused goes to the log, never
-    to the view. With no view attached the flash is dropped.
+    changes nothing a re-derivation could compare. The sentence is the reason the log records
+    beside its subject; the view shows the reason alone, since the glow names the subject. With no
+    view attached the flash is dropped.
 
-    \param flash The refused targets, never all empty; the tab lane's in the current projection's
-           indices.
+    \param flash The refused targets and the sentence, never all empty; the tab lane's targets in
+           the current projection's indices.
     */
     virtual void flashRefusal(RefusalFlash flash) = 0;
 

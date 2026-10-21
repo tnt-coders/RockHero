@@ -20,7 +20,6 @@
 #include <cstring>
 #include <format>
 #include <functional>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <numbers>
@@ -1913,10 +1912,6 @@ struct HighwayRenderer::Impl
     HighwayTheme theme{};
     StringColorPalette palette{};
     bool crt{false};
-    // The host's highlight and how strongly it is lit (setHighlight): null whenever nothing is,
-    // so a frame tests the pointer alone. Shared with the host, which restates it every frame.
-    std::shared_ptr<const HighwayHighlight> highlight;
-    double highlight_level{0.0};
     // Each hand's look, derived from the theme whenever it changes (adoptTheme), never per frame.
     HandLightStyle fretting_style{};
     HandLightStyle picking_style{};
@@ -2573,15 +2568,6 @@ void HighwayRenderer::setTheme(HighwayTheme theme, StringColorPalette palette, c
     }
     m_impl->palette = palette;
     m_impl->rebuildBoardFace();
-}
-
-// Both passes that light a mark read the set per frame, so storing it is all a change needs; an
-// unlit level drops the set, so the passes test the pointer alone.
-void HighwayRenderer::setHighlight(
-    std::shared_ptr<const HighwayHighlight> highlight, const float level)
-{
-    m_impl->highlight = level > 0.0F ? std::move(highlight) : nullptr;
-    m_impl->highlight_level = level;
 }
 
 bool HighwayRenderer::Impl::seatLanes()
@@ -3676,57 +3662,42 @@ void HighwayRenderer::Impl::draw(
         // An upcoming floor target — a hand-position arrival, a tapped note, or a pitched slide
         // keyframe — gets the same orange number at its fret slot, fading in on approach. One
         // push owns the window gate and the argument bundle so the borrowed treatments can
-        // never drift apart; only a lit placement's number passes another base.
-        const auto push_target_number =
-            [&](const int fret, const double seconds, const ArgbColor base) {
-                if (seconds <= now_seconds || seconds > span_end_seconds)
-                {
-                    return;
-                }
-                floor_numbers.push_back(
-                    FloorNumber{
-                        .seconds = seconds,
-                        .z = time_to_z(seconds),
-                        .stop = common::core::fretStop(fret),
-                        .base = base,
-                        .fade = true,
-                        .alpha = 1.0,
-                    });
-            };
+        // never drift apart.
+        const auto push_target_number = [&](const int fret, const double seconds) {
+            if (seconds <= now_seconds || seconds > span_end_seconds)
+            {
+                return;
+            }
+            floor_numbers.push_back(
+                FloorNumber{
+                    .seconds = seconds,
+                    .z = time_to_z(seconds),
+                    .stop = common::core::fretStop(fret),
+                    .base = theme.fret_number_target,
+                    .fade = true,
+                    .alpha = 1.0,
+                });
+        };
 
         // Upcoming hand-position arrivals, in fret_number_target. An arrival on a harmonic series'
         // own fret yields to the node number — the placement exists BECAUSE the hand goes to the
-        // node, so the decimal label already states everything the integer would, and more. A
-        // placement the host lights (setHighlight) leans its number toward the highlight's color
-        // by the level.
-        const std::vector<common::core::FhpViewState>& placements =
-            state->chart.fret_hand_positions;
-        const auto past_span = std::ranges::upper_bound(
-            placements,
-            span_end_seconds,
-            std::ranges::less{},
-            &common::core::FhpViewState::seconds);
-        for (auto placement = std::ranges::upper_bound(
-                 placements,
-                 now_seconds,
-                 std::ranges::less{},
-                 &common::core::FhpViewState::seconds);
-             placement != past_span;
-             ++placement)
+        // node, so the decimal label already states everything the integer would, and more.
+        for (const common::core::FhpViewState& fhp : std::ranges::subrange(
+                 std::ranges::upper_bound(
+                     state->chart.fret_hand_positions,
+                     now_seconds,
+                     std::ranges::less{},
+                     &common::core::FhpViewState::seconds),
+                 std::ranges::upper_bound(
+                     state->chart.fret_hand_positions,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::FhpViewState::seconds)))
         {
-            if (node_suppresses(placement->fret, placement->seconds))
+            if (!node_suppresses(fhp.fret, fhp.seconds))
             {
-                continue;
+                push_target_number(fhp.fret, fhp.seconds);
             }
-            const auto index =
-                static_cast<std::size_t>(std::distance(placements.begin(), placement));
-            const bool lit = highlight != nullptr &&
-                             std::ranges::contains(highlight->fret_hand_positions, index);
-            push_target_number(
-                placement->fret,
-                placement->seconds,
-                lit ? mixArgb(theme.fret_number_target, highlight->color, highlight_level)
-                    : theme.fret_number_target);
         }
 
         // Tap numbers label POSITIONS, not notes (per-note numbers over-labeled dense runs):
@@ -3775,7 +3746,7 @@ void HighwayRenderer::Impl::draw(
                         common::core::g_hand_rest_seconds;
                 if (!repeat_established)
                 {
-                    push_target_number(tap.fret_low, tap.start_seconds, theme.fret_number_target);
+                    push_target_number(tap.fret_low, tap.start_seconds);
                 }
                 continue;
             }
@@ -3786,8 +3757,7 @@ void HighwayRenderer::Impl::draw(
             {
                 push_target_number(
                     common::core::handFretOf(common::core::nodeStop(arrival->low_line + 1.0)),
-                    arrival->seconds,
-                    theme.fret_number_target);
+                    arrival->seconds);
             }
         }
 
@@ -5730,12 +5700,11 @@ void HighwayRenderer::Impl::drawBeatBars(const FrameContext& frame)
 
 // --- Hand-shape rails: thick fading edge lines along a held hand's window edges, from the hold's
 // start to its end, riding the hit line while active. One pass draws every rail as (track, from,
-// to, color, intensity), fed by both hands: the fretting hand's posture spans over its track, and
-// the picking hand's tapped chords over its track from the strike to the struck notes' ring end.
-// Every rail wears its hand's color for its kind of span (HandLightStyle), as that hand's box of
-// that kind does; a span the host lights adds a second rail in the highlight's color. A strike
-// carries its own hold end (HighwayTapOnsetViewState::release_seconds), so the picking hand needs
-// no spans. ---
+// to, color), fed by both hands: the fretting hand's posture spans over its track, and the
+// picking hand's tapped chords over its track from the strike to the struck notes' ring end. Every
+// rail wears its hand's color for its kind of span (HandLightStyle), as that hand's box of that
+// kind does. A strike carries its own hold end (HighwayTapOnsetViewState::release_seconds), so the
+// picking hand needs no spans. ---
 void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
 {
     const bool mirrored = options.view.mirrored;
@@ -5753,8 +5722,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
     const auto push_rail = [&](const std::vector<common::core::HandArrival>& track,
                                const double from_seconds,
                                const double to_seconds,
-                               const ArgbColor color,
-                               const double intensity) {
+                               const ArgbColor color) {
         // The hold clipped to [now, span end]: empty once it has passed the hit line or while it
         // lies beyond the drawn span.
         const double rail_from = std::max(frame.now_seconds, from_seconds);
@@ -5765,7 +5733,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
         }
         // The emitter's color with the broadband pedestal every accent light carries, so its core
         // can whiten under the gain.
-        const std::uint32_t tint = packAbgr(emitterSpectrum(color), intensity);
+        const std::uint32_t tint = packAbgr(emitterSpectrum(color), g_shape_rail_intensity);
         // Rails follow the hand window's edges, sampled so a mid-hold window move (a chord slide
         // under a held shape, a tapped chord gliding) sweeps them along with everything else; in
         // settled stretches consecutive samples share one extent and the trapezoids stay straight.
@@ -5804,8 +5772,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
             state->fret_hand.track,
             shape.start_seconds,
             shape.drawn_end_seconds,
-            shape.arpeggio ? fretting_style.arpeggio : fretting_style.chord,
-            g_shape_rail_intensity);
+            shape.arpeggio ? fretting_style.arpeggio : fretting_style.chord);
     }
     // Tapped chords whose hold reaches the drawn span: strikes ascend by onset but their holds
     // overlap freely, so the range is visibleEventRange over the prefix maximum of the holds — the
@@ -5821,27 +5788,7 @@ void HighwayRenderer::Impl::drawHandShapeRails(const FrameContext& frame)
                 state->pick_hand.track,
                 tap.start_seconds,
                 tap.release_seconds,
-                picking_style.chord,
-                g_shape_rail_intensity);
-        }
-    }
-    // A span the host lights (setHighlight) lights its rails again over its own, in the
-    // highlight's color at the level's share of a rail's intensity; push_rail's clip drops one
-    // off the drawn span, as it does every rail.
-    if (highlight != nullptr)
-    {
-        for (const std::size_t index : highlight->shapes)
-        {
-            if (index < state->chart.shapes.size())
-            {
-                const common::core::ShapeViewState& shape = state->chart.shapes[index];
-                push_rail(
-                    state->fret_hand.track,
-                    shape.start_seconds,
-                    shape.drawn_end_seconds,
-                    highlight->color,
-                    g_shape_rail_intensity * highlight_level);
-            }
+                picking_style.chord);
         }
     }
     const std::array<float, 4> rail_light{

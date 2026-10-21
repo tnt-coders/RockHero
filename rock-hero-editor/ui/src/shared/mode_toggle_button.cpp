@@ -8,9 +8,8 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// The on-state ring: the editor's 1 px selection stroke, its corners rounded 3 px.
+// The on-state ring: the editor's 1 px selection stroke, its corners rounded as the class states.
 constexpr float g_ring_thickness{1.0f};
-constexpr float g_ring_corner_radius{3.0f};
 
 // The whole button's opacity while disabled, ring and glyph alike.
 constexpr float g_disabled_alpha{0.4f};

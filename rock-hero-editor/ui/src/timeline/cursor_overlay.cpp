@@ -4,6 +4,7 @@
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -43,12 +44,17 @@ void CursorOverlay::paint(juce::Graphics& g)
 {
     if (m_time_selection.has_value())
     {
-        // The grid-locked span in seconds maps to pixels with the same helper as the cursor, so the
+        // The grid-locked span in seconds maps to pixels through the one time-to-x mapping, so the
         // wash tracks zoom/scroll and clamps to the visible edges when an endpoint scrolls off.
-        const std::optional<float> left =
-            cursorXForTimelinePosition(m_time_selection->start, m_visible_timeline, getWidth());
-        const std::optional<float> right =
-            cursorXForTimelinePosition(m_time_selection->end, m_visible_timeline, getWidth());
+        const auto x_of = [this](common::core::TimePosition position) {
+            return core::timelineXForPosition(
+                position,
+                m_visible_timeline,
+                getWidth(),
+                core::TimelinePositionClamping::ClampToVisibleRange);
+        };
+        const std::optional<float> left = x_of(m_time_selection->start);
+        const std::optional<float> right = x_of(m_time_selection->end);
         if (left.has_value() && right.has_value())
         {
             const float x0 = std::min(*left, *right);
@@ -65,7 +71,8 @@ void CursorOverlay::paint(juce::Graphics& g)
         }
     }
 
-    static_cast<void>(drawTimelineCursor(g, *this, m_cursor_x, 0, editorTheme().playback_cursor));
+    static_cast<void>(
+        drawTimelineCursor(g, *this, m_cursor_column, 0, editorTheme().playback_cursor));
 
     if (m_snap_guide.has_value())
     {
@@ -171,17 +178,17 @@ void CursorOverlay::advanceCursor()
     const common::core::TimePosition position =
         m_drag_cursor_seconds.has_value() ? common::core::TimePosition{*m_drag_cursor_seconds}
                                           : m_transport.position();
-    const std::optional<float> next_cursor_x =
-        cursor_visible ? cursorXForTimelinePosition(position, m_visible_timeline, getWidth())
+    const std::optional<int> next_column =
+        cursor_visible ? cursorColumnForTimelinePosition(position, m_visible_timeline, getWidth())
                        : std::nullopt;
 
-    if (next_cursor_x == m_cursor_x)
+    if (next_column == m_cursor_column)
     {
         return;
     }
 
-    repaintCursorStrip(*this, m_cursor_x, next_cursor_x);
-    m_cursor_x = next_cursor_x;
+    repaintCursorColumns(*this, m_cursor_column, next_column);
+    m_cursor_column = next_column;
 }
 
 } // namespace rock_hero::editor::ui

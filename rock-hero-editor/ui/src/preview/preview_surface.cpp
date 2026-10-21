@@ -245,34 +245,8 @@ void PreviewSurface::detach()
 
 void PreviewSurface::setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state)
 {
-    // A running flash names marks by this snapshot's indices, which the new one reassigns.
-    if (state != m_state)
-    {
-        m_refusal.reset();
-    }
     m_state = std::move(state);
     m_state_dirty = true;
-}
-
-// Rationale lives on the declaration in preview_surface.h. The set is immutable once shared with
-// the renderer, so a join builds the union as a new set.
-void PreviewSurface::flashRefusal(std::shared_ptr<const common::ui::HighwayHighlight> highlight)
-{
-    if (highlight == nullptr ||
-        (highlight->shapes.empty() && highlight->fret_hand_positions.empty()))
-    {
-        return;
-    }
-    flashOrJoinRefusal(
-        m_refusal,
-        std::move(highlight),
-        [](std::shared_ptr<const common::ui::HighwayHighlight>& into,
-           const std::shared_ptr<const common::ui::HighwayHighlight>& from) {
-            common::ui::HighwayHighlight joined = *into;
-            joinRefused(joined.shapes, from->shapes);
-            joinRefused(joined.fret_hand_positions, from->fret_hand_positions);
-            into = std::make_shared<const common::ui::HighwayHighlight>(std::move(joined));
-        });
 }
 
 void PreviewSurface::resetCamera()
@@ -437,17 +411,6 @@ void PreviewSurface::renderFrame()
         snapshot.playing ? 0.0 : m_paused_mark_seconds.value_or(m_transport.position().seconds);
     const double song_seconds =
         m_time_model.advance(snapshot, paused_target_seconds, now, dt_seconds);
-
-    // The refusal flash, restated at its pulse's level every frame it runs; once its pulses have
-    // run or a new snapshot dropped it, the board lights nothing.
-    if (retireFinishedFlash(m_refusal) && m_refusal.has_value())
-    {
-        m_renderer->setHighlight(m_refusal->subject, m_refusal->pulse.level());
-    }
-    else
-    {
-        m_renderer->setHighlight(nullptr, 0.0f);
-    }
 
     m_renderer->draw(song_seconds, dt_seconds, m_device->width(), m_device->height());
     m_device->submitFrame();

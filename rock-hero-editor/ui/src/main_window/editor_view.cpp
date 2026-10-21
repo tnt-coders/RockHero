@@ -32,6 +32,7 @@
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/ui/highway_theme/loaded_highway_theme.h>
@@ -59,8 +60,6 @@ constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
 // Sized for a long readout like "128.4.99 / 59:59:999" at the readout font height.
 constexpr int g_position_display_width{240};
-// Sized for "999 notes" at the readout font height.
-constexpr int g_selection_count_display_width{110};
 constexpr float g_transport_readout_font_height{20.0f};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
@@ -305,6 +304,17 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SelectFretHandPosition:
             case core::EditorActionId::SelectSpanRowMark:
             case core::EditorActionId::AuthorFretHandPositionAtCursor:
+            case core::EditorActionId::SongSectionChord:
+            case core::EditorActionId::SongSectionAt:
+            case core::EditorActionId::TempoChord:
+            case core::EditorActionId::TimeSignatureChord:
+            case core::EditorActionId::TimeSignatureAt:
+            case core::EditorActionId::ToneChord:
+            case core::EditorActionId::ToneChangeAt:
+            case core::EditorActionId::ToneRenamePrompt:
+            case core::EditorActionId::ScaleTempoPrompt:
+            case core::EditorActionId::RestateSelection:
+            case core::EditorActionId::RenameSelection:
             case core::EditorActionId::ClearFretHandEnd:
             case core::EditorActionId::PruneFretHandPositions:
             case core::EditorActionId::ChooseHold:
@@ -409,6 +419,17 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SelectFretHandPosition:
         case core::EditorActionId::SelectSpanRowMark:
         case core::EditorActionId::AuthorFretHandPositionAtCursor:
+        case core::EditorActionId::SongSectionChord:
+        case core::EditorActionId::SongSectionAt:
+        case core::EditorActionId::TempoChord:
+        case core::EditorActionId::TimeSignatureChord:
+        case core::EditorActionId::TimeSignatureAt:
+        case core::EditorActionId::ToneChord:
+        case core::EditorActionId::ToneChangeAt:
+        case core::EditorActionId::ToneRenamePrompt:
+        case core::EditorActionId::ScaleTempoPrompt:
+        case core::EditorActionId::RestateSelection:
+        case core::EditorActionId::RenameSelection:
         case core::EditorActionId::ClearFretHandEnd:
         case core::EditorActionId::PruneFretHandPositions:
         case core::EditorActionId::ChooseHold:
@@ -521,6 +542,7 @@ EditorView::EditorView(
         refreshAudioMeters();
         refreshTimeDisplay();
         syncAltHeldState();
+        stepLockRefusalFlash();
     })
 {
     setWantsKeyboardFocus(true);
@@ -546,15 +568,6 @@ EditorView::EditorView(
     m_position_display.setJustificationType(juce::Justification::centredLeft);
     m_position_display.setInterceptsMouseClicks(false, false);
     refreshTimeDisplay();
-    // The selection-count chip (the marker model): typing acts on the whole note selection,
-    // so its size stays visible beside the transport readout even when the highlighted notes
-    // are scrolled off-screen. Hidden below two selected notes.
-    m_selection_count_display.setComponentID("chart_selection_count_display");
-    m_selection_count_display.setFont(
-        juce::Font{juce::FontOptions{g_transport_readout_font_height, juce::Font::bold}});
-    m_selection_count_display.setJustificationType(juce::Justification::centredLeft);
-    m_selection_count_display.setInterceptsMouseClicks(false, false);
-    m_selection_count_display.setVisible(false);
     m_master_output_meter.setComponentID("master_output_meter");
     m_audio_device_button.setComponentID("audio_device_button");
     m_audio_device_button.setText("Audio Device");
@@ -648,12 +661,11 @@ EditorView::EditorView(
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_position_display);
-    addChildComponent(m_selection_count_display);
     addAndMakeVisible(m_grid_spacing_selector);
     m_tempo_lock_button.setComponentID("tempo_lock_button");
     m_tempo_lock_button.setTooltip(
-        "Tempo Lock: while on, tempo anchors can't be dragged or nudged. Adding, deleting and "
-        "typing tempos still work.");
+        "Tempo Lock: while on, the tempo map and time signatures are frozen: no anchor or time "
+        "signature can be added, moved, retyped, scaled or deleted.");
     // The button is one more trigger of the menu row's command, so both run one path.
     m_tempo_lock_button.onClick = [this] {
         m_command_manager.invokeDirectly(toJuceCommandId(EditorCommandId::ToggleTempoLock), false);
@@ -930,15 +942,6 @@ void EditorView::setState(const core::EditorViewState& state)
             m_state.keyboard_position->measure_end_seconds,
             m_state.keyboard_position->seconds);
     }
-    // The count chip appears from two selected notes up: typing acts on the whole selection,
-    // so its size must stay visible even with the highlights scrolled off-screen.
-    const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
-    m_selection_count_display.setVisible(selected_count >= 2);
-    if (selected_count >= 2)
-    {
-        m_selection_count_display.setText(
-            juce::String{static_cast<int>(selected_count)} + " notes", juce::dontSendNotification);
-    }
 
     // The ruler's section chip row shows the song's section markers as a pinned marker lane. A
     // section is content, so its time is re-timed to the content map here, its one seconds
@@ -1134,11 +1137,11 @@ void EditorView::resized()
     // grid selector, then the tempo lock and the Note Lock — grid/tempo editing modes, so they
     // sit beside the grid control they shape rather than with playback. The playback block —
     // transport buttons plus the position readout — centers as a whole on the WINDOW's center
-    // line. The block only slides off center when the left cluster would overlap it. The
-    // selection-count chip's slot stands right of the block, and the master meter takes whatever
-    // right-edge width the two leave free (hiding below its minimum), so the centered block and
-    // the chip win over the meter's preferred width. The readout and chip slot widths already
-    // include the g_content_inset their bounds trim off, so the widths are plain sums.
+    // line. The block only slides off center when the left cluster would overlap it. The master
+    // meter takes whatever right-edge width the block leaves free past one content inset (hiding
+    // below its minimum), so the centered block wins over the meter's preferred width. The
+    // readout's width already includes the g_content_inset its bounds trim off, so the widths are
+    // plain sums.
     m_arrangement_caption.setBounds(
         control_row.removeFromLeft(std::min(g_arrangement_caption_width, control_row.getWidth())));
     // The combo fills the strip height with the same 4px inner gap as the grid selector's box so
@@ -1173,8 +1176,7 @@ void EditorView::resized()
     };
 
     const int master_meter_width = std::min(
-        g_master_meter_width,
-        control_row.getRight() - playback_area.getRight() - g_selection_count_display_width);
+        g_master_meter_width, control_row.getRight() - playback_area.getRight() - g_content_inset);
     if (master_meter_width >= g_master_meter_min_width)
     {
         m_master_output_meter.setVisible(true);
@@ -1191,10 +1193,6 @@ void EditorView::resized()
         std::min(g_transport_controls_width, playback_area.getWidth())));
     m_position_display.setBounds(
         playback_area.removeFromLeft(std::min(g_position_display_width, playback_area.getWidth()))
-            .withTrimmedLeft(g_content_inset));
-    juce::Rectangle<int> chip_area = control_row.withLeft(playback_area.getRight());
-    m_selection_count_display.setBounds(
-        chip_area.removeFromLeft(std::min(g_selection_count_display_width, chip_area.getWidth()))
             .withTrimmedLeft(g_content_inset));
 
     auto bottom_area = trackViewportBounds();
@@ -1621,22 +1619,62 @@ void EditorView::showChartHarmonicNodePicker(core::ChartHarmonicNodePicker picke
         });
 }
 
-// One refusal flashes on every surface that draws one of its targets: the ruler its chips, the tone
-// row its regions, the 3D preview its spans and fret-hand positions, the tab lane the rest. Each
-// glows what it draws in the theme's invalid ink, so all pulse as one refusal.
+// One refusal flashes on every 2D surface that draws one of its targets: the ruler its chips, the
+// tone row its regions, the toolbar its lock buttons, the track viewport the span row's marks (a
+// span's chip and rails glow as one shape, which neither the ruler nor the lane holds whole), the
+// tab lane the rest, and the tab lane's status line says the sentence. Each glows what it draws in
+// the theme's invalid ink, so all pulse as one refusal. The 3D preview glows nothing: a surface
+// lights every target it draws or none, and the preview cannot light a note head or a none hold.
+// Each surface takes its own share of the one record, so which surface draws which target is
+// stated where it is drawn.
 void EditorView::flashRefusal(core::RefusalFlash flash)
 {
     m_track_viewport->flashRefusal(flash);
-    if (m_preview_window != nullptr)
+    m_tab_view.flashRefusal(flash);
+    const juce::Rectangle<int> locks_before = lockRefusalGlowArea();
+    if (startRefusalFlash(m_lock_refusal, std::move(flash.locks)))
     {
-        m_preview_window->flashRefusal(
-            std::make_shared<const common::ui::HighwayHighlight>(common::ui::HighwayHighlight{
-                .shapes = flash.spans,
-                .fret_hand_positions = flash.fret_hand_positions,
-                .color = editorTheme().invalid.getARGB(),
-            }));
+        repaint(locks_before.getUnion(lockRefusalGlowArea()));
     }
-    m_tab_view.flashRefusal(std::move(flash));
+}
+
+ModeToggleButton& EditorView::lockButton(const core::LockControl lock)
+{
+    switch (lock)
+    {
+        case core::LockControl::Tempo:
+            return m_tempo_lock_button;
+        case core::LockControl::Note:
+            return m_note_lock_button;
+    }
+    std::unreachable();
+}
+
+// A refusal naming both locks grows the area to cover both, so every frame repaints all it lights.
+juce::Rectangle<int> EditorView::lockRefusalGlowArea()
+{
+    juce::Rectangle<float> area;
+    if (m_lock_refusal.has_value())
+    {
+        // Bound once, so the optional-access check sees the guard reach the loop below.
+        const PulsedFlash<std::vector<core::LockControl>>& refusal = *m_lock_refusal;
+        for (const core::LockControl lock : refusal.subject)
+        {
+            const juce::Rectangle<float> bounds = lockButton(lock).getBounds().toFloat();
+            area = area.getUnion(refusalGlowArea(bounds, bounds.getHeight()));
+        }
+    }
+    return area.getSmallestIntegerContainer();
+}
+
+// The area is read before retiring, so the frame that ends the flash repaints the glow away.
+void EditorView::stepLockRefusalFlash()
+{
+    const juce::Rectangle<int> area = lockRefusalGlowArea();
+    if (retireFinishedFlash(m_lock_refusal))
+    {
+        repaint(area);
+    }
 }
 
 // A landed meter edit flashes on the ruler, the surface that draws the measure numbers.
@@ -1683,6 +1721,28 @@ void EditorView::showChartHoldPicker(core::ChartHoldPicker picker)
                 m_controller.onHoldChoiceRequested(owned_choices[row].grip);
             }
         });
+}
+
+// The prompt or picker a marker verb landed on — a chord's, Enter's or Ctrl+R's — opened exactly as
+// the ruler menus and the tone row open the same ones, so no two inputs on one marker differ.
+void EditorView::showMarkerPrompt(const core::MarkerPrompt& prompt)
+{
+    std::visit(
+        common::core::Overloaded{
+            [this](const core::RenameSectionTarget& target) { renameSection(target); },
+            [this](const core::InsertSectionTarget& target) { insertSection(target); },
+            [this](const core::SetTempoTarget& target) { setTempo(target); },
+            [this](const core::SetTimeSignatureTarget& target) { setTimeSignature(target); },
+            [this](const core::InsertTimeSignatureTarget& target) { addTimeSignature(target); },
+            [this](const core::RetoneRegionTarget& target) { restateToneRegion(target); },
+            [this](const core::SplitToneRegionTarget& target) { splitToneRegion(target); },
+            [this](const core::RenameToneTarget& target) { renameTone(target); },
+            [this](const core::ScaleTempoTarget& target) { promptScaleTempo(target); },
+            [this](const core::OpenAutomationPickerTarget& /*target*/) {
+                m_tone_automation_lanes_view.openParameterPicker();
+            },
+        },
+        prompt);
 }
 
 // The bend picker the bend verb asks for: every amount from rest to three whole steps, spelled as
@@ -2425,27 +2485,30 @@ bool EditorView::performCommand(const InvocationInfo& info)
             }
             return true;
         }
-        // The marker verbs below open exactly the prompt or picker the core's published verb names
-        // — the marker grammar (restate a marker standing at the cursor, else insert; Enter and
-        // Ctrl+R act on the selection) is decided in the core and published as the verb, so
-        // nothing here looks a marker up or gates on the transport or the project: a verb of
-        // nothing is inert rather than declined, which is what keeps JUCE from sounding the alert
-        // for a chord its mapping set matched. A chord with nothing to prompt for (the hand's)
-        // publishes no verb at all and simply forwards: the core decides and acts in one action.
+        // The marker verbs forward: the marker grammar (a chord restates a marker standing at the
+        // cursor, else inserts; Enter and Ctrl+R act on the selection) is decided in the core at
+        // the press, which asks back for the prompt or picker it lands on (showMarkerPrompt) or
+        // refuses, so nothing here looks a marker up or gates on the transport or the project. No
+        // press is declined, which is what keeps JUCE from sounding the alert for a chord its
+        // mapping set matched.
         case EditorCommandId::InsertToneChange:
         {
-            if (const auto* const retone =
-                    std::get_if<core::RetoneRegionTarget>(&m_state.tone_chord_target))
-            {
-                restateToneRegion(*retone);
-            }
-            else if (
-                const auto* const split =
-                    std::get_if<core::SplitToneRegionTarget>(&m_state.tone_chord_target)
-            )
-            {
-                splitToneRegion(*split);
-            }
+            m_controller.onToneChordRequested();
+            return true;
+        }
+        case EditorCommandId::InsertSongSection:
+        {
+            m_controller.onSongSectionChordRequested();
+            return true;
+        }
+        case EditorCommandId::InsertTempoAnchor:
+        {
+            m_controller.onTempoChordRequested();
+            return true;
+        }
+        case EditorCommandId::InsertTimeSignature:
+        {
+            m_controller.onTimeSignatureChordRequested();
             return true;
         }
         case EditorCommandId::InsertFretHandPosition:
@@ -2460,70 +2523,12 @@ bool EditorView::performCommand(const InvocationInfo& info)
         }
         case EditorCommandId::RestateSelection:
         {
-            onSelectionRestateRequested();
+            m_controller.onSelectionRestateRequested();
             return true;
         }
         case EditorCommandId::RenameSelection:
         {
-            if (const auto* const section =
-                    std::get_if<core::RenameSectionTarget>(&m_state.rename_target))
-            {
-                renameSection(*section);
-            }
-            else if (
-                const auto* const tone = std::get_if<core::RenameToneTarget>(&m_state.rename_target)
-            )
-            {
-                onToneRenamePromptRequested(tone->tone_document_ref, tone->name);
-            }
-            return true;
-        }
-        case EditorCommandId::InsertSongSection:
-        {
-            if (const auto* const rename =
-                    std::get_if<core::RenameSectionTarget>(&m_state.section_chord_target))
-            {
-                renameSection(*rename);
-            }
-            else if (
-                const auto* const insert =
-                    std::get_if<core::InsertSectionTarget>(&m_state.section_chord_target)
-            )
-            {
-                onSongSectionInsertPromptRequested(insert->position);
-            }
-            return true;
-        }
-        case EditorCommandId::InsertTempoAnchor:
-        {
-            if (const auto* const set_tempo =
-                    std::get_if<core::SetTempoTarget>(&m_state.tempo_chord_target))
-            {
-                setTempo(*set_tempo);
-            }
-            else if (
-                const auto* const insert =
-                    std::get_if<core::InsertTempoAnchorTarget>(&m_state.tempo_chord_target)
-            )
-            {
-                m_controller.onTempoAnchorInsertRequested(insert->position);
-            }
-            return true;
-        }
-        case EditorCommandId::InsertTimeSignature:
-        {
-            if (const auto* const set_meter =
-                    std::get_if<core::SetTimeSignatureTarget>(&m_state.time_signature_chord_target))
-            {
-                setTimeSignature(*set_meter);
-            }
-            else if (
-                const auto* const insert = std::get_if<core::InsertTimeSignatureTarget>(
-                    &m_state.time_signature_chord_target)
-            )
-            {
-                addTimeSignature(*insert);
-            }
+            m_controller.onSelectionRenameRequested();
             return true;
         }
         case EditorCommandId::OpenFileMenu:
@@ -3070,7 +3075,7 @@ bool EditorView::performCommand(const InvocationInfo& info)
         {
             if (m_state.marker_edits_enabled)
             {
-                promptScaleTempo();
+                m_controller.onScaleTempoPromptRequested();
             }
             return true;
         }
@@ -3619,10 +3624,25 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
         m_controller, *prompt, m_input_calibration_guide, this);
 }
 
-// The settings window can sit behind the editor; dim everything and say why, on the same plate the
+// A refused lock glows around its button as a chip glows: the button's ring outline, reaching by
+// the button's size, over the children so the neighbours drawn beside it never cover the glow. The
+// settings window can sit behind the editor; dim everything and say why, on the same plate the
 // signal chain uses. Nothing intercepts input: the window's modality already blocks the editor.
 void EditorView::paintOverChildren(juce::Graphics& g)
 {
+    if (m_lock_refusal.has_value())
+    {
+        // Bound once, so the optional-access check sees the guard reach the loop below.
+        const PulsedFlash<std::vector<core::LockControl>>& refusal = *m_lock_refusal;
+        const float level = refusal.pulse.level();
+        for (const core::LockControl lock : refusal.subject)
+        {
+            const juce::Rectangle<float> bounds = lockButton(lock).getBounds().toFloat();
+            juce::Path outline;
+            outline.addRoundedRectangle(bounds, ModeToggleButton::g_ring_corner_radius);
+            paintRefusalGlow(g, outline, bounds.getHeight(), level);
+        }
+    }
     if (m_state.editor_notice.empty())
     {
         return;
@@ -3978,17 +3998,11 @@ void EditorView::onToneBoundaryMoveRequested(
     m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
-// Opens the tone picker for an Alt-click (or region-menu) tone-change insert at a position. The
-// row hands over the tone of the region it hit, so the picker excludes it without a second
-// containment lookup here.
-void EditorView::onToneChangeInsertRequested(
-    common::core::GridPosition position, std::string containing_tone_document_ref)
+// An Alt-click (or region-menu) tone-change insert at a position: the core decides the tone verb
+// there, the lock governing it answering first, and asks back for the picker it lands on.
+void EditorView::onToneChangeInsertRequested(const common::core::GridPosition position)
 {
-    splitToneRegion(
-        core::SplitToneRegionTarget{
-            .position = position,
-            .containing_tone_document_ref = std::move(containing_tone_document_ref),
-        });
+    m_controller.onToneChangeAtRequested(position);
 }
 
 // Routes a region-menu delete to the controller, exactly like the Delete key on a selection.
@@ -4087,12 +4101,19 @@ void EditorView::onSpanSelected(const std::size_t index)
         core::SpanRowMarks{.span = index, .none_hold = std::nullopt});
 }
 
-// Prompts for a name and asks the controller to add a section at a position — the cursor's slot
-// for the chord, the click's for the ruler menu. The position is carried through the
-// prompt rather than re-read when it closes, as the tone insert carries its own. The prompt
-// starts empty rather than with a default: an unnamed section is refused, and a placeholder name
-// would be worse than none on a chip meant to be read at a glance.
-void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition position)
+// The ruler menu's section insert row: the core decides the section verb at the clicked slot, the
+// lock governing it answering first, and asks back for the prompt it lands on.
+void EditorView::onSongSectionInsertPromptRequested(const common::core::GridPosition position)
+{
+    m_controller.onSongSectionAtRequested(position);
+}
+
+// Prompts for a name and asks the controller to add a section at the position the core named — the
+// cursor's slot for the chord, the click's for the ruler menu. The position is carried through the
+// prompt rather than re-read when it closes, as the tone insert carries its own. The prompt starts
+// empty rather than with a default: an unnamed section is refused, and a placeholder name would be
+// worse than none on a chip meant to be read at a glance.
+void EditorView::insertSection(const core::InsertSectionTarget& target)
 {
     showThemedTextPrompt(
         this,
@@ -4100,7 +4121,7 @@ void EditorView::onSongSectionInsertPromptRequested(common::core::GridPosition p
         "Enter a name for the new section:",
         juce::String{},
         "Add",
-        [this, position](const juce::String& name) {
+        [this, position = target.position](const juce::String& name) {
             m_controller.onSongSectionInsertRequested(position, name.trim().toStdString());
         });
 }
@@ -4174,15 +4195,15 @@ void EditorView::promptTimeSignature(
         });
 }
 
-// The Scale Tempo prompt behind the Edit menu's item and the tempo row's menu row, titled as its
-// undo entry is — which names the form the Note Lock chooses, so the charter sees before typing
-// whether the notes keep their time or follow the beat. It opens empty, so an accidental Enter
-// scales nothing; the text goes back raw for the core to parse and refuse.
-void EditorView::promptScaleTempo()
+// The Scale Tempo prompt behind the Edit menu's item and the tempo row's menu row, titled as the
+// core named it — the undo entry of the form the Note Lock chooses, so the charter sees before
+// typing whether the notes keep their time or follow the beat. It opens empty, so an accidental
+// Enter scales nothing; the text goes back raw for the core to parse and refuse.
+void EditorView::promptScaleTempo(const core::ScaleTempoTarget& target)
 {
     showThemedTextPrompt(
         this,
-        core::scaleTempoLabel(m_state.note_lock),
+        juce::String{target.label},
         "Scale factor (e.g. 2, 1/2, 3/2)",
         juce::String{},
         "Scale",
@@ -4191,38 +4212,11 @@ void EditorView::promptScaleTempo()
         });
 }
 
-// Opens whatever the core's published restate verb names — Enter's verb, which the ruler also asks
-// for after selecting a chip — so the view dispatches on no marker kind of its own.
+// Enter's verb, which the ruler also asks for after selecting a chip: the core decides it at the
+// press and asks back for the prompt it lands on, so the view dispatches on no marker kind.
 void EditorView::onSelectionRestateRequested()
 {
-    if (const auto* const section = std::get_if<core::RenameSectionTarget>(&m_state.restate_target))
-    {
-        renameSection(*section);
-    }
-    else if (const auto* const tempo = std::get_if<core::SetTempoTarget>(&m_state.restate_target))
-    {
-        setTempo(*tempo);
-    }
-    else if (
-        const auto* const meter = std::get_if<core::SetTimeSignatureTarget>(&m_state.restate_target)
-    )
-    {
-        setTimeSignature(*meter);
-    }
-    else if (
-        const auto* const region = std::get_if<core::RetoneRegionTarget>(&m_state.restate_target)
-    )
-    {
-        restateToneRegion(*region);
-    }
-    else if (std::holds_alternative<core::OpenAutomationPickerTarget>(m_state.restate_target))
-    {
-        m_tone_automation_lanes_view.openParameterPicker();
-    }
-    else if (std::holds_alternative<core::OpenBendPickerTarget>(m_state.restate_target))
-    {
-        m_controller.onChartBendRequested();
-    }
+    m_controller.onSelectionRestateRequested();
 }
 
 // The ruler menu's tempo insert, at the slot the menu was opened over; the core refuses an occupied
@@ -4232,11 +4226,12 @@ void EditorView::onTempoAnchorInsertRequested(const common::core::GridPosition p
     m_controller.onTempoAnchorInsertRequested(position);
 }
 
-// The ruler menu's meter insert, the one the core's meter rule names at the beat the menu was
-// opened over, so it opens exactly as the meter chord's insert does.
-void EditorView::onTimeSignatureInsertPromptRequested(const core::InsertTimeSignatureTarget& target)
+// The ruler menu's meter insert: the core decides the meter verb at the beat the menu was opened
+// over, the lock governing it answering first, so it opens exactly as the meter chord's insert
+// does.
+void EditorView::onTimeSignatureInsertPromptRequested(const common::core::GridPosition position)
 {
-    addTimeSignature(target);
+    m_controller.onTimeSignatureAtRequested(position);
 }
 
 // The tempo row's Scale Tempo row runs the command itself, so the ruler and the Edit menu share
@@ -4417,17 +4412,23 @@ void EditorView::promptForNewToneName(std::function<void(std::string)> on_named)
         });
 }
 
-// Prompts for a new name for the double-clicked tone and forwards the rename to the controller.
-void EditorView::onToneRenamePromptRequested(
-    std::string tone_document_ref, std::string current_name)
+// The tone row's double-click and its menu's Rename: the core decides the rename, the lock
+// governing it answering first, and asks back for the prompt.
+void EditorView::onToneRenamePromptRequested(std::string tone_document_ref)
+{
+    m_controller.onToneRenamePromptRequested(std::move(tone_document_ref));
+}
+
+// Prompts for a new name for the tone the core named and forwards the rename to the controller.
+void EditorView::renameTone(const core::RenameToneTarget& target)
 {
     showThemedTextPrompt(
         this,
         "Rename Tone",
         "Enter a new name for this tone:",
-        current_name,
+        target.name,
         "Rename",
-        [this, ref = std::move(tone_document_ref)](const juce::String& name) {
+        [this, ref = target.tone_document_ref](const juce::String& name) {
             m_controller.onToneRenameRequested(ref, name.toStdString());
         });
 }

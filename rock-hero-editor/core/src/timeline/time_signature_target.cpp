@@ -6,7 +6,7 @@
 namespace rock_hero::editor::core
 {
 
-TimeSignatureChordTarget timeSignatureTargetAt(
+TimeSignatureTarget timeSignatureTargetAt(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition beat)
 {
     const common::core::MeterReign governing = tempo_map.timeSignatureAt(beat.measure);
@@ -15,7 +15,7 @@ TimeSignatureChordTarget timeSignatureTargetAt(
     {
         return SetTimeSignatureTarget{.position = beat, .meter_text = meter_text};
     }
-    if (!common::core::markerCanStartAt(beat, tempo_map))
+    if (!common::core::objectCanStartAt(beat, tempo_map))
     {
         return {};
     }

@@ -88,16 +88,36 @@ void flashRenumberedMeasures(
 // so the chord never leaves the meter lattice, and the bar it cuts is always a meter. What it does
 // there is the one rule timeSignatureTargetAt states; a reign starting there is stated, which is
 // what makes the double press work: the first inserts and selects, and the commit keeps the cursor
-// on its time, so the second finds that reign starting on the same beat.
-TimeSignatureChordTarget EditorController::Impl::timeSignatureChordTarget() const
+// on its time, so the second finds that reign starting on the same beat. Both open the meter
+// prompt; where the rule finds nothing, the end of the song, the press is refused. The dispatcher
+// answered first: the Tempo Lock, and the paused-only marker plane.
+void EditorController::Impl::performActionImpl(EditorAction::TimeSignatureChord /*action*/)
 {
-    const std::optional<common::core::GridPosition> position =
-        cursorPosition(common::core::g_tick_quantum_note_value);
-    if (!position.has_value())
+    if (const std::optional<common::core::GridPosition> position =
+            cursorPosition(common::core::g_tick_quantum_note_value);
+        position.has_value())
     {
-        return {};
+        performActionImpl(EditorAction::TimeSignatureAt{.position = *position});
     }
-    return timeSignatureTargetAt(session().song().tempo_map, common::core::beatStart(*position));
+}
+
+// The chord's rule at the beat a place the ruler menu was opened over is in.
+void EditorController::Impl::performActionImpl(const EditorAction::TimeSignatureAt& action)
+{
+    const TimeSignatureTarget verb =
+        timeSignatureTargetAt(session().song().tempo_map, common::core::beatStart(action.position));
+    if (const auto* const set = std::get_if<SetTimeSignatureTarget>(&verb))
+    {
+        showMarkerPrompt(*set);
+    }
+    else if (const auto* const insert = std::get_if<InsertTimeSignatureTarget>(&verb))
+    {
+        showMarkerPrompt(*insert);
+    }
+    else
+    {
+        refuseAtSongEnd(MarkerVerb::AddTimeSignature);
+    }
 }
 
 // The selected reign's meter, authored or derived; a selection naming a reign that is gone answers
@@ -189,12 +209,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetTimeSignat
     const common::core::TempoMap tempo_map = before.timeline.tempo_map;
     // The one meter rule names the verb: stating a reign that starts here, authored or derived,
     // is the Set; a beat where none starts is the Add; nowhere a marker may start is a refusal.
-    const TimeSignatureChordTarget verb = timeSignatureTargetAt(tempo_map, action.position);
+    const TimeSignatureTarget verb = timeSignatureTargetAt(tempo_map, action.position);
     if (std::holds_alternative<std::monostate>(verb))
     {
-        m_refusal_log.markerEdit(
-            markerVerbLabel(MarkerVerb::AddTimeSignature),
-            "a time signature cannot start at or past the end of the song");
+        refuseAtSongEnd(MarkerVerb::AddTimeSignature);
         return;
     }
     const auto* const restated = std::get_if<SetTimeSignatureTarget>(&verb);

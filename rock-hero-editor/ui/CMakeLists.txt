@@ -69,6 +69,8 @@ target_sources(
             src/shared/flash_pulse.h
             src/shared/installed_resources.cpp
             src/shared/installed_resources.h
+            src/shared/mark_outline.cpp
+            src/shared/mark_outline.h
             src/shared/mode_toggle_button.cpp
             src/shared/mode_toggle_button.h
             src/shared/notice_plate.cpp

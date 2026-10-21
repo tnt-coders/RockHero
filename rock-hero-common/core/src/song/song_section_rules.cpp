@@ -39,7 +39,7 @@ std::expected<void, SongSectionError> validateSongSectionRules(
         }
 
         // The shared place rule, asked the same way the section chord's projection asks it.
-        if (!markerCanStartAt(section.position, tempo_map))
+        if (!objectCanStartAt(section.position, tempo_map))
         {
             return std::unexpected{SongSectionError{
                 .code = SongSectionErrorCode::OffGridOrPastTerminal,

@@ -421,6 +421,72 @@ public:
         fret_hand_position_chord_count += 1;
     }
 
+    /*! \copydoc IEditorController::onSongSectionChordRequested */
+    void onSongSectionChordRequested() override
+    {
+        section_chord_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onTempoChordRequested */
+    void onTempoChordRequested() override
+    {
+        tempo_chord_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onTimeSignatureChordRequested */
+    void onTimeSignatureChordRequested() override
+    {
+        time_signature_chord_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onToneChordRequested */
+    void onToneChordRequested() override
+    {
+        tone_chord_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onSongSectionAtRequested */
+    void onSongSectionAtRequested(const common::core::GridPosition position) override
+    {
+        last_section_at_position = position;
+    }
+
+    /*! \copydoc IEditorController::onTimeSignatureAtRequested */
+    void onTimeSignatureAtRequested(const common::core::GridPosition position) override
+    {
+        last_time_signature_at_position = position;
+    }
+
+    /*! \copydoc IEditorController::onToneChangeAtRequested */
+    void onToneChangeAtRequested(const common::core::GridPosition position) override
+    {
+        last_tone_change_at_position = position;
+    }
+
+    /*! \copydoc IEditorController::onToneRenamePromptRequested */
+    void onToneRenamePromptRequested(std::string tone_document_ref) override
+    {
+        last_tone_rename_prompt_ref = std::move(tone_document_ref);
+    }
+
+    /*! \copydoc IEditorController::onScaleTempoPromptRequested */
+    void onScaleTempoPromptRequested() override
+    {
+        scale_tempo_prompt_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onSelectionRestateRequested */
+    void onSelectionRestateRequested() override
+    {
+        selection_restate_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onSelectionRenameRequested */
+    void onSelectionRenameRequested() override
+    {
+        selection_rename_count += 1;
+    }
+
     /*! \copydoc IEditorController::onFretHandPositionEndClearRequested */
     void onFretHandPositionEndClearRequested() override
     {
@@ -1043,6 +1109,39 @@ public:
 
     /*! \brief Number of onFretHandPositionChordRequested() intents received. */
     int fret_hand_position_chord_count{0};
+
+    /*! \brief Number of onSongSectionChordRequested() intents received. */
+    int section_chord_count{0};
+
+    /*! \brief Number of onTempoChordRequested() intents received. */
+    int tempo_chord_count{0};
+
+    /*! \brief Number of onTimeSignatureChordRequested() intents received. */
+    int time_signature_chord_count{0};
+
+    /*! \brief Number of onToneChordRequested() intents received. */
+    int tone_chord_count{0};
+
+    /*! \brief Last place reported through onSongSectionAtRequested(). */
+    std::optional<common::core::GridPosition> last_section_at_position{};
+
+    /*! \brief Last place reported through onTimeSignatureAtRequested(). */
+    std::optional<common::core::GridPosition> last_time_signature_at_position{};
+
+    /*! \brief Last place reported through onToneChangeAtRequested(). */
+    std::optional<common::core::GridPosition> last_tone_change_at_position{};
+
+    /*! \brief Last tone document ref reported through onToneRenamePromptRequested(). */
+    std::optional<std::string> last_tone_rename_prompt_ref{};
+
+    /*! \brief Number of onScaleTempoPromptRequested() intents received. */
+    int scale_tempo_prompt_count{0};
+
+    /*! \brief Number of onSelectionRestateRequested() intents received. */
+    int selection_restate_count{0};
+
+    /*! \brief Number of onSelectionRenameRequested() intents received. */
+    int selection_rename_count{0};
 
     /*! \brief Number of onFretHandPositionEndClearRequested() intents received. */
     int fret_hand_position_end_clear_count{0};

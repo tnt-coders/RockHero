@@ -5,6 +5,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -91,25 +92,47 @@ struct TempoEditor : SongEditorHarness
         return found != anchors.end() ? std::optional{found->milliseconds} : std::nullopt;
     }
 
-    [[nodiscard]] TempoChordTarget chord() const
+    // Presses the tempo chord and returns the prompt it asked the view for; nothing where it asked
+    // none, because it inserted at once, was refused or addressed nothing.
+    [[nodiscard]] std::optional<MarkerPrompt> pressTempoChord()
     {
-        return state().tempo_chord_target;
+        return pressForPrompt(&EditorController::onTempoChordRequested);
     }
 
     // The position of the anchor Enter would retype, which is the selected one; empty when the
     // selection is no span-opening anchor.
-    [[nodiscard]] std::optional<GridPosition> selectedAnchorPosition() const
+    [[nodiscard]] std::optional<GridPosition> selectedAnchorPosition()
     {
-        const RestateTarget restate = state().restate_target;
-        const auto* const target = std::get_if<SetTempoTarget>(&restate);
+        const std::optional<MarkerPrompt> restate =
+            pressForPrompt(&EditorController::onSelectionRestateRequested);
+        const auto* const target = promptAs<SetTempoTarget>(restate);
         return target != nullptr ? std::optional{target->position} : std::nullopt;
     }
 
-    // Turns the tempo lock off, as a test that moves anchors must: every open turns it on.
+    // Turns the tempo lock off, as a test that edits the map must: every open turns it on.
     void unlockTempo()
     {
         controller.onTempoLockToggleRequested();
         REQUIRE_FALSE(state().tempo_lock);
+    }
+
+    // Turns the tempo lock back on, over anchors a test inserted with it off.
+    void lockTempo()
+    {
+        controller.onTempoLockToggleRequested();
+        REQUIRE(state().tempo_lock);
+    }
+
+    // Inserts anchors with the lock off and turns it back on, the map a lock test refuses edits
+    // to.
+    void insertLocked(const std::initializer_list<GridPosition> positions)
+    {
+        unlockTempo();
+        for (const GridPosition& position : positions)
+        {
+            controller.onTempoAnchorInsertRequested(position);
+        }
+        lockTempo();
     }
 
     [[nodiscard]] std::vector<common::core::FretHandPosition> placements() const
@@ -138,19 +161,19 @@ struct TempoEditor : SongEditorHarness
     }
 };
 
-// The marker refusal records in a captured log, in order, each as the text after its category.
-[[nodiscard]] std::vector<std::string> markerRefusalLines(const std::string& log)
+// The locked-action refusal records in a captured log, in order, each from its record's name on.
+[[nodiscard]] std::vector<std::string> lockRefusalLines(const std::string& log)
 {
-    constexpr std::string_view category = "editor.marker: ";
+    constexpr std::string_view record = "Refused locked action ";
     std::vector<std::string> lines;
     std::size_t start = 0;
     while (start < log.size())
     {
         const std::size_t end = std::min(log.find('\n', start), log.size());
         const std::string_view line = std::string_view{log}.substr(start, end - start);
-        if (const std::size_t at = line.find(category); at != std::string_view::npos)
+        if (const std::size_t at = line.find(record); at != std::string_view::npos)
         {
-            std::string_view text = line.substr(at + category.size());
+            std::string_view text = line.substr(at);
             if (text.ends_with('\r'))
             {
                 text.remove_suffix(1);
@@ -162,41 +185,36 @@ struct TempoEditor : SongEditorHarness
     return lines;
 }
 
-// The record every Tempo Lock refusal of a drag on 3:1 leaves.
-constexpr std::string_view g_locked_drag_refusal =
-    R"(Rejected marker edit label="Move Tempo Anchor" )"
-    R"(detail="Tempo Lock is on: dragging the tempo anchor at 3:1 is blocked")";
-
 } // namespace
 
-// The chord's whole decision is published as the verb: an insert at the cursor's slot where no
-// anchor stands, and the BPM prompt — prefilled with what the chip prints — where one does, whether
-// that anchor is selected or not.
-TEST_CASE("The published tempo chord names the verb at the cursor's slot", "[core][tempo]")
+// The chord's whole decision is made at the press: an insert at the cursor's slot where no anchor
+// stands, landing at once since it has nothing to prompt for, and the BPM prompt — prefilled with
+// what the chip prints — where one does, whether that anchor is selected or not.
+TEST_CASE("The tempo chord acts on the verb at the cursor's slot", "[core][tempo]")
 {
     TempoEditor editor;
-
-    editor.seek(2.0);
-    const TempoChordTarget empty_beat = editor.chord();
-    const auto* const insert = std::get_if<InsertTempoAnchorTarget>(&empty_beat);
-    REQUIRE(insert != nullptr);
-    CHECK(insert->position == beatAt(2, 1));
+    editor.unlockTempo();
 
     editor.seek(0.0);
-    const TempoChordTarget unselected = editor.chord();
-    const auto* const restate = std::get_if<SetTempoTarget>(&unselected);
+    const std::optional<MarkerPrompt> unselected = editor.pressTempoChord();
+    const auto* const restate = promptAs<SetTempoTarget>(unselected);
     REQUIRE(restate != nullptr);
     CHECK(restate->position == beatAt(1, 1));
     CHECK(restate->bpm_text == "120");
-    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
+    CHECK_FALSE(editor.pressForPrompt(&EditorController::onSelectionRestateRequested).has_value());
 
     // Selecting the chip changes nothing about the chord, and gives Enter the same verb.
     editor.controller.onTempoAnchorSelected(beatAt(1, 1));
-    CHECK(editor.chord() == unselected);
-    const RestateTarget enter = editor.state().restate_target;
-    const auto* const entered = std::get_if<SetTempoTarget>(&enter);
+    CHECK(editor.pressTempoChord() == unselected);
+    const std::optional<MarkerPrompt> enter =
+        editor.pressForPrompt(&EditorController::onSelectionRestateRequested);
+    const auto* const entered = promptAs<SetTempoTarget>(enter);
     REQUIRE(entered != nullptr);
     CHECK(*entered == *restate);
+
+    editor.seek(2.0);
+    CHECK_FALSE(editor.pressTempoChord().has_value());
+    CHECK(editor.anchorMilliseconds(beatAt(2, 1)) == std::optional<std::int64_t>{2000});
 }
 
 // The chord reads the cursor at the placement quantum, as the tone chord does: the grid line with
@@ -205,49 +223,66 @@ TEST_CASE("The published tempo chord names the verb at the cursor's slot", "[cor
 TEST_CASE("The tempo chord reads the cursor at the placement quantum", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 8});
 
     // 2.3 s is 0.6 of a beat into 2:1, whose nearest eighth is the half beat.
     editor.seek(2.3);
-    const TempoChordTarget snapped = editor.chord();
-    const auto* const on_grid = std::get_if<InsertTempoAnchorTarget>(&snapped);
-    REQUIRE(on_grid != nullptr);
-    CHECK(on_grid->position == subBeatPosition());
+    CHECK_FALSE(editor.pressTempoChord().has_value());
+    CHECK(editor.anchorMilliseconds(subBeatPosition()) == std::optional<std::int64_t>{2250});
+    editor.controller.onUndoRequested();
 
     // With snap off the slot is the tick: 0.6 of a beat is 576 of its 960 ticks.
     turnGridSnapOff(editor.controller);
     editor.seek(2.3);
     const GridPosition tick{.measure = 2, .beat = 1, .offset = common::core::Fraction{3, 5}};
-    const TempoChordTarget unsnapped = editor.chord();
-    const auto* const on_tick = std::get_if<InsertTempoAnchorTarget>(&unsnapped);
-    REQUIRE(on_tick != nullptr);
-    CHECK(on_tick->position == tick);
-
-    editor.controller.onTempoAnchorInsertRequested(on_tick->position);
+    CHECK_FALSE(editor.pressTempoChord().has_value());
     CHECK(editor.anchorMilliseconds(tick) == std::optional<std::int64_t>{2300});
     const SetTempoTarget expected{.position = tick, .bpm_text = "120"};
-    const TempoChordTarget restated = editor.chord();
-    const auto* const restate = std::get_if<SetTempoTarget>(&restated);
+    const std::optional<MarkerPrompt> restated = editor.pressTempoChord();
+    const auto* const restate = promptAs<SetTempoTarget>(restated);
     REQUIRE(restate != nullptr);
     CHECK(*restate == expected);
 }
 
-// Inert exactly where the commit would refuse: on the terminal, which opens no span; while the
-// transport plays; and with no song.
-TEST_CASE("The tempo chord is nothing where no anchor can stand", "[core][tempo]")
+// The press asks for no prompt the commit would refuse: on the terminal, which opens no span, it
+// is refused, logged and said on the lane — the Tempo Lock answering first while it is on, since
+// nothing changes while it holds; while the transport plays and with no song it says nothing.
+TEST_CASE("The tempo chord asks nothing where no anchor can stand", "[core][tempo]")
 {
+    const testing::LogCapture capture;
     TempoEditor editor;
+    const common::core::TempoMap before = editor.tempoMap();
+    const std::string sentence = "nothing can start at or past the end of the song";
 
     editor.seek(16.0);
-    CHECK(std::holds_alternative<std::monostate>(editor.chord()));
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    CHECK_FALSE(editor.pressTempoChord().has_value());
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().sentence == g_tempo_lock_sentence);
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Tempo});
+
+    editor.unlockTempo();
+    CHECK_FALSE(editor.pressTempoChord().has_value());
+    CHECK(editor.tempoMap() == before);
+    const std::string logged = capture.text();
+    CHECK(
+        logged.find(lockedActionRecord("TempoChord", g_tempo_lock_sentence)) != std::string::npos);
+    CHECK(
+        logged.find(R"(Rejected marker edit label="Add Tempo Anchor" detail=")" + sentence) !=
+        std::string::npos);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 2);
+    CHECK(editor.view.refusal_flashes.back().sentence == sentence);
 
     editor.transport.current_state.playing = true;
     editor.seek(2.0);
-    CHECK(std::holds_alternative<std::monostate>(editor.chord()));
+    CHECK_FALSE(editor.pressTempoChord().has_value());
+    CHECK(editor.view.refusal_flashes.size() == flashes + 2);
 
     editor.transport.current_state.playing = false;
     editor.controller.onCloseRequested();
-    CHECK(std::holds_alternative<std::monostate>(editor.chord()));
+    CHECK_FALSE(editor.pressTempoChord().has_value());
+    CHECK(editor.view.refusal_flashes.size() == flashes + 2);
 }
 
 // An insert pins the time the map already gives the beat, records one entry and selects what it
@@ -256,22 +291,23 @@ TEST_CASE(
     "A tempo insert selects the new anchor and the chord then sets its tempo", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.seek(4.0);
-    REQUIRE(std::holds_alternative<InsertTempoAnchorTarget>(editor.chord()));
 
-    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    CHECK_FALSE(editor.pressTempoChord().has_value());
     REQUIRE(editor.tempoMap().anchors().size() == 3);
     CHECK_THAT(editor.anchorSeconds(3, 1), WithinAbs(4.0, 1e-9));
     CHECK(editor.undoEntryCount() == 1);
     CHECK(editor.undoTopLabel() == "Add Tempo Anchor");
 
     const SetTempoTarget expected{.position = beatAt(3, 1), .bpm_text = "120"};
-    const RestateTarget enter = editor.state().restate_target;
-    const auto* const entered = std::get_if<SetTempoTarget>(&enter);
+    const std::optional<MarkerPrompt> enter =
+        editor.pressForPrompt(&EditorController::onSelectionRestateRequested);
+    const auto* const entered = promptAs<SetTempoTarget>(enter);
     REQUIRE(entered != nullptr);
     CHECK(*entered == expected);
-    const TempoChordTarget chord = editor.chord();
-    const auto* const restate = std::get_if<SetTempoTarget>(&chord);
+    const std::optional<MarkerPrompt> chord = editor.pressTempoChord();
+    const auto* const restate = promptAs<SetTempoTarget>(chord);
     REQUIRE(restate != nullptr);
     CHECK(*restate == expected);
 
@@ -287,6 +323,7 @@ TEST_CASE(
 TEST_CASE("A typed tempo ripples every later anchor", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
     editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
     editor.controller.onTempoAnchorInsertRequested(beatAt(7, 1));
@@ -301,8 +338,9 @@ TEST_CASE("A typed tempo ripples every later anchor", "[core][tempo]")
     CHECK_THAT(editor.anchorSeconds(7, 1) - editor.anchorSeconds(5, 1), WithinAbs(4.0, 1e-9));
     CHECK(editor.undoEntryCount() == 4);
     CHECK(editor.undoTopLabel() == "Set Tempo to 137");
-    const RestateTarget enter = editor.state().restate_target;
-    const auto* const entered = std::get_if<SetTempoTarget>(&enter);
+    const std::optional<MarkerPrompt> enter =
+        editor.pressForPrompt(&EditorController::onSelectionRestateRequested);
+    const auto* const entered = promptAs<SetTempoTarget>(enter);
     REQUIRE(entered != nullptr);
     CHECK(entered->bpm_text == "137");
 
@@ -333,6 +371,7 @@ TEST_CASE("A typed tempo that is not a number flashes its anchor", "[core][tempo
 TEST_CASE("Deleting a tempo anchor round-trips through undo", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     const common::core::TempoMap original = editor.tempoMap();
 
     editor.controller.onTempoAnchorSelected(beatAt(1, 1));
@@ -482,6 +521,7 @@ TEST_CASE("Undo and redo re-select an edited sub-beat anchor", "[core][tempo]")
 TEST_CASE("Tempo edits and their undo re-mirror the host tempo", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     const common::core::TempoMap original = editor.tempoMap();
     const int loaded_mirrors = editor.audio.mirror_tempo_map_call_count;
     REQUIRE(loaded_mirrors >= 1);
@@ -521,6 +561,7 @@ TEST_CASE("Tempo edits and their undo re-mirror the host tempo", "[core][tempo]"
 TEST_CASE("A tempo edit moves the projected notes", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     const std::shared_ptr<const common::core::ChartViewState> before = editor.state().tab;
     REQUIRE(before != nullptr);
     REQUIRE_FALSE(before->notes.empty());
@@ -920,6 +961,7 @@ TEST_CASE("A tempo-chip drag moves only the selected anchor while paused", "[cor
 TEST_CASE("A typed tempo keeps the cursor on its musical place", "[core][tempo]")
 {
     TempoEditor editor;
+    editor.unlockTempo();
     editor.seek(5.25);
 
     SECTION("the passive cursor")
@@ -929,14 +971,17 @@ TEST_CASE("A typed tempo keeps the cursor on its musical place", "[core][tempo]"
         editor.armCaretAtCursor();
     }
 
-    const TempoChordTarget before = editor.chord();
-    REQUIRE(std::holds_alternative<InsertTempoAnchorTarget>(before));
+    // The section chord asks for nothing but the cursor's slot, so it reads where the cursor
+    // stands.
+    const std::optional<MarkerPrompt> before =
+        editor.pressForPrompt(&EditorController::onSongSectionChordRequested);
+    REQUIRE(promptAs<InsertSectionTarget>(before) != nullptr);
     const int seeks = editor.transport.seek_call_count;
     const int publishes = editor.view.set_state_call_count;
     const std::uint64_t moves = editor.state().keyboard_move_count;
     editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "60");
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(10.5, 1e-9));
-    CHECK(editor.chord() == before);
+    CHECK(editor.pressForPrompt(&EditorController::onSongSectionChordRequested) == before);
     CHECK(editor.transport.seek_call_count == seeks + 1);
     CHECK(editor.view.set_state_call_count == publishes + 1);
     CHECK(editor.state().keyboard_move_count == moves);
@@ -959,11 +1004,11 @@ TEST_CASE("The tempo lock is on at every open", "[core][tempo][tempo-lock]")
 }
 
 // While the lock is on, Alt+arrow on a selected anchor moves nothing and opens no entry; the chip
-// flashes instead.
+// flashes instead, with the lock's own button: the lock is what stood in the way.
 TEST_CASE("The tempo lock refuses an anchor nudge", "[core][tempo][tempo-lock]")
 {
     TempoEditor editor;
-    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    editor.insertLocked({beatAt(3, 1)});
     editor.controller.onTimelineZoomChanged(100.0);
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
@@ -971,77 +1016,163 @@ TEST_CASE("The tempo lock refuses an anchor nudge", "[core][tempo][tempo-lock]")
     editor.pressAlt(ChartStepDirection::Right);
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
-    CHECK(flashedRulerChips(editor.view) == std::vector{tempoChip(beatAt(3, 1))});
+    REQUIRE(editor.view.refusal_flashes.size() == 1);
+    CHECK(editor.view.refusal_flashes.back().ruler_chips == std::vector{tempoChip(beatAt(3, 1))});
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Tempo});
 }
 
-// A drag is refused from its first event: nothing lands, no entry opens, and the chip the press
-// selected — not the one selected before it — is the one that flashes.
+// A drag is refused from its first event: nothing lands, nothing previews, no entry opens, and the
+// chip the press selected — not the one selected before it — is the one that flashes, beside the
+// lock's button.
 TEST_CASE("The tempo lock refuses a tempo-chip drag", "[core][tempo][tempo-lock]")
 {
     TempoEditor editor;
-    editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
-    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    editor.insertLocked({beatAt(5, 1), beatAt(3, 1)});
     const common::core::TempoMap inserted = editor.tempoMap();
     const std::size_t entries = editor.undoEntryCount();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
 
     // The press on 5:1's chip selects it, as the ruler's press does, before any drag event.
     editor.controller.onTempoAnchorSelected(beatAt(5, 1));
     editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8100);
     editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8300);
     editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8500);
+    CHECK(editor.gridAnchorMilliseconds(beatAt(5, 1)) == std::optional<std::int64_t>{8000});
+    editor.controller.onTempoAnchorDragReleased();
     CHECK(editor.tempoMap() == inserted);
     CHECK(editor.undoEntryCount() == entries);
-    // One flash per event, each the dragged chip alone: the lock is not on the lane, so it names
-    // no culprit.
-    REQUIRE(editor.view.refusal_flashes.size() == 3);
-    for (const RefusalFlash& flash : editor.view.refusal_flashes)
+    // One flash per event, each the dragged chip and the lock, saying the lock's logged sentence.
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 3);
+    for (std::size_t index = flashes; index < editor.view.refusal_flashes.size(); ++index)
     {
+        const RefusalFlash& flash = editor.view.refusal_flashes[index];
         CHECK(flash.ruler_chips == std::vector{tempoChip(beatAt(5, 1))});
+        CHECK(flash.locks == std::vector{LockControl::Tempo});
         CHECK(flash.notes.empty());
         CHECK(flash.tone_regions.empty());
+        CHECK(flash.sentence == g_tempo_lock_sentence);
     }
 }
 
-// The lock guards anchor TIMES only: inserting, typing a tempo and deleting all work while it is
-// on, and none of them flashes.
-TEST_CASE(
-    "The tempo lock leaves insert, typed tempo and delete available", "[core][tempo][tempo-lock]")
+// A lock engaged mid-drag, by a bound key, refuses the release: the time the drag held is not
+// committed, the drag still ends so nothing previews the move that never landed, and the chip
+// flashes with the lock.
+TEST_CASE("The tempo lock refuses a drag's release", "[core][tempo][tempo-lock]")
 {
     TempoEditor editor;
-    REQUIRE(editor.state().tempo_lock);
+    editor.unlockTempo();
+    editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+    editor.controller.onTempoAnchorSelected(beatAt(5, 1));
+    editor.controller.onTempoAnchorMoveRequested(beatAt(5, 1), 8300);
+    REQUIRE(editor.gridAnchorMilliseconds(beatAt(5, 1)) == std::optional<std::int64_t>{8300});
 
-    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
-    CHECK(editor.anchorMilliseconds(beatAt(3, 1)) == std::optional<std::int64_t>{4000});
-
-    editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "60");
-    CHECK(editor.undoTopLabel() == "Set Tempo to 60");
-
-    editor.controller.onSelectionDeleteRequested();
-    CHECK_FALSE(editor.anchorMilliseconds(beatAt(3, 1)).has_value());
-    CHECK(editor.undoTopLabel() == "Delete Tempo Anchor");
-    CHECK(flashedRulerChips(editor.view).empty());
+    editor.lockTempo();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    editor.controller.onTempoAnchorDragReleased();
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.gridAnchorMilliseconds(beatAt(5, 1)) == std::optional<std::int64_t>{8000});
+    CHECK(editor.undoEntryCount() == entries);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().ruler_chips == std::vector{tempoChip(beatAt(5, 1))});
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Tempo});
 }
 
-// Each refused gesture leaves the marker refusal record under the move's own label, naming the
-// gesture and the anchor.
-TEST_CASE("The tempo lock logs each refused gesture", "[core][tempo][tempo-lock]")
+// The lock freezes the whole map, so the verbs that make, retype, delete or scale an anchor are
+// refused as the moves are, first: each leaves the map and the history as they stood and flashes
+// the selection — the anchor the insert left selected — beside the lock's button. With the lock
+// off every one of them lands, as the tests above pin.
+TEST_CASE("The tempo lock refuses every tempo verb", "[core][tempo][tempo-lock]")
+{
+    TempoEditor editor;
+    editor.insertLocked({beatAt(3, 1)});
+    REQUIRE(editor.state().selected_tempo_anchor == std::optional{beatAt(3, 1)});
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t entries = editor.undoEntryCount();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    SECTION("an insert")
+    {
+        editor.controller.onTempoAnchorInsertRequested(beatAt(5, 1));
+    }
+    SECTION("a typed tempo")
+    {
+        editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "60");
+    }
+    SECTION("a delete")
+    {
+        editor.controller.onSelectionDeleteRequested();
+    }
+    SECTION("Enter, which opens no prompt")
+    {
+        CHECK_FALSE(
+            editor.pressForPrompt(&EditorController::onSelectionRestateRequested).has_value());
+    }
+    SECTION("Scale Tempo, the notes following the beat")
+    {
+        editor.controller.onScaleTempoRequested("2");
+    }
+    SECTION("Scale Tempo, the notes keeping their time")
+    {
+        editor.controller.onNoteLockToggleRequested();
+        editor.controller.onScaleTempoRequested("2");
+    }
+
+    CHECK(editor.tempoMap() == inserted);
+    CHECK(editor.undoEntryCount() == entries);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().ruler_chips == std::vector{tempoChip(beatAt(3, 1))});
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Tempo});
+}
+
+// A locked chord answers with the lock before anything else, wherever the cursor stands: on a free
+// slot it inserts nothing, on an anchor it opens no prompt, and past the terminal the lock — not
+// the song's end — is the refusal.
+TEST_CASE("A locked tempo chord opens no prompt and flashes the lock", "[core][tempo][tempo-lock]")
+{
+    TempoEditor editor;
+    editor.insertLocked({beatAt(3, 1)});
+    double seconds = 0.0;
+    SECTION("a free slot")
+    {
+        seconds = 6.0;
+    }
+    SECTION("an anchor")
+    {
+        seconds = 4.0;
+    }
+    SECTION("past the terminal")
+    {
+        seconds = 16.0;
+    }
+    editor.seek(seconds);
+    const common::core::TempoMap inserted = editor.tempoMap();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    CHECK_FALSE(editor.pressForPrompt(&EditorController::onTempoChordRequested).has_value());
+    CHECK(editor.tempoMap() == inserted);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Tempo});
+    CHECK(editor.view.refusal_flashes.back().sentence == g_tempo_lock_sentence);
+}
+
+// Each refused action leaves the locked-action record under its own name, the lock's one sentence
+// beside it.
+TEST_CASE("The tempo lock logs each refused verb", "[core][tempo][tempo-lock]")
 {
     const testing::LogCapture capture;
     TempoEditor editor;
-    editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+    editor.insertLocked({beatAt(3, 1)});
     editor.pressAlt(ChartStepDirection::Right);
-    editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
+    editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "60");
 
     const std::string contents = capture.text();
     CHECK(
-        contents.find(
-            R"(Rejected marker edit label="Move Tempo Anchor" )"
-            R"(detail="Tempo Lock is on: nudging the tempo anchor at 3:1 is blocked")") !=
+        contents.find(lockedActionRecord("MoveSelection", g_tempo_lock_sentence)) !=
         std::string::npos);
     CHECK(
-        contents.find(
-            R"(Rejected marker edit label="Move Tempo Anchor" )"
-            R"(detail="Tempo Lock is on: dragging the tempo anchor at 3:1 is blocked")") !=
+        contents.find(lockedActionRecord("SetTempoSpanBpm", g_tempo_lock_sentence)) !=
         std::string::npos);
 }
 
@@ -1053,22 +1184,21 @@ TEST_CASE("Identical consecutive refusals log one line and its count", "[core][t
     const testing::LogCapture capture;
     {
         TempoEditor editor;
-        editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+        editor.insertLocked({beatAt(3, 1)});
         for (std::int64_t milliseconds = 4100; milliseconds < 4500; milliseconds += 100)
         {
             editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), milliseconds);
         }
-        editor.pressAlt(ChartStepDirection::Right);
+        editor.controller.onTempoSpanBpmRequested(beatAt(3, 1), "60");
     }
 
-    const std::string dragged{g_locked_drag_refusal};
+    const std::string dragged = lockedActionRecord("MoveTempoAnchor", g_tempo_lock_sentence);
     CHECK(
-        markerRefusalLines(capture.text()) ==
+        lockRefusalLines(capture.text()) ==
         std::vector<std::string>{
             dragged,
             dragged + " repeats=3",
-            R"(Rejected marker edit label="Move Tempo Anchor" )"
-            R"(detail="Tempo Lock is on: nudging the tempo anchor at 3:1 is blocked")",
+            lockedActionRecord("SetTempoSpanBpm", g_tempo_lock_sentence),
         });
 }
 
@@ -1078,14 +1208,14 @@ TEST_CASE("A refusal run's count is written when the controller goes", "[core][t
     const testing::LogCapture capture;
     {
         TempoEditor editor;
-        editor.controller.onTempoAnchorInsertRequested(beatAt(3, 1));
+        editor.insertLocked({beatAt(3, 1)});
         editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4100);
         editor.controller.onTempoAnchorMoveRequested(beatAt(3, 1), 4200);
     }
 
-    const std::string dragged{g_locked_drag_refusal};
+    const std::string dragged = lockedActionRecord("MoveTempoAnchor", g_tempo_lock_sentence);
     CHECK(
-        markerRefusalLines(capture.text()) ==
+        lockRefusalLines(capture.text()) ==
         std::vector<std::string>{dragged, dragged + " repeats=1"});
 }
 

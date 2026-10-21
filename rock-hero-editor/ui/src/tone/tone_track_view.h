@@ -73,26 +73,21 @@ public:
             std::string right_region_id, common::core::GridPosition position) = 0;
 
         /*!
-        \brief Called when the user double-clicks a region to rename its tone.
+        \brief Called when the user double-clicks a region, or picks its menu's Rename, to rename
+        its tone.
         \param tone_document_ref Tone the region references.
-        \param current_name Current tone name, used to pre-fill the rename prompt.
         */
-        virtual void onToneRenamePromptRequested(
-            std::string tone_document_ref, std::string current_name) = 0;
+        virtual void onToneRenamePromptRequested(std::string tone_document_ref) = 0;
 
         /*!
         \brief Called when an Alt-click (or the region menu) requests a tone change at a position.
 
-        The listener owns the payload policy: it opens the tone picker for the split, because a
-        change to the same tone on both sides would be a no-op boundary the editor refuses.
+        The listener owns the payload policy: the core decides the tone verb at the position and
+        asks for the tone picker, which leaves out the tone the region sounds now.
 
         \param position Exact musical position for the new tone change, strictly inside a region.
-        \param containing_tone_document_ref Tone of the region the position falls inside, which the
-        new region cannot keep; the row read it off the region it hit, so the listener looks nothing
-        up.
         */
-        virtual void onToneChangeInsertRequested(
-            common::core::GridPosition position, std::string containing_tone_document_ref) = 0;
+        virtual void onToneChangeInsertRequested(common::core::GridPosition position) = 0;
 
         /*!
         \brief Called when the region context menu requests deleting a region.
@@ -221,10 +216,11 @@ public:
     \brief Flashes the tone regions a refusal lights: each glows red a couple of times around its
     body, then the row stands as it was.
 
-    A flash arriving while one runs joins it on the running pulse, so a drag or a held key reads as
-    one pulse train. A region is found by its id at paint time, so a region out of view draws no
-    glow and a new state keeps the flash. A refusal lighting no region starts no pulse, so it never
-    cuts short the pulse a later region refusal would join.
+    The newest refusal replaces the running flash and restarts its clock (startRefusalFlash), so a
+    drag or a held key that keeps being refused reads as a steady glow, in step with every other
+    surface the refusal reaches. A region is found by its id at paint time, so a region out of view
+    draws no glow and a new state keeps the flash. A refusal lighting no region clears the row's
+    flash.
 
     \param region_ids The refused regions' ids; empty when the refusal lights none on this row.
     */
@@ -417,8 +413,8 @@ private:
     // Read-only transport, read only for its playing flag: the gate on the per-frame report.
     const common::audio::ITransport& m_transport;
 
-    // The refusal flash while it runs: every refused region it has joined, named by id because a
-    // new state may reorder the regions, and its pulse.
+    // The refusal flash while it runs: the newest refusal's regions, named by id because a new
+    // state may reorder the regions, and its pulse.
     std::optional<PulsedFlash<std::vector<std::string>>> m_refusal{};
 
     // Vblank-driven callback feeding the controller the frame tick it has no source for, and

@@ -472,9 +472,9 @@ wherever it stands (`selected_fret_hand_position`).
 (keyboard-focus-rows 4d) and inherited here.
 
 **Verbs on the row.** `Ctrl+P` at the cursor authors or restates the marker; `Delete` removes
-an authored marker, and is inert on a derived event with no shape (a derived position is not
-directly deletable, by law 7); `Alt+←/→` moves the
-marker and is inert on a derived front (§9 item 8); the tail keys move a SPAN's end, not a
+an authored marker, and is refused on a derived event, the chip flashing (a derived position is
+not directly deletable, by law 7); `Alt+←/→` moves the
+marker and is refused on a derived front the same way (§9 item 8); the tail keys move a SPAN's end, not a
 position's (`60b-holds.md` item 4); digits
 pin the floor, `Alt`+digits the top, `Alt+Delete` clears the top; `Enter` opens the template
 picker on an event with a shape (Phase 5); `Ctrl+R` is inert until an event has a name to rename

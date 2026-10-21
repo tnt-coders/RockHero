@@ -858,8 +858,9 @@ TEST_CASE("Marker-row chords author at the cursor, not the holder", "[core][mark
         REQUIRE(editor.selectedSectionIndex() == std::optional<std::size_t>{0});
         REQUIRE(editor.transport.position().seconds == Catch::Approx(6.0));
 
-        const SectionChordTarget target = editor.state().section_chord_target;
-        const auto* const insert = std::get_if<InsertSectionTarget>(&target);
+        const std::optional<MarkerPrompt> target = promptAfterPress(
+            editor.controller, editor.view, &EditorController::onSongSectionChordRequested);
+        const auto* const insert = promptAs<InsertSectionTarget>(target);
         REQUIRE(insert != nullptr);
         CHECK(insert->position == downbeat(4));
     }
@@ -872,8 +873,9 @@ TEST_CASE("Marker-row chords author at the cursor, not the holder", "[core][mark
         REQUIRE(editor.selectedToneRegionId() == g_second_region_id);
         REQUIRE(editor.transport.position().seconds == Catch::Approx(10.0));
 
-        const ToneChordTarget target = editor.state().tone_chord_target;
-        const auto* const split = std::get_if<SplitToneRegionTarget>(&target);
+        const std::optional<MarkerPrompt> target = promptAfterPress(
+            editor.controller, editor.view, &EditorController::onToneChordRequested);
+        const auto* const split = promptAs<SplitToneRegionTarget>(target);
         REQUIRE(split != nullptr);
         CHECK(split->position == downbeat(6));
         CHECK(split->containing_tone_document_ref == g_second_tone_ref);
@@ -894,45 +896,55 @@ TEST_CASE("EditorController refuses a row jump while playing", "[core][marker-ro
     CHECK(editor.caretString() == std::optional{1});
 }
 
-// Enter and Ctrl+R are the SELECTION's verbs, published as the verb each selected kind has: a
-// section restates and renames on its own name, a tempo anchor restates on the tempo of the span it
-// opens and has no name to rename, a time signature restates on its meter and has no name either,
-// and an empty selection answers nothing to both.
+// Enter and Ctrl+R are the SELECTION's verbs, decided at the press on the selected kind: a section
+// restates and renames on its own name, a tempo anchor restates on the tempo of the span it opens
+// and has no name to rename, a time signature restates on its meter and has no name either, and an
+// empty selection asks for nothing from both.
 TEST_CASE(
-    "EditorController publishes the selection's restate and rename verbs", "[core][marker-rows]")
+    "EditorController asks for the selection's restate and rename prompts", "[core][marker-rows]")
 {
     MarkerRowEditor editor;
-    CHECK(std::holds_alternative<std::monostate>(editor.state().restate_target));
-    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
+    const auto press_restate = [&editor] {
+        return promptAfterPress(
+            editor.controller, editor.view, &EditorController::onSelectionRestateRequested);
+    };
+    const auto press_rename = [&editor] {
+        return promptAfterPress(
+            editor.controller, editor.view, &EditorController::onSelectionRenameRequested);
+    };
+    CHECK_FALSE(press_restate().has_value());
+    CHECK_FALSE(press_rename().has_value());
 
     editor.controller.onSongSectionSelected(downbeat(3));
-    const RestateTarget& section_restate = editor.state().restate_target;
-    const auto* const restate_section = std::get_if<RenameSectionTarget>(&section_restate);
+    const std::optional<MarkerPrompt> section_restate = press_restate();
+    const auto* const restate_section = promptAs<RenameSectionTarget>(section_restate);
     REQUIRE(restate_section != nullptr);
     CHECK(restate_section->position == downbeat(3));
     CHECK(restate_section->name == "Verse");
-    const RenameTarget& section_rename = editor.state().rename_target;
-    const auto* const rename_section = std::get_if<RenameSectionTarget>(&section_rename);
+    const std::optional<MarkerPrompt> section_rename = press_rename();
+    const auto* const rename_section = promptAs<RenameSectionTarget>(section_rename);
     REQUIRE(rename_section != nullptr);
     CHECK(rename_section->position == downbeat(3));
     CHECK(rename_section->name == "Verse");
 
+    // The Tempo Lock, which every open turns on, would refuse the tempo and meter restates first.
+    editor.controller.onTempoLockToggleRequested();
     editor.controller.onTempoAnchorSelected(downbeat(5));
     REQUIRE(editor.state().selected_tempo_anchor == std::optional{downbeat(5)});
-    const RestateTarget& tempo_restate = editor.state().restate_target;
-    const auto* const restate_tempo = std::get_if<SetTempoTarget>(&tempo_restate);
+    const std::optional<MarkerPrompt> tempo_restate = press_restate();
+    const auto* const restate_tempo = promptAs<SetTempoTarget>(tempo_restate);
     REQUIRE(restate_tempo != nullptr);
     CHECK(restate_tempo->position == downbeat(5));
     CHECK(restate_tempo->bpm_text == "90");
-    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
+    CHECK_FALSE(press_rename().has_value());
 
     editor.controller.onTimeSignatureSelected(5);
     REQUIRE(editor.state().selected_time_signature_measure == std::optional{5});
-    const RestateTarget& meter_restate = editor.state().restate_target;
-    const auto* const restate_meter = std::get_if<SetTimeSignatureTarget>(&meter_restate);
+    const std::optional<MarkerPrompt> meter_restate = press_restate();
+    const auto* const restate_meter = promptAs<SetTimeSignatureTarget>(meter_restate);
     REQUIRE(restate_meter != nullptr);
     CHECK(*restate_meter == SetTimeSignatureTarget{.position = downbeat(5), .meter_text = "3/4"});
-    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
+    CHECK_FALSE(press_rename().has_value());
 }
 
 // The fret-hand position chord inserts at a free cursor stating the fret of the window already
@@ -985,17 +997,26 @@ TEST_CASE(
         CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
     }
 
-    SECTION("the closing barline holds no placement, so the chord is inert there")
+    SECTION("the closing barline holds no placement, so the chord is refused there")
     {
+        const testing::LogCapture capture;
         MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
         editor.controller.onChartCaretJumpRequested(ChartCaretJump::ChartEnd);
         REQUIRE(editor.caretString().has_value());
         const std::size_t entries_before = editor.undoEntryCount();
+        const std::size_t flashes_before = editor.view.refusal_flashes.size();
+        const std::string sentence = "nothing can start at or past the end of the song";
 
         editor.controller.onFretHandPositionChordRequested();
         CHECK(editor.placements() == makeHandChart().fret_hand_positions);
         CHECK(editor.undoEntryCount() == entries_before);
         CHECK_FALSE(editor.selectedHandIndex().has_value());
+        CHECK(
+            capture.text().find(
+                R"(Rejected marker edit label="Add Hand Position" detail=")" + sentence) !=
+            std::string::npos);
+        REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+        CHECK(editor.view.refusal_flashes.back().sentence == sentence);
     }
 }
 
@@ -1057,7 +1078,9 @@ TEST_CASE(
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
     CHECK(editor.undoEntryCount() == entries_before);
     CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{1});
-    CHECK(std::holds_alternative<std::monostate>(editor.state().rename_target));
+    CHECK_FALSE(promptAfterPress(
+                    editor.controller, editor.view, &EditorController::onSelectionRenameRequested)
+                    .has_value());
 }
 
 // Delete removes the selected placement and selects the one before it; deleting the row's first
@@ -1137,6 +1160,8 @@ TEST_CASE(
 
     SECTION("a tempo anchor")
     {
+        // The Tempo Lock, which every open turns on, refuses the delete.
+        editor.controller.onTempoLockToggleRequested();
         editor.controller.onTempoAnchorSelected(downbeat(5));
         editor.controller.onSelectionDeleteRequested();
         CHECK(editor.state().selected_tempo_anchor == std::optional{downbeat(1)});
@@ -1331,8 +1356,8 @@ TEST_CASE("EditorController jumps onto and walks through the position row", "[co
     }
 }
 
-// A click on a hand chip reaches the same select the keyboard does: it selects the same marker and
-// publishes the same verbs on it.
+// A click on a hand chip reaches the same select the keyboard does: it selects the same marker, and
+// Enter on it asks for the same thing — nothing, since a position's fret has no entry to re-open.
 TEST_CASE("A hand chip click selects what the position-row jump selects", "[core][marker-rows]")
 {
     MarkerRowEditor keyboard{makeMarkerSections(), {}, makeHandChart()};
@@ -1344,7 +1369,11 @@ TEST_CASE("A hand chip click selects what the position-row jump selects", "[core
     pointer.armAtMeasure(6);
     pointer.clickChipAt(downbeat(6));
     CHECK(pointer.selectedChip() == keyboard.selectedChip());
-    CHECK(pointer.state().restate_target == keyboard.state().restate_target);
+    CHECK(
+        promptAfterPress(
+            pointer.controller, pointer.view, &EditorController::onSelectionRestateRequested) ==
+        promptAfterPress(
+            keyboard.controller, keyboard.view, &EditorController::onSelectionRestateRequested));
     CHECK_FALSE(pointer.caretString().has_value());
     CHECK(pointer.transport.position().seconds == Catch::Approx(10.0));
 
@@ -1867,13 +1896,16 @@ TEST_CASE("An end fret typed on a derived position authors it there", "[core][ma
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
 }
 
-// Alt+Delete clears a stated end, and a derived position states none: nothing is authored, nothing
-// is recorded, and the chip stays derived and selected.
-TEST_CASE("Alt+Delete on a derived position does nothing", "[core][marker-rows]")
+// Alt+Delete clears a stated end, and a derived position stores none, so it refuses as Delete and
+// the move do: nothing is authored, nothing is recorded, the chip stays derived and selected, and
+// it glows red while the log says why.
+TEST_CASE("Alt+Delete refuses a derived position", "[core][marker-rows]")
 {
+    const testing::LogCapture capture;
     MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
     editor.clickChipAt(downbeat(6));
     const std::size_t entries_before = editor.undoEntryCount();
+    const std::size_t flashes_before = editor.view.refusal_flashes.size();
     const std::optional<std::size_t> selected_before = editor.selectedChip();
     REQUIRE(selected_before.has_value());
 
@@ -1883,6 +1915,14 @@ TEST_CASE("Alt+Delete on a derived position does nothing", "[core][marker-rows]"
     CHECK(editor.undoEntryCount() == entries_before);
     CHECK(editor.chipAuthored(downbeat(6)) == common::core::FhpAuthored::Nothing);
     CHECK(editor.selectedChip() == selected_before);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
+    CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(selected_before));
+    const std::string sentence = editor.view.refusal_flashes.back().sentence;
+    CHECK(sentence.ends_with(" is derived, so nothing is stored there"));
+    CHECK(
+        capture.text().find(
+            R"(Rejected marker edit label="Clear Hand Position End Fret" detail=")" + sentence) !=
+        std::string::npos);
 }
 
 // A derived position stores nothing to delete or move, so Delete and Alt+arrows REFUSE it: the

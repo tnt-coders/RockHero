@@ -1,3 +1,5 @@
+#include "log_capture.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
@@ -57,10 +59,13 @@ struct MeterEditor : SongEditorHarness
         : MeterEditor(makeMeterSong())
     {}
 
+    // Opened with the Tempo Lock, which every open turns on and which freezes the meters, off.
     explicit MeterEditor(common::core::Song song)
     {
         open(std::move(song));
         REQUIRE(controller.session().arrangements().size() == 2);
+        controller.onTempoLockToggleRequested();
+        REQUIRE_FALSE(state().tempo_lock);
     }
 
     [[nodiscard]] std::vector<TimeSignatureChange> meters() const
@@ -68,9 +73,11 @@ struct MeterEditor : SongEditorHarness
         return tempoMap().timeSignatures();
     }
 
-    [[nodiscard]] TimeSignatureChordTarget chord() const
+    // Presses the meter chord and returns the prompt it asked the view for; nothing where it asked
+    // none.
+    [[nodiscard]] std::optional<MarkerPrompt> pressMeterChord()
     {
-        return state().time_signature_chord_target;
+        return pressForPrompt(&EditorController::onTimeSignatureChordRequested);
     }
 
     // Answers the meter prompt for a position: a reign's first downbeat to state it, else the
@@ -116,7 +123,7 @@ struct MeterEditor : SongEditorHarness
 
 } // namespace
 
-// The chord publishes its whole decision as the verb: an insert at the BEAT the cursor is in,
+// The chord's whole decision is the prompt it asks for: an insert at the BEAT the cursor is in,
 // opened on the meter governing it, and — once that insert has landed and kept the cursor in
 // place — the restate of the reign starting there, so a second press opens the prompt. The cursor
 // on 6:3 under 4/4 typing 7/8 puts the meter at whole note 5+1/2: measure 6 is a derived 2/4, the
@@ -126,8 +133,8 @@ TEST_CASE("The meter chord inserts at the cursor's beat, then restates", "[core]
     MeterEditor editor;
     editor.seek(11.0); // 6:3
 
-    const TimeSignatureChordTarget first = editor.chord();
-    const auto* const insert = std::get_if<InsertTimeSignatureTarget>(&first);
+    const std::optional<MarkerPrompt> first = editor.pressMeterChord();
+    const auto* const insert = promptAs<InsertTimeSignatureTarget>(first);
     REQUIRE(insert != nullptr);
     CHECK(insert->position == beatAt(6, 3));
     CHECK(insert->meter_text == "4/4");
@@ -153,12 +160,13 @@ TEST_CASE("The meter chord inserts at the cursor's beat, then restates", "[core]
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(11.0, 1e-9));
 
     const SetTimeSignatureTarget expected{.position = downbeat(7), .meter_text = "7/8"};
-    const TimeSignatureChordTarget second = editor.chord();
-    const auto* const restate = std::get_if<SetTimeSignatureTarget>(&second);
+    const std::optional<MarkerPrompt> second = editor.pressMeterChord();
+    const auto* const restate = promptAs<SetTimeSignatureTarget>(second);
     REQUIRE(restate != nullptr);
     CHECK(*restate == expected);
-    const RestateTarget enter = editor.state().restate_target;
-    const auto* const entered = std::get_if<SetTimeSignatureTarget>(&enter);
+    const std::optional<MarkerPrompt> enter =
+        editor.pressForPrompt(&EditorController::onSelectionRestateRequested);
+    const auto* const entered = promptAs<SetTimeSignatureTarget>(enter);
     REQUIRE(entered != nullptr);
     CHECK(*entered == expected);
 
@@ -178,27 +186,40 @@ TEST_CASE("The meter chord reads the beat the cursor is in", "[core][meters]")
     MeterEditor editor;
     editor.seek(11.125);
 
-    const TimeSignatureChordTarget chord = editor.chord();
-    const auto* const insert = std::get_if<InsertTimeSignatureTarget>(&chord);
+    const std::optional<MarkerPrompt> chord = editor.pressMeterChord();
+    const auto* const insert = promptAs<InsertTimeSignatureTarget>(chord);
     REQUIRE(insert != nullptr);
     CHECK(insert->position == beatAt(6, 3));
 }
 
-// Inert exactly where the commit would refuse: on the terminal's measure, while the transport
-// plays, and with no song.
-TEST_CASE("The meter chord is nothing where no meter can start", "[core][meters]")
+// The press asks for no prompt the commit would refuse: on the terminal it is refused, logged and
+// said on the lane; while the transport plays and with no song it says nothing.
+TEST_CASE("The meter chord asks nothing where no meter can start", "[core][meters]")
 {
+    const testing::LogCapture capture;
     MeterEditor editor;
+    const common::core::SongTimeline before = editor.timeline();
+    const std::string sentence = "nothing can start at or past the end of the song";
     editor.seek(16.0);
-    CHECK(std::holds_alternative<std::monostate>(editor.chord()));
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    CHECK_FALSE(editor.pressMeterChord().has_value());
+    CHECK(editor.timeline() == before);
+    CHECK(
+        capture.text().find(
+            R"(Rejected marker edit label="Add Time Signature" detail=")" + sentence) !=
+        std::string::npos);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().sentence == sentence);
 
     editor.transport.current_state.playing = true;
     editor.seek(4.0);
-    CHECK(std::holds_alternative<std::monostate>(editor.chord()));
+    CHECK_FALSE(editor.pressMeterChord().has_value());
+    CHECK(editor.view.refusal_flashes.size() == flashes + 1);
 
     editor.transport.current_state.playing = false;
     editor.controller.onCloseRequested();
-    CHECK(std::holds_alternative<std::monostate>(editor.chord()));
+    CHECK_FALSE(editor.pressMeterChord().has_value());
+    CHECK(editor.view.refusal_flashes.size() == flashes + 1);
 }
 
 // The prompt's text is parsed in the core: anything that is not two positive whole numbers around
@@ -250,8 +271,8 @@ TEST_CASE(
     CHECK(editor.view.renumber_flashes.empty());
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(4.0, 1e-9));
 
-    const TimeSignatureChordTarget chord = editor.chord();
-    const auto* const restate = std::get_if<SetTimeSignatureTarget>(&chord);
+    const std::optional<MarkerPrompt> chord = editor.pressMeterChord();
+    const auto* const restate = promptAs<SetTimeSignatureTarget>(chord);
     REQUIRE(restate != nullptr);
     CHECK(*restate == SetTimeSignatureTarget{.position = downbeat(3), .meter_text = "4/4"});
 
@@ -530,8 +551,9 @@ TEST_CASE("A stating verb on a derived short bar authors it", "[core][meters]")
 
     editor.controller.onTimeSignatureSelected(4);
     CHECK(editor.state().selected_time_signature_measure == std::optional{4});
-    const RestateTarget enter = editor.state().restate_target;
-    const auto* const entered = std::get_if<SetTimeSignatureTarget>(&enter);
+    const std::optional<MarkerPrompt> enter =
+        editor.pressForPrompt(&EditorController::onSelectionRestateRequested);
+    const auto* const entered = promptAs<SetTimeSignatureTarget>(enter);
     REQUIRE(entered != nullptr);
     CHECK(*entered == SetTimeSignatureTarget{.position = downbeat(4), .meter_text = "1/4"});
 
@@ -594,13 +616,10 @@ TEST_CASE("Delete and the move refuse a derived short bar", "[core][meters]")
 
 // Alt+arrows step a meter ONE BEAT of the meter before it, re-addressing everything after it, and a
 // held run is ONE undo entry: 2/4 from measure 3 stepped twice stands two quarter notes later, at
-// 3:3 as the 4/4 counted it, so measure 3 is a derived 2/4 and the 2/4 governs from measure 4. The
-// tempo lock guards anchor times only, and a meter edit moves no anchor in time, so the lock every
-// open turns on blocks none of this.
+// 3:3 as the 4/4 counted it, so measure 3 is a derived 2/4 and the 2/4 governs from measure 4.
 TEST_CASE("A meter moves a beat per press and a held run is one entry", "[core][meters]")
 {
     MeterEditor editor;
-    REQUIRE(editor.state().tempo_lock);
     editor.set(downbeat(3), "2/4");
     const common::core::SongTimeline inserted = editor.timeline();
 
@@ -837,6 +856,76 @@ TEST_CASE("A meter edit keeps the cursor and the caret on their music", "[core][
     editor.seek(13.25);
     editor.set(downbeat(8), "6/8");
     CHECK_THAT(editor.transport.position().seconds, WithinAbs(13.25, 1e-9));
+}
+
+// The Tempo Lock freezes the time signatures as it freezes the tempo map: while it is on, every
+// meter verb is refused before anything else answers — the chord and Enter open no prompt, and
+// even the measure-1 meter's own bound is not what answers. Each leaves the song and the history
+// as they stood and flashes the selected chip beside the lock's button. With the lock off every
+// one of them lands, as the tests above pin.
+TEST_CASE("The tempo lock refuses every meter verb", "[core][meters][tempo-lock]")
+{
+    const testing::LogCapture capture;
+    MeterEditor editor;
+    editor.set(downbeat(3), "2/4");
+    REQUIRE(editor.meters().size() == 2);
+    editor.controller.onTempoLockToggleRequested();
+    REQUIRE(editor.state().tempo_lock);
+    editor.seek(11.0);
+    editor.controller.onTimeSignatureSelected(3);
+    REQUIRE(editor.state().selected_time_signature_measure == std::optional{3});
+    const common::core::SongTimeline before = editor.timeline();
+    const std::size_t entries = editor.undoEntryCount();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    std::string action;
+
+    SECTION("the chord, which opens no prompt")
+    {
+        CHECK_FALSE(editor.pressMeterChord().has_value());
+        action = "TimeSignatureChord";
+    }
+    SECTION("Enter, which opens no prompt")
+    {
+        CHECK_FALSE(
+            editor.pressForPrompt(&EditorController::onSelectionRestateRequested).has_value());
+        action = "RestateSelection";
+    }
+    SECTION("a typed meter, retyping one")
+    {
+        editor.set(downbeat(3), "3/4");
+        action = "SetTimeSignature";
+    }
+    SECTION("a typed meter, inserting one")
+    {
+        editor.set(downbeat(6), "3/4");
+        action = "SetTimeSignature";
+    }
+    SECTION("a move")
+    {
+        editor.pressAlt(ChartStepDirection::Right);
+        action = "MoveSelection";
+    }
+    SECTION("a delete")
+    {
+        editor.controller.onSelectionDeleteRequested();
+        action = "DeleteSelection";
+    }
+    SECTION("a move of the measure-1 meter, which the lock answers before its own bound")
+    {
+        editor.controller.onTimeSignatureSelected(1);
+        editor.pressAlt(ChartStepDirection::Right);
+        action = "MoveSelection";
+    }
+
+    CHECK(editor.timeline() == before);
+    CHECK(editor.undoEntryCount() == entries);
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    const RefusalFlash& flash = editor.view.refusal_flashes.back();
+    CHECK(flash.locks == std::vector{LockControl::Tempo});
+    CHECK(flash.sentence == g_tempo_lock_sentence);
+    const std::string contents = capture.text();
+    INFO(contents);
+    CHECK(contents.find(lockedActionRecord(action, g_tempo_lock_sentence)) != std::string::npos);
 }
 
 } // namespace rock_hero::editor::core

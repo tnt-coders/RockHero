@@ -573,6 +573,16 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
     // Calibrate the input route so the chain-mutation gates (which import shares) pass.
     calibrateCurrentRoute(harness.controller);
 
+    // Under the Note Lock the import is refused before it asks anything: the automation it would
+    // drop is content the lock holds, and the lock's button glows.
+    harness.controller.onNoteLockToggleRequested();
+    REQUIRE(harness.state().note_lock);
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.tone"});
+    CHECK_FALSE(harness.state().tone_import_prompt.has_value());
+    REQUIRE_FALSE(harness.view.refusal_flashes.empty());
+    CHECK(harness.view.refusal_flashes.back().locks == std::vector{LockControl::Note});
+    harness.controller.onNoteLockToggleRequested();
+
     harness.controller.onImportToneFileRequested(std::filesystem::path{"B.tone"});
 
     const EditorViewState& prompted = harness.state();

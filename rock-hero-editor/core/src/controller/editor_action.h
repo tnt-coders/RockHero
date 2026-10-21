@@ -943,6 +943,101 @@ struct EditorAction
     };
 
     /*!
+    \brief The section chord (`Ctrl+M`): the section chord's rule read at the cursor.
+
+    Carries nothing: the core reads the cursor — the armed caret, else the paused cursor — at the
+    placement quantum and runs \ref SongSectionAt's rule there.
+    */
+    struct SongSectionChord
+    {
+    };
+
+    /*!
+    \brief The section verb at a place: rename the section standing exactly there, else ask for a
+    new section's name there; refused where nothing may start.
+    */
+    struct SongSectionAt
+    {
+        /*! \brief The grid slot the verb is read at. */
+        common::core::GridPosition position{};
+    };
+
+    /*!
+    \brief The tempo chord (`Ctrl+B`): ask for the tempo of the span the anchor at the cursor's
+    slot opens, else insert an anchor there at once; refused where no span can open.
+    */
+    struct TempoChord
+    {
+    };
+
+    /*!
+    \brief The time-signature chord (`Ctrl+/`): \ref TimeSignatureAt's rule read at the beat the
+    cursor is in.
+    */
+    struct TimeSignatureChord
+    {
+    };
+
+    /*!
+    \brief The meter verb at a place: the meter prompt on the reign starting at the beat it is in,
+    else on a new one there; refused at the end of the song.
+    */
+    struct TimeSignatureAt
+    {
+        /*! \brief The place the verb is read at; its beat is where a meter would start. */
+        common::core::GridPosition position{};
+    };
+
+    /*!
+    \brief The tone chord (`Ctrl+T`): \ref ToneChangeAt's rule read at the cursor's placement slot.
+    */
+    struct ToneChord
+    {
+    };
+
+    /*!
+    \brief The tone verb at a place: retone the region starting exactly there, else split the
+    region it stands inside, either through the tone picker; refused where nothing may start.
+    */
+    struct ToneChangeAt
+    {
+        /*! \brief The grid slot the verb is read at. */
+        common::core::GridPosition position{};
+    };
+
+    /*!
+    \brief The rename prompt on a tone's current name; nothing for the synthesized default tone,
+    which has no document to name.
+    */
+    struct ToneRenamePrompt
+    {
+        /*! \brief The tone document to rename. */
+        std::string tone_document_ref;
+    };
+
+    /*! \brief Scale Tempo's factor prompt, titled by the form the Note Lock chooses. */
+    struct ScaleTempoPrompt
+    {
+    };
+
+    /*!
+    \brief `Enter`: restate the selected marker — a section's name, an anchor's span tempo, a
+    meter, a region's tone, the "+" row's parameter, a bend chip's amount — through its prompt or
+    picker; nothing for every other kind.
+    */
+    struct RestateSelection
+    {
+    };
+
+    /*!
+    \brief `Ctrl+R`: rename the selected section, or the selected region's tone; nothing for every
+    kind with no name of its own.
+    */
+    struct RenameSelection
+    {
+    };
+
+    /*!
     \brief `Alt+Delete` over a selected fret-hand position: clear its authored end fret.
 
     Carries nothing: the subject is the selection, and a placement whose end is already derived has
@@ -1077,13 +1172,20 @@ struct EditorAction
     };
 
     /*!
-    \brief End a tempo-chip drag (the pointer's release).
+    \brief End a tempo-chip drag (the pointer's release): commit the move its last legal event
+    held back, as the one commit an `Alt+←/→` press makes.
 
-    Payload-free: what it commits is the move the drag's last legal event held back, as the one
-    commit an `Alt+←/→` press makes. The release of a drag that held nothing does nothing.
+    The drag ends at the release whatever answers this commit, so the action carries the move
+    rather than reading a drag that a refusal would otherwise leave held. A release of a drag that
+    held nothing dispatches nothing.
     */
     struct ReleaseTempoAnchorDrag
     {
+        /*! \brief Grid position of the dragged anchor. */
+        common::core::GridPosition position{};
+
+        /*! \brief Time the drag held, in whole milliseconds. */
+        std::int64_t milliseconds{};
     };
 
     /*!
@@ -1092,8 +1194,8 @@ struct EditorAction
 
     With the lock on every grid address is scaled and every time holds, one whole-song re-address;
     with it off every anchor keeps its address and is re-timed about the first, a tempo-map edit
-    like a typed tempo's. Either lands as one entry. The Tempo Lock does not block it: no anchor is
-    moved by hand.
+    like a typed tempo's. Either lands as one entry. The Tempo Lock refuses it, as it refuses every
+    tempo verb.
     */
     struct ScaleTempo
     {
@@ -1132,7 +1234,9 @@ struct EditorAction
         ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
         RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
         ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature, SetTimeSignature,
-        SelectFretHandPosition, AuthorFretHandPositionAtCursor, ClearFretHandEnd,
+        SelectFretHandPosition, AuthorFretHandPositionAtCursor, SongSectionChord, SongSectionAt,
+        TempoChord, TimeSignatureChord, TimeSignatureAt, ToneChord, ToneChangeAt, ToneRenamePrompt,
+        ScaleTempoPrompt, RestateSelection, RenameSelection, ClearFretHandEnd,
         PruneFretHandPositions, ChooseHold, SetHold, SelectSpanRowMark, StepToRowObject,
         JumpToFocusRow>;
 };

@@ -1509,4 +1509,55 @@ TEST_CASE("Ctrl+H Auto over a held span gives it back to the derivation", "[core
     CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
 }
 
+// Under the Note Lock every hold verb on a derived span is refused first, before any planning: the
+// selected span flashes beside the lock's button, though no stored hold or note stands there, no
+// picker opens, and the record names the action the key ran.
+TEST_CASE("The Note Lock refuses a hold verb on a derived span", "[core][holds][note-lock]")
+{
+    const LogCapture capture;
+    HoldEditor editor{chartOf(strummedMeasure(), {})};
+    REQUIRE(editor.spanCount() == 1);
+    editor.press(0, std::nullopt);
+    REQUIRE(editor.selectedSpan() == std::optional<std::size_t>{0});
+    editor.controller.onNoteLockToggleRequested();
+    REQUIRE(editor.state().note_lock);
+    const std::size_t entries = editor.entries();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+    std::string action;
+
+    SECTION("Delete")
+    {
+        editor.deleteSelection();
+        action = "DeleteSelection";
+    }
+    SECTION("Ctrl+H, which opens no picker")
+    {
+        const std::size_t asked = editor.view.shown_hold_pickers.size();
+        editor.holdShape();
+        CHECK(editor.view.shown_hold_pickers.size() == asked);
+        action = "ChooseHold";
+    }
+    SECTION("the start key")
+    {
+        editor.startKey(true);
+        action = "MoveSelection";
+    }
+    SECTION("the end key")
+    {
+        editor.endKey(false);
+        action = "AdjustChartSustain";
+    }
+
+    CHECK(editor.holds().empty());
+    CHECK(editor.entries() == entries);
+    CHECK(editor.selectedSpan() == std::optional<std::size_t>{0});
+    REQUIRE(editor.view.refusal_flashes.size() == flashes + 1);
+    CHECK(editor.view.refusal_flashes.back().spans == std::vector<std::size_t>{0});
+    CHECK(editor.view.refusal_flashes.back().notes.empty());
+    CHECK(editor.view.refusal_flashes.back().locks == std::vector{LockControl::Note});
+    const std::string contents = capture.text();
+    INFO(contents);
+    CHECK(contents.find(lockedActionRecord(action, g_note_lock_sentence)) != std::string::npos);
+}
+
 } // namespace rock_hero::editor::core

@@ -107,10 +107,12 @@ enum class EditorCommandId : std::uint16_t
     cursor — the armed caret, else the paused cursor — and never reads the selection. A tone change
     IS a region boundary, so the cursor standing exactly on a region's start restates that change
     (picks another catalog tone for the region), while the cursor anywhere inside a region splits
-    it into a new one; a restate selects its target, as every insert does. The core publishes the
-    verb (`EditorViewState::tone_chord_target`) and the view opens the picker it names; the press
-    is inert while the transport plays and with no song. The walk, Tab and a click are the ways
-    onto an existing region; \ref RestateSelection and \ref RenameSelection are its verbs.
+    it into a new one; a restate selects its target, as every insert does. The view forwards the
+    press (`onToneChordRequested`); the core decides at the press and asks back for the picker
+    (`IEditorView::showMarkerPrompt`). The press is inert while the transport plays and with no
+    song, and refused and logged on the closing barline, where no tone change can start. The walk,
+    Tab and a click are the ways onto an existing region; \ref RestateSelection and
+    \ref RenameSelection are its verbs.
     */
     InsertToneChange = 0x1401,
 
@@ -119,10 +121,10 @@ enum class EditorCommandId : std::uint16_t
 
     Shares the tone change's marker grammar. The chord reads the cursor's placement slot and
     renames the section standing exactly there or inserts one where the slot is free, a prompt
-    naming it; at or past the terminal anchor, where no section can start, the press is inert. The
-    core publishes the verb (`EditorViewState::section_chord_target`); the view opens the prompt it
-    names. A second press after an insert therefore renames what the first made, since the cursor
-    is still on its slot.
+    naming it; at or past the terminal anchor, where no section can start, the press is refused
+    and logged. The view forwards the press (`onSongSectionChordRequested`); the core asks back for
+    the prompt it lands on. A second press after an insert therefore renames what the first made,
+    since the cursor is still on its slot.
     */
     InsertSongSection = 0x1402,
 
@@ -134,9 +136,10 @@ enum class EditorCommandId : std::uint16_t
     The marker plane's chords author at the cursor; this is the SELECTION's own verb: a section's
     name through the rename prompt, a tempo anchor's span tempo through the tempo prompt, a time
     signature's meter through the meter prompt, a tone region's tone through the picker, the "+"
-    row's parameter picker. The core publishes the verb (`EditorViewState::restate_target`), so the
-    view dispatches on no kind of its own. A separate command rather than a second chord on any
-    marker chord, because Enter must never ADD a marker: with nothing selected this press is inert.
+    row's parameter picker. The view forwards the press (`onSelectionRestateRequested`) and the
+    core asks back for the prompt, so the view dispatches on no kind of its own. A separate command
+    rather than a second chord on any marker chord, because Enter must never ADD a marker: with
+    nothing selected this press does nothing.
     */
     RestateSelection = 0x1404,
 
@@ -145,7 +148,7 @@ enum class EditorCommandId : std::uint16_t
 
     A section's own name, or a tone region's TONE — the document every region on that tone
     shares, which is what the tone row's double-click renames. Silently inert on every kind with
-    no name of its own. The core publishes the verb (`EditorViewState::rename_target`). It sits on
+    no name of its own. The view forwards the press (`onSelectionRenameRequested`). It sits on
     the document plane with `Ctrl+S` and `Ctrl+G`, not on the marker plane: R is no marker's
     letter, and the verb reads the selection, never the cursor.
     */
@@ -159,7 +162,8 @@ enum class EditorCommandId : std::uint16_t
     and anywhere else a new one is inserted stating the fret already standing at the cursor, and
     left selected. With nothing to prompt for, the view forwards the press and
     the core decides and acts in one action; the press is inert while the transport plays, with no
-    song, with no chart, or on the closing barline. The walk, Tab, the jump and a chip click are the
+    song or with no chart, and refused and logged on the closing barline. The walk, Tab, the jump
+    and a chip click are the
     ways onto an existing placement; `Delete` and `Alt+Left/Right` are its verbs.
     */
     InsertFretHandPosition = 0x1406,
@@ -171,9 +175,10 @@ enum class EditorCommandId : std::uint16_t
     Shares the section's marker grammar, read at the BEAT the cursor is in — the only place an
     anchor can stand: a free beat takes a new anchor that pins the time the map already gives it,
     selected and with no prompt; a beat an anchor holds opens the tempo prompt for its span, so a
-    second press after an insert sets the new anchor's tempo. The core publishes the verb
-    (`EditorViewState::tempo_chord_target`); the press is inert while the transport plays, with no
-    song, and at or past the terminal anchor, which opens no span.
+    second press after an insert sets the new anchor's tempo. The view forwards the press
+    (`onTempoChordRequested`), and the core inserts or asks back for the prompt; the press is inert
+    while the transport plays and with no song, and refused and logged at or past the terminal
+    anchor, which opens no span.
     */
     InsertTempoAnchor = 0x1407,
 
@@ -184,9 +189,10 @@ enum class EditorCommandId : std::uint16_t
     Shares the section's marker grammar, read at the MEASURE the cursor is in — a time signature
     only ever starts on a downbeat: the meter standing on that downbeat is restated and a free
     downbeat takes a new one, both through the meter prompt ("7/8"), opened on the meter governing
-    the measure. A second press after an insert therefore restates what the first made. The core
-    publishes the verb (`EditorViewState::time_signature_chord_target`); the press is inert while
-    the transport plays, with no song, and at or past the terminal anchor's measure.
+    the measure. A second press after an insert therefore restates what the first made. The view
+    forwards the press (`onTimeSignatureChordRequested`); the core asks back for the prompt. The
+    press is inert while the transport plays and with no song, and refused and logged at or past
+    the terminal anchor.
     */
     InsertTimeSignature = 0x1408,
 
@@ -585,7 +591,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Flip grid snap, which decides the placement quantum (`Ctrl+G`). */
     ToggleGridSnap = 0x1905,
 
-    /*! \brief Flip the tempo lock, which refuses every tempo-anchor move (no default chord). */
+    /*! \brief Flip the tempo lock, which freezes the tempo map and meters (no default chord). */
     ToggleTempoLock = 0x1906,
 
     /*!

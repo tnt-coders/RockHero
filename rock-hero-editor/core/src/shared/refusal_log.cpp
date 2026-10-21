@@ -41,6 +41,16 @@ void RefusalLog::chartEdit(const std::string_view subject, const std::string_vie
         });
 }
 
+void RefusalLog::lockedAction(const std::string_view action, const std::string_view detail)
+{
+    write(
+        Record{
+            .kind = Kind::LockedAction,
+            .subject = std::string{action},
+            .detail = std::string{detail},
+        });
+}
+
 void RefusalLog::write(Record record)
 {
     if (m_run.has_value())
@@ -87,6 +97,16 @@ void RefusalLog::writeLine(const Record& record, const std::string_view suffix)
             RH_LOG_WARNING(
                 "editor.chart",
                 "Refused chart edit subject={:?} detail={:?}{}",
+                record.subject,
+                record.detail,
+                suffix);
+            return;
+        }
+        case Kind::LockedAction:
+        {
+            RH_LOG_WARNING(
+                "editor.controller",
+                "Refused locked action action={:?} detail={:?}{}",
                 record.subject,
                 record.detail,
                 suffix);

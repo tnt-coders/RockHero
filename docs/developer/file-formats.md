@@ -116,7 +116,7 @@ one arrangement's tab). Every arrangement and the 3D highway share this one list
 The rules are `validateSongSectionRules` (`song_section_rules.h`), which the reader and the
 editor's section verbs both ask rather than restate: a name that is not blank once surrounding
 whitespace is trimmed; a position on the grid and strictly before the terminal anchor
-(`markerCanStartAt`), since a section on the closing barline would name a passage of no length;
+(`objectCanStartAt`), since a section on the closing barline would name a passage of no length;
 and STRICTLY ascending positions, so two sections can never claim one position (which would leave
 every later which-section-governs-this-moment question answering arbitrarily). The section verbs
 place a section on the cursor's grid slot, and a meter edit keeps a section's place, so a section

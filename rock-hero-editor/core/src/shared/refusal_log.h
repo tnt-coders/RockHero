@@ -15,7 +15,8 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Writes every refused marker or chart edit's record, merging identical consecutive records.
+\brief Writes every refused marker edit's, chart edit's or locked action's record, merging identical
+consecutive records.
 
 Verbs refuse per event, since the core sees no gesture boundary and the answer can change mid-drag,
 so a refused drag or a held key repeats one record per event. A record unlike the one before it is
@@ -57,12 +58,21 @@ public:
     */
     void chartEdit(std::string_view subject, std::string_view detail);
 
+    /*!
+    \brief Records an action a lock refused before it ran, so no verb had yet decided what it would
+    change.
+    \param action The refused action's name.
+    \param detail The lock's sentence.
+    */
+    void lockedAction(std::string_view action, std::string_view detail);
+
 private:
     // Which record format a refusal is written in.
     enum class Kind : std::uint8_t
     {
         MarkerEdit,
         ChartEdit,
+        LockedAction,
     };
 
     // One refusal record, compared whole to decide whether it repeats the run's.

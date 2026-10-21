@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "shared/flash_pulse.h"
 #include "timeline/timeline_cursor.h"
 #include "timeline/timeline_ruler.h"
 
@@ -17,6 +18,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
@@ -27,6 +29,7 @@ namespace rock_hero::editor::ui
 
 class ArrangementView;
 class CursorOverlay;
+struct DrawnSpanRow;
 class TabView;
 class ToneAutomationLanesView;
 class ToneTrackView;
@@ -76,7 +79,8 @@ private:
         // without a chart; repaints only the affected strips. The optional mask is the armed
         // caret square's vertical span, cut out of the column so ONLY the cursor hides behind
         // the caret while the grid and strings keep showing through the square.
-        void setPausedCursorX(std::optional<float> x, std::optional<juce::Range<float>> mask_y);
+        void setPausedCursorColumn(
+            std::optional<int> column, std::optional<juce::Range<float>> mask_y);
 
         // Draws the timeline canvas, tempo grid, paused cursor column, waveform row
         // background, and empty-project text.
@@ -104,7 +108,7 @@ private:
 
         // Paused play-from-here column in content coordinates; absent during playback (the
         // overlay's moving line takes over in front) and without a chart.
-        std::optional<float> m_paused_cursor_x{};
+        std::optional<int> m_paused_cursor_column{};
 
         // Vertical span cut out of the column: the armed caret square's outer extent, so the
         // cursor never shows through the caret.
@@ -421,9 +425,18 @@ public:
         std::optional<int> signature_measure);
 
     /*!
-    \brief Forwards a refusal's ruler chips to the pinned ruler and its tone regions to the tone
-    row, which flash them.
-    \param flash The refusal's targets; only its ruler chips and tone regions are this surface's.
+    \brief Flashes the shell's share of a refusal: its ruler chips on the pinned ruler and its tone
+    regions on the tone row, forwarded to the views that draw them, and its spans and none holds
+    here.
+
+    A span's chip on the ruler and its rails in the lane read as one shape, so neither view can glow
+    it whole: this shell traces the chip and the top rail as one outline, and the bottom rail as
+    another, exactly where the selection ring runs (\ref paintOverChildren). The glow repaints only
+    its own area while it pulses, and the newest refusal replaces the last, as on every surface
+    (startRefusalFlash). The tab lane's own marks and the sentence are the lane's
+    (TabView::flashRefusal).
+
+    \param flash The refusal, its span and none-hold indices in the current projection.
     */
     void flashRefusal(const core::RefusalFlash& flash);
 
@@ -516,7 +529,66 @@ public:
     /*! \brief Keeps the viewport responsive while preserving zoom-derived content bounds. */
     void resized() override;
 
+    /*!
+    \brief Draws the span row's selection ring and refusal glow over the ruler and the lane.
+
+    The selected span's chip and its top rail read as ONE shape, the chip standing square on the
+    rail with their left edges shared, so one closed outline runs around both (spanRowOutline) and
+    a second around the bottom rail; a selected none hold, which stands no chip, wears a closed ring
+    around each rail. Neither the ruler nor the lane can draw that outline, since each clips at its
+    own edge, which runs through the shape. Every box is read at paint time from the view that draws
+    it — the chip's from the ruler, the rails' from the lane — and the rails are held to the view's
+    visible area, so the outline encloses what of the mark shows and nothing else. A refused span or
+    none hold glows on the same outlines.
+
+    \param g Graphics context used for drawing.
+    */
+    void paintOverChildren(juce::Graphics& g) override;
+
 private:
+    // One span-row mark's boxes in this component's coordinates, each held to what shows (empty
+    // where none of it does): the ruler's chip, the visible top rail fused with it, and the visible
+    // bottom rail; and the size its refusal glow reaches by. Plain rectangles, so a paint can skip
+    // a mark its clip misses before building any outline.
+    struct SpanRowBoxes
+    {
+        juce::Rectangle<float> chip{};
+        juce::Rectangle<float> top_rail{};
+        juce::Rectangle<float> bottom_rail{};
+        float glow_extent{};
+    };
+
+    // What a span-row refusal lights: span and none-hold indices in the current projection.
+    struct SpanRowRefusal
+    {
+        std::vector<std::size_t> spans{};
+        std::vector<std::size_t> none_holds{};
+
+        // Whether the refusal lights no span-row mark (startRefusalFlash then clears the flash).
+        [[nodiscard]] bool empty() const noexcept
+        {
+            return spans.empty() && none_holds.empty();
+        }
+    };
+
+    // The viewport's visible view area in this component's coordinates, its scrollbars excluded.
+    [[nodiscard]] juce::Rectangle<int> visibleViewArea() const noexcept;
+
+    // The boxes of one span-row mark as the lane draws its rails, with the ruler's chip for a
+    // span; empty where none of the mark shows.
+    [[nodiscard]] std::optional<SpanRowBoxes> spanRowBoxes(const DrawnSpanRow& row) const;
+
+    // Calls visit with the boxes of each span-row mark the running refusal lights, where it shows;
+    // nothing while no refusal runs. A walk rather than a collection, so a paint allocates nothing.
+    template <typename Visit> void forEachRefusedSpanRow(const Visit& visit) const;
+
+    // The area the running refusal's glow paints now, in this component's coordinates; empty while
+    // none runs.
+    [[nodiscard]] juce::Rectangle<int> spanRowGlowArea() const;
+
+    // Repaints the span-row glow's area while its flash runs and retires the flash once it has run.
+    void stepSpanRowRefusal();
+
     // Returns the duration of the currently displayed full timeline.
     [[nodiscard]] double timelineDurationSeconds() const noexcept;
 
@@ -766,6 +838,9 @@ private:
 
     // Set while a project-load state is waiting for a sized viewport before centering the cursor.
     bool m_cursor_focus_pending{false};
+
+    // The running span-row refusal flash, empty while none runs (flashRefusal).
+    std::optional<PulsedFlash<SpanRowRefusal>> m_span_row_refusal{};
 };
 
 } // namespace rock_hero::editor::ui

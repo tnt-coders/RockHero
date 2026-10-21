@@ -39,12 +39,13 @@ using rock_hero::common::core::testing::anchor;
 }
 
 // A four-second single measure mapped so every beat lands on a round hundred-pixel column: width
-// 401 over a [0, 4] timeline gives x = seconds * 100.
+// 400 over a [0, 4] timeline gives x = seconds * 100. The terminal downbeat maps to x == 400, the
+// right edge of the last column, so its line holds that last column, 399.
 constexpr common::core::TimeRange g_one_measure_window{
     .start = common::core::TimePosition{0.0},
     .end = common::core::TimePosition{4.0},
 };
-constexpr int g_one_measure_width = 401;
+constexpr int g_one_measure_width = 400;
 
 // Quarter-note grid matching the editor default; in the 4/4 fixtures one step is one beat.
 constexpr common::core::Fraction g_quarter_note_grid{1, 4};
@@ -69,7 +70,7 @@ TEST_CASE("Visible tempo grid returns all beats across the full width", "[core][
         {.x = 100, .measure = 1, .rank = TempoGridLineRank::Beat},
         {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
         {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
-        {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
+        {.x = 399, .measure = 2, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
@@ -114,7 +115,7 @@ TEST_CASE("Visible tempo grid scans only the visible run of a long song", "[core
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{400.0},
     };
-    constexpr int width = 401;
+    constexpr int width = 400;
 
     const std::vector<TempoGridLine> lines =
         visibleTempoGridLines(map, g_quarter_note_grid, window, width, 199, 202);
@@ -132,12 +133,13 @@ TEST_CASE("Visible tempo grid scans only the visible run of a long song", "[core
 // column, capping the output at the visible pixel count instead of the beat count.
 TEST_CASE("Visible tempo grid merges beats sharing a column", "[core][tempo-grid]")
 {
-    // 400 beats squeezed into a five-pixel width: every column collects many beats, including
-    // downbeats, so each surviving line keeps the measure rank.
+    // 400 beats squeezed into a five-pixel width over a 500-second window (x = seconds / 100):
+    // every column collects many beats, including downbeats, so each surviving line keeps the
+    // measure rank.
     const common::core::TempoMap map = makeUniform44Map(100, 4000);
     constexpr common::core::TimeRange window{
         .start = common::core::TimePosition{0.0},
-        .end = common::core::TimePosition{400.0},
+        .end = common::core::TimePosition{500.0},
     };
     constexpr int width = 5;
 
@@ -202,7 +204,7 @@ TEST_CASE("Visible tempo grid places half-beat subdivisions between beats", "[co
         {.x = 250, .measure = 1, .rank = TempoGridLineRank::Subdivision},
         {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
         {.x = 350, .measure = 1, .rank = TempoGridLineRank::Subdivision},
-        {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
+        {.x = 399, .measure = 2, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
@@ -247,13 +249,17 @@ TEST_CASE("Visible tempo grid supports third-of-a-beat spacing", "[core][tempo-g
 // Verifies collapsed columns keep the strongest rank so beats and downbeats survive subdivisions.
 TEST_CASE("Visible tempo grid merges collapsed subdivisions by rank", "[core][tempo-grid]")
 {
-    // A five-pixel width maps x to whole seconds, so each half-beat subdivision shares a column
-    // with the beat or downbeat that follows it and must be promoted.
+    // Five pixels over five seconds map x to whole seconds, so each half-beat subdivision shares a
+    // column with the beat or downbeat that follows it and must be promoted.
     const common::core::TempoMap map = makeUniform44Map(1, 4000);
+    constexpr common::core::TimeRange window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{5.0},
+    };
     constexpr int width = 5;
 
-    const std::vector<TempoGridLine> lines = visibleTempoGridLines(
-        map, common::core::Fraction{1, 8}, g_one_measure_window, width, 0, width);
+    const std::vector<TempoGridLine> lines =
+        visibleTempoGridLines(map, common::core::Fraction{1, 8}, window, width, 0, width);
 
     const std::vector<TempoGridLine> expected{
         {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
@@ -287,7 +293,7 @@ TEST_CASE("Visible tempo grid supports steps larger than one beat", "[core][temp
         {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
         {.x = 150, .measure = 1, .rank = TempoGridLineRank::Subdivision},
         {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
-        {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
+        {.x = 399, .measure = 2, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 
@@ -378,7 +384,7 @@ TEST_CASE("Tempo grid lines stop at a mid-measure terminal", "[core][tempo-grid]
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{8.0},
     };
-    constexpr int width = 801;
+    constexpr int width = 800;
 
     const std::vector<TempoGridLine> eighths =
         visibleTempoGridLines(map, eighth_note_grid, window, width, 0, width);
@@ -515,7 +521,7 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{7.0},
     };
-    constexpr int width = 701;
+    constexpr int width = 700;
 
     const std::vector<TempoGridLine> lines =
         visibleTempoGridLines(map, g_quarter_note_grid, window, width, 0, width);
@@ -530,7 +536,7 @@ TEST_CASE("Visible tempo grid keeps note values constant across meters", "[core]
         {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
         {.x = 500, .measure = 2, .rank = TempoGridLineRank::Beat},
         {.x = 600, .measure = 2, .rank = TempoGridLineRank::Beat},
-        {.x = 700, .measure = 3, .rank = TempoGridLineRank::Measure},
+        {.x = 699, .measure = 3, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 
@@ -561,7 +567,7 @@ TEST_CASE("Visible tempo grid stops a short bar's lines at its end", "[core][tem
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{8.5},
     };
-    constexpr int width = 851;
+    constexpr int width = 850;
 
     const std::vector<TempoGridLine> lines =
         visibleTempoGridLines(map, g_quarter_note_grid, window, width, 0, width);
@@ -576,7 +582,7 @@ TEST_CASE("Visible tempo grid stops a short bar's lines at its end", "[core][tem
         {.x = 600, .measure = 3, .rank = TempoGridLineRank::Beat},
         {.x = 700, .measure = 3, .rank = TempoGridLineRank::Beat},
         {.x = 800, .measure = 3, .rank = TempoGridLineRank::Beat},
-        {.x = 850, .measure = 4, .rank = TempoGridLineRank::Measure},
+        {.x = 849, .measure = 4, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
     // Snapping inside the short bar brackets its downbeat and the next measure's: nothing of the
@@ -604,7 +610,7 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{7.0},
     };
-    constexpr int width = 701;
+    constexpr int width = 700;
 
     const std::vector<TempoGridLine> lines =
         visibleTempoGridLines(map, g_quarter_note_grid, window, width, 0, width);
@@ -618,13 +624,13 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
         {.x = 450, .measure = 2, .rank = TempoGridLineRank::Beat},
         {.x = 550, .measure = 2, .rank = TempoGridLineRank::Beat},
         {.x = 650, .measure = 2, .rank = TempoGridLineRank::Beat},
-        {.x = 700, .measure = 3, .rank = TempoGridLineRank::Measure},
+        {.x = 699, .measure = 3, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
 
 // Verifies placement resolves to the quantum line's exact time, on the grid or on the tick lattice
-// depending on which quantum it is handed. Width 401 over [0, 4] makes column x equal x / 100
+// depending on which quantum it is handed. Width 400 over [0, 4] makes column x equal x / 100
 // seconds, so a 1.4 s click is off the quarter grid and on the tick lattice.
 TEST_CASE("Timeline cursor placement snaps to the quantum it is given", "[core][tempo-grid]")
 {
