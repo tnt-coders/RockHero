@@ -41,7 +41,7 @@ Checks: >
 
 WarningsAsErrors: '*'
 
-# Catch2's TEST_CASE machinery expands __COUNTER__, which clang 22's pedantic pass flags as a
+# Catch2's TEST_CASE machinery expands __COUNTER__, which clang's pedantic pass flags as a
 # C2y extension; the compile flags carry -Werror, promoting it to a hard parse error that no
 # Checks entry can filter, so it must be disabled at the parse level. None of the product
 # compilers warn on it.

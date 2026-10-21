@@ -28,6 +28,16 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while unblocking CI on new runner images (2026-10-21)
+
+- **The CMake formatter is dead and caps Python at 3.14.** The cmake-format hook is cmakelang
+  0.6.13, unmaintained since 2020 (the `cmake_format` → `cmakelang` rename was the same project),
+  and its lexer's capturing-group patterns crash on CPython 3.15's `re.Scanner`. CI's pre-commit
+  job is pinned to Python 3.14 for it (ci-workflows `pre-commit.yml`). No drop-in successor exists:
+  over the 26 CMake files, cmakefmt (Rust, created 2026-04) rewrites 1233 lines with its
+  converted config and gersemi 1505, so replacing it is a one-time reformat wave plus a style
+  change. cmakefmt is the likeliest candidate once it has matured.
+
 ## Found in the refusal and lock review (2026-10-21)
 
 - **"Moved nothing" is decided in three places.** A press a bound holds is refused by its planner,

@@ -125,7 +125,7 @@ TEST_CASE(
         common::audio::AudioDeviceConfigurationError{
             common::audio::AudioDeviceConfigurationErrorCode::InvalidSerializedState,
             "Serialized audio-device state is not XML.",
-        };
+    };
     FakeEditorView view;
 
     EditorController controller{

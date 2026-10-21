@@ -587,7 +587,7 @@ TEST_CASE(
         common::audio::LoadedTonePluginIdentity{
             .instance_id = output_instance,
             .stable_id = output_plugin_id,
-        };
+    };
     // A reload (not the fast branch add) is what merges the reported identities.
     editor.live_rig.next_add_branch_error = common::audio::LiveRigError{
         common::audio::LiveRigErrorCode::InvalidRequest, "forced fallback"
@@ -613,7 +613,7 @@ TEST_CASE(
         common::audio::LoadedTonePluginIdentity{
             .instance_id = reloaded_output,
             .stable_id = output_plugin_id,
-        };
+    };
     editor.controller.onToneCreateNewRequested(
         common::core::GridPosition{.measure = 3, .beat = 1}, "Outro");
     editor.controller.onToneRegionSelected(g_region);
