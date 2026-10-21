@@ -206,11 +206,7 @@ bool markerCanStartAt(const GridPosition& position, const TempoMap& tempo_map)
     return isValidGridPosition(position, tempo_map) && position < terminalGridPosition(tempo_map);
 }
 
-namespace
-{
-
-// Every chart rule but the hand-position coverage rule, which reads the notes layer.
-[[nodiscard]] std::expected<void, ChartError> validateChartStructure(
+std::expected<void, ChartError> validateChartStructure(
     const Chart& chart, const TempoMap& tempo_map)
 {
     const auto string_count = static_cast<int>(chart.tuning.strings.size());
@@ -263,8 +259,6 @@ namespace
     return {};
 }
 
-} // namespace
-
 // The coverage rule last, because it derives the spans from the notes and the holds and searches
 // the positions, so it needs every stream already valid.
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
@@ -276,20 +270,6 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     const ChartResolutions resolved =
         chartResolutions(chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
     return validateFretHandCoverage(resolved, chart.fret_hand_positions, tempo_map);
-}
-
-std::expected<void, ChartError> validateChartRules(
-    const Chart& chart, const TempoMap& tempo_map, const ChartResolutions& notes_layer)
-{
-    assert(
-        notes_layer.shape_holds == chart.shape_holds &&
-        notes_layer.connections.saved_notes.size() == chart.notes.size() &&
-        "a chart validated against the notes layer of another chart");
-    if (auto structure = validateChartStructure(chart, tempo_map); !structure.has_value())
-    {
-        return structure;
-    }
-    return validateFretHandCoverage(notes_layer, chart.fret_hand_positions, tempo_map);
 }
 
 // Separate from validateChartRules so a placement edit can be judged without re-judging every note

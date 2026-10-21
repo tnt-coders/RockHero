@@ -115,18 +115,20 @@ do not fit. (`uncoveringFretHandPositions`, which reads the same `forEachGripped
 authored window does.)
 
 The pipeline runs one way: written notes, then fret-hand positions, then rings, with the holds
-feeding the positions. An authored position is downstream of both the notes and the holds, so:
+feeding the positions and the grid (the tempo map and the time signatures) upstream of all of them.
+An authored position is downstream of the grid, the notes and the holds, so:
 
 - **A position is refused where it would not cover the stops gripped at its place.** Adding,
   moving or retyping a position the notes and holds there contradict states something false, and
   is refused with the rule's sentence, as a hold that does not fit its notes is refused
   (`validateFretHandCoverage`). The refusal lights the position's chip and the notes gripping
   every stop it misses, so the charter sees every stop to fix at once.
-- **A note or hold edit that leaves a position uncovering drops it.** The position never refuses
-  an edit to either. After a note edit or a hold edit, as on load, the normalizer drops every
-  authored position that no longer covers the stops gripped at its place, inside the edit's own
-  undo step, and logs each drop with the position and every stop it missed
-  (`dropUncoveringFretHandPositions`).
+- **A note, hold, tempo or time-signature edit that leaves a position uncovering drops it.** The
+  position never refuses an edit to anything upstream of it. After a note edit, a hold edit, or a
+  tempo or time-signature edit that re-addresses the song (a note can round onto a position's
+  instant), as on load, the normalizer drops every authored position that no longer covers the
+  stops gripped at its place, inside the edit's own undo step, and logs each drop with the
+  position and every stop it missed (`dropUncoveringFretHandPositions`).
 
 ## Slide-out rides
 

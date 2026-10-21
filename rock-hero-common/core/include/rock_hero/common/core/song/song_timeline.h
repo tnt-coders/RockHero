@@ -9,7 +9,6 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
-#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
@@ -18,7 +17,6 @@
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
-#include <span>
 #include <string>
 #include <variant>
 #include <vector>
@@ -162,32 +160,21 @@ using SongTimelineError = std::variant<TempoMapError, SongSectionError, Arrangem
 [[nodiscard]] std::string songTimelineErrorText(const SongTimelineError& error);
 
 /*!
-\brief Validates every slice of a timeline against the rules the package reader enforces.
+\brief Validates every slice of a timeline against the rules the package reader refuses.
 
 Asks each slice's own validator rather than restating a rule: the tempo-map rules, the section
-rules, and for every arrangement its chart rules, its tone-track rules and the structural rules of
-each tone automation entry.
+rules, and for every arrangement its chart's structural rules (\ref validateChartStructure), its
+tone-track rules and the structural rules of each tone automation entry.
+
+The hand-position coverage rule is not asked. An authored position is downstream of the grid, so a
+re-address that leaves one uncovering drops it rather than refusing the grid edit — the timeline's
+normalization runs \ref dropUncoveringFretHandPositions, as the reader's runs it on load — and what
+is asked here is only what no repair can express.
 
 \param timeline Timeline to validate.
 \return Empty success, or the first violation (\ref songTimelineErrorText renders it).
 */
 [[nodiscard]] std::expected<void, SongTimelineError> validateSongTimelineRules(
     const SongTimeline& timeline);
-
-/*!
-\brief Validates every slice of a timeline as \ref validateSongTimelineRules does, each chart's
-hand-position coverage read from the notes layer the caller already derived for it.
-
-For the caller that derived every chart's notes layer to normalize the timeline, so one edit walks
-each chart once.
-
-\param timeline Timeline to validate.
-\param notes_layers Each arrangement's notes layer, index-parallel to the timeline's arrangements:
-       the layer of exactly that chart under the timeline's map, or nothing, where one is derived
-       here.
-\return Empty success, or the first violation (\ref songTimelineErrorText renders it).
-*/
-[[nodiscard]] std::expected<void, SongTimelineError> validateSongTimelineRules(
-    const SongTimeline& timeline, std::span<const std::optional<ChartResolutions>> notes_layers);
 
 } // namespace rock_hero::common::core

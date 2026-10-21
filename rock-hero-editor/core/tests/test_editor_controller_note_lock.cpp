@@ -401,6 +401,61 @@ TEST_CASE("A locked tempo edit rewrites a shape hold once", "[core][tempo][note-
     CHECK(holds().front().start == beatAt(1, 1));
 }
 
+// An authored position is downstream of the grid, so a locked tempo edit never refuses over one. A
+// quarter of the tempo makes the tick between the 3:1 position and a fret-3 note struck just after
+// it a quarter of a new tick, so the note rounds onto the position's instant, where the fret-5
+// window does not reach it: the edit lands, the position is dropped inside the edit's own entry and
+// logged with the stop it missed, nothing flashes, and one undo puts the song back whole.
+TEST_CASE(
+    "A locked tempo edit drops the authored position it leaves uncovering",
+    "[core][tempo][note-lock]")
+{
+    const testing::LogCapture capture;
+    common::core::Song song = makeEightMeasureSong();
+    std::optional<common::core::Chart>& song_chart = song.arrangements.front().chart;
+    REQUIRE(song_chart.has_value());
+    if (!song_chart.has_value())
+    {
+        return;
+    }
+    // One tick after 3:1.
+    const common::core::GridPosition struck{
+        .measure = 3, .beat = 1, .offset = common::core::Fraction{1, 960}
+    };
+    song_chart->notes = {makeTestNote(struck, 1, 3)};
+    song_chart->fret_hand_positions = {
+        common::core::FretHandPosition{.position = beatAt(3, 1), .fret = 5, .end_fret = {}},
+    };
+    DenseNoteLockEditor editor{std::move(song)};
+    const SongTimeline before = editor.timeline();
+    const std::size_t entries = editor.undoEntryCount();
+    const std::size_t flashes = editor.view.refusal_flashes.size();
+
+    editor.controller.onTempoSpanBpmRequested(beatAt(1, 1), "30");
+    const SongTimeline after = editor.timeline();
+    const std::optional<common::core::Chart>& landed = after.arrangements.front().chart;
+    REQUIRE(landed.has_value());
+    if (landed.has_value())
+    {
+        REQUIRE(landed->notes.size() == 1);
+        CHECK(landed->notes.front().position == beatAt(1, 3));
+        CHECK(landed->fret_hand_positions.empty());
+    }
+    CHECK(editor.undoEntryCount() == entries + 1);
+    CHECK(editor.view.refusal_flashes.size() == flashes);
+    const std::string text = capture.text();
+    INFO(text);
+    CHECK(
+        text.find(
+            "chart edit normalized: a hand position did not cover a fretted note gripped at "
+            "its instant and was dropped at arrangement ") != std::string::npos);
+    CHECK(text.find("hand position 1:3 (fret 3 gripped from 1:3)") != std::string::npos);
+    CHECK(text.find("Rejected marker edit") == std::string::npos);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.timeline() == before);
+}
+
 // While the lock holds the song's content, every edit that would change that content is refused —
 // logged, nothing written, no entry — and the plugin removal, which takes automation out of the
 // song, is unavailable. Turning the lock off opens them again.

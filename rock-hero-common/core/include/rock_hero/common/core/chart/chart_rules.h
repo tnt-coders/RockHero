@@ -288,9 +288,9 @@ enum class ChartRepair : std::uint8_t
 
     /*!
     \brief An authored hand position that did not cover a fretted note gripped at its instant was
-    dropped (\ref dropUncoveringFretHandPositions), on load or after a note or hold edit. The
-    position is downstream of the notes and the holds, and the notes alone already derive a window;
-    a converter cannot apply the rule itself.
+    dropped (\ref dropUncoveringFretHandPositions), on load or after a note, hold, tempo or
+    time-signature edit. The position is downstream of the grid, the notes and the holds, and the
+    notes alone already derive a window; a converter cannot apply the rule itself.
     */
     UncoveringHandPosition,
 
@@ -866,10 +866,12 @@ not cover frets 5 and 7 gripped from 1:1", or across places "… does not cover 
 \brief Drops every authored position that breaks the hand-position coverage rule
 (\ref uncoveringFretHandPositions), reporting each with every stop it missed.
 
-The coverage half of the normal form. An authored position is downstream of the notes and the
-holds, so it never refuses an edit to either: \ref normalizeChart runs this last on every load, and
-the editor's note and hold gates after every edit they pass. One pass is complete: a position's
-demands come from the notes and the holds alone, so dropping one never changes another's verdict.
+The coverage half of the normal form. An authored position is downstream of the grid, the notes
+and the holds, so it never refuses an edit to any of them: \ref normalizeChart runs this last on
+every load, the editor's note and hold gates after every edit they pass, and the editor's timeline
+funnel after every tempo or time-signature edit has re-addressed the song. One pass is complete: a
+position's demands come from the notes and the holds alone, so dropping one never changes
+another's verdict.
 
 \param notes_layer The notes layer of a stream whose every ring is already bounded by the next
        strike on its string; its capo is the one the demands are read under.
@@ -888,8 +890,8 @@ demands come from the notes and the holds alone, so dropping one never changes a
 \brief Validates the hand-position coverage rule (\ref uncoveringFretHandPositions) as a chart rule.
 
 \ref validateChartRules asks it last, and the editor's placement commit asks it of the positions it
-edits, so a position edit is refused exactly where the writer would refuse the result. Neither a
-load nor a note or hold edit meets it: each drops every breaking position first
+edits, so a position edit is refused exactly where the writer would refuse the result. No load,
+note, hold, tempo or time-signature edit meets it: each drops every breaking position first
 (\ref dropUncoveringFretHandPositions).
 
 \param notes_layer The notes layer of a stream whose every ring is already bounded by the next
@@ -904,13 +906,28 @@ load nor a note or hold edit meets it: each drops every breaking position first
     const TempoMap& tempo_map);
 
 /*!
+\brief Validates every chart rule \ref validateChartRules asks but the last: the hand-position
+coverage rule.
+
+For the caller whose own normalization has already dropped every authored position that breaks
+coverage (\ref dropUncoveringFretHandPositions), so asking it again would only re-derive a verdict
+known to pass: the editor's timeline funnel after a tempo or time-signature edit.
+
+\param chart Chart to validate.
+\param tempo_map Song tempo map the chart's positions must lie on.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateChartStructure(
+    const Chart& chart, const TempoMap& tempo_map);
+
+/*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
-the structural checks over the chart's own arrays, delegates the per-note rules to
-\ref validateChartNotes, and last asks the one rule between the notes and the authored positions
-(\ref validateFretHandCoverage), so the authoritative list is those functions' code rather than this
-paragraph, which only summarizes it.
+the structural checks over the chart's own arrays (\ref validateChartStructure), delegates the
+per-note rules to \ref validateChartNotes, and last asks the one rule between the notes and the
+authored positions (\ref validateFretHandCoverage), so the authoritative list is those functions'
+code rather than this paragraph, which only summarizes it.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
 (position, string) with no duplicate onsets, on valid grid positions, with every onset, ring end
@@ -935,20 +952,5 @@ and nothing for a rule to refuse.
 */
 [[nodiscard]] std::expected<void, ChartError> validateChartRules(
     const Chart& chart, const TempoMap& tempo_map);
-
-/*!
-\brief Validates a chart against the same rules as \ref validateChartRules, its hand-position
-coverage read from a notes layer the caller already derived rather than derived again.
-
-For the caller that derived the chart's notes layer to normalize its holds
-(\ref normalizeShapeHolds), so one edit walks the chart once.
-
-\param chart Chart to validate.
-\param tempo_map Song tempo map the chart's positions must lie on.
-\param notes_layer The notes layer of exactly this chart's notes and shape holds under this map.
-\return Empty success, or the first violated rule.
-*/
-[[nodiscard]] std::expected<void, ChartError> validateChartRules(
-    const Chart& chart, const TempoMap& tempo_map, const ChartResolutions& notes_layer);
 
 } // namespace rock_hero::common::core

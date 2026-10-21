@@ -23,7 +23,7 @@ namespace rock_hero::editor::core
 
 /*!
 \brief The song's whole timeline: the snapshot every whole-song verb commits, the time-signature
-verbs and Scale Tempo under the Note Lock.
+verbs and every tempo verb under the Note Lock, Scale Tempo among them.
 
 Such an edit keeps every object's time and re-addresses it, in every arrangement, so its one undo
 entry has to restore all of it field-equal: the map, the sections and every arrangement's chart,
@@ -55,25 +55,27 @@ struct SongTimelineSnapshot
 
     /*!
     \brief Brings every chart's shape holds to their normal form under this timeline's map
-    (\ref common::core::normalizeShapeHolds): a re-address keeps each place's time, which can round
-    a span's close away from a hold's end, or a hold onto no length.
+    (\ref common::core::normalizeShapeHolds), then drops every authored hand position the result
+    no longer covers (\ref common::core::dropUncoveringFretHandPositions): a re-address keeps each
+    place's time, which can round a span's close away from a hold's end, a hold onto no length, or
+    a note onto a position's instant. A position is downstream of the grid, so it never refuses
+    the grid edit; the drop is in this timeline, so the edit's own undo entry restores it.
 
     Nothing else: the verbs state the meter list in order, and a time signature restating its
     reign stays in the live model while its chip is selected. The history's and the file's form
     without it is the funnel's (`writtenModel`, \ref common::core::withoutRedundantTimeSignatures).
 
-    \return One conversion per hold the normal form changed, its place naming the arrangement, and
-            every arrangement's notes layer under the normalized timeline, derived once for the
-            validation and the memo.
+    \return One conversion per hold the normal form changed, then one per position it dropped,
+            each place naming the arrangement, and every arrangement's notes layer under the
+            normalized timeline, derived once for the memo.
     */
     [[nodiscard]] MarkerModelNormalization normalize();
 
     /*!
     \brief Reports the first structural rule this timeline breaks, in any of its slices
     (\ref common::core::validateSongTimelineRules).
-    \param context Carries the notes layers this timeline's normalization derived, which each
-           chart's coverage reads; every other rule reads the timeline's own map. Its session's map
-           is the one on screen, which the culprits are lit on.
+    \param context Its session's map is the one on screen, which the culprits are lit on; every
+           rule reads the timeline's own map.
     \return The refusal to report — lighting the anchors and time signatures a tempo-map rule
             names and the regions a tone-track rule names; a section, chart or automation rule
             names no record — or empty when the timeline satisfies every rule.

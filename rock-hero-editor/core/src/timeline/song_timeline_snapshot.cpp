@@ -3,7 +3,9 @@
 #include "timeline/tempo_map_snapshot.h"
 #include "tone/tone_model_snapshot.h"
 
+#include <iterator>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
@@ -27,8 +29,11 @@ bool SongTimelineSnapshot::applyTo(common::core::Session& session) const
     return session.setSongTimeline(timeline);
 }
 
-// Each chart normalized under the map it now stands on, its notes layer derived once for the
-// validation and the memo that follow.
+// Each chart normalized under the map it now stands on, as the chart gate normalizes one after a
+// note or hold edit: the holds first, then the drop of every authored position the landed layer no
+// longer covers, since a position is downstream of the grid. Both ride this timeline, so the
+// entry's undo restores them, and each conversion is reported after the holds' rewrites. The notes
+// layer is derived once, for the memo the landing seeds.
 MarkerModelNormalization SongTimelineSnapshot::normalize()
 {
     MarkerModelNormalization normalization;
@@ -44,6 +49,13 @@ MarkerModelNormalization SongTimelineSnapshot::normalize()
         common::core::ShapeHoldNormalization normal = common::core::normalizeShapeHolds(
             chart.notes, chart.shape_holds, chart.tuning.capo, timeline.tempo_map);
         chart.shape_holds = normal.resolved.shape_holds;
+        std::vector<common::core::ChartConversion> dropped =
+            common::core::dropUncoveringFretHandPositions(
+                normal.resolved, chart.fret_hand_positions, timeline.tempo_map);
+        normal.conversions.insert(
+            normal.conversions.end(),
+            std::make_move_iterator(dropped.begin()),
+            std::make_move_iterator(dropped.end()));
         normalization.notes_layers.emplace_back(std::move(normal.resolved));
         for (common::core::ChartConversion& conversion : normal.conversions)
         {
@@ -56,12 +68,11 @@ MarkerModelNormalization SongTimelineSnapshot::normalize()
 
 // Every rule lives in common core, where the package reader asks the same questions, so this only
 // carries the first diagnostic across for the funnel's refusal log, with the culprits the breaking
-// slice's records name. Each chart's coverage reads the notes layer this timeline's normalization
-// derived. The culprits are lit on what the screen shows, which is the session's map: the one this
-// timeline would replace.
+// slice's records name. The culprits are lit on what the screen shows, which is the session's map:
+// the one this timeline would replace.
 std::optional<PlanRefused> SongTimelineSnapshot::validate(const MarkerJudgeContext& context) const
 {
-    const auto valid = common::core::validateSongTimelineRules(timeline, context.normalized_layers);
+    const auto valid = common::core::validateSongTimelineRules(timeline);
     if (valid.has_value())
     {
         return std::nullopt;

@@ -30,13 +30,6 @@ the user picks which way the two surfaces reconcile.
 
 ## Found while making positions yield to notes and holds (2026-10-20)
 
-- **Tempo and meter edits still refuse over an authored position.** A note or hold edit that
-  leaves an authored fret-hand position uncovering drops the position inside the edit's undo step
-  (`dropUncoveringFretHandPositions`, run by `judgedPlan` in `chart_edits.cpp`), but a tempo or
-  time-signature edit judged through the timeline funnel (`SongTimelineSnapshot::validate` →
-  `validateSongTimelineRules`) still asks `validateFretHandCoverage` and refuses. The grid is
-  upstream of positions by the same arrow, so that path should drop too: carry the position change
-  in the tempo/meter plan the way `ChartEditPlan::fret_hand_positions` does and run the one drop.
 - **Growth has no notion of hand reach.** The span walk grows a span by any struck stop, so a lone
   fret 12 ringing into a 5-7 chord derives as one arpeggio over an eight-fret grip and the derived
   window widens to match (`chart_shapes.cpp` growth arm; rule 8's width is `max(4, hull)` with no
@@ -1626,8 +1619,9 @@ against the tree on the date above.
 - **A load pays two full derivations.** `normalizeChart` derives the notes layer for its coverage
   drop and `validateChartRules` derives it again for the coverage rule, one after the other on the
   package read (`rock_song_package_read.cpp`) and on the GP import (`gp_chart_builder.cpp`, where
-  the two calls sit apart in the same build). The fix: the reader derives once after
-  `normalizeChart`'s legato sweep and hands the result to both. The save path's
+  the two calls sit apart in the same build). The fix: `normalizeChart`'s drop has already
+  settled coverage, so the reader asks `validateChartStructure` (every rule but coverage, which the
+  timeline funnel already asks alone) and derives nothing a second time. The save path's
   `writeChartDocument` derives a third time through `validateChartRules`. Trigger: plan 64's
   album-scale load measurement shows these derivations on the load path.
 - **Prune walks the whole chart once per position.** `withoutRedundantPositions`

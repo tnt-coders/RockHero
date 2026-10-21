@@ -1,6 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
+#include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/song_timeline.h>
+#include <rock_hero/common/core/testing/tuning_fixtures.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
@@ -9,6 +12,7 @@
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -98,6 +102,32 @@ TEST_CASE("Song timeline rules validate every arrangement's tone slices", "[core
     CHECK(
         songTimelineErrorText(automation_result.error()) ==
         "arrangement lead: tone automation entry is invalid for plugin: plugin");
+}
+
+// An authored hand position is downstream of the grid: a re-address that leaves one uncovering
+// drops it (the editor's timeline normalization), so the timeline rules never refuse over one,
+// while the chart rules a reader asks of the same chart still name it.
+TEST_CASE("Song timeline rules leave hand-position coverage to the drop", "[core][song]")
+{
+    // A fret-3 note struck at 1:1 under a fret-5 position there, which does not cover it.
+    Chart chart;
+    chart.tuning.strings = testing::standardTuning();
+    chart.notes = {ChartNote{
+        .position = measureDownbeat(1),
+        .string = 1,
+        .fret = 3,
+        .sustain = Fraction{1, 4},
+        .bend = 0.0,
+        .keyframes = {},
+    }};
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = measureDownbeat(1), .fret = 5, .end_fret = {}},
+    };
+    SongTimeline uncovering = makeValidTimeline();
+    REQUIRE_FALSE(validateChartRules(chart, uncovering.tempo_map).has_value());
+
+    uncovering.arrangements.front().chart = std::move(chart);
+    CHECK(validateSongTimelineRules(uncovering).has_value());
 }
 
 // The song-wide slices report their own rule's error unchanged, so a caller reads the records it

@@ -9,15 +9,14 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/session/session.h>
-#include <span>
 #include <vector>
 
 namespace rock_hero::editor::core
 {
 
 /*!
-\brief The state a marker snapshot is validated against: the session, the displayed chart's notes
-layer, and the notes layers the snapshot's own normalization derived.
+\brief The state a marker snapshot is validated against: the session and the displayed chart's
+notes layer.
 
 One context for every snapshot kind, so the funnel judges each the same way and names no kind:
 a snapshot reads what its rules need and ignores the rest. The notes layer travels here because a
@@ -32,12 +31,6 @@ struct MarkerJudgeContext
 
     /*! \brief The current arrangement's notes layer; empty when no chart is displayed. */
     const common::core::ChartResolutions& notes_layer;
-
-    /*!
-    \brief The notes layers the snapshot's own normalization derived
-    (\ref MarkerModelNormalization::notes_layers); empty where it derived none.
-    */
-    std::span<const std::optional<common::core::ChartResolutions>> normalized_layers;
 };
 
 /*!
@@ -54,8 +47,7 @@ struct MarkerModelNormalization
     /*!
     \brief Each arrangement's notes layer under the normalized model, index-parallel to the song's
     arrangements and absent where an arrangement has no chart; empty where none were derived. The
-    snapshot's validation reads them and the landing seeds the displayed one into the memo, so one
-    edit walks each chart once.
+    landing seeds the displayed one into the memo, so one edit walks each chart once.
     */
     std::vector<std::optional<common::core::ChartResolutions>> notes_layers;
 };

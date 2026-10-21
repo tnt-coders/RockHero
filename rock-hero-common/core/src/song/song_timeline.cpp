@@ -1,16 +1,12 @@
 #include "song/song_timeline.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
-#include <optional>
-#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/overloaded.h>
 #include <rock_hero/common/core/song/song_section_rules.h>
 #include <rock_hero/common/core/timeline/tempo_map_rules.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
-#include <span>
 #include <string>
 #include <utility>
 #include <variant>
@@ -65,14 +61,9 @@ bool writeSongTimeline(Song& song, SongTimeline timeline)
     return true;
 }
 
-namespace
-{
-
-// Every slice's rules, each chart judged by `chart_rules(index, chart)`: the one place the slices
-// are listed, whichever way the charts' notes layers are come by.
-template <typename ChartRules>
-[[nodiscard]] std::expected<void, SongTimelineError> validateTimeline(
-    const SongTimeline& timeline, const ChartRules& chart_rules)
+// Every slice's own validator, in the order a reader meets them. A chart is asked its structural
+// rules only: coverage is the timeline normalization's drop, never a refusal of the grid edit.
+std::expected<void, SongTimelineError> validateSongTimelineRules(const SongTimeline& timeline)
 {
     const TempoMap& tempo_map = timeline.tempo_map;
     if (const auto valid = validateTempoMapRules(tempo_map); !valid.has_value())
@@ -84,12 +75,12 @@ template <typename ChartRules>
     {
         return std::unexpected{valid.error()};
     }
-    for (std::size_t index = 0; index < timeline.arrangements.size(); ++index)
+    for (const ArrangementTimeline& arrangement : timeline.arrangements)
     {
-        const ArrangementTimeline& arrangement = timeline.arrangements[index];
         if (arrangement.chart.has_value())
         {
-            if (const auto valid = chart_rules(index, *arrangement.chart); !valid.has_value())
+            if (const auto valid = validateChartStructure(*arrangement.chart, tempo_map);
+                !valid.has_value())
             {
                 return std::unexpected{ArrangementRuleError{
                     .arrangement_id = arrangement.id,
@@ -120,8 +111,6 @@ template <typename ChartRules>
     }
     return {};
 }
-
-} // namespace
 
 ArrangementRuleErrorCode ArrangementRuleError::code() const
 {
@@ -160,30 +149,6 @@ std::string songTimelineErrorText(const SongTimelineError& error)
             arrangement_text,
         },
         error);
-}
-
-std::expected<void, SongTimelineError> validateSongTimelineRules(const SongTimeline& timeline)
-{
-    return validateTimeline(timeline, [&timeline](std::size_t /*index*/, const Chart& chart) {
-        return validateChartRules(chart, timeline.tempo_map);
-    });
-}
-
-std::expected<void, SongTimelineError> validateSongTimelineRules(
-    const SongTimeline& timeline,
-    const std::span<const std::optional<ChartResolutions>> notes_layers)
-{
-    assert(
-        notes_layers.size() == timeline.arrangements.size() &&
-        "a notes layer per arrangement, index-parallel");
-    return validateTimeline(
-        timeline, [&timeline, notes_layers](const std::size_t index, const Chart& chart) {
-            // Bound once so the presence test and the read are provably the same object.
-            const std::optional<ChartResolutions>& notes_layer = notes_layers[index];
-            return notes_layer.has_value()
-                       ? validateChartRules(chart, timeline.tempo_map, *notes_layer)
-                       : validateChartRules(chart, timeline.tempo_map);
-        });
 }
 
 } // namespace rock_hero::common::core

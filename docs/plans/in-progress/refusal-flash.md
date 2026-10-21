@@ -291,7 +291,9 @@ logs its reason. Paths are under `rock-hero-editor/core/src/`.
 
 Not refusals, and outside the table: a mint failure is an error dialog (`reportError`); an action
 naming a tone region, plugin instance or automation write the model no longer holds is ignored with
-an `RH_LOG_WARNING`; an honest `PlanNoChange` reports nothing.
+an `RH_LOG_WARNING`; an honest `PlanNoChange` reports nothing. The grid funnel's coverage refusal
+(rows 44, 46, 49, 54, 56), which lit no culprit, is retired: positions yield to the grid — a tempo
+or meter edit drops a position it leaves uncovering and logs it (`SongTimelineSnapshot::normalize`).
 
 ### What is not a target
 

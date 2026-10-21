@@ -53,7 +53,8 @@ template <typename Snapshot> [[nodiscard]] Snapshot writtenModel(Snapshot model)
 
 // THE NORMAL FORM a marker model lands in, and what reaching it converted and derived. Every model
 // normalizes its own markers and converts no content, except the song timeline, whose charts' shape
-// holds a re-address can leave unfit and whose notes layers it derives (SongTimelineSnapshot).
+// holds a re-address can leave unfit and authored hand positions uncovering, and whose notes layers
+// it derives (SongTimelineSnapshot).
 template <typename Snapshot> [[nodiscard]] MarkerModelNormalization normalizedModel(Snapshot& model)
 {
     model.normalize();
@@ -101,7 +102,6 @@ std::expected<EditorController::Impl::JudgedMarkerModel<Snapshot>, PlanRefusal> 
             MarkerJudgeContext{
                 .session = session(),
                 .notes_layer = chartResolutions(),
-                .normalized_layers = normalization.notes_layers,
             });
         refused.has_value())
     {

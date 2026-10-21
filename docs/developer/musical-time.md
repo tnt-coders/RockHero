@@ -191,8 +191,9 @@ surface **draws**.
   hold's published end back (`normalizeShapeHolds`, in `chart_legato.h` beside `chartResolutions`,
   returning the notes layer completed from its own last derivation, so its caller derives nothing
   twice): the editor's plan gate on every note edit, the timeline funnel on every tempo or meter
-  edit (`SongTimelineSnapshot::normalize`, whose layers the funnel's validation reads and whose
-  displayed one seeds the memo), and `normalizeChart` at load.
+  edit (`SongTimelineSnapshot::normalize`, whose displayed layer seeds the memo), and
+  `normalizeChart` at load. Each then drops every authored hand position the result no longer
+  covers (`dropUncoveringFretHandPositions`), from the same layer.
 - `chartNoteLengths(presentation, connections, shapes)` — how long the 3D board shows a note as
   still in play, which is not the same question, and it is ONE RULE: a live fretting-hand member whose tail RESTS
   or was never earned, covered by a span, is held to the span's reach — while the grip is held, the
