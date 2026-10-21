@@ -1009,8 +1009,15 @@ std::optional<float> TimelineRuler::unboundedLocalXForSeconds(double seconds) co
 std::optional<int> TimelineRuler::localCursorColumn(
     const common::core::TimePosition position) const noexcept
 {
-    return cursorColumnForTimelinePosition(position, m_timeline_range, m_content_width)
-        .transform([this](const int content_column) { return content_column - m_view_x; });
+    // Read through has_value rather than optional::transform, which libc++ routes through the
+    // throwing value() and so cannot be called under this function's noexcept.
+    const std::optional<int> content_column =
+        cursorColumnForTimelinePosition(position, m_timeline_range, m_content_width);
+    if (!content_column.has_value())
+    {
+        return std::nullopt;
+    }
+    return *content_column - m_view_x;
 }
 
 // Each chip rides its span by the pinned-label rule every scrolling label obeys: at the span's

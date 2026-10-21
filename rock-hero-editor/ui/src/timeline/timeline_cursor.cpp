@@ -13,12 +13,15 @@ std::optional<int> cursorColumnForTimelinePosition(
     common::core::TimePosition position, common::core::TimeRange visible_timeline,
     int width) noexcept
 {
-    return core::timelineXForPosition(
-               position,
-               visible_timeline,
-               width,
-               core::TimelinePositionClamping::ClampToVisibleRange)
-        .transform([width](const float x) { return core::timelineColumnForX(x, width); });
+    // Read through has_value rather than optional::transform, which libc++ routes through the
+    // throwing value() and so cannot be called under this function's noexcept.
+    const std::optional<float> x = core::timelineXForPosition(
+        position, visible_timeline, width, core::TimelinePositionClamping::ClampToVisibleRange);
+    if (!x.has_value())
+    {
+        return std::nullopt;
+    }
+    return core::timelineColumnForX(*x, width);
 }
 
 // Two strips rather than one spanning both, so a cursor that jumps repaints only where it was and
