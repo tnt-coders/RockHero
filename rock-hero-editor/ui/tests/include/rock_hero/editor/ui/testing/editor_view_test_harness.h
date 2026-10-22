@@ -357,7 +357,7 @@ inline void showOnScreen(juce::Component& view)
 \throws std::runtime_error when the component is missing or has the wrong type.
 */
 template <class ComponentType>
-[[nodiscard]] inline ComponentType& findRequiredTopLevelComponent(const juce::String& id)
+[[nodiscard]] inline ComponentType& findRequiredTopLevelComponent(juce::StringRef id)
 {
     for (int index = 0; index < juce::TopLevelWindow::getNumTopLevelWindows(); ++index)
     {
@@ -370,12 +370,14 @@ template <class ComponentType>
         auto* typed_window = dynamic_cast<ComponentType*>(window);
         if (typed_window == nullptr)
         {
-            throw std::runtime_error{"Unexpected top-level component type: " + id.toStdString()};
+            throw std::runtime_error{
+                "Unexpected top-level component type: " + juce::String{id}.toStdString()
+            };
         }
         return *typed_window;
     }
 
-    throw std::runtime_error{"Missing top-level component: " + id.toStdString()};
+    throw std::runtime_error{"Missing top-level component: " + juce::String{id}.toStdString()};
 }
 
 /*!
