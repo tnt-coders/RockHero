@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default mix-control messages so public errors stay consistent.
-[[nodiscard]] std::string defaultMixControlsErrorMessage(MixControlsErrorCode code)
+[[nodiscard]] std::string_view defaultMixControlsErrorMessage(MixControlsErrorCode code)
 {
     switch (code)
     {
@@ -29,7 +29,7 @@ namespace
 } // namespace
 
 MixControlsError::MixControlsError(MixControlsErrorCode error_code)
-    : MixControlsError(error_code, defaultMixControlsErrorMessage(error_code))
+    : MixControlsError(error_code, std::string{defaultMixControlsErrorMessage(error_code)})
 {}
 
 MixControlsError::MixControlsError(MixControlsErrorCode error_code, std::string message_text)

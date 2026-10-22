@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default monitor-error messages so public errors stay consistent.
-[[nodiscard]] std::string defaultLiveInputMonitorErrorMessage(LiveInputMonitorErrorCode code)
+[[nodiscard]] std::string_view defaultLiveInputMonitorErrorMessage(LiveInputMonitorErrorCode code)
 {
     switch (code)
     {
@@ -33,7 +33,8 @@ namespace
 } // namespace
 
 LiveInputMonitorError::LiveInputMonitorError(LiveInputMonitorErrorCode error_code)
-    : LiveInputMonitorError(error_code, defaultLiveInputMonitorErrorMessage(error_code))
+    : LiveInputMonitorError(
+          error_code, std::string{defaultLiveInputMonitorErrorMessage(error_code)})
 {}
 
 LiveInputMonitorError::LiveInputMonitorError(

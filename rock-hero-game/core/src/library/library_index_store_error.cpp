@@ -9,7 +9,7 @@ namespace
 {
 
 // Default display message for each stable code.
-[[nodiscard]] std::string defaultMessage(const LibraryIndexStoreErrorCode error_code)
+[[nodiscard]] std::string_view defaultMessage(const LibraryIndexStoreErrorCode error_code)
 {
     switch (error_code)
     {

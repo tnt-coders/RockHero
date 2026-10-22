@@ -10,7 +10,7 @@ namespace
 
 // Default detail text for each native audio-setup failure code, used when a caller does not supply
 // operation-specific detail.
-[[nodiscard]] std::string defaultMessage(NativeAudioSetupErrorCode code)
+[[nodiscard]] std::string_view defaultMessage(NativeAudioSetupErrorCode code)
 {
     switch (code)
     {

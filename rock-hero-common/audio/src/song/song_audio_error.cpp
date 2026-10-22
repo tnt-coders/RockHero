@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default song audio messages so public errors stay consistent.
-[[nodiscard]] std::string defaultSongAudioErrorMessage(SongAudioErrorCode code)
+[[nodiscard]] std::string_view defaultSongAudioErrorMessage(SongAudioErrorCode code)
 {
     switch (code)
     {
@@ -49,7 +49,7 @@ namespace
 } // namespace
 
 SongAudioError::SongAudioError(SongAudioErrorCode error_code)
-    : SongAudioError(error_code, defaultSongAudioErrorMessage(error_code))
+    : SongAudioError(error_code, std::string{defaultSongAudioErrorMessage(error_code)})
 {}
 
 SongAudioError::SongAudioError(SongAudioErrorCode error_code, std::string message_text)

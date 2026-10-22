@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default transport error messages so public errors stay consistent.
-[[nodiscard]] std::string defaultTransportErrorMessage(TransportErrorCode code)
+[[nodiscard]] std::string_view defaultTransportErrorMessage(TransportErrorCode code)
 {
     switch (code)
     {
@@ -29,7 +29,7 @@ namespace
 } // namespace
 
 TransportError::TransportError(TransportErrorCode error_code)
-    : TransportError(error_code, defaultTransportErrorMessage(error_code))
+    : TransportError(error_code, std::string{defaultTransportErrorMessage(error_code)})
 {}
 
 TransportError::TransportError(TransportErrorCode error_code, std::string message_text)

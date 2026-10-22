@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default live input messages so public errors stay consistent.
-[[nodiscard]] std::string defaultLiveInputErrorMessage(LiveInputErrorCode code)
+[[nodiscard]] std::string_view defaultLiveInputErrorMessage(LiveInputErrorCode code)
 {
     switch (code)
     {
@@ -41,7 +41,7 @@ namespace
 } // namespace
 
 LiveInputError::LiveInputError(LiveInputErrorCode error_code)
-    : LiveInputError(error_code, defaultLiveInputErrorMessage(error_code))
+    : LiveInputError(error_code, std::string{defaultLiveInputErrorMessage(error_code)})
 {}
 
 LiveInputError::LiveInputError(LiveInputErrorCode error_code, std::string message_text)

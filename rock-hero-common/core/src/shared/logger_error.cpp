@@ -10,7 +10,7 @@ namespace
 {
 
 // Provides fallback text for call sites that have no richer runtime context.
-[[nodiscard]] std::string defaultLoggerErrorMessage(LoggerErrorCode code)
+[[nodiscard]] std::string_view defaultLoggerErrorMessage(LoggerErrorCode code)
 {
     switch (code)
     {
@@ -34,7 +34,7 @@ namespace
 } // namespace
 
 LoggerError::LoggerError(LoggerErrorCode error_code)
-    : LoggerError(error_code, defaultLoggerErrorMessage(error_code))
+    : LoggerError(error_code, std::string{defaultLoggerErrorMessage(error_code)})
 {}
 
 LoggerError::LoggerError(LoggerErrorCode error_code, std::string message_text)

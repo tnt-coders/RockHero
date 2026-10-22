@@ -342,7 +342,8 @@ private:
 
 // Centralises default error messages so AudioNormalizationError stays consistent regardless of
 // which call site reports a failure code.
-[[nodiscard]] std::string defaultAudioNormalizationErrorMessage(AudioNormalizationErrorCode code)
+[[nodiscard]] std::string_view defaultAudioNormalizationErrorMessage(
+    AudioNormalizationErrorCode code)
 {
     switch (code)
     {
@@ -378,7 +379,8 @@ private:
 } // namespace
 
 AudioNormalizationError::AudioNormalizationError(AudioNormalizationErrorCode error_code)
-    : AudioNormalizationError(error_code, defaultAudioNormalizationErrorMessage(error_code))
+    : AudioNormalizationError(
+          error_code, std::string{defaultAudioNormalizationErrorMessage(error_code)})
 {}
 
 AudioNormalizationError::AudioNormalizationError(

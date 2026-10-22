@@ -33,7 +33,7 @@ constexpr const char* g_wave_out_type_name = "WaveOut";
 constexpr double g_sample_rate_match_tolerance{0.001};
 
 // Creates stable fallback text for settings failures that do not carry backend detail.
-[[nodiscard]] std::string defaultErrorMessage(AudioDeviceSettingsErrorCode code)
+[[nodiscard]] std::string_view defaultErrorMessage(AudioDeviceSettingsErrorCode code)
 {
     switch (code)
     {

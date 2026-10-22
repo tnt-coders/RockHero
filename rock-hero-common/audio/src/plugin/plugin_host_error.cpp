@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default plugin-host messages so public errors stay consistent.
-[[nodiscard]] std::string defaultPluginHostErrorMessage(PluginHostErrorCode code)
+[[nodiscard]] std::string_view defaultPluginHostErrorMessage(PluginHostErrorCode code)
 {
     switch (code)
     {
@@ -97,7 +97,7 @@ namespace
 } // namespace
 
 PluginHostError::PluginHostError(PluginHostErrorCode error_code)
-    : PluginHostError(error_code, defaultPluginHostErrorMessage(error_code))
+    : PluginHostError(error_code, std::string{defaultPluginHostErrorMessage(error_code)})
 {}
 
 PluginHostError::PluginHostError(PluginHostErrorCode error_code, std::string message_text)

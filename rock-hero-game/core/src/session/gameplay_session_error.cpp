@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default gameplay session messages so public errors stay consistent.
-[[nodiscard]] std::string defaultGameplaySessionErrorMessage(GameplaySessionErrorCode code)
+[[nodiscard]] std::string_view defaultGameplaySessionErrorMessage(GameplaySessionErrorCode code)
 {
     switch (code)
     {
@@ -65,7 +65,7 @@ namespace
 } // namespace
 
 GameplaySessionError::GameplaySessionError(GameplaySessionErrorCode error_code)
-    : GameplaySessionError(error_code, defaultGameplaySessionErrorMessage(error_code))
+    : GameplaySessionError(error_code, std::string{defaultGameplaySessionErrorMessage(error_code)})
 {}
 
 GameplaySessionError::GameplaySessionError(

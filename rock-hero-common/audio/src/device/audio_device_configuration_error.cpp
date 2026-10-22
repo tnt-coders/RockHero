@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default configuration messages so public errors stay consistent.
-[[nodiscard]] std::string defaultAudioDeviceConfigurationErrorMessage(
+[[nodiscard]] std::string_view defaultAudioDeviceConfigurationErrorMessage(
     AudioDeviceConfigurationErrorCode code)
 {
     switch (code)
@@ -36,7 +36,7 @@ namespace
 AudioDeviceConfigurationError::AudioDeviceConfigurationError(
     AudioDeviceConfigurationErrorCode error_code)
     : AudioDeviceConfigurationError(
-          error_code, defaultAudioDeviceConfigurationErrorMessage(error_code))
+          error_code, std::string{defaultAudioDeviceConfigurationErrorMessage(error_code)})
 {}
 
 AudioDeviceConfigurationError::AudioDeviceConfigurationError(

@@ -9,7 +9,7 @@ namespace
 {
 
 // Default display message for each stable code.
-[[nodiscard]] std::string defaultMessage(const AlbumArtErrorCode error_code)
+[[nodiscard]] std::string_view defaultMessage(const AlbumArtErrorCode error_code)
 {
     switch (error_code)
     {

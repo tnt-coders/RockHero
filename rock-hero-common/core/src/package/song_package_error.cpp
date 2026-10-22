@@ -10,7 +10,7 @@ namespace
 {
 
 // Provides fallback text for call sites that have no richer runtime context.
-[[nodiscard]] std::string defaultSongPackageErrorMessage(SongPackageErrorCode code)
+[[nodiscard]] std::string_view defaultSongPackageErrorMessage(SongPackageErrorCode code)
 {
     switch (code)
     {
@@ -62,7 +62,7 @@ namespace
 } // namespace
 
 SongPackageError::SongPackageError(SongPackageErrorCode error_code)
-    : SongPackageError(error_code, defaultSongPackageErrorMessage(error_code))
+    : SongPackageError(error_code, std::string{defaultSongPackageErrorMessage(error_code)})
 {}
 
 SongPackageError::SongPackageError(SongPackageErrorCode error_code, std::string message_text)

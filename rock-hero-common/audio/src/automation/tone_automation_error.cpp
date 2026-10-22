@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default tone automation messages so public errors stay consistent.
-[[nodiscard]] std::string defaultToneAutomationErrorMessage(ToneAutomationErrorCode code)
+[[nodiscard]] std::string_view defaultToneAutomationErrorMessage(ToneAutomationErrorCode code)
 {
     switch (code)
     {
@@ -37,7 +37,7 @@ namespace
 } // namespace
 
 ToneAutomationError::ToneAutomationError(ToneAutomationErrorCode error_code)
-    : ToneAutomationError(error_code, defaultToneAutomationErrorMessage(error_code))
+    : ToneAutomationError(error_code, std::string{defaultToneAutomationErrorMessage(error_code)})
 {}
 
 ToneAutomationError::ToneAutomationError(

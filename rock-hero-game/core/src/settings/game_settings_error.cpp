@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default game settings messages so public errors stay consistent.
-[[nodiscard]] std::string defaultGameSettingsErrorMessage(GameSettingsErrorCode code)
+[[nodiscard]] std::string_view defaultGameSettingsErrorMessage(GameSettingsErrorCode code)
 {
     switch (code)
     {
@@ -29,7 +29,7 @@ namespace
 } // namespace
 
 GameSettingsError::GameSettingsError(GameSettingsErrorCode error_code)
-    : GameSettingsError(error_code, defaultGameSettingsErrorMessage(error_code))
+    : GameSettingsError(error_code, std::string{defaultGameSettingsErrorMessage(error_code)})
 {}
 
 GameSettingsError::GameSettingsError(GameSettingsErrorCode error_code, std::string message_text)

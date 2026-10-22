@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default settings messages so public errors stay consistent.
-[[nodiscard]] std::string defaultEditorSettingsErrorMessage(EditorSettingsErrorCode code)
+[[nodiscard]] std::string_view defaultEditorSettingsErrorMessage(EditorSettingsErrorCode code)
 {
     switch (code)
     {
@@ -29,7 +29,7 @@ namespace
 } // namespace
 
 EditorSettingsError::EditorSettingsError(EditorSettingsErrorCode error_code)
-    : EditorSettingsError(error_code, defaultEditorSettingsErrorMessage(error_code))
+    : EditorSettingsError(error_code, std::string{defaultEditorSettingsErrorMessage(error_code)})
 {}
 
 EditorSettingsError::EditorSettingsError(

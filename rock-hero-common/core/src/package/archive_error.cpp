@@ -10,7 +10,7 @@ namespace
 {
 
 // Provides fallback text for call sites that have no richer runtime context.
-[[nodiscard]] std::string defaultArchiveErrorMessage(ArchiveErrorCode code)
+[[nodiscard]] std::string_view defaultArchiveErrorMessage(ArchiveErrorCode code)
 {
     switch (code)
     {
@@ -78,7 +78,7 @@ namespace
 } // namespace
 
 ArchiveError::ArchiveError(ArchiveErrorCode error_code)
-    : ArchiveError(error_code, defaultArchiveErrorMessage(error_code))
+    : ArchiveError(error_code, std::string{defaultArchiveErrorMessage(error_code)})
 {}
 
 ArchiveError::ArchiveError(ArchiveErrorCode error_code, std::string message_text)

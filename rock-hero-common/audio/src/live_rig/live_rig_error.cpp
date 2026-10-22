@@ -9,7 +9,7 @@ namespace
 {
 
 // Centralises default live rig messages so public errors stay consistent.
-[[nodiscard]] std::string defaultLiveRigErrorMessage(LiveRigErrorCode code)
+[[nodiscard]] std::string_view defaultLiveRigErrorMessage(LiveRigErrorCode code)
 {
     switch (code)
     {
@@ -105,7 +105,7 @@ namespace
 } // namespace
 
 LiveRigError::LiveRigError(LiveRigErrorCode error_code)
-    : LiveRigError(error_code, defaultLiveRigErrorMessage(error_code))
+    : LiveRigError(error_code, std::string{defaultLiveRigErrorMessage(error_code)})
 {}
 
 LiveRigError::LiveRigError(LiveRigErrorCode error_code, std::string message_text)

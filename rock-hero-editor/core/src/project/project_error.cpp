@@ -10,7 +10,7 @@ namespace
 {
 
 // Provides fallback text for call sites that have no richer runtime context.
-[[nodiscard]] std::string defaultProjectErrorMessage(ProjectErrorCode code)
+[[nodiscard]] std::string_view defaultProjectErrorMessage(ProjectErrorCode code)
 {
     switch (code)
     {
@@ -86,7 +86,7 @@ namespace
 } // namespace
 
 ProjectError::ProjectError(ProjectErrorCode error_code)
-    : ProjectError(error_code, defaultProjectErrorMessage(error_code))
+    : ProjectError(error_code, std::string{defaultProjectErrorMessage(error_code)})
 {}
 
 ProjectError::ProjectError(ProjectErrorCode error_code, std::string message_text)
