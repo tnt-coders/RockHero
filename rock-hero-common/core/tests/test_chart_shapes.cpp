@@ -2016,10 +2016,11 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         CHECK(middle[2] == std::optional{fretStop(11)});
     }
 
-    SECTION("a continuous multi-fret glide brackets only where it comes to rest")
+    SECTION("a multi-fret glide lands at every fret it states")
     {
         // The same three fret statements with the middle one never restated: the channel leaves it
-        // again, so it is a point on the path and not a grip. One travel, one landing.
+        // again at once, but a stored keyframe is where the finger's course changes, so the middle
+        // grip is reached and lands like the last. Two travels, two landings, three spans tiling.
         const std::vector<ChartNote> notes = streamOf({
             travellingAt(
                 noteAt(1, Fraction{}, 1, 5, Fraction{1}),
@@ -2033,17 +2034,110 @@ TEST_CASE("Chart shape derivation splits a span at a member's travel", "[core][c
         });
         const ChartShapes derived = deriveFrom(notes);
 
-        REQUIRE(derived.shapes.size() == 2);
-        // One travel, so one covered transit: the departing grip runs to the only landing there
-        // is, and the transit fret at a quarter gets no span of its own.
-        CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(derived.shapes[1].place == Fraction{1, 2});
-        REQUIRE(derived.shapes[1].posture < derived.postures.size());
-        const std::vector<std::optional<ChartStop>>& landed =
-            derived.postures[derived.shapes[1].posture].stops;
+        REQUIRE(derived.shapes.size() == 3);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{1, 4});
+        CHECK(derived.shapes[1].place == Fraction{1, 4});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 4});
+        CHECK(derived.shapes[2].place == Fraction{1, 2});
+        CHECK(derived.shapes[2].sustain == Fraction{1, 2});
+        const std::vector<std::optional<ChartStop>>& passed = derivedStops(derived, 1);
+        CHECK(passed[0] == std::optional{fretStop(7)});
+        CHECK(passed[1] == std::optional{fretStop(9)});
+        CHECK(passed[2] == std::optional{fretStop(11)});
+        const std::vector<std::optional<ChartStop>>& landed = derivedStops(derived, 2);
         CHECK(landed[0] == std::optional{fretStop(9)});
         CHECK(landed[1] == std::optional{fretStop(11)});
         CHECK(landed[2] == std::optional{fretStop(13)});
+    }
+
+    SECTION("a dyad sliding on through a second keyframe opens a span at each")
+    {
+        // THE WHAT-IF FIGURE: a fret-1 dyad rings two and an eighth whole notes, sliding to 7 at
+        // one and a half and on to 11 at two. The 7 is a grip the listener hears the slide reach,
+        // so it opens its own span; the 11 opens the last, which runs to the ring's end. Nothing
+        // is struck inside either landing, so all three arrive as boxes.
+        const std::vector<std::pair<Fraction, int>> train{{Fraction{3, 2}, 7}, {Fraction{2}, 11}};
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 3, 1, Fraction{17, 8}), train),
+            travellingAt(noteAt(1, Fraction{}, 4, 1, Fraction{17, 8}), train),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 3);
+        const auto dyad_at = [](const int fret) {
+            std::vector<std::optional<ChartStop>> stops(
+                static_cast<std::size_t>(g_max_chart_strings));
+            stops[2] = fretStop(fret);
+            stops[3] = fretStop(fret);
+            return stops;
+        };
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        CHECK(derivedStops(derived, 0) == dyad_at(1));
+        CHECK_FALSE(derived.shapes[0].landing_opened);
+        CHECK(derived.shapes[1].place == Fraction{3, 2});
+        CHECK(derived.shapes[1].sustain == Fraction{1, 2});
+        CHECK(derivedStops(derived, 1) == dyad_at(7));
+        CHECK(derived.shapes[1].landing_opened);
+        CHECK(derived.shapes[2].place == Fraction{2});
+        CHECK(derived.shapes[2].sustain == Fraction{1, 8});
+        CHECK(derivedStops(derived, 2) == dyad_at(11));
+        CHECK(derived.shapes[2].landing_opened);
+        CHECK(arpeggiosFrom(notes) == std::vector<bool>{false, false, false});
+    }
+
+    SECTION("a dyad gliding up and back down states every grip it reaches")
+    {
+        // A 6/8 dyad gliding an eighth at a time through 7/9, 9/11, back to 7/9 and home to 6/8:
+        // every keyframe is a grip reached, so five spans tile the ring in the order played.
+        const auto glide = [](const int fret) {
+            return std::vector<std::pair<Fraction, int>>{
+                {Fraction{1, 8}, fret + 1},
+                {Fraction{1, 4}, fret + 3},
+                {Fraction{3, 8}, fret + 1},
+                {Fraction{1, 2}, fret},
+            };
+        };
+        const std::vector<ChartNote> notes = streamOf({
+            travellingAt(noteAt(1, Fraction{}, 1, 6, Fraction{5, 8}), glide(6)),
+            travellingAt(noteAt(1, Fraction{}, 2, 8, Fraction{5, 8}), glide(8)),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 5);
+        const std::vector<int> lower{6, 7, 9, 7, 6};
+        for (std::size_t span = 0; span < lower.size(); ++span)
+        {
+            CHECK(derived.shapes[span].place == Fraction{static_cast<int>(span), 8});
+            CHECK(derived.shapes[span].sustain == Fraction{1, 8});
+            const std::vector<std::optional<ChartStop>>& stops = derivedStops(derived, span);
+            CHECK(stops[0] == std::optional{fretStop(lower[span])});
+            CHECK(stops[1] == std::optional{fretStop(lower[span] + 2)});
+            CHECK(derived.shapes[span].landing_opened == (span > 0));
+        }
+    }
+
+    SECTION("a lone slide over two rings founds nothing at its landing")
+    {
+        // A dyad span closes as its 5 dies, leaving the open string ringing into whatever opens
+        // next. A lone 9 opens a span there, the open string only carried into it, and a lone 10
+        // struck beside it slides to 12 after a sixteenth: two own members, one stated at a slot,
+        // so the span never founds. A landing founds nothing either (shape rule 4), so its
+        // successor is published only by a strike inside it, and none comes.
+        const std::vector<ChartNote> notes = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1, 8}),
+            noteAt(1, Fraction{}, 6, 0, Fraction{1}),
+            noteAt(1, Fraction{1, 2}, 4, 9, Fraction{3, 8}),
+            travellingAt(noteAt(2, Fraction{}, 5, 10, Fraction{1, 4}), {{Fraction{1, 16}, 12}}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{1, 8});
+        CHECK(derivedStops(derived, 0)[0] == std::optional{fretStop(5)});
+        CHECK(derivedStops(derived, 0)[5] == std::optional{fretStop(0)});
     }
 
     SECTION("a glide that turns back lands on the fret it turns at")
@@ -7015,7 +7109,7 @@ TEST_CASE("A pull-off inside a shape hold leaves it whole", "[core][chart]")
 }
 
 // A member's glide leaving the stop the span states is a hand conflict at its landing (shape rule
-// 4), a multi-leg glide landing where it comes to rest; the landed grip opens its successor there.
+// 4), every keyframe of a multi-leg glide a landing; each landed grip opens its successor there.
 TEST_CASE("A glide inside a shape hold crops it where it lands", "[core][chart]")
 {
     ChartNote gliding = noteAt(gridAt(1, 1), 2, 7, Fraction{1});
@@ -7028,11 +7122,13 @@ TEST_CASE("A glide inside a shape hold crops it where it lands", "[core][chart]"
         gliding,
     });
     const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(2, 1))});
-    REQUIRE(held.resolutions.shapes.size() == 2);
+    REQUIRE(held.resolutions.shapes.size() == 3);
     CHECK(held.resolutions.shapes[0].hold_stated);
-    CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
+    CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
     CHECK(held.resolutions.shapes[1].landing_opened);
-    CHECK(stopOf(held.resolutions, 1, 2) == std::optional{fretStop(11)});
+    CHECK(stopOf(held.resolutions, 1, 2) == std::optional{fretStop(9)});
+    CHECK(held.resolutions.shapes[2].landing_opened);
+    CHECK(stopOf(held.resolutions, 2, 2) == std::optional{fretStop(11)});
     CHECK_FALSE(held.fits[0]);
 }
 

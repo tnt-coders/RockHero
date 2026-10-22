@@ -519,10 +519,13 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
             FretHandHold{.from = Fraction{1, 4}, .to = Fraction{1, 2}, .fret = 7, .string = 1}));
     }
 
-    SECTION("a chord whose fingers slide off the grip")
+    SECTION(
+        "a chord whose fingers slide off the grip releases it at the landing, where the span "
+        "closes")
     {
-        // One travel (shape rule 4): the fingers glide through 6/8 and land on 7/9 at 1/4, where
-        // the span closes. The grip is released at the fingers' first statement off it.
+        // The fingers glide to 6/8, landing there at 1/8: their first statement off the grip. At a
+        // landing the release (hand-position rule 6) and the close (shape rule 4) are one instant,
+        // so each fretted string's grip hold ends exactly where the span does.
         const SpanHolds derived = spanHoldsOf({
             withFretAt(
                 withFretAt(noteAt(1, 1, 1, 5, Fraction{1, 2}), Fraction{1, 8}, 6),
@@ -536,16 +539,21 @@ TEST_CASE("A span's grip is held from its front to its close", "[core][chart]")
         REQUIRE_FALSE(derived.shapes.shapes.empty());
         const ChartShape& shape = derived.shapes.shapes.front();
         REQUIRE(shape.place == Fraction{});
-        REQUIRE(shape.sustain == Fraction{1, 4});
+        REQUIRE(shape.sustain == Fraction{1, 8});
         const Fraction slide = shape.place + Fraction{1, 8};
+        const Fraction close = shape.place + shape.sustain;
+        CHECK(close == slide);
         const std::span<const FretHandHold> grip =
             std::span{derived.holds}.subspan(derived.ring_holds);
-        CHECK(containsHold(
-            grip, FretHandHold{.from = shape.place, .to = slide, .fret = 5, .string = 1}));
-        CHECK(containsHold(
-            grip, FretHandHold{.from = shape.place, .to = slide, .fret = 7, .string = 2}));
-        CHECK_FALSE(containsHold(
-            grip, FretHandHold{.from = shape.place, .to = Fraction{1, 4}, .fret = 5, .string = 1}));
+        for (const auto& [string, fret] : {std::pair{1, 5}, std::pair{2, 7}})
+        {
+            const auto held = std::ranges::find_if(grip, [&](const FretHandHold& hold) {
+                return hold.string == string && hold.fret == fret && hold.from == shape.place;
+            });
+            REQUIRE(held != grip.end());
+            CHECK(held->to == slide);
+            CHECK(held->to == close);
+        }
         const std::span<const FretHandHold> rings =
             std::span{derived.holds}.first(derived.ring_holds);
         CHECK(containsHold(

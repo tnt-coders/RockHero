@@ -1757,3 +1757,14 @@ against the tree on the date above.
   column, so a cursor standing between grid lines afterwards authors marker chords at that tick
   instead of the nearest grid line. Not a regression: the old `moveCursorTo` path did the same.
   Decide whether a carried column should be trusted only when the cursor stood on a column before.
+
+## Found while landing every glide keyframe (2026-10-22)
+
+- **`fretHandHolds`' early-release arm may be dead.** After every fret keyframe lands, check whether
+  the early-release arm (`released` short of `close`: `stringReleasesStopAt` in
+  `chart_fret_hand.cpp`, which `fretHandHolds` asks for each grip stop) is still reachable: every
+  other release — a note of either hand at or below the stop, open, or at a node — closes the span
+  at the same instant (contradiction, tap's floor, or hand conflict inside a hold). If no stored
+  chart can release a grip stop before its span closes, the arm's `else to the close` is the only
+  case and the arm is dead. The arm is the one release authority, so the claim needs its own
+  verification before anything is deleted.

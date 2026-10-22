@@ -69,8 +69,8 @@ constexpr std::size_t g_parts_member_minimum = 3;
 
 } // namespace
 
-// One walk of the channel's statements: each travel goes on while its frets lie further in its
-// direction, and the first travel landing after `from` ends the walk.
+// One walk of the channel's statements: every fret keyframe lands the travel in force — a restated
+// fret is a rest, a different one a landing — and the first landing after `from` ends the walk.
 StatedStop statedStopFrom(
     const ChartNote& note, const Fraction from, const bool arrives_into_next_head)
 {
@@ -95,13 +95,6 @@ StatedStop statedStopFrom(
         }
         if (travel.has_value())
         {
-            const bool onward = travel->fret > stop ? *fret > travel->fret : *fret < travel->fret;
-            if (onward)
-            {
-                travel->arrival = keyframe.offset;
-                travel->fret = *fret;
-                continue;
-            }
             if (from < travel->arrival)
             {
                 break;

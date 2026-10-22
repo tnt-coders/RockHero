@@ -2824,9 +2824,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // the span that results. An expectation copied off this rig's own output would
                 // check nothing, so the pin is a figure a reader signed and the row is left to
                 // FLAG when a law moves it — a flagged row is the finding this table exists for.
+                // +5 since every fret keyframe lands its travel: the grips a multi-keyframe glide
+                // reaches mid-way open spans of their own (shape rule 4).
                 .label = "spans total",
                 .rig = static_cast<double>(census.derivation.spans),
-                .expected = 22256.0,
+                .expected = 22261.0,
             },
             CrossCheck{
                 // The spans that classify ARPEGGIO — the ones that print as a bracket rather than
@@ -2867,14 +2869,15 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // The spans the walk opened at a LANDING, read off `landing_opened` — the one
                 // onset-less open the grip-tenure law admits. ONE cause only (shape rule 1): a
                 // member that merely rings on past a break is a tail and opens nothing, so what
-                // stands here is chord slides arriving at the grip they travel to or turn on. THE
+                // stands here is chord slides arriving at each grip a fret keyframe states. THE
                 // EXACT END OF A TAIL NEVER FOUNDS A SPAN, so a glide whose arrival stands on the
                 // head it slides into hands nothing over and opens nothing: only a ring running
                 // STRICTLY PAST its landing does. The SOURCE-side reading in section [5] attributes
-                // the same population edge by edge, independently of this count.
+                // the same population edge by edge, independently of this count. +5 since a fret a
+                // glide passed became a landing: the spans-total rise, all of it here.
                 .label = "landing-opened spans",
                 .rig = static_cast<double>(census.derivation.successor_spans),
-                .expected = 1251.0,
+                .expected = 1256.0,
             },
             CrossCheck{
                 // A REAL CLASSIFICATION CENSUS, not an equality pin: of the landings the SOURCE
@@ -2883,10 +2886,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // successor classifies by the ordinary triggers like any other span, and one
                 // nothing sounds inside is a chord span. A corpus dominated by chord slides into
                 // chord stabs therefore reads overwhelmingly BOX, which is what this row says in
-                // numbers.
+                // numbers. +5 since a fret a glide passed became a landing: nothing strikes inside
+                // a mid-glide grip, so each new successor is a box.
                 .label = "  landing successors classified BOX",
                 .rig = static_cast<double>(census.derivation.successor_spans_landing_box),
-                .expected = 1129.0,
+                .expected = 1134.0,
             },
             CrossCheck{
                 // DERIVED HELD's population itself: the right-hand onsets a PULL-OFF states a
@@ -2966,15 +2970,19 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // than once.
                 //
                 // The pin reads the derived hand events, an event wherever the window changes, its
-                // width alone included.
+                // width alone included. 63 since every fret keyframe lands its travel (shape rule
+                // 4): the six slide crossings (five arrivals, one pure widening) split at the grip
+                // the hand lands on.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 151.0,
+                .expected = 63.0,
             },
             CrossCheck{
+                // The remainder is two classes: a note below the window's floor (17, a hand-side
+                // fix pending a ruling) and an open-strings-only posture (46, unruled).
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 151.0,
+                .expected = 63.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window

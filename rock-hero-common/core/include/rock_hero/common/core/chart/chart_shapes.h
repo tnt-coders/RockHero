@@ -321,7 +321,7 @@ struct FretTravel
     /*! \brief The last offset at which the channel still states the stop it leaves. */
     Fraction departure{};
 
-    /*! \brief The offset at which the channel lands: comes to rest or turns back. */
+    /*! \brief The offset at which the channel lands: the fret keyframe stating the new stop. */
     Fraction arrival{};
 
     /*! \brief The stop it lands on. */
@@ -363,13 +363,14 @@ struct StatedStop
 \brief THE channel reader: the stop a note's fret channel states from an offset onward, and the
 travel it makes next — the one authority on where a fret channel lands (shape rule 4).
 
-A travel goes on only while each fret it states lies further in its direction: a fret it glides PAST
-is a point on the path, so a continuous multi-fret glide stays one travel to its end. Anything else
-LANDS it — a restated fret is a rest, and a fret back the way it came is a TURN, where the listener
-hears the chord the glide turned on as the chord landed on even though the finger holds it for no
-time. The slide-out (\ref slideOutKeyframe) is no statement about where the finger is: the channel
-goes on stating the stop it slides from. An arrival into the next head is read like any landing.
-A fretting-hand harmonic states its node, never the fret 0 beneath it (\ref frettingStopAt).
+Every stored fret keyframe LANDS the travel in force — a restated fret is a rest, a different fret a
+landing — and the finger sets off again where the next keyframe states another. The writer never
+stores a point on the line between two statements (\ref keyframeSaysNothingNew), so a stored
+keyframe is where the finger's course changes: a grip the listener hears it reach, however briefly,
+so a glide authored with several keyframes is a travel per keyframe. The slide-out
+(\ref slideOutKeyframe) is no statement about where the finger is: the channel goes on stating the
+stop it slides from. An arrival into the next head is read like any landing. A fretting-hand
+harmonic states its node, never the fret 0 beneath it (\ref frettingStopAt).
 
 Asked from a landing's own offset, it answers the travel after it, so every landing of a channel is
 read by asking again from the last one.

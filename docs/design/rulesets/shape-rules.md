@@ -49,8 +49,8 @@ takes the next one.
 - **Restatement** — a strike stating a stop the grip already holds. **Growth** — a strike stating a
   stop on a string the grip does not hold. **Contradiction** — a strike stating a different stop
   on a string the grip holds or that still sounds.
-- **Travel**, **landing** — a fret channel moving between stops, and the instant it comes to rest or
-  turns back (rule 4).
+- **Travel**, **landing** — a fret channel moving between stops, and the fret keyframe at which it
+  reaches the next one (rule 4).
 - **Shape hold** — the charter's statement that the hand holds one shape over a stated extent
   (`ShapeHold`, rule 9). Not hand-position rule 6's hold, which is one stop kept pressed.
 - **Front** — the instant a span opened (rule 1). **Reach** — how far its members' statements run.
@@ -247,10 +247,11 @@ takes the next one.
    there.**
    - **The channel has one reader** (`statedStopFrom`). Every question about where a finger is — at
      a strike, at a member's reach, at a landing, at a carried ring's join — asks which stop the
-     note's fret channel states at that offset. A travel goes on while each fret it states lies
-     further in its direction, so a fret a glide passes is a point on its path. A restated fret is
-     a rest and a fret back the way it came is a turn, and either one lands the travel: the chord
-     the glide turns on is the chord the listener hears it land on. Between departure and landing
+     note's fret channel states at that offset. Every stored fret keyframe lands the travel in
+     force: a restated fret is a rest, a different fret a landing, and the finger sets off again
+     where the next keyframe states another. The writer never stores a point on the line between
+     two statements (`keyframeSaysNothingNew`), so a stored keyframe is where the finger's course
+     changes — a grip the listener hears it reach, however briefly. Between departure and landing
      the answer is no stop, so a finger mid-glide joins no other posture and cannot be restated. A
      slide-out says nothing about where the finger is: the channel goes on stating the stop it
      slides from, while an arrival into the next head lands like any travel
@@ -260,10 +261,11 @@ takes the next one.
      where the new grip is established. A member's reach is capped at its landing, so the earliest
      landing ends the span. A glide from 5 to 7 and back to 5 is three spans: the departing grip
      over the glide up, the 7 from the turn over the glide back, and the 5 again from the return. A
-     travelling finger lets go of nothing, so travel is no quit. Where a member's first
-     fret-stating keyframe already differs, the hand departs at the onset and the whole glide is the
-     departing grip's span. Every slot inside a glide is inside a span, so a tap mid-glide makes the
-     span an arpeggio (rule 5). Nothing publishes that a span covers a glide: tail rule 4 never
+     dyad gliding 1 to 7 and on to 11 is three spans too, the 7 a grip of its own. A travelling
+     finger lets go of nothing, so travel is no quit. Where a member's first fret-stating keyframe
+     already differs, the hand departs at the onset and the whole glide is the departing grip's
+     span. Every slot inside a glide is inside a span, so a tap mid-glide makes the span an
+     arpeggio (rule 5). Nothing publishes that a span covers a glide: tail rule 4 never
      rests a ring that is still stating.
    - **Restatement mid-travel is judged per member.** A slot restates the shape while everything it
      sounds agrees with what the shape states and contradicts nothing the shape still covers. An
@@ -280,8 +282,11 @@ takes the next one.
      as its predecessor was where two or more survivors carried the grip over — two, not the
      accumulation minimum, because a landing's members were already established members of the span
      that just closed; a single survivor opens a span that growth may yet found (rule 1). A landing
-     is judged once, before the slot at its instant, so a restrike struck there is never a survivor.
-     The successor runs by rule 3 over those rings, which bound it. It opens exactly where its
+     itself founds nothing: a survivor carried into the predecessor was no statement of the hand's
+     there and is none here, so a successor of an unpublished span is published only by the strikes
+     inside it, exactly as the same grip struck over those rings would be. A landing is judged
+     once, before the slot at its instant, so a restrike struck there is never a survivor. The
+     successor runs by rule 3 over those rings, which bound it. It opens exactly where its
      predecessor closes, so the two tile with no gap and no zero-length span, and the chain
      terminates: each successor starts strictly later than its predecessor and holds no more
      members than the rings that reached its start. A lone re-pick or a full restatement of the
@@ -303,7 +308,9 @@ takes the next one.
      dropped and the chord name never flickers for a sliver. The comparison is strict because the
      chart encodes a glide into a restrike by placing the arrival exactly one such distance before
      the replacing onset. A landed span closed with no sounding head drops only at zero tenure, and
-     one an event has stated is always emitted. No derivation question measures drawable room.
+     one an event has stated is always emitted. A glide authored with several keyframes derives a
+     span per keyframe, each dropped only at zero tenure where nothing strikes inside it. No
+     derivation question measures drawable room.
    - **The mark is the front.** A span has one instant of its own, its front, and its rails, its
      brackets and its name share it; a landing successor's bracket marks draw at the landing, where
      the grip it carries is established. `ChartShape::landing_opened` publishes that a landing, not
