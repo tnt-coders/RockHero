@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -1651,7 +1652,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .bend = {},
             .keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 12}},
         });
-    // Authored positions spanning the whole board, so these four are the only chips.
+    // Authored positions spanning the whole board, so these five are the only chips.
     chart.fret_hand_positions = {
         // Ordinary move: the margin morph.
         boardWidePosition(GridPosition{.measure = 2, .beat = 1}),
@@ -1660,15 +1661,18 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
         boardWidePosition(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}}),
         // Exactly on the fixture's 3:1+1/2 slide-out end (advanced by its half-note offset).
         boardWidePosition(GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}}),
+        // On the fixture's shift-slide arrival, which would otherwise derive a window for its own
+        // run (the slide rule) that no longer covers the pushed slide-out's exit.
+        boardWidePosition(GridPosition{.measure = 4, .beat = 2}),
         // Exactly where the pushed slide-out ends (4:3 advanced a quarter).
         boardWidePosition(GridPosition{.measure = 4, .beat = 4}),
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
-    REQUIRE(state.fret_hand_positions.size() == 4);
+    REQUIRE(state.fret_hand_positions.size() == 5);
 
     // The windows cover every exit, so nothing rides and the track is the chips alone.
-    REQUIRE(state.fret_hand_track.size() == 4);
+    REQUIRE(state.fret_hand_track.size() == 5);
     const std::vector<HandArrival>& track = state.fret_hand_track;
 
     CHECK(track[0].seconds == Catch::Approx(4.0 * beat));
@@ -1681,13 +1685,16 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     // placement morphs over the margin.
     CHECK(track[2].seconds == Catch::Approx(10.5 * beat));
     CHECK(track[2].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
-    CHECK(track[3].seconds == Catch::Approx(15.0 * beat));
-    CHECK(track[3].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
-    // Every one is a move between positions, and none settles.
-    for (const HandArrival& arrival : track)
+    // An authored chip on a shift-slide arrival glides with the slide.
+    CHECK(track[3].seconds == Catch::Approx(13.0 * beat));
+    CHECK(track[3].approach == HandApproach::Glide);
+    CHECK(track[4].seconds == Catch::Approx(15.0 * beat));
+    CHECK(track[4].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
+    // Every other one is a move between positions, and none settles.
+    for (const std::size_t chip : std::array<std::size_t, 4>{0, 1, 2, 4})
     {
-        CHECK(arrival.approach == HandApproach::Morph);
-        CHECK_FALSE(arrival.settle.has_value());
+        CHECK(track[chip].approach == HandApproach::Morph);
+        CHECK_FALSE(track[chip].settle.has_value());
     }
 }
 

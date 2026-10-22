@@ -27,7 +27,7 @@ The numbered list is the implementer's order. A charter is taught only this:
 > grip outgrowing the hand. Put the hand at each figure's floor, spanning the grip, never narrower
 > than four frets. Two exceptions, both of which only ever remove motion: the hand never moves while
 > a stop it holds still rings, and a one-fret figure the standing window already covers does not
-> move it.
+> move it — unless a slide leaving it proves where the hand was (the slide rule).
 
 Each figure's window depends only on that figure's own notes, so an edit changes at most the figure
 it touches and where the previous one ends.
@@ -55,7 +55,10 @@ it touches and where the previous one ends.
    at an authored position and at a slide arrival. Sections do not close a run. (`runFrom`)
 4. **No rest break** (deliberately absent). A rest never closes a run: a rest is where a move lands,
    not what causes one, and every rest threshold measured made the result worse.
-5. **One-fret runs stay.** A run the standing window already covers, all on one fret, moves nothing.
+5. **One-fret runs stay.** A run the standing window already covers, all on one fret, states
+   nothing about where the hand is, so it is played where the hand stands and moves nothing —
+   unless a slide leaving it proves where the hand was (the slide rule), which reads the run in that
+   standing window.
 6. **Holds pin the hand.** A pressed stop is held from where the note's fret channel states it until
    the channel's next statement or the end of the ring; every pressed stop of a span's grip is held
    from the span's front until its string releases it — the finger on it sliding away, or a note of
@@ -94,16 +97,29 @@ it touches and where the previous one ends.
 
 A fretting finger sliding from one pressed stop to another proves the hand moved with it and kept
 the finger's place in it, so the windows on the slide's two sides differ by the slide's distance.
-The hand stands where it is, so the window before the slide is placed first, and the window at the
-arrival is that one shifted by the travel. The shift stands only where the shifted window covers
-everything demanded and held at the arrival, and only where every finger sliding into that instant
-travels the same distance; otherwise rules 3 and 7 to 9 place the arrival's window as usual, and
-that window, shifted back by the travel, is where the hand provably was before the slide. Where it
-covers the run the slide leaves, that run's window sits as low inside it as still covers the run:
-rule 7's floor, bounded by the slide's proof, at rule 8's width. So a slide landing in the pinky's
-slot left from the pinky. Where neither side carries the other, the hand moved apart from the slide.
-A slide arrival is a forced boundary: no run crosses it, and rules 5, 6 and 10 neither hold the old
-window over it nor reach back across it.
+The hand stands where it is, so the window before the slide is placed first, and the run the slide
+lands in is played in that window moved by the travel: the moved floor is its floor, and its width
+is rule 8's over the run from there, so a six-fret grip sliding onto a lone note arrives four wide.
+The move stands only where the moved window covers the arrival, and only where every finger sliding
+into that instant travels the same distance; it reaches as far into the landing run as the moved
+window covers, and the first instant it does not cover — a finger outside the hand — heads a run of
+its own, placed by the ordinary rules. Where the moved window misses the arrival, rules 3 and 7 to 9
+place the landing run as usual. Read backward, the proof runs along the whole train of slides the
+finger makes without lifting — a note's keyframes, a glide into the next head — each landing
+heading a run of its own (rule 3), for as long as each run ends at an arrival every sliding finger
+agrees on; an authored position, a disagreeing arrival, or a run ending anywhere else ends the
+train. The hand stands where it is unless the train refutes it: where the leaving run's window,
+moved by each travel in turn, covers every landing run, nothing is carried. Otherwise the train is
+read from its last landing back: each landing stands in its own window (rules 7 to 9) where the hand
+stands through the rest of the train from it, else in the next landing's proven window moved back by
+the travel, sitting as low inside it as still covers the run, at rule 8's width; where that moved
+window misses the run, the hand moved apart from that slide, and the train ends there for every run
+before it. The leaving run is read the same way, forced from its last instant before the slide; the
+forward move then reads from the carried window and plays the train on. So a slide landing in the
+pinky's slot left from the pinky, however many stops the finger passed on the way. That proof
+outranks rule 5, whose one-fret run states nothing, but not rule 6, whose hold does; a run the
+forward move placed is never carried. A slide arrival is a forced boundary: no run crosses it, and
+rules 5, 6 and 10 neither hold the old window over it nor reach back across it.
 
 ## Authored positions
 

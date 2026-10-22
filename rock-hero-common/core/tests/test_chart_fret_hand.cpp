@@ -1148,6 +1148,76 @@ TEST_CASE("Hand derivation reads a slide's window back from its arrival", "[core
              legatoAt(2, 1, 1, 14)}) == std::vector{eventAt(1, 1, 20), eventAt(1, 4, 14, 5)});
 }
 
+// The hand-position slide rule reads the run the slide lands in, not its first note alone: the
+// standing 14..19 moved onto the 16 would leave the run's 14 below the hand, so the landing run's
+// own 14..17, shifted back, carries the one-fret 14 the slide leaves to 12..15 — rule 5 yields, and
+// the hand is there by the departure.
+TEST_CASE("Hand derivation carries a covered one-fret run back from its slide", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 14),
+             noteAt(1, 1, 2, 19),
+             withFretAt(noteAt(2, 2, 3, 14, Fraction{1, 2}), Fraction{1, 4}, 16),
+             noteAt(2, 4, 4, 14)}) ==
+        std::vector{eventAt(1, 1, 14, 6), eventAt(2, 2, 12), eventAt(2, 3, 14)});
+}
+
+// The hand-position slide rule moves the sliding finger's slot, not the old window's width: the
+// window at the arrival spans what the run there needs, so a six-fret grip sliding onto a lone 16
+// arrives four frets wide.
+TEST_CASE("Hand derivation sizes a slide's arrival window to its run", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 14),
+             noteAt(1, 1, 2, 19),
+             withFretAt(noteAt(1, 3, 1, 14, Fraction{1, 2}), Fraction{1, 4}, 16)}) ==
+        std::vector{eventAt(1, 1, 14, 6), eventAt(1, 4, 16)});
+}
+
+// The hand-position slide rule places the whole run the slide lands in, not its first note: the
+// slide proved the index finger is not on the run's floor, so the rest is not re-floored.
+TEST_CASE("Hand derivation plays a slide's whole landing run in the slid window", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 1, 10),
+             noteAt(1, 1, 2, 14),
+             withFretAt(noteAt(2, 1, 3, 12, Fraction{1, 2}), Fraction{1, 4}, 14),
+             noteAt(2, 3, 4, 15),
+             noteAt(2, 4, 5, 16)}) == std::vector{eventAt(1, 1, 10, 5), eventAt(2, 2, 12, 5)});
+}
+
+// The hand-position slide rule places the landing run only as far as the moved window reaches: the
+// index on 3 sliding to 5 carries the hand to 5..8, and the 3 that follows, below the moved floor,
+// is the hand moving again.
+TEST_CASE("Hand derivation cuts a slide's landing run where the moved window ends", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 2, 6),
+             withFretAt(noteAt(1, 2, 1, 3, Fraction{1, 2}), Fraction{1, 4}, 5),
+             noteAt(1, 4, 1, 3)}) ==
+        std::vector{eventAt(1, 1, 3), eventAt(1, 3, 5), eventAt(1, 4, 3)});
+}
+
+// The hand-position slide rule reads a whole train of slides: a finger sliding 12 to 14 to 8 never
+// lifts, so the three windows differ by exactly the travels, and the landing's grip — the 8 over
+// the 5 planted under it for the pull-off — proves the slot of every stop the finger passed.
+// Without the plant nothing proves the finger, and the hand stands where the 12 put it.
+TEST_CASE("Hand derivation carries a train of slides back from its landing", "[core][chart]")
+{
+    const ChartNote compound = withFretAt(
+        withFretAt(noteAt(1, 1, 6, 12, Fraction{3, 4}), Fraction{1, 4}, 14), Fraction{1, 2}, 8);
+    CHECK(
+        eventsOf({compound, legatoAt(1, 4, 6, 5)}) ==
+        std::vector{eventAt(1, 1, 9), eventAt(1, 2, 11), eventAt(1, 3, 5)});
+    CHECK(
+        eventsOf({compound}) ==
+        std::vector{eventAt(1, 1, 12), eventAt(1, 2, 14), eventAt(1, 3, 8)});
+}
+
 // Hand-position rule 13: an open string bent anywhere along its ring is bent behind the nut, so the
 // hand is at the nut; an unbent open string asks nothing.
 TEST_CASE("Hand derivation puts a behind-the-nut bend at fret one", "[core][chart]")

@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -194,7 +195,8 @@ struct Widening
     };
 }
 
-// One run of instants, `[head, next)`, and the hull of what it demands.
+// One run of instants, `[head, next)`, its floor and the highest fret it demands. The floor is the
+// lowest fret demanded (hand-position rule 7), or the floor a slide proved (the slide rule).
 struct HandRun
 {
     std::size_t next{0};
@@ -202,12 +204,46 @@ struct HandRun
     int highest{0};
 };
 
+// Hand-position rules 8 and 9 over a given floor: the window from `floor` reaching `highest`, never
+// under four frets, fitted on the board.
+[[nodiscard]] FretWindow windowFrom(const int floor, const int highest, const int capo)
+{
+    const int width = runWidth(floor, highest);
+    return FretWindow{.fret = fittedWindowFret(floor, width, capo), .width = width};
+}
+
 // Hand-position rules 7, 8 and 9: a run's window sits on its floor, spans max(4, hull), and fits on
 // the board.
 [[nodiscard]] FretWindow runWindow(const HandRun& run, const int capo)
 {
-    const int width = runWidth(run.lowest, run.highest);
-    return FretWindow{.fret = fittedWindowFret(run.lowest, width, capo), .width = width};
+    return windowFrom(run.lowest, run.highest, capo);
+}
+
+// The hand-position slide rule's shift: where the window before a slide, moved by the slide's
+// travel, covers the arrival, the hand travelled with the finger and the finger kept its slot, so
+// the run from the arrival is played on the moved floor as far as the moved window covers it; the
+// first instant it does not cover — a finger outside the hand — is the hand moving again, and heads
+// the next run. The run never outruns `landing`, rule 3's run from the arrival: a slide proves the
+// floor, never a figure wider than rule 3 forms. Absent where the moved window misses the arrival
+// itself.
+[[nodiscard]] std::optional<HandRun> slideShift(
+    const std::vector<FretHandInstant>& instants, const std::size_t head, const HandRun& landing,
+    const FretWindow& standing, const int travel, const int capo)
+{
+    const FretWindow moved = shiftedBy(standing, travel, capo);
+    const auto covered = [&moved](const FretHandInstant& instant) {
+        return moved.covers(instant.lowest, instant.highest);
+    };
+    if (!covered(instants[head]))
+    {
+        return std::nullopt;
+    }
+    HandRun run{.next = head + 1, .lowest = moved.fret, .highest = instants[head].highest};
+    for (; run.next < landing.next && covered(instants[run.next]); ++run.next)
+    {
+        run.highest = std::max(run.highest, instants[run.next].highest);
+    }
+    return run;
 }
 
 // Hand-position rule 3: the run from `head` closes at a bar line, at a chord, or where the grip
@@ -241,6 +277,122 @@ struct HandRun
         run.highest = joined_highest;
     }
     return run;
+}
+
+// One landing of a train of slides: the travel of the slide into it, and the run it heads (rule 3).
+struct SlideLanding
+{
+    int travel{0};
+    HandRun run{};
+};
+
+// The hand-position slide rule's train: the landings the slides link from the run ending at
+// `arrival`, each heading a run of its own, for as long as each run ends at an arrival every
+// sliding finger agrees on, before `limit`. A finger sliding stop to stop never lifts, so the train
+// is one figure whose windows differ by exactly the travels.
+[[nodiscard]] std::vector<SlideLanding> slideTrain(
+    const std::vector<FretHandInstant>& instants, const std::size_t arrival,
+    const std::size_t limit, const std::vector<std::size_t>& next_slide)
+{
+    std::vector<SlideLanding> train;
+    for (std::size_t at = arrival; at < limit; at = train.back().run.next)
+    {
+        // Bound once so the presence tests and the reads are provably the same objects.
+        const std::optional<FretHandSlideIn>& slide = instants[at].slide;
+        const std::optional<int> travel = slide.has_value() ? slide->travel : std::nullopt;
+        if (!travel.has_value())
+        {
+            break;
+        }
+        train.push_back(
+            SlideLanding{
+                .travel = *travel,
+                .run = runFrom(instants, at, std::min(limit, next_slide[at + 1])),
+            });
+    }
+    return train;
+}
+
+// The hand-position slide rule read forward along a train: whether, from `window`, every landing is
+// covered by the window before it moved by its travel — the hand standing where it is and
+// travelling only with the slides.
+[[nodiscard]] bool standsThrough(
+    const FretWindow& window, const std::span<const SlideLanding> train, const int capo)
+{
+    FretWindow at = window;
+    for (const SlideLanding& landing : train)
+    {
+        const FretWindow moved = shiftedBy(at, landing.travel, capo);
+        if (!moved.covers(landing.run.lowest, landing.run.highest))
+        {
+            return false;
+        }
+        at = windowFrom(moved.fret, landing.run.highest, capo);
+    }
+    return true;
+}
+
+// The hand-position slide rule's carry: `proven`, the window the run a slide of `travel` lands in
+// provably stands in, moved back by the travel, with `run` as low inside it as still covers the
+// run, at the run's own width (rule 8). Absent where the moved window misses the run: the hand
+// moved apart from the slide.
+[[nodiscard]] std::optional<FretWindow> carriedInto(
+    const HandRun& run, const FretWindow& proven, const int travel, const int capo)
+{
+    const FretWindow carried = shiftedBy(proven, -travel, capo);
+    if (!carried.covers(run.lowest, run.highest))
+    {
+        return std::nullopt;
+    }
+    return windowFrom(
+        std::max(carried.fret, run.highest - runWidth(run.lowest, run.highest) + 1),
+        run.highest,
+        capo);
+}
+
+// The hand-position slide rule read backward along a train, from the run that leaves it: the
+// window the run provably stands in, where the train proves one. The hand stands where it is
+// unless the train refutes it. Read from the last landing first, each landing stands in its own
+// window (rules 7 to 9) where the hand stands through the rest of the train from it, else in the
+// next landing's proven window carried into it; where the carry misses it, the hand moved apart
+// from that slide, and the train is cut there for every run before. The leaving run is read the
+// same way from `window`: absent where the hand stands through the train from it, or where the
+// carry misses it.
+[[nodiscard]] std::optional<FretWindow> provenBefore(
+    const HandRun& run, const FretWindow& window, std::vector<SlideLanding> train, const int capo)
+{
+    if (train.empty())
+    {
+        return std::nullopt;
+    }
+    // The proven window of the landing after the one in hand; the last landing's own to begin.
+    FretWindow proven{};
+    for (std::size_t index = train.size(); index > 0; --index)
+    {
+        const SlideLanding& landing = train[index - 1];
+        const FretWindow own = runWindow(landing.run, capo);
+        const std::span<const SlideLanding> onward =
+            std::span<const SlideLanding>{train}.subspan(index);
+        if (onward.empty() || standsThrough(own, onward, capo))
+        {
+            proven = own;
+            continue;
+        }
+        const std::optional<FretWindow> carried =
+            carriedInto(landing.run, proven, onward.front().travel, capo);
+        if (!carried.has_value())
+        {
+            train.resize(index);
+            proven = own;
+            continue;
+        }
+        proven = *carried;
+    }
+    if (standsThrough(window, train, capo))
+    {
+        return std::nullopt;
+    }
+    return carriedInto(run, proven, train.front().travel, capo);
 }
 
 // Hand-position rule 6: each hold PINS the hand for as long as it holds, so the latest end among
@@ -709,38 +861,34 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             continue;
         }
 
-        // THE HAND-POSITION SLIDE RULE, forward: a fretting finger sliding from one pressed stop to
-        // another proves the hand moved with it, keeping the finger's place in the hand, so the
-        // window at the arrival is the standing one shifted by the travel. The arrival's instant
-        // carries every demand and every hold standing there, so a shifted window that does not
-        // cover it — a finger held outside it proves the hand stayed — cuts as usual, and fingers
-        // sliding different distances prove no single shift; either way the arrival stays a forced
-        // boundary that hand-position rules 5, 6 and 10 cannot hold or reach back across. The rule
-        // read backward places the figure before the slide (below).
+        // THE HAND-POSITION SLIDE RULE reads runs, never single instants: a slide arrival heads a
+        // run of its own (`next_slide` closes the one before it), and the run before it is the one
+        // the slide leaves.
         const FretHandInstant& arriving = instants[head];
         // Each bound once so the presence tests and the reads are provably the same objects.
         const std::optional<FretHandSlideIn>& slide = arriving.slide;
         const bool slid = slide.has_value();
         const std::optional<int> travel = slide.has_value() ? slide->travel : std::nullopt;
-        if (travel.has_value() && standing.has_value())
-        {
-            const FretWindow shifted = shiftedBy(*standing, *travel, capo);
-            if (shifted.covers(arriving.lowest, arriving.highest))
-            {
-                ++counts.slide_shifts;
-                if (standing != shifted)
-                {
-                    events.push_back(FretHandEvent{.front = arriving.place, .window = shifted});
-                    standing = shifted;
-                }
-                ++head;
-                continue;
-            }
-        }
-
-        const HandRun run =
+        const HandRun figure =
             runFrom(instants, head, std::min(authored_instant, next_slide[head + 1]));
+        // THE HAND-POSITION SLIDE RULE, forward: a fretting finger sliding from one pressed stop to
+        // another proves the hand moved with it, keeping the finger's place in the hand, so the
+        // figure the slide lands in is played in the standing window moved by the travel, as far as
+        // that window covers it: on the moved floor, spanning what that run needs (`slideShift`).
+        // The first instant the moved window does not cover heads the next run. A moved window
+        // that misses the arrival itself — a finger outside it proves the hand did not travel — or
+        // fingers sliding different distances leave the figure to rules 7 to 9. Either way the
+        // arrival stays a forced boundary that rules 5, 6 and 10 cannot hold or reach back across.
+        const std::optional<HandRun> slid_run =
+            travel.has_value() && standing.has_value()
+                ? slideShift(instants, head, figure, *standing, *travel, capo)
+                : std::nullopt;
+        const HandRun run = slid_run.value_or(figure);
         ++counts.runs;
+        if (slid_run.has_value())
+        {
+            ++counts.slide_shifts;
+        }
         const Fraction run_head = arriving.place;
         // The law's hold exception, asked of one place: the hand never moves strictly inside a
         // hold, a stop it holds still ringing there.
@@ -755,16 +903,17 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             return !slid && standing.has_value() &&
                    standing->covers(instant.lowest, instant.highest);
         };
-        const auto forced = static_cast<std::size_t>(std::distance(
+        auto forced = static_cast<std::size_t>(std::distance(
             instants.begin(),
             std::find_if_not(
                 std::next(instants.begin(), static_cast<std::ptrdiff_t>(head)),
                 std::next(instants.begin(), static_cast<std::ptrdiff_t>(run.next)),
                 covered)));
 
-        // Hand-position rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one
-        // the standing window already covers: a one-fret run restates nothing, and nothing moves
-        // while a stop held from earlier still holds.
+        // Hand-position rule 6 only ever removes motion, and only from an UNFORCED run, one the
+        // standing window already covers: nothing moves while a stop held from earlier still holds,
+        // a slide leaving the run included — the hold is the finger's own proof of where the hand
+        // is.
         const bool unforced = forced == run.next;
         if (unforced && inside_hold(run_head))
         {
@@ -772,47 +921,43 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             head = run.next;
             continue;
         }
-        if (unforced && run.lowest == run.highest)
-        {
-            ++counts.held_on_one_fret;
-            head = run.next;
-            continue;
-        }
+        // Hand-position rule 5: a covered one-fret run states nothing about the hand, so it is
+        // played where the hand stands — and that is the window a slide leaving it moves (below).
+        const bool one_fret = unforced && run.lowest == run.highest;
 
-        // Hand-position rules 7, 8 and 9 place the window; hand-position rule 11 emits it only
-        // where it changes.
-        FretWindow window = runWindow(run, capo);
-        // THE HAND-POSITION SLIDE RULE, backward: where this run ends at a slide whose forward
-        // shift will not cover the arrival, the arrival places its own window, and that window
-        // shifted back by the travel is where the hand provably was. Where it covers this run, the
-        // run's window sits as low inside it as still covers the run: its floor, bounded by the
-        // slide's proof, at its own width.
-        const std::size_t arrival = run.next;
-        if (arrival < authored_instant && arrival == next_slide[head + 1])
+        // Hand-position rules 7, 8 and 9 place the run — a slid run from the floor the slide
+        // proved; rule 11 emits only changes.
+        FretWindow window = one_fret && standing.has_value() ? *standing : runWindow(run, capo);
+
+        // THE HAND-POSITION SLIDE RULE, backward: where this run ends at a slide, the train of
+        // slides from there — a note's keyframes, a glide into the next head — is read back from
+        // its last landing (`provenBefore`): the hand stands where it is unless the train refutes
+        // it, and then the window carried back along the train is where the hand provably was, so
+        // a slide landing in the pinky's slot left from the pinky however many stops the finger
+        // passed. The slide compels the move, so the run is forced from its last instant before
+        // the slide. A run the forward rule placed is already proven and is never carried: the
+        // forward rule reads from the carried window and plays the train on.
+        if (!slid_run.has_value())
         {
-            const FretHandInstant& landing = instants[arrival];
-            // Bound once so the presence test and the read are provably one object.
-            const std::optional<FretHandSlideIn>& landing_slide = landing.slide;
-            const std::optional<int> travel_in =
-                landing_slide.has_value() ? landing_slide->travel : std::nullopt;
-            if (travel_in.has_value() &&
-                !shiftedBy(window, *travel_in, capo).covers(landing.lowest, landing.highest))
+            const std::optional<FretWindow> proven = provenBefore(
+                run, window, slideTrain(instants, run.next, authored_instant, next_slide), capo);
+            if (proven.has_value())
             {
-                const HandRun landing_run =
-                    runFrom(instants, arrival, std::min(authored_instant, next_slide[arrival + 1]));
-                const FretWindow carried =
-                    shiftedBy(runWindow(landing_run, capo), -*travel_in, capo);
-                if (carried.covers(run.lowest, run.highest))
-                {
-                    ++counts.slide_carried_back;
-                    window.fret = fittedWindowFret(
-                        std::max(carried.fret, run.highest - window.width + 1), window.width, capo);
-                }
+                ++counts.slide_carried_back;
+                window = *proven;
+                forced = std::min(forced, run.next - 1);
             }
         }
         if (standing == window)
         {
-            ++counts.restated;
+            if (one_fret)
+            {
+                ++counts.held_on_one_fret;
+            }
+            else
+            {
+                ++counts.restated;
+            }
             head = run.next;
             continue;
         }
@@ -835,7 +980,7 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             after_previous =
                 std::max(after_previous, std::ranges::upper_bound(onsets, events.back().front));
         }
-        const Fraction latest = unforced ? run_head : instants[forced].place;
+        const Fraction latest = forced == run.next ? run_head : instants[forced].place;
         const auto first_free = std::find_if(
             std::ranges::lower_bound(after_previous, onsets.end(), bound),
             onsets.end(),

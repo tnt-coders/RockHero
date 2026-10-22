@@ -153,7 +153,8 @@ holds (notes, then grips, then positions: the spans never read the hand), by
 \ref design_rulesets_hand_positions, and code cites them from there ("hand-position rule 8"). In
 one breath: the song is cut into figures at chords, bar lines and a grip outgrowing the hand; the
 hand sits at each figure's floor spanning its grip, never narrower than four frets; and it never
-moves while a stop it holds still rings, nor for a one-fret figure the standing window covers.
+moves while a stop it holds still rings, nor for a one-fret figure the standing window covers —
+unless a slide leaving it proves where the hand was.
 
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
 statement: it stands until the chart contradicts it. A project whose stored positions predate the
