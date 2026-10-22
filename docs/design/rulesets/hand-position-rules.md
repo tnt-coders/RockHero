@@ -93,11 +93,17 @@ it touches and where the previous one ends.
 ## The slide rule
 
 A fretting finger sliding from one pressed stop to another proves the hand moved with it and kept
-the finger's place in it, so the window at the arrival is the standing one shifted by the slide's
-distance. The shift stands only where the shifted window covers everything demanded and held at the
-arrival, and only where every finger sliding into that instant travels the same distance; otherwise
-rules 3 and 7 to 9 place the window there as usual. A slide arrival is a forced boundary: no run
-crosses it, and rules 5, 6 and 10 neither hold the old window over it nor reach back across it.
+the finger's place in it, so the windows on the slide's two sides differ by the slide's distance.
+The hand stands where it is, so the window before the slide is placed first, and the window at the
+arrival is that one shifted by the travel. The shift stands only where the shifted window covers
+everything demanded and held at the arrival, and only where every finger sliding into that instant
+travels the same distance; otherwise rules 3 and 7 to 9 place the arrival's window as usual, and
+that window, shifted back by the travel, is where the hand provably was before the slide. Where it
+covers the run the slide leaves, that run's window sits as low inside it as still covers the run:
+rule 7's floor, bounded by the slide's proof, at rule 8's width. So a slide landing in the pinky's
+slot left from the pinky. Where neither side carries the other, the hand moved apart from the slide.
+A slide arrival is a forced boundary: no run crosses it, and rules 5, 6 and 10 neither hold the old
+window over it nor reach back across it.
 
 ## Authored positions
 

@@ -89,6 +89,9 @@ struct FretHandDerivationTally
 
     /*! \brief Slide arrivals that shifted the standing window by the travel. */
     long long slide_shifts{0};
+
+    /*! \brief Figures placed inside the window an unshifted slide arrival proves, shifted back. */
+    long long slide_carried_back{0};
 };
 
 /*!
@@ -357,8 +360,10 @@ authored tenure runs across it, and hand-position rules 5, 6 and 10 neither hold
 it nor reach back across it. The shift stands only where the shifted window still covers everything
 demanded and held at the arrival — a finger held outside it proves the hand stayed — and an instant
 where fingers slide different distances proves no single shift; either way the window is placed by
-the ordinary rules there. A slide-out's fret is no stop, so it shifts nothing here
-(\ref deriveFretHandRides).
+the ordinary rules there. Read backward, that placed window shifted back by the travel is where the
+hand provably was before the slide: where it covers the figure the slide leaves, that figure's
+window sits as low inside it as still covers the figure, at the figure's own width. A slide-out's
+fret is no stop, so it shifts nothing here (\ref deriveFretHandRides).
 
 Memoryless per figure and never reads seconds: the bar test is the measure number changing between
 consecutive instants.

@@ -308,6 +308,7 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
     printRow("slide arrivals", tally.slide_arrivals);
     printRow("  travelling different distances", tally.slide_arrivals_disagreeing);
     printRow("  shifting the window", tally.slide_shifts);
+    printRow("  carrying the figure before them back", tally.slide_carried_back);
 
     const double exact = percentOf(all.exact, all.scored);
     INFO(

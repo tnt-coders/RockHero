@@ -1120,14 +1120,32 @@ TEST_CASE("Hand derivation widens the instants a plant waits under", "[core][cha
 }
 
 // Hand-position rule 12: a sliding source's plant waits from the slide's arrival, behind the stop
-// it is pulled from, so the window at the onset spans the 22 alone and the hand reaches back for
-// the 14 only where the slide lands on 18.
+// it is pulled from, so the hand reaches for the 14 only where the slide lands on 18. The slide
+// rule read backward then puts the 22 under the finger that lands on 18, the top of 14..18.
 TEST_CASE("Hand derivation plants under a sliding source from its arrival", "[core][chart]")
 {
     CHECK(
         eventsOf(
             {withFretAt(noteAt(1, 1, 1, 22, Fraction{1, 2}), Fraction{1, 4}, 18),
-             legatoAt(1, 3, 1, 14)}) == std::vector{eventAt(1, 1, 21), eventAt(1, 2, 14, 5)});
+             legatoAt(1, 3, 1, 14)}) == std::vector{eventAt(1, 1, 19), eventAt(1, 2, 14, 5)});
+}
+
+// The hand-position slide rule read backward: where the arrival places its own window, that window
+// shifted back by the travel carries the figure the slide leaves, as low inside it as still covers
+// the figure; a figure reaching outside it keeps its own floor.
+TEST_CASE("Hand derivation reads a slide's window back from its arrival", "[core][chart]")
+{
+    const ChartNote slide_from_22 =
+        withFretAt(noteAt(1, 2, 1, 22, Fraction{1, 2}), Fraction{1, 4}, 18);
+    CHECK(
+        eventsOf({noteAt(1, 1, 2, 20), slide_from_22, legatoAt(1, 4, 1, 14)}) ==
+        std::vector{eventAt(1, 1, 19), eventAt(1, 3, 14, 5)});
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 2, 20),
+             noteAt(1, 2, 2, 23),
+             withFretAt(noteAt(1, 3, 1, 22, Fraction{1, 2}), Fraction{1, 4}, 18),
+             legatoAt(2, 1, 1, 14)}) == std::vector{eventAt(1, 1, 20), eventAt(1, 4, 14, 5)});
 }
 
 // Hand-position rule 13: an open string bent anywhere along its ring is bent behind the nut, so the

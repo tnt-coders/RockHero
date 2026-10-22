@@ -910,7 +910,7 @@ void countDerivation(
                 for (auto at = first_inside; widens_only && at != past_run; ++at)
                 {
                     const common::core::FretWindow& before = std::prev(at)->window;
-                    widens_only = at->window.covers(before.fret) && at->window.covers(before.top());
+                    widens_only = at->window.covers(before.fret, before.top());
                 }
                 if (widens_only)
                 {

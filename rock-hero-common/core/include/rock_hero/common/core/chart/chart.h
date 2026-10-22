@@ -2209,6 +2209,17 @@ struct FretWindow
     }
 
     /*!
+    \brief Reports whether the window covers a hull, both its lowest and its highest fret.
+    \param lowest Lowest fret of the hull.
+    \param highest Highest fret of the hull.
+    \return True when both frets lie within `[fret, top()]`.
+    */
+    [[nodiscard]] constexpr bool covers(const int lowest, const int highest) const noexcept
+    {
+        return covers(lowest) && covers(highest);
+    }
+
+    /*!
     \brief Compares two windows by their stored fields.
     \param lhs Left-hand window.
     \param rhs Right-hand window.
