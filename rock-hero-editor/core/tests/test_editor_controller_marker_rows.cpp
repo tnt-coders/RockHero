@@ -1926,9 +1926,9 @@ TEST_CASE("Alt+Delete refuses a derived position", "[core][marker-rows]")
         std::string::npos);
 }
 
-// A derived position stores nothing to delete or move, so Delete and Alt+arrows REFUSE it: the
-// stream, the history and the selection stay exactly as they were, and the chip glows red.
-TEST_CASE("Delete and the move refuse a derived position", "[core][marker-rows]")
+// A derived position stores nothing to delete, so Delete REFUSES it: the stream, the history and
+// the selection stay exactly as they were, and the chip glows red.
+TEST_CASE("Delete refuses a derived position", "[core][marker-rows]")
 {
     MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
     const std::optional<std::size_t> derived = editor.handChipAt(downbeat(6));
@@ -1943,13 +1943,27 @@ TEST_CASE("Delete and the move refuse a derived position", "[core][marker-rows]"
     CHECK(editor.selectedChip() == derived);
     REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 1);
     CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(derived));
+}
 
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
+// The move STATES a derived position: it is authored where it stands, at its derived fret, and
+// moved in the same commit, one undo entry. Measure 6's derived window on fret 7 stepped back to
+// 5:3 still covers both of measure 6's notes, so it lands there, authored and selected.
+TEST_CASE("The move authors a derived position where it lands", "[core][marker-rows]")
+{
+    MarkerRowEditor editor{makeMarkerSections(), {}, makeHandChart()};
+    editor.clickChipAt(downbeat(6));
+    const std::size_t entries_before = editor.undoEntryCount();
+
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    const GridPosition landed{.measure = 5, .beat = 3};
+    std::vector<common::core::FretHandPosition> expected = makeHandChart().fret_hand_positions;
+    expected.insert(std::next(expected.begin(), 2), placementAt(landed, 7));
+    CHECK(editor.placements() == expected);
+    CHECK(editor.undoEntryCount() == entries_before + 1);
+    CHECK(editor.selectedChip() == editor.handChipAt(landed));
+
+    editor.controller.onUndoRequested();
     CHECK(editor.placements() == makeHandChart().fret_hand_positions);
-    CHECK(editor.undoEntryCount() == entries_before);
-    CHECK(editor.selectedChip() == derived);
-    REQUIRE(editor.view.refusal_flashes.size() == flashes_before + 2);
-    CHECK(editor.view.refusal_flashes.back().fret_hand_positions == chipIndices(derived));
 }
 
 // The prune drops every stored position the derivation reproduces and keeps the rest, as one undo

@@ -703,7 +703,7 @@ press on the top string. The chips are every hand event, derived and authored, a
 position row's markers (`markerStarts` reads them off the memoized projection), so the chip's index
 is its marker's and the core selects it through the select every marker chip uses
 (`markerSelectionAt`), a derived chip exactly as an authored one. A refused verb on a chip — Delete
-or a move on a derived one, which need a stored position, or any edit the coverage rule refuses —
+or Alt+Delete on a derived one, which need a stored position, or any edit the coverage rule refuses —
 glows the chip red (`RefusalFlash::fret_hand_positions`), beside the notes gripping every stop a
 refused window misses. The ruler resolves its own chips in its
 own view the same way, and on the same condition: only while the marker plane is open

@@ -28,8 +28,8 @@ namespace rock_hero::editor::core
 // The position row's markers: every hand event, derived and authored alike, through the marker
 // grammar every other marker kind shares. Only an authored position stores anything — where the
 // hand arrives and its index finger's fret, and its window's end fret where the charter states one.
-// So a verb that STATES something of a derived position authors it there first, and a verb that
-// needs something stored — Delete and the move — refuses one.
+// So a verb that STATES something of a derived position — a fret entry, the move — authors it there
+// first, and a verb that needs something stored — Delete, Alt+Delete — refuses one.
 
 namespace
 {
@@ -131,8 +131,8 @@ namespace
     return kept;
 }
 
-// Why a verb that needs a STORED position — Delete, the move — refuses a derived one, which stores
-// nothing to delete or move.
+// Why a verb that needs a STORED position — Delete, Alt+Delete — refuses a derived one, which
+// stores nothing to remove.
 [[nodiscard]] std::string derivedFretHandPositionRefusal(const FretHandPositionSelection& selection)
 {
     return common::core::formatHandPositionToken(selection.position) +
@@ -216,22 +216,23 @@ void EditorController::Impl::performActionImpl(
     updateView();
 }
 
-// Steps the selected placement one placement-quantum line, the tone change's step. Refused rather
-// than clamped, with the chip glowing red: onto a start another placement holds, past the song's
-// end, or onto a gripped note the window does not cover, by the stream's rules at the commit; and
-// here where the grid step has nowhere to go, off either end of the chart (steppedNudgePosition).
-// A landed move brings the paused cursor to the new start, as every selection move of a marker
-// does.
+// Steps the selected placement one placement-quantum line, the tone change's step. A derived
+// position is authored where it stands first (statedPlacement), so the one commit states it and
+// moves it. Refused rather than clamped, with the chip glowing red: onto a start another placement
+// holds, past the song's end, or onto a gripped note the window does not cover, by the stream's
+// rules at the commit; and here where the grid step has nowhere to go, off either end of the chart
+// (steppedNudgePosition). A landed move brings the paused cursor to the new start, as every
+// selection move of a marker does.
 void EditorController::Impl::moveSelectedFretHandPosition(
     const FretHandPositionSelection& selection, const ChartStepDirection direction)
 {
     const std::string label = markerVerbLabel(MarkerVerb::MoveHandPosition);
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
-    const auto match = findPlacement(after.placements, selection.position);
+    const auto match = statedPlacement(
+        after.placements, session(), fretHandResolutions().events, selection.position);
     if (match == after.placements.end())
     {
-        refuseMarkerVerb(label, derivedFretHandPositionRefusal(selection), lightOf(selection));
         return;
     }
     const std::optional<common::core::GridPosition> step =
