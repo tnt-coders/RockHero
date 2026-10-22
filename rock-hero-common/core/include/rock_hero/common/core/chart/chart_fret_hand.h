@@ -269,11 +269,11 @@ and every instant it must cover.
 The hand-position rules are listed in \ref design_rulesets_hand_positions.
 
 What a note DEMANDS of the hand (\ref fretHandDemandAt) is asked at its onset and at every pitched
-keyframe fret statement but a slide-out (hand-position rule 2); a pull-off source's onset also
-demands the stop the pull-off plants beneath it (\ref chartPlantedStops), which widens every instant
-up to the pull-off (hand-position rule 12). Every stop the hand provably holds — each note's stops
-in turn, and a span's grip from the span's front — is demanded the same way, from where its hold
-begins up to, not including, its end. The demands are merged by instant into the hull each one
+keyframe fret statement but a slide-out (hand-position rule 2); a pull-off source also demands the
+stop the pull-off plants beneath it (\ref chartPlantedStops), from where it states the stop pulled
+from up to the pull-off (hand-position rule 12). Every stop the hand provably holds — each note's
+stops in turn, and a span's grip from the span's front — is demanded the same way, from where its
+hold begins up to, not including, its end. The demands are merged by instant into the hull each one
 states, so a held stop fronting where nothing fretted is struck is still an instant the hand covers.
 A demand reached by a fretting finger sliding from a different pressed stop marks its instant a
 slide arrival, carrying the travel where every sliding finger agrees on it (the hand-position slide

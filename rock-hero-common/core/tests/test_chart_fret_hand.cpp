@@ -1119,6 +1119,17 @@ TEST_CASE("Hand derivation widens the instants a plant waits under", "[core][cha
              legatoAt(2, 1, 1, 5)}) == std::vector{eventAt(1, 3, 5, 5)});
 }
 
+// Hand-position rule 12: a sliding source's plant waits from the slide's arrival, behind the stop
+// it is pulled from, so the window at the onset spans the 22 alone and the hand reaches back for
+// the 14 only where the slide lands on 18.
+TEST_CASE("Hand derivation plants under a sliding source from its arrival", "[core][chart]")
+{
+    CHECK(
+        eventsOf(
+            {withFretAt(noteAt(1, 1, 1, 22, Fraction{1, 2}), Fraction{1, 4}, 18),
+             legatoAt(1, 3, 1, 14)}) == std::vector{eventAt(1, 1, 21), eventAt(1, 2, 14, 5)});
+}
+
 // Hand-position rule 13: an open string bent anywhere along its ring is bent behind the nut, so the
 // hand is at the nut; an unbent open string asks nothing.
 TEST_CASE("Hand derivation puts a behind-the-nut bend at fret one", "[core][chart]")

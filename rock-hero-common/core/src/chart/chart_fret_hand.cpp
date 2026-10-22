@@ -132,8 +132,9 @@ struct Widening
     int fret{0};
 };
 
-// Hand-position rule 12: a pressed stop a pull-off plants beneath its source, demanded from the
-// source's onset — a tapped source included, which demands nothing of its own — up to the pull-off,
+// Hand-position rule 12: a pressed stop a pull-off plants beneath its source, demanded from where
+// the source states the stop it is pulled from (\ref offsetBeforeEnd: its onset, or a slide's
+// arrival) — a tapped source included, which demands nothing of its own — up to the pull-off,
 // which itself demands that stop. A demand and no hold (\ref fretHandHolds): the pull-off proves
 // the finger down at the release alone, so it pins nothing.
 [[nodiscard]] std::vector<Widening> plantWideningsOf(
@@ -159,7 +160,8 @@ struct Widening
         ++tally.pressed_plants;
         widenings.push_back(
             Widening{
-                .from = connections.places[source],
+                .from =
+                    connections.places[source] + offsetBeforeEnd(connections.saved_notes[source]),
                 .to = connections.places[index],
                 .fret = *stop,
             });

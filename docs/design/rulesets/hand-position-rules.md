@@ -80,8 +80,11 @@ it touches and where the previous one ends.
     reaches back.
 11. **Only changes are emitted.** A run whose window equals the standing one emits nothing, so every
     event is a real move.
-12. **Pull-off plants.** The stop a pull-off plants beneath its source note is demanded from the
-    source's onset until the pull-off: the finger waits there the whole time. (`chartPlantedStops`)
+12. **Pull-off plants.** The stop a pull-off plants beneath its source note is demanded from where
+    the source states the stop it is pulled from until the pull-off: the finger waits there the
+    whole time. That is the source's onset, or, where the source slides, its arrival: the planted
+    finger lands behind the sliding one, never waiting beneath a fret the slide has not reached.
+    (`chartPlantedStops`)
 13. **Behind-the-nut bends.** An open string bent anywhere along its ring is bent behind the nut, so
     it demands the first playable fret: fret 1, or the fret above a capo.
 
