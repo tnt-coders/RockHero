@@ -529,7 +529,8 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
-    auto& menu_bar = findRequiredDirectChild<juce::MenuBarComponent>(component, "file_menu_bar");
+    const auto& menu_bar =
+        findRequiredDirectChild<juce::MenuBarComponent>(component, "file_menu_bar");
     CHECK(menu_bar.isVisible());
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);

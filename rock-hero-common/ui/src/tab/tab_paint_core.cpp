@@ -508,7 +508,7 @@ struct TailCenterline
 // The tremolo band's centreline: a triangle wave, zero at the onset so the band leaves the head
 // centered, which puts apex n on the half-odd multiple (n + 1/2) of the step.
 [[nodiscard]] TailCenterline tremoloCenterline(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const float x, const float length,
+    const juce::Graphics& g, const TabLaneMetrics& metrics, const float x, const float length,
     const float center_y)
 {
     const TailRun run = visibleTailRun(g, metrics, x, length);

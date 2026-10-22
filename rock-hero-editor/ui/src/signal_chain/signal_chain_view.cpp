@@ -566,7 +566,7 @@ void SignalChainView::paint(juce::Graphics& g)
     // Center header with title.
     area.removeFromLeft(g_panel_inset);
     area.removeFromRight(g_panel_inset);
-    auto header = area.removeFromTop(g_header_height);
+    const auto header = area.removeFromTop(g_header_height);
 
     g.setColour(editorTheme().panel_header);
     g.fillRect(header);
@@ -618,10 +618,10 @@ void SignalChainView::resized()
     // Input meter on the left, with calibration command anchored below it.
     auto input_control_area = area.removeFromLeft(g_input_control_width);
     input_control_area.removeFromTop(g_header_height);
-    auto calibrate_area = input_control_area.removeFromBottom(
+    const auto calibrate_area = input_control_area.removeFromBottom(
         std::min(g_calibrate_button_height, input_control_area.getHeight()));
     input_control_area.removeFromBottom(std::min(g_panel_inset, input_control_area.getHeight()));
-    auto input_meter_area = input_control_area.withSizeKeepingCentre(
+    const auto input_meter_area = input_control_area.withSizeKeepingCentre(
         g_gain_meter_width, input_control_area.getHeight());
     m_input_meter.setBounds(input_meter_area.reduced(0, g_gain_meter_vertical_inset));
     m_input_calibrate_button.setBounds(calibrate_area);
@@ -629,7 +629,7 @@ void SignalChainView::resized()
     // Output gain flows into its post-fader meter, with one centered readout below the pair.
     auto output_control_area = area.removeFromRight(g_output_gain_width);
     output_control_area.removeFromTop(g_header_height);
-    auto output_slider_area = output_control_area.withSizeKeepingCentre(
+    const auto output_slider_area = output_control_area.withSizeKeepingCentre(
         g_output_gain_width, output_control_area.getHeight());
     auto output_meter_area = output_slider_area.withTrimmedBottom(
         std::min(g_calibrate_button_height + g_panel_inset, output_slider_area.getHeight()));
@@ -655,7 +655,7 @@ void SignalChainView::resized()
     area.removeFromRight(g_panel_inset);
 
     // The designer file strip sits right-aligned in the same header band paint() titles.
-    auto header = area.removeFromTop(g_header_height);
+    const auto header = area.removeFromTop(g_header_height);
     auto strip = header.reduced(0, 3);
     constexpr int tone_button_gap = 6;
     const auto place_tone_button = [&strip](juce::TextButton& button, int width) {

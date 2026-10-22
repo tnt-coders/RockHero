@@ -34,7 +34,7 @@ namespace
 // compares the persisted forms that restore actually reproduces, so equal persisted forms mean an
 // equal restore outcome.
 [[nodiscard]] bool activeDeviceMatchesSerializedState(
-    juce::AudioDeviceManager& device_manager, const juce::XmlElement& xml)
+    const juce::AudioDeviceManager& device_manager, const juce::XmlElement& xml)
 {
     if (!hardwareDeviceOpen(device_manager))
     {
@@ -64,7 +64,7 @@ namespace
 // not the full setup, to avoid the default-channel-mask asymmetry that
 // activeDeviceMatchesSerializedState() documents. Callers ask it only while hardware is open.
 [[nodiscard]] bool juceFellBackFromExplicitChoice(
-    juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
+    const juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
 {
     const juce::AudioDeviceManager::AudioDeviceSetup saved_setup =
         reconstructDeviceSetupFromXml(saved);

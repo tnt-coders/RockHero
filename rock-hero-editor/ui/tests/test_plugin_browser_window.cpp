@@ -143,7 +143,8 @@ TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
     window.setState(makeBrowserState());
 
     auto& filter = findRequiredDescendant<juce::TextEditor>(window, "plugin_browser_filter");
-    auto& count_label = findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
+    const auto& count_label =
+        findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
 
     CHECK(count_label.getText() == "2 plugins");
 
@@ -174,7 +175,8 @@ TEST_CASE("PluginBrowserWindow filters by scanner type", "[ui][plugin-browser]")
 
     auto& type_filter =
         findRequiredDescendant<juce::ComboBox>(window, "plugin_browser_type_filter");
-    auto& count_label = findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
+    const auto& count_label =
+        findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
 
     CHECK(type_filter.getNumItems() == 5);
     CHECK(type_filter.getItemText(0) == "All types");
@@ -209,7 +211,8 @@ TEST_CASE("PluginBrowserWindow shows busy overlay", "[ui][plugin-browser]")
     PluginBrowserWindow window{listener};
     window.setState(makeBrowserState());
 
-    auto& overlay = findRequiredDescendant<juce::Component>(window, "plugin_browser_busy_overlay");
+    const auto& overlay =
+        findRequiredDescendant<juce::Component>(window, "plugin_browser_busy_overlay");
     CHECK_FALSE(overlay.isVisible());
     CHECK(findDescendant(window, "busy_progress_bar") == nullptr);
 

@@ -208,9 +208,9 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
         fixtureHighwayThemeRegistry()
     };
 
-    auto& calibrate_button =
+    const auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    const auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
 
     CHECK_FALSE(calibrate_button.isEnabled());
     CHECK_FALSE(output_slider.isEnabled());
@@ -286,9 +286,9 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
         fixtureHighwayThemeRegistry()
     };
 
-    auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
-    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+    const auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
+    const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    const auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(master_meter.level() == common::audio::AudioMeterLevel{});
     CHECK(input_meter.level() == common::audio::AudioMeterLevel{});
@@ -309,10 +309,11 @@ TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][
         fixtureHighwayThemeRegistry()
     };
 
-    auto& new_button = findRequiredDescendant<juce::TextButton>(view, "tone_new_button");
-    auto& open_button = findRequiredDescendant<juce::TextButton>(view, "tone_open_button");
-    auto& save_button = findRequiredDescendant<juce::TextButton>(view, "tone_save_button");
-    auto& save_as_button = findRequiredDescendant<juce::TextButton>(view, "tone_save_as_button");
+    const auto& new_button = findRequiredDescendant<juce::TextButton>(view, "tone_new_button");
+    const auto& open_button = findRequiredDescendant<juce::TextButton>(view, "tone_open_button");
+    const auto& save_button = findRequiredDescendant<juce::TextButton>(view, "tone_save_button");
+    const auto& save_as_button =
+        findRequiredDescendant<juce::TextButton>(view, "tone_save_as_button");
     CHECK_FALSE(new_button.isVisible());
     CHECK_FALSE(open_button.isVisible());
     CHECK_FALSE(save_button.isVisible());
@@ -361,11 +362,11 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 
     view.setBounds(0, 0, 1280, 800);
 
-    auto& calibrate_button =
+    const auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
-    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+    const auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    const auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(input_meter.getBottom() <= calibrate_button.getY());
     CHECK(output_meter.getHeight() == input_meter.getHeight());
@@ -398,9 +399,9 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
 
     view.setState(core::EditorViewState{});
 
-    auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
-    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
+    const auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
+    const auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    const auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(meter_source.snapshot_read_count >= 1);
     CHECK(master_meter.level() == meter_source.snapshot.master_output);
@@ -422,9 +423,9 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
         fixtureHighwayThemeRegistry()
     };
 
-    auto& calibrate_button =
+    const auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    const auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
 
     view.setState(
         core::EditorViewState{
@@ -466,10 +467,12 @@ TEST_CASE("Signal-chain action buttons do not take keyboard focus", "[ui][editor
             },
         });
 
-    auto& calibrate_button =
+    const auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
-    auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
-    auto& remove_amp = findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
+    const auto& insert_append =
+        findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
+    const auto& remove_amp =
+        findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
 
     CHECK_FALSE(calibrate_button.getWantsKeyboardFocus());
     CHECK_FALSE(calibrate_button.getMouseClickGrabsKeyboardFocus());
@@ -535,8 +538,9 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
 
     for (std::size_t index = 0; index < common::audio::g_max_signal_chain_plugins; ++index)
     {
-        auto& slot = findRequiredDescendant<juce::Component>(panel, insertSlotId(index));
-        auto& button = findRequiredDescendant<juce::TextButton>(panel, insertPluginButtonId(index));
+        const auto& slot = findRequiredDescendant<juce::Component>(panel, insertSlotId(index));
+        const auto& button =
+            findRequiredDescendant<juce::TextButton>(panel, insertPluginButtonId(index));
 
         CHECK(slot.isVisible());
         CHECK(button.isVisible());
@@ -575,7 +579,7 @@ TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
             },
         });
 
-    auto& selected_slot = findRequiredDescendant<juce::Component>(
+    const auto& selected_slot = findRequiredDescendant<juce::Component>(
         panel, insertSlotId(common::audio::g_max_signal_chain_plugins - 1));
     auto& insert_later = findRequiredDescendant<juce::TextButton>(
         panel, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
@@ -597,9 +601,10 @@ TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
             },
         });
 
-    auto& inserted_tile = findRequiredDescendant<juce::Component>(panel, "plugin_tile_lead");
-    auto& gap_insert = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
-    auto& occupied_insert = findRequiredDescendant<juce::TextButton>(
+    const auto& inserted_tile = findRequiredDescendant<juce::Component>(panel, "plugin_tile_lead");
+    const auto& gap_insert =
+        findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
+    const auto& occupied_insert = findRequiredDescendant<juce::TextButton>(
         panel, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
     CHECK(inserted_tile.getBounds().getCentreX() == selected_block_center_x);
@@ -630,7 +635,8 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
             },
         });
 
-    auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
+    const auto& insert_first =
+        findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
     auto& insert_last = findRequiredDescendant<juce::TextButton>(
         view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
@@ -823,9 +829,9 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
             },
         });
 
-    auto& stale_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
-    auto& stale_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
-    auto& stale_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    const auto& stale_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    const auto& stale_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    const auto& stale_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
 
     CHECK(stale_amp.getBounds() == amp_bounds);
     CHECK(stale_drive.getBounds() == drive_bounds);
@@ -841,9 +847,9 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
             },
         });
 
-    auto& moved_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
-    auto& moved_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
-    auto& moved_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    const auto& moved_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    const auto& moved_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    const auto& moved_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
 
     CHECK(moved_drive.getBounds() == drive_bounds);
     CHECK(moved_cab.getBounds() == cab_bounds);
@@ -915,9 +921,10 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
             },
         });
 
-    auto& refreshed_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
-    auto& refreshed_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
-    auto& refreshed_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    const auto& refreshed_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    const auto& refreshed_drive =
+        findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    const auto& refreshed_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
 
     CHECK(refreshed_amp.getBounds() == amp_bounds);
     CHECK(refreshed_drive.getBounds() == drive_bounds);
@@ -974,7 +981,8 @@ TEST_CASE("Signal-chain drag preview replaces gap preview", "[ui][editor-view]")
     auto& tile_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
     auto& tile_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& third_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
-    auto& third_insert = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
+    const auto& third_insert =
+        findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
     auto& drive_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
     const juce::Rectangle<int> amp_bounds = tile_amp.getBounds();
     const juce::Rectangle<int> drive_bounds = tile_drive.getBounds();
@@ -1244,9 +1252,9 @@ TEST_CASE("Signal-chain valid drops hold preview until state", "[ui][editor-view
             },
         });
 
-    auto& moved_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
-    auto& moved_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
-    auto& moved_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    const auto& moved_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    const auto& moved_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    const auto& moved_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
 
     CHECK(moved_cab.getBounds() == amp_bounds);
     CHECK(moved_amp.getBounds() == drive_bounds);
@@ -1433,14 +1441,14 @@ TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-v
             .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
         });
 
-    auto& viewport = findRequiredDescendant<juce::Viewport>(panel, "signal_chain_viewport");
-    auto& content = findRequiredDescendant<juce::Component>(panel, "signal_chain_content");
-    auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
-    auto& tile_first = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
-    auto& slot_second = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
-    auto& tile_second = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
-    auto& append_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
-    auto& final_slot = findRequiredDescendant<juce::Component>(
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(panel, "signal_chain_viewport");
+    const auto& content = findRequiredDescendant<juce::Component>(panel, "signal_chain_content");
+    const auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
+    const auto& tile_first = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    const auto& slot_second = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
+    const auto& tile_second = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    const auto& append_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
+    const auto& final_slot = findRequiredDescendant<juce::Component>(
         panel, insertSlotId(common::audio::g_max_signal_chain_plugins - 1));
 
     CHECK(content.getWidth() > viewport.getWidth());
@@ -1544,7 +1552,7 @@ TEST_CASE(
                 .plugins = {makePlugin("amp", 0)},
             },
         });
-    auto& live_tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
+    const auto& live_tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
     CHECK(tile_brightness(live_tile) > inert_brightness);
 }
 

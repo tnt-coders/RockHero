@@ -37,8 +37,8 @@ TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor
 
     view.setBounds(0, 0, 500, 200);
 
-    auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
-    auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
+    const auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
+    const auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
     CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 320, 24});
     CHECK(audio_button.getBounds() == juce::Rectangle<int>{320, 0, 180, 24});
 
@@ -67,19 +67,25 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 
     view.setBounds(0, 0, 500, 200);
 
-    auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
-    auto& arrangement_caption = findRequiredDescendant<juce::Label>(view, "arrangement_caption");
-    auto& arrangement_selector =
+    const auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
+    const auto& arrangement_caption =
+        findRequiredDescendant<juce::Label>(view, "arrangement_caption");
+    const auto& arrangement_selector =
         findRequiredDescendant<juce::ComboBox>(view, "arrangement_selector");
-    auto& grid_selector = findRequiredDescendant<juce::Component>(view, "grid_spacing_selector");
-    auto& tempo_lock_button = findRequiredDescendant<juce::Component>(view, "tempo_lock_button");
-    auto& note_lock_button = findRequiredDescendant<juce::Component>(view, "note_lock_button");
-    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
-    auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
+    const auto& grid_selector =
+        findRequiredDescendant<juce::Component>(view, "grid_spacing_selector");
+    const auto& tempo_lock_button =
+        findRequiredDescendant<juce::Component>(view, "tempo_lock_button");
+    const auto& note_lock_button =
+        findRequiredDescendant<juce::Component>(view, "note_lock_button");
+    const auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    const auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    const auto& signal_chain_panel =
+        findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     // The left cluster pins to the strip's left edge: the arrangement caption and dropdown, the
     // grid selector, then the tempo lock as a 32 px square one control gap right of it and the
     // Note Lock as another 4 px right of that, the pair's own tighter gap. The playback block
@@ -119,13 +125,16 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
 
     view.setBounds(0, 0, 1280, 800);
 
-    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
-    auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
+    const auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    const auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    const auto& signal_chain_panel =
+        findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 472});
     CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 1264, 68});
     CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 68, 1264, 404});
@@ -161,7 +170,8 @@ TEST_CASE("EditorView stop reveal snaps track viewport to start", "[ui][editor-v
     view.setState(state);
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     REQUIRE(track_content.getWidth() > viewport.getViewWidth());
 
     viewport.setViewPosition(400, 0);
@@ -192,10 +202,12 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
-    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     const int track_height = arrangement_view.getHeight();
     // The timeline's own pixels are what a resize must not rescale. The canvas around them does
     // move: the gutter it keeps before time zero is a fraction of the view, so it tracks the
@@ -229,12 +241,15 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
     view.setBounds(0, 0, 1600, 1000);
     view.setState(makeLoadedEditorState(20.0));
 
-    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
+    const auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    const auto& signal_chain_panel =
+        findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 652});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 732, 1584, 260});
     // The 20-second timeline's 6320 zoomed pixels plus the canvas gutter before time zero.

@@ -1129,7 +1129,7 @@ void EditorView::resized()
     layoutMenuStrip();
     auto top_area = getLocalBounds();
     top_area.removeFromTop(g_menu_bar_height);
-    auto transport_row = top_area.removeFromTop(g_transport_bar_height);
+    const auto transport_row = top_area.removeFromTop(g_transport_bar_height);
     auto control_row =
         transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset);
     control_row = control_row.withSizeKeepingCentre(
@@ -1206,7 +1206,7 @@ void EditorView::resized()
         std::max(0, bottom_area.getHeight() - g_control_gap - g_track_viewport_min_height);
     const int signal_chain_panel_height =
         std::min(target_signal_chain_panel_height, max_signal_chain_panel_height);
-    auto signal_chain_panel_bounds = bottom_area.removeFromBottom(signal_chain_panel_height);
+    const auto signal_chain_panel_bounds = bottom_area.removeFromBottom(signal_chain_panel_height);
     if (signal_chain_panel_height > 0)
     {
         bottom_area.removeFromBottom(std::min(g_control_gap, bottom_area.getHeight()));

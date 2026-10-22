@@ -35,7 +35,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
             },
         });
 
-    auto& calibrate_button =
+    const auto& calibrate_button =
         findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
     calibrate_button.onClick();
 
@@ -67,17 +67,18 @@ TEST_CASE("Calibration window lays out one screen", "[ui][editor-view]")
     REQUIRE(window.getContentComponent() != nullptr);
     auto& help_button =
         findRequiredDescendant<juce::DrawableButton>(window, "input_calibration_help_button");
-    auto& message = findRequiredDescendant<juce::Label>(window, "input_calibration_message");
-    auto& meter = findRequiredDescendant<juce::Component>(window, "input_calibration_meter");
-    auto& pickups = findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
-    auto& calibrate =
+    const auto& message = findRequiredDescendant<juce::Label>(window, "input_calibration_message");
+    const auto& meter = findRequiredDescendant<juce::Component>(window, "input_calibration_meter");
+    const auto& pickups =
+        findRequiredDescendant<juce::ComboBox>(window, "input_calibration_pickup");
+    const auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_measure_button");
     auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
-    auto& apply_button =
+    const auto& apply_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_apply_button");
-    auto& cancel_button =
+    const auto& cancel_button =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_cancel_button");
-    auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
+    const auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
 
     // The reference reaches the player only as the formula behind the gain slider.
     CHECK(slider.getTooltip() == juce::String{common::audio::inputCalibrationGainFormulaText()});
@@ -352,7 +353,8 @@ TEST_CASE("Calibration prompt for another route retires the open window", "[ui][
     core::EditorViewState state;
     state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(2.0);
     view.setState(state);
-    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    const auto& window =
+        findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     REQUIRE(window.isVisible());
 
     state.input_calibration_prompt = core::testing::makeInputCalibrationPrompt(

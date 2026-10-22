@@ -43,7 +43,7 @@ private:
     {
         std::vector<std::function<void()>> to_run;
         to_run.swap(queue);
-        for (auto& fn : to_run)
+        for (const auto& fn : to_run)
         {
             if (fn)
             {

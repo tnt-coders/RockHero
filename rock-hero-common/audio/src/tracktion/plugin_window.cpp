@@ -407,7 +407,7 @@ PluginWindow* PluginWindow::windowForNativeMessage(HWND window)
 // that, so this speculative delivery is intentionally limited to the Space routing path.
 bool PluginWindow::pluginViewHandlesKey(juce::juce_wchar character, int key_code, int modifiers)
 {
-    if (auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(&m_plugin))
+    if (const auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(&m_plugin))
     {
         if (juce::AudioPluginInstance* const instance = external_plugin->getAudioPluginInstance())
         {

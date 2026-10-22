@@ -234,7 +234,7 @@ juce::String keyChordText(const juce::KeyPress& key)
 }
 
 juce::String commandChordText(
-    juce::ApplicationCommandManager& command_manager, EditorCommandId command)
+    const juce::ApplicationCommandManager& command_manager, EditorCommandId command)
 {
     // Display-equal chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+')
     // render once — they are one logical key to the user.

@@ -509,7 +509,7 @@ public:
     void completeSuccessfully(common::audio::LiveRigLoadResult result)
     {
         REQUIRE(pending_completion);
-        auto completion = std::exchange(pending_completion, nullptr);
+        const auto completion = std::exchange(pending_completion, nullptr);
         completion(std::move(result));
     }
 
@@ -517,7 +517,7 @@ public:
     void completeWithFailure()
     {
         REQUIRE(pending_completion);
-        auto completion = std::exchange(pending_completion, nullptr);
+        const auto completion = std::exchange(pending_completion, nullptr);
         completion(
             std::unexpected{common::audio::LiveRigError{
                 common::audio::LiveRigErrorCode::MissingToneDocument, "fake rig failure"
@@ -528,7 +528,7 @@ public:
     void completeWithMissingPlugins()
     {
         REQUIRE(pending_completion);
-        auto completion = std::exchange(pending_completion, nullptr);
+        const auto completion = std::exchange(pending_completion, nullptr);
         completion(
             std::unexpected{common::audio::LiveRigError{
                 common::audio::LiveRigErrorCode::MissingPlugins,

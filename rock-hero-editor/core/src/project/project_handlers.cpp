@@ -162,7 +162,7 @@ void EditorController::Impl::openProject(
 {
     beginRigReplacement();
 
-    auto state = std::make_shared<OpenTaskState>();
+    const auto state = std::make_shared<OpenTaskState>();
     state->file = file;
     state->clear_last_open_project_on_failure = clear_last_open_project_on_failure;
     m_pending_restore_project_file = clear_last_open_project_on_failure
@@ -384,7 +384,7 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
     beginRigReplacement();
 
-    auto state = std::make_shared<ImportTaskState>();
+    const auto state = std::make_shared<ImportTaskState>();
     state->file = file;
 
     m_pending_restore_project_file.reset();
@@ -1240,7 +1240,7 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
     // for the worker: the file is resolved either way (the document writer serializes the resolved
     // form), so this is what keeps MEMORY from staying behind the bytes it just wrote.
     static_cast<void>(settle());
-    auto state = takeProjectForWrite(std::move(action));
+    const auto state = takeProjectForWrite(std::move(action));
     if (state == nullptr)
     {
         return;

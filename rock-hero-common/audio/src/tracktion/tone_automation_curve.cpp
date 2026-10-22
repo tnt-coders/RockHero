@@ -40,7 +40,8 @@ namespace
         return state_count >= 2 ? state_count : 0;
     }
 
-    auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(parameter.getPlugin());
+    const auto* const external_plugin =
+        dynamic_cast<tracktion::ExternalPlugin*>(parameter.getPlugin());
     if (external_plugin == nullptr)
     {
         return 0;
@@ -208,7 +209,7 @@ std::vector<AutomatableParamInfo> listChainAutomatableParameters(
 }
 
 std::optional<std::vector<AutomationCurvePoint>> readPluginParameterCurve(
-    tracktion::Plugin& plugin, const std::string& param_id)
+    const tracktion::Plugin& plugin, const std::string& param_id)
 {
     const tracktion::AutomatableParameter::Ptr parameter =
         plugin.getAutomatableParameterByID(juce::String{param_id});
@@ -235,7 +236,7 @@ std::optional<std::vector<AutomationCurvePoint>> readPluginParameterCurve(
 }
 
 bool writePluginParameterCurve(
-    tracktion::Plugin& plugin, const std::string& param_id,
+    const tracktion::Plugin& plugin, const std::string& param_id,
     std::span<const AutomationCurvePoint> points)
 {
     const tracktion::AutomatableParameter::Ptr parameter =
@@ -300,7 +301,7 @@ bool writePluginParameterCurve(
 }
 
 std::optional<float> readPluginParameterBaselineNormValue(
-    tracktion::Plugin& plugin, const std::string& param_id)
+    const tracktion::Plugin& plugin, const std::string& param_id)
 {
     const tracktion::AutomatableParameter::Ptr parameter =
         plugin.getAutomatableParameterByID(juce::String{param_id});
@@ -312,7 +313,7 @@ std::optional<float> readPluginParameterBaselineNormValue(
 }
 
 std::optional<std::string> formatPluginParameterValue(
-    tracktion::Plugin& plugin, const std::string& param_id, float norm_value)
+    const tracktion::Plugin& plugin, const std::string& param_id, float norm_value)
 {
     const tracktion::AutomatableParameter::Ptr parameter =
         plugin.getAutomatableParameterByID(juce::String{param_id});
@@ -335,7 +336,7 @@ std::optional<std::string> formatPluginParameterValue(
 }
 
 std::optional<float> parsePluginParameterValue(
-    tracktion::Plugin& plugin, const std::string& param_id, const std::string& text)
+    const tracktion::Plugin& plugin, const std::string& param_id, const std::string& text)
 {
     const tracktion::AutomatableParameter::Ptr parameter =
         plugin.getAutomatableParameterByID(juce::String{param_id});

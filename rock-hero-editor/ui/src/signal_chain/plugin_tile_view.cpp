@@ -389,8 +389,8 @@ void SignalChainView::PluginTileView::paint(juce::Graphics& g)
     const auto tile_area = pluginTileArea(bounds);
     auto label_area =
         bounds.withTrimmedTop((tile_area.getBottom() - bounds.getY()) + g_signal_block_label_gap);
-    auto name_area = label_area.removeFromTop(g_signal_block_name_height);
-    auto maker_area = label_area.removeFromTop(g_signal_block_maker_height);
+    const auto name_area = label_area.removeFromTop(g_signal_block_name_height);
+    const auto maker_area = label_area.removeFromTop(g_signal_block_maker_height);
 
     const auto tile_bounds = tile_area.toFloat().reduced(1.0f);
     g.setColour(m_is_hovered ? g_plugin_tile_hover_background : g_plugin_tile_background);

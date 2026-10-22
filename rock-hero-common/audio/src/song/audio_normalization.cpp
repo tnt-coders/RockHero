@@ -409,7 +409,7 @@ analyzeAudioForGainNormalization(
 
     juce::AudioFormatManager format_manager;
     format_manager.registerBasicFormats();
-    auto reader = std::unique_ptr<juce::AudioFormatReader>{format_manager.createReaderFor(
+    const auto reader = std::unique_ptr<juce::AudioFormatReader>{format_manager.createReaderFor(
         common::core::juceFileFromPath(input))};
     if (reader == nullptr)
     {

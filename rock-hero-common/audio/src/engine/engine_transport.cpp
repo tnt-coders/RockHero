@@ -72,7 +72,7 @@ double Engine::Impl::clampToLoadedRange(double seconds) const noexcept
 // the vendored engine source).
 common::core::TimePosition Engine::Impl::audiblePositionNow() const noexcept
 {
-    auto& transport = m_edit->getTransport();
+    const auto& transport = m_edit->getTransport();
     double position_seconds = transport.getPosition().inSeconds();
     if (transport.isPlaying())
     {
@@ -283,7 +283,7 @@ void Engine::clearLoopRegion()
 // linger in the edit state.
 std::optional<common::core::TimeRange> Engine::loopRegion() const noexcept
 {
-    auto& transport = m_impl->m_edit->getTransport();
+    const auto& transport = m_impl->m_edit->getTransport();
     if (!transport.looping)
     {
         return std::nullopt;

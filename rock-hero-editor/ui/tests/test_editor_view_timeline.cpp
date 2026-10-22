@@ -1595,7 +1595,7 @@ TEST_CASE("EditorView transport readout tracks the transport position", "[ui][ed
     };
 
     view.setBounds(0, 0, 1280, 800);
-    auto& position_display =
+    const auto& position_display =
         findRequiredDescendant<juce::Label>(view, "transport_position_display");
     CHECK(position_display.getText() == "0:00:000");
 
@@ -1641,7 +1641,7 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
     transport.current_position = common::core::TimePosition{two_measure_map.secondsAtBeat(2, 1)};
     view.setState(state);
 
-    auto& position_display =
+    const auto& position_display =
         findRequiredDescendant<juce::Label>(view, "transport_position_display");
     CHECK(position_display.getText() == "2.1.00 / 0:03:650");
 }
@@ -1760,11 +1760,13 @@ TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
 
-    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    const auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     // The canvas is the timeline's 6320 zoomed pixels plus the gutter it keeps before time zero,
     // so the first beat's note head has canvas to draw its left half on. Rows still span the whole
     // canvas, gutter included, which is what keeps a head straddling time zero drawn and clickable
@@ -1809,8 +1811,8 @@ TEST_CASE("EditorView draws the first beat's head whole at leftmost scroll", "[u
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
-    auto& tab_view = findRequiredDescendant<juce::Component>(view, "tab_view");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& tab_view = findRequiredDescendant<juce::Component>(view, "tab_view");
 
     viewport.setViewPosition(0, 0);
     REQUIRE(viewport.getViewPositionX() == 0);
@@ -1867,9 +1869,10 @@ TEST_CASE("EditorView project load centers restored cursor", "[ui][editor-view]"
     transport.current_position = common::core::TimePosition{15.0};
     view.setState(state);
 
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     const double screen_x =
         static_cast<double>(
             canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
@@ -1934,7 +1937,8 @@ TEST_CASE("EditorView project reload centers on new load id", "[ui][editor-view]
     view.setState(first_load);
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     viewport.setViewPosition(0, 0);
 
     auto second_load = makeLoadedEditorState(20.0);
@@ -1942,7 +1946,7 @@ TEST_CASE("EditorView project reload centers on new load id", "[ui][editor-view]
     transport.current_position = common::core::TimePosition{12.0};
     view.setState(second_load);
 
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     const double screen_x =
         static_cast<double>(
             canvasXForTime(track_viewport, track_content, transport.current_position.seconds)) -
@@ -2006,7 +2010,8 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
 
     const auto grid_line_x = [&track_viewport, &track_content](double seconds) {
         return canvasColumnForTime(track_viewport, track_content, seconds);
@@ -2081,8 +2086,9 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
     thumbnail_factory.last_thumbnail->fill_color = juce::Colours::lightgreen;
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     {
         const int line_x = canvasColumnForTime(track_viewport, track_content, 1.0);
         const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
@@ -2138,10 +2144,11 @@ TEST_CASE("EditorView quiets the tempo grid while snap is off", "[ui][editor-vie
     view.setState(state);
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     // A sixteenth that is not a whole beat, so the sampled column carries the weakest
     // (subdivision) ink — the rank a wrong quieting ground buries first.
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     {
         const int line_x = canvasColumnForTime(track_viewport, track_content, 0.25);
         const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
@@ -2195,7 +2202,7 @@ TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(240.0));
 
-    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    const auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     REQUIRE(track_content.getWidth() > viewport.getViewWidth());
 
@@ -2233,7 +2240,7 @@ TEST_CASE("EditorView wheel zoom holds the visible cursor's column", "[ui][edito
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     transport.current_position = common::core::TimePosition{10.0};
     viewport.setViewPosition(2800, 0);
     const float initial_cursor_position =
@@ -2283,7 +2290,7 @@ TEST_CASE("EditorView wheel zoom centers an offscreen cursor", "[ui][editor-view
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     transport.current_position = common::core::TimePosition{15.0};
     viewport.setViewPosition(0, 0);
     const float cursor_position =
@@ -2336,8 +2343,9 @@ TEST_CASE("EditorView keeps a Delete in sight only when the core asks", "[ui][ed
     view.setState(state);
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     viewport.setViewPosition(2800, 0);
     REQUIRE(
         canvasXForTime(track_viewport, track_content, 1.0) <
@@ -2392,8 +2400,9 @@ TEST_CASE("EditorView fits the keyboard's measure only when the core moves it", 
     view.setState(state);
 
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     viewport.setViewPosition(2800, 0);
     REQUIRE(
         canvasXForTime(track_viewport, track_content, 2.0) <
@@ -2467,7 +2476,8 @@ TEST_CASE("EditorView Ctrl-click seeks the same slot as a plain click", "[ui][ed
         });
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
     const float click_x = std::floor(static_cast<float>(cursor_overlay.getWidth()) * 0.25f) + 0.5f;
@@ -2529,9 +2539,11 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 1);
 
@@ -2575,8 +2587,9 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     view.setState(state);
 
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     REQUIRE(track_content.getWidth() > 1);
 
     {
@@ -2626,8 +2639,9 @@ TEST_CASE("EditorView forwards a tempo-chip drag to the move intent", "[ui][edit
     view.setState(state);
 
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     // Unscrolled, so the pinned ruler's local column is the canvas column below it.
     REQUIRE(
         findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll").getViewPositionX() ==
@@ -2698,9 +2712,10 @@ TEST_CASE(
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
-    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
-    auto& tab_view = findRequiredDescendant<TabView>(view, "tab_view");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    const auto& tab_view = findRequiredDescendant<TabView>(view, "tab_view");
     REQUIRE(
         findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll").getViewPositionX() ==
         0);
@@ -2762,12 +2777,13 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto& arrangement_view =
+        findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     REQUIRE(track_content.getWidth() > 1);
 
     // The eighth-note (half-beat in 4/4) subdivision at 0.5s draws a grid column in the lower
     // track area.
-    auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
+    const auto& track_viewport = findRequiredDescendant<TrackViewport>(view, "track_viewport");
     {
         const int line_x = canvasColumnForTime(track_viewport, track_content, 0.5);
         const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
@@ -2822,7 +2838,8 @@ TEST_CASE("EditorView ruler Ctrl-click seeks the same slot as a plain click", "[
     view.setState(state);
 
     auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
-    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto& track_content =
+        findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     REQUIRE(track_content.getWidth() > 0);
 
     const float click_x = std::floor(static_cast<float>(track_content.getWidth()) * 0.25f) + 0.5f;

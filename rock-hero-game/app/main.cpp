@@ -39,7 +39,7 @@ namespace
 
 // Returns the value following the named argument, or empty when the argument is absent.
 [[nodiscard]] std::optional<std::string_view> argumentValue(
-    const std::string_view name, const int argc, char** argv)
+    const std::string_view name, const int argc, char* const* argv)
 {
     for (int index = 1; index + 1 < argc; ++index)
     {
@@ -52,7 +52,7 @@ namespace
 }
 
 // Returns true when the named flag argument is present.
-[[nodiscard]] bool hasFlag(const std::string_view name, const int argc, char** argv)
+[[nodiscard]] bool hasFlag(const std::string_view name, const int argc, char* const* argv)
 {
     for (int index = 1; index < argc; ++index)
     {
@@ -66,7 +66,7 @@ namespace
 
 // Parses the optional "--smoke-frames <count>" diagnostic argument: a bounded run that exits
 // cleanly after the given frame count, used by automated verification and smoke checks.
-[[nodiscard]] std::optional<std::uint64_t> smokeFrameLimit(const int argc, char** argv)
+[[nodiscard]] std::optional<std::uint64_t> smokeFrameLimit(const int argc, char* const* argv)
 {
     const std::optional<std::string_view> count_text = argumentValue("--smoke-frames", argc, argv);
     if (!count_text.has_value())
@@ -86,7 +86,7 @@ namespace
 
 // Parses the optional "--dev-package <path>" development argument: the .rock package whose first
 // charted arrangement the highway scrolls. It bypasses the library menu players pick songs from.
-[[nodiscard]] std::optional<std::filesystem::path> devPackagePath(const int argc, char** argv)
+[[nodiscard]] std::optional<std::filesystem::path> devPackagePath(const int argc, char* const* argv)
 {
     const std::optional<std::string_view> path_text = argumentValue("--dev-package", argc, argv);
     if (!path_text.has_value() || path_text->empty())
@@ -98,7 +98,7 @@ namespace
 
 // Rebuilds a single command-line string from argv for the engine's plugin-scan child check; the
 // scanner child identifies itself with one marker token, so simple space joining is sufficient.
-[[nodiscard]] std::string joinedCommandLine(const int argc, char** argv)
+[[nodiscard]] std::string joinedCommandLine(const int argc, char* const* argv)
 {
     std::string command_line;
     for (int index = 1; index < argc; ++index)

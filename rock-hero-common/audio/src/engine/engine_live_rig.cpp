@@ -1316,7 +1316,7 @@ void Engine::Impl::finalizeLiveRigLoad()
     }
 
     endPluginUndoCaptureDeferral();
-    auto operation = std::move(m_load_op);
+    const auto operation = std::move(m_load_op);
     operation->on_result(std::move(result));
 }
 
@@ -1478,7 +1478,7 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
         return;
     }
 
-    auto operation = std::move(m_load_op);
+    const auto operation = std::move(m_load_op);
     if (instrumentTrack() != nullptr)
     {
         auto cleared = clearUserLiveRigPlugins();
@@ -1924,7 +1924,7 @@ void Engine::Impl::finalizeToneChainReplace()
     reportToneReplaceProgress(*m_replace_op, m_replace_op->candidates.size());
 
     endPluginUndoCaptureDeferral();
-    auto operation = std::move(m_replace_op);
+    const auto operation = std::move(m_replace_op);
     operation->on_result(audibleToneResult());
 }
 
@@ -2060,7 +2060,7 @@ void Engine::Impl::abortToneChainReplace(LiveRigError error)
     // Nothing was removed from the existing chain before the swap, so there is no graph state to
     // repair; free-floating candidates dispose when the operation's Ptrs drop.
     endPluginUndoCaptureDeferral();
-    auto operation = std::move(m_replace_op);
+    const auto operation = std::move(m_replace_op);
     operation->on_result(std::unexpected{std::move(error)});
 }
 

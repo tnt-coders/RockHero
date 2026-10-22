@@ -208,7 +208,7 @@ std::expected<void, SongAudioError> Engine::clearActiveArrangement()
     m_impl->stopTransportAndReleaseContext();
     transport.setPosition(tracktion::TimePosition{});
 
-    if (auto* track = m_impl->backingTrack(); track != nullptr)
+    if (const auto* track = m_impl->backingTrack(); track != nullptr)
     {
         const juce::Array<tracktion::Clip*> clips = track->getClips();
         for (tracktion::Clip* clip : clips)

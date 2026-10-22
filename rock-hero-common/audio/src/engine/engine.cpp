@@ -27,7 +27,7 @@ void Engine::Impl::createEdit()
     // dry-tap contract on ILiveInput).
     m_edit->setLatencyCompensationEnabled(false);
 
-    auto audio_tracks = tracktion::getAudioTracks(*m_edit);
+    const auto audio_tracks = tracktion::getAudioTracks(*m_edit);
     tracktion::AudioTrack* const backing_track = audio_tracks.getFirst();
 
     if (backing_track != nullptr)

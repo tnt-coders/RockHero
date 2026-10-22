@@ -499,7 +499,7 @@ void postNextMessageThreadStep(const std::shared_ptr<std::deque<std::function<vo
 // loop's exception guard would swallow a throwing assertion and spin forever.
 void runMessageThreadSteps(std::vector<std::function<void()>> steps)
 {
-    auto queue = std::make_shared<std::deque<std::function<void()>>>();
+    const auto queue = std::make_shared<std::deque<std::function<void()>>>();
     for (std::function<void()>& step : steps)
     {
         queue->push_back(std::move(step));

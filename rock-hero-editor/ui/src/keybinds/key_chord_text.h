@@ -74,7 +74,7 @@ are one logical key to the user.
 \return Comma-separated chord text, or an empty string when nothing is bound to the command.
 */
 [[nodiscard]] juce::String commandChordText(
-    juce::ApplicationCommandManager& command_manager, EditorCommandId command);
+    const juce::ApplicationCommandManager& command_manager, EditorCommandId command);
 
 /*!
 \brief Adds a command-backed menu item whose shortcut text uses `commandChordText`.

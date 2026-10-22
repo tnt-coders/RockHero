@@ -251,7 +251,7 @@ TEST_CASE("GridSpacingSelector strikes only the value while snap is off", "[ui][
     GridSpacingSelector selector{listener};
     selector.setNoteValue(common::core::Fraction{1, 16});
     selector.setBounds(0, 0, 220, 24);
-    auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
+    const auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
 
     const auto snapshot = [&selector]() {
         return selector.createComponentSnapshot(selector.getLocalBounds());
@@ -305,7 +305,7 @@ TEST_CASE("GridSpacingSelector strikes one full-coverage row at every value", "[
     // The transport strip's own control height, because a mark that has to land on a whole pixel
     // row is only proven at the size it actually ships at.
     selector.setBounds(0, 0, 220, 32);
-    auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
+    const auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
 
     // The strike is drawn in the digits' own ink, so the box is the single place both it and this
     // assertion read that colour from; a theme colour that merely matches would have the test and
@@ -393,7 +393,7 @@ TEST_CASE("EditorView grid selector displays the state note value", "[ui][editor
     state.grid_note_value = common::core::Fraction{1, 8};
     view.setState(state);
 
-    auto& box = findRequiredDescendant<juce::ComboBox>(view, "grid_note_value_box");
+    const auto& box = findRequiredDescendant<juce::ComboBox>(view, "grid_note_value_box");
     CHECK(box.getText() == juce::String{"1/8"});
 }
 

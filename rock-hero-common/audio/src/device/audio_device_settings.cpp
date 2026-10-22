@@ -830,7 +830,7 @@ private:
     // route.
     void ensureStagedDeviceNames()
     {
-        auto* type = currentDeviceType();
+        const auto* type = currentDeviceType();
         if (type == nullptr)
         {
             m_staged_setup.inputDeviceName.clear();
@@ -877,7 +877,7 @@ private:
     // Populates either combined device choices or split input/output device choices.
     void refreshDeviceNames(AudioDeviceSettingsState& next_state) const
     {
-        auto* type = currentDeviceType();
+        const auto* type = currentDeviceType();
         next_state.uses_separate_input_output_devices =
             type != nullptr && type->hasSeparateInputsAndOutputs();
 
@@ -1089,7 +1089,7 @@ private:
     // the chosen-but-missing device stays selected and explained instead of finishing silently.
     [[nodiscard]] std::optional<std::string> missingStagedDeviceDetail() const
     {
-        auto* type = currentDeviceType();
+        const auto* type = currentDeviceType();
         if (type == nullptr || m_staged_setup.inputDeviceName.isEmpty() ||
             m_staged_setup.outputDeviceName.isEmpty())
         {

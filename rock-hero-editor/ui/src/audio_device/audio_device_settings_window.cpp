@@ -161,7 +161,7 @@ private:
             return;
         }
 
-        auto closed = std::move(m_closed);
+        const auto closed = std::move(m_closed);
         closed();
     }
 

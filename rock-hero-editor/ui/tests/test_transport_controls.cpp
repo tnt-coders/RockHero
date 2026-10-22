@@ -99,7 +99,7 @@ TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][trans
             .unavailable_reason = std::nullopt,
             .play_pause_shows_pause_icon = false,
         });
-    auto& play_pause_button = getPlayPauseButton(controls);
+    const auto& play_pause_button = getPlayPauseButton(controls);
     REQUIRE(play_pause_button.getCurrentImage() != nullptr);
     CHECK_FALSE(play_pause_button.getToggleState());
 
@@ -125,8 +125,8 @@ TEST_CASE("TransportControls buttons do not take keyboard focus", "[ui][transpor
             .play_pause_shows_pause_icon = false,
         });
 
-    auto& play_pause_button = getPlayPauseButton(controls);
-    auto& stop_button = getStopButton(controls);
+    const auto& play_pause_button = getPlayPauseButton(controls);
+    const auto& stop_button = getStopButton(controls);
     CHECK_FALSE(play_pause_button.getWantsKeyboardFocus());
     CHECK_FALSE(play_pause_button.getMouseClickGrabsKeyboardFocus());
     CHECK_FALSE(stop_button.getWantsKeyboardFocus());

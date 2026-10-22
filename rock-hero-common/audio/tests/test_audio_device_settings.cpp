@@ -573,7 +573,7 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
     restoreLikeTheEngine(audio_devices);
-    auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
+    const auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
     testing::InMemoryAudioConfigStore store;
     const AudioDeviceSettings settings{audio_devices, store};

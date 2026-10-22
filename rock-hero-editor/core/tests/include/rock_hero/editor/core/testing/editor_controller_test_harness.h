@@ -2555,7 +2555,7 @@ public:
     {
         std::vector<std::function<void()>> to_run;
         to_run.swap(m_pending);
-        for (auto& fn : to_run)
+        for (const auto& fn : to_run)
         {
             if (fn)
             {

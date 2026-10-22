@@ -14,7 +14,7 @@ namespace
 
 // Converts one command's key presses into the seam's layout-neutral chords.
 [[nodiscard]] std::vector<common::audio::PluginWindowShortcutChord> chordsForCommand(
-    juce::KeyPressMappingSet& mappings, EditorCommandId command)
+    const juce::KeyPressMappingSet& mappings, EditorCommandId command)
 {
     std::vector<common::audio::PluginWindowShortcutChord> chords;
     for (const juce::KeyPress& key :
@@ -43,7 +43,7 @@ PluginWindowShortcutSync::~PluginWindowShortcutSync()
 
 void PluginWindowShortcutSync::push()
 {
-    juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
     common::audio::PluginWindowShortcutBindings bindings;
     bindings.undo = chordsForCommand(mappings, EditorCommandId::Undo);
     bindings.redo = chordsForCommand(mappings, EditorCommandId::Redo);

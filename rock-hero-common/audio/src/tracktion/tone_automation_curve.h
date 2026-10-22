@@ -48,7 +48,7 @@ and group name, and skipping the synthetic dry/wet mix parameters. Values are no
         when \p param_id does not resolve on the plugin.
 */
 [[nodiscard]] std::optional<std::vector<AutomationCurvePoint>> readPluginParameterCurve(
-    tracktion::Plugin& plugin, const std::string& param_id);
+    const tracktion::Plugin& plugin, const std::string& param_id);
 
 /*!
 \brief Replaces one plugin parameter's automation curve with the supplied points.
@@ -76,7 +76,7 @@ from the parameter here and no point carries either:
 \return True on success, or false when \p param_id does not resolve on the plugin.
 */
 [[nodiscard]] bool writePluginParameterCurve(
-    tracktion::Plugin& plugin, const std::string& param_id,
+    const tracktion::Plugin& plugin, const std::string& param_id,
     std::span<const AutomationCurvePoint> points);
 
 /*!
@@ -91,7 +91,7 @@ by the automation lanes.
 \return The pre-automation normalised value, or `nullopt` when \p param_id does not resolve.
 */
 [[nodiscard]] std::optional<float> readPluginParameterBaselineNormValue(
-    tracktion::Plugin& plugin, const std::string& param_id);
+    const tracktion::Plugin& plugin, const std::string& param_id);
 
 /*!
 \brief Formats a normalised value as one plugin parameter's native display text.
@@ -106,7 +106,7 @@ own value-with-label formatting).
 \return The display text, or `nullopt` when \p param_id does not resolve on the plugin.
 */
 [[nodiscard]] std::optional<std::string> formatPluginParameterValue(
-    tracktion::Plugin& plugin, const std::string& param_id, float norm_value);
+    const tracktion::Plugin& plugin, const std::string& param_id, float norm_value);
 
 /*!
 \brief Parses one plugin parameter's display text into a normalised value.
@@ -122,6 +122,6 @@ with a plain numeric fallback), then the parameter's range normalises the result
         not resolve on the plugin.
 */
 [[nodiscard]] std::optional<float> parsePluginParameterValue(
-    tracktion::Plugin& plugin, const std::string& param_id, const std::string& text);
+    const tracktion::Plugin& plugin, const std::string& param_id, const std::string& text);
 
 } // namespace rock_hero::common::audio

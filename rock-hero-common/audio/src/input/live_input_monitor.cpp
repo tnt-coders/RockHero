@@ -91,14 +91,14 @@ LiveInputMonitoringStatus LiveInputMonitor::refresh(LiveInputMonitoringContext c
         return disable(LiveInputMonitoringStatus::MissingCalibration);
     }
 
-    auto gain_applied = m_live_input.setInputGain(m_calibration->calibration_gain);
+    const auto gain_applied = m_live_input.setInputGain(m_calibration->calibration_gain);
     logIfRefused(gain_applied, "gate calibrated gain");
     if (!gain_applied.has_value())
     {
         return disable(LiveInputMonitoringStatus::BackendUnavailable);
     }
 
-    auto monitoring_enabled = m_live_input.setLiveInputMonitoringEnabled(true);
+    const auto monitoring_enabled = m_live_input.setLiveInputMonitoringEnabled(true);
     logIfRefused(monitoring_enabled, "gate monitoring enable");
     if (!monitoring_enabled.has_value())
     {

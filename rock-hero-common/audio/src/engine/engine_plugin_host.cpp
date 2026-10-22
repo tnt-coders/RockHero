@@ -44,7 +44,7 @@ constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 
 // Copies serialized plugin state to an existing live plugin without changing its runtime id.
 void copyPluginStatePreservingInstanceId(
-    tracktion::Plugin& target_plugin, const juce::ValueTree& source_state)
+    const tracktion::Plugin& target_plugin, const juce::ValueTree& source_state)
 {
     juce::ValueTree target_state = target_plugin.state;
 
@@ -475,7 +475,7 @@ std::optional<std::size_t> Engine::Impl::userVisiblePluginIndexOf(
 bool Engine::Impl::hasKnownPluginForIdentity(const PluginIdentity& identity) const
 {
     const juce::PluginDescription persisted_description = makePluginDescription(identity);
-    auto& known_plugin_list = m_engine->getPluginManager().knownPluginList;
+    const auto& known_plugin_list = m_engine->getPluginManager().knownPluginList;
     if (!identity.juce_identifier_hint.empty() &&
         known_plugin_list
                 .getTypeForIdentifierString(
@@ -572,7 +572,8 @@ tracktion::Plugin* Engine::Impl::findInstrumentPluginInstance(const std::string&
 
 void Engine::Impl::commitPluginRemoval(tracktion::Plugin& plugin) const
 {
-    if (auto* const macro_parameters = plugin.getMacroParameterList(); macro_parameters != nullptr)
+    if (const auto* const macro_parameters = plugin.getMacroParameterList();
+        macro_parameters != nullptr)
     {
         macro_parameters->hideMacroParametersFromTracks();
     }

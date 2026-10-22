@@ -311,7 +311,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
         return;
     }
 
-    auto state = std::make_shared<PluginCatalogTaskState>();
+    const auto state = std::make_shared<PluginCatalogTaskState>();
     const std::uint64_t token = beginBusy(BusyOperation::ScanningPlugins);
     const common::core::CancellationToken cancel;
     m_plugin_scan_cancel = cancel;
@@ -503,7 +503,7 @@ auto EditorController::Impl::rollbackInsertedPluginAfterUndoPreparationFailure(
 void EditorController::Impl::beginInsertKnownPlugin(
     const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
-    auto state = std::make_shared<InsertSelectedPluginTaskState>();
+    const auto state = std::make_shared<InsertSelectedPluginTaskState>();
     state->plugin_candidate = plugin_candidate;
     state->chain_index = chain_index;
 

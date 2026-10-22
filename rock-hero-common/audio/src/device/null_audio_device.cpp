@@ -280,7 +280,7 @@ bool isNullAudioDeviceType(const juce::AudioIODeviceType& type) noexcept
     return type.getTypeName() == g_null_audio_device_type_name;
 }
 
-bool hardwareDeviceOpen(juce::AudioDeviceManager& device_manager)
+bool hardwareDeviceOpen(const juce::AudioDeviceManager& device_manager)
 {
     // Not a pointer to const: JUCE's device getters are not const-qualified.
     juce::AudioIODevice* const device = device_manager.getCurrentAudioDevice();

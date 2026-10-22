@@ -40,7 +40,7 @@ namespace
 }
 
 // True when the archive contains the exact entry name.
-[[nodiscard]] bool archiveContainsEntry(juce::ZipFile& archive, const std::string& entry_name)
+[[nodiscard]] bool archiveContainsEntry(const juce::ZipFile& archive, const std::string& entry_name)
 {
     return archive.getIndexOfFileName(juce::String::fromUTF8(entry_name.c_str())) >= 0;
 }

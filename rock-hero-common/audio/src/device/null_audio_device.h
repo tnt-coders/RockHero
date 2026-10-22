@@ -78,7 +78,7 @@ real sample rate and is not the silent device.
 \param device_manager Manager whose current device is classified.
 \return True while real hardware runs the engine.
 */
-[[nodiscard]] bool hardwareDeviceOpen(juce::AudioDeviceManager& device_manager);
+[[nodiscard]] bool hardwareDeviceOpen(const juce::AudioDeviceManager& device_manager);
 
 /*!
 \brief Replaces whatever the manager has open with the silent device.
