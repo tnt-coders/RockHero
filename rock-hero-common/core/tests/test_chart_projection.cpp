@@ -1004,9 +1004,9 @@ TEST_CASE("Chart projection vibrates a shift slide's arrival head, not its glide
 // the strike the slide-out ends on — and the window rides the slide-out up to it: nothing
 // presentation decides moves a statement, so the approach spans the slide-out's whole stored
 // segment and arrives where the chart states the strike. The window follows the slide-out's curve
-// toward the window covering its exit, and since that is not the strike's, it leaves the curve
-// where the rail's ink is cut — one margin before the strike — and settles into the strike's
-// window over that margin.
+// toward the window the slide rule places at its end, and since that is not the strike's, it leaves
+// the curve where the rail's ink is cut — one margin before the strike — and settles into the
+// strike's window over that margin.
 TEST_CASE("Chart projection rides a cropped slide-out into the window it ends on", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1070,13 +1070,14 @@ TEST_CASE("Chart projection rides a cropped slide-out into the window it ends on
     if (settle.has_value())
     {
         CHECK(settle->seconds == Catch::Approx(strike.seconds - glide.ink_end_seconds));
-        CHECK(headsFor(*settle, FretWindow{.fret = 9, .width = g_min_fret_hand_width}));
+        CHECK(headsFor(*settle, FretWindow{.fret = 12, .width = g_min_fret_hand_width}));
     }
 }
 
 // The three places a ridden slide-out comes to rest, each settling off the release curve over the
-// last margin. Into blank space the ride arrives at the slide's end on the window covering its
-// exit, settling onto it, and returns over the margin before the next instant the hand covers.
+// last margin. Into blank space the ride arrives at the slide's end on the window the slide rule
+// places at its end, settling onto it, and returns over the margin before the next instant the
+// hand covers.
 // Ending exactly on that instant with the standing window there, the return itself lands at the
 // slide's end, so the window dips toward the exit and settles back over the margin. Ending exactly
 // on a hand event, that event is where it rests.
@@ -1629,9 +1630,10 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
 // Ramp derivation for the fretting hand's approach: ordinary placements morph over the shared
 // minimum-sustain-distance margin, and crowded placements shorten against the previous arrival
 // instead of overlapping it. A segment ending at the RING's end is the slide-out, which the hand
-// lands on only by riding it; a window already covering its exit never rides, so a placement on
-// its end morphs over the margin like any other. The pitched slide-lock is pinned by the
-// hold-keyframe case below, whose arrival sits strictly inside its ring.
+// lands on only by riding it; a placement strictly inside a slide-out is the hand moving on, so
+// that slide-out never rides and the placement morphs over the margin like any other. The pitched
+// slide-lock is pinned by the hold-keyframe case below, whose arrival sits strictly inside its
+// ring.
 TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -1641,8 +1643,7 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // A sustained note whose tail trails off unpitched, under windows that already cover its
-    // exit.
+    // A sustained note whose tail trails off unpitched.
     chart.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -1659,19 +1660,21 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
         // Crowded: a sixty-fourth after the previous arrival — closer than the margin —
         // so the morph shortens against it.
         boardWidePosition(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}}),
-        // Exactly on the fixture's 3:1+1/2 slide-out end (advanced by its half-note offset).
-        boardWidePosition(GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}}),
-        // On the fixture's shift-slide arrival, which would otherwise derive a window for its own
-        // run (the slide rule) that no longer covers the pushed slide-out's exit.
+        // Strictly inside the fixture's 3:1+1/2 slide-out: the hand moves on there, so that
+        // slide-out never rides.
+        boardWidePosition(GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 2}}),
+        // On the fixture's shift-slide arrival, where the slide rule would otherwise derive a
+        // window of its own.
         boardWidePosition(GridPosition{.measure = 4, .beat = 2}),
-        // Exactly where the pushed slide-out ends (4:3 advanced a quarter).
-        boardWidePosition(GridPosition{.measure = 4, .beat = 4}),
+        // Strictly inside the pushed slide-out (4:3 to 4:4), so it never rides either.
+        boardWidePosition(GridPosition{.measure = 4, .beat = 3, .offset = Fraction{1, 2}}),
     };
 
     const ChartViewState state = makeChartViewState(arrangement, tempo_map);
     REQUIRE(state.fret_hand_positions.size() == 5);
 
-    // The windows cover every exit, so nothing rides and the track is the chips alone.
+    // Every slide-out has a chip strictly inside it, so nothing rides and the track is the chips
+    // alone.
     REQUIRE(state.fret_hand_track.size() == 5);
     const std::vector<HandArrival>& track = state.fret_hand_track;
 
@@ -1681,14 +1684,13 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
     CHECK(track[1].seconds == Catch::Approx(4.0625 * beat));
     CHECK(track[1].ramp_seconds == Catch::Approx(0.0625 * beat));
 
-    // On a slide-out end whose exit the window already covers: the hand never left, so the
-    // placement morphs over the margin.
-    CHECK(track[2].seconds == Catch::Approx(10.5 * beat));
+    // Inside a slide-out: the hand moves on there, so the placement morphs over the margin.
+    CHECK(track[2].seconds == Catch::Approx(9.5 * beat));
     CHECK(track[2].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
     // An authored chip on a shift-slide arrival glides with the slide.
     CHECK(track[3].seconds == Catch::Approx(13.0 * beat));
     CHECK(track[3].approach == HandApproach::Glide);
-    CHECK(track[4].seconds == Catch::Approx(15.0 * beat));
+    CHECK(track[4].seconds == Catch::Approx(14.5 * beat));
     CHECK(track[4].ramp_seconds == Catch::Approx(g_minimum_sustain_distance_seconds));
     // Every other one is a move between positions, and none settles.
     for (const std::size_t chip : std::array<std::size_t, 4>{0, 1, 2, 4})

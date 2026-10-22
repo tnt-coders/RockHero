@@ -542,13 +542,13 @@ Four consequences worth knowing before touching this:
   `tabFhpChipBounds`), carrying the chip's committed text and window, or, when refused, the typed
   value in the chip's own range notation (`fretHandEntryText`: "8-7" for a start typed above an
   authored end). A digit on a selected DERIVED position previews the same way: the plan authors the
-  position there first, at the fret standing there, and applies the digit to it. What the charter
-  stated of each chip is `FhpViewState::authored` (`FhpAuthored`: nothing, the fret, or the fret
-  and the end): an authored end fret always prints as a range, and a derived chip draws as a ghost
-  at a ghost note's weight (`drawTabFhpChip`). Nothing else needs previewing, because nothing else
-  authors: the pointer creates under
-  no modifier, and what `Alt` shows while it is held is the ring REVEAL — every visible note drawn
-  on to its stored ring end — not a preview of a placement.
+  position there first, as `Ctrl+P` would — the window standing there — and applies the digit to it.
+  What the charter stated of each chip is `FhpViewState::authored` (`FhpAuthored`: nothing, the
+  fret, or the fret and the end): an authored end fret always prints as a range, and a derived chip
+  draws as a ghost at a ghost note's weight (`drawTabFhpChip`). Nothing else needs previewing,
+  because nothing else authors: the pointer creates under no modifier, and what `Alt` shows while it
+  is held is the ring REVEAL — every visible note drawn on to its stored ring end — not a preview of
+  a placement.
 - **The harmonic node picker is a POPUP, and the lane draws nothing for it.** `H` reaches the
   controller as its own action, and where the selection offers more than ONE CHANGE the CONTROLLER
   asks the view for the choice — after its settle prologue — through the port method

@@ -3163,6 +3163,14 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = std::nullopt,
             },
             CrossCheck{
+                // THE HAND-POSITION SLIDE RULE's crossings: slide arrivals where a finger slides
+                // past the one nearest an edge, which the rule answers by its pin alone and the
+                // user has not signed a figure for. Above zero is the watch item's trigger.
+                .label = "slide arrivals crossing at an edge",
+                .rig = static_cast<double>(census.hand.slide_crossings),
+                .expected = std::nullopt,
+            },
+            CrossCheck{
                 // THE HOLD NORMALIZER's midpoint holds the walk closes somewhere other than their
                 // span's close, reported until the user rules what such an end should do.
                 .label = "midpoint holds settling off their span",

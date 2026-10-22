@@ -306,8 +306,9 @@ TEST_CASE("Fret-hand derivation scored against the authored corpus", "[.fhp-scor
     printRow("  emitted", all.emissions);
     printRow("fronts reaching back (hand-position rule 10)", tally.fronts_reaching_back);
     printRow("slide arrivals", tally.slide_arrivals);
-    printRow("  travelling different distances", tally.slide_arrivals_disagreeing);
+    printRow("  crossing at an edge", tally.slide_crossings);
     printRow("  shifting the window", tally.slide_shifts);
+    printRow("  reshaping the hand", tally.slide_reshapes);
     printRow("  carrying the figure before them back", tally.slide_carried_back);
 
     const double exact = percentOf(all.exact, all.scored);

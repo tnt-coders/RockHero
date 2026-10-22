@@ -129,9 +129,10 @@ of leaving one still flooring at zero.
 dropped until the window ends on the last fret, then lifted above the capo — the floor winning.
 
 THE window clamp, stated once. The fret-hand derivation fits every run's window with that run's
-width (\ref deriveFretHandEvents); \ref normalizeFretHandPosition fits an authored position with
-the narrowest window's, \ref g_min_fret_hand_width, because a position may state only its index
-finger, the reach past it being derived.
+width, and a hand a slide proves with its own, however narrow (\ref deriveFretHandEvents);
+\ref normalizeFretHandPosition fits an authored position with the width its stated end gives, else
+with the narrowest derived window's, \ref g_min_fret_hand_width, because a position may state only
+its index finger, the reach past it being derived.
 
 \param fret The index finger's fret before fitting.
 \param width Frets the window spans, counting the index finger's.
@@ -643,10 +644,11 @@ so applying this twice changes nothing the second time.
 /*!
 \brief Fits a fret-hand window onto the playable board, in place.
 
-The index finger lifts above the capo and drops until the narrowest window
-(\ref g_min_fret_hand_width) fits under the last fret (\ref fittedWindowFret), and an authored end
-fret past the last fret comes down onto it. The window's reach past that is the top of the figure
-the position heads (\ref deriveFretHandEvents), and the notes never state a fret off the board.
+An authored end fret past the last fret comes down onto it, and the index finger lifts above the
+capo and drops until the window fits under the last fret (\ref fittedWindowFret): the window the
+stated end gives, however narrow, else the narrowest derived window
+(\ref g_min_fret_hand_width), whose reach past that is the top of the figure the position heads
+(\ref deriveFretHandEvents). The notes never state a fret off the board.
 
 \param position Hand position to normalize.
 \param tuning Tuning the hand plays under; supplies the capo.

@@ -142,6 +142,28 @@ where the last ink under the old window ends — never earlier — and, where no
 up to a capped lead before the arrival, so the morph is truthful and lengthens whenever the hand is
 actually free. The derivation belongs in `chart_projection.cpp` beside the slide-ramp table.
 
+### A crossing grip slide places the hand by the pin alone — trigger: a crossing grip slide in the census or a sighting
+
+The hand-position slide rule (`slideProof`) keeps each edge of the standing window at its distance
+from the finger nearest it before the slide, then spans every finger. A slide where a finger passes
+the one nearest an edge — a crossing — is therefore answered by that pin: 4..7 with 6 held and 5
+sliding to 8 becomes 6..8, and with 5 held and 6 sliding to 4 becomes 4..5. The user ruled the pin
+(2026-10-22: the edges follow the grip rule, pinned so a held finger never falls outside the
+window) but was unsure of the first figure, guessing 6..9 or even 6..10. No single rule gives 9
+there and keeps 4..5: carrying the slider's own margin across to the side it crosses to gives 6..9
+but turns the second into 3..5, so the user's pair would need a crossing-only clause, which was
+deliberately not added. A crossing is also the one slide the backward read (`carriedBack`) cannot
+invert exactly, since a pin is not undone. Accepted because a crossing grip slide is exceptionally
+rare.
+
+**Trigger:** the corpus census's "slide arrivals crossing at an edge" row (or the fret-hand
+dataset scorer's "crossing at an edge" row) reads above zero, or a sighting shows a crossing grip
+slide — at an arrival, or at a slide-out's end, which the census does not count.
+**Remedy:** sight the hand against the song. If it reads wrong, put the case to the user with the
+standing window, the fingers and the rule's answer; change the edge clause in `slideProof` — the
+one authority, so arrivals, slide-out rides and the backward read all follow — and add the case to
+`gripCases`, which drives both the arrival and the slide-out tests.
+
 ### ~~The fret-hand window stops with a corner at a slide-out's end~~ — RETIRED 2026-10-13: every release settles
 
 **Retired 2026-10-13.** The user sighted the corner on derived FHPs (Basket Case, measure 125 of a

@@ -323,6 +323,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // chart history, or the placement stream through the marker funnel. Which one is the entry
     // target's answer, made once where the entry is planned (replanChartFretEntry).
     using ChartFretEntryPlan = std::variant<ChartFretNotePlan, ChartFretHandPlan>;
+    // The placement Ctrl+P inserts at `position` into `chart`, the current arrangement's: one that
+    // states the window already standing there, so inserting moves no hand
+    // (fret_hand_handlers.cpp).
+    [[nodiscard]] common::core::FretHandPosition defaultedPlacement(
+        const common::core::Chart& chart, const common::core::GridPosition& position) const;
+    // The placement a STATING edit at `position` writes into: the authored one there, else the
+    // defaulted one appended to `placements`; `placements.end()` without a chart.
+    [[nodiscard]] std::vector<common::core::FretHandPosition>::iterator statedPlacement(
+        std::vector<common::core::FretHandPosition>& placements,
+        const common::core::GridPosition& position) const;
     // A selected placement's fret entry, planned: its stream with the placement at `position`
     // taking `fret` at `edge`, judged by the marker funnel's own front half
     // (fret_hand_handlers.cpp).

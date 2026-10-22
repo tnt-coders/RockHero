@@ -948,13 +948,12 @@ TEST_CASE(
     CHECK_FALSE(press_rename().has_value());
 }
 
-// The fret-hand position chord inserts at a free cursor stating the fret of the window already
-// standing there — the last hand event at or before the cursor, derived or authored — else the nut
-// window. The insert is left selected, and undo and redo round-trip it through the one marker
-// commit.
+// The fret-hand position chord inserts at a free cursor stating the window already standing there —
+// the last hand event at or before the cursor, derived or authored, its end fret too where its fret
+// alone would derive another width — else the nut window. The insert is left selected, and undo and
+// redo round-trip it through the one marker commit.
 TEST_CASE(
-    "The fret-hand position chord inserts at the cursor with a defaulted fret",
-    "[core][marker-rows]")
+    "The fret-hand position chord inserts the window standing at the cursor", "[core][marker-rows]")
 {
     SECTION("the derived window standing at the cursor")
     {
@@ -996,6 +995,112 @@ TEST_CASE(
         REQUIRE(placements.size() == 1);
         CHECK(placements.front() == placementAt(downbeat(4), 1));
         CHECK(editor.selectedHandIndex() == std::optional<std::size_t>{0});
+    }
+
+    SECTION("a hand a slide's grip proved states its end too")
+    {
+        // Measure 2's index holds 5 while the pinky slides 8 to 7 an eighth in, closing the hand to
+        // 5..7 through measure 3. A fret-only placement at 3:1 would derive four frets there, so
+        // the insert states the end that keeps the hand where it stands.
+        common::core::ChartNote closing =
+            makeTestNote(downbeat(2), 2, 8, common::core::Fraction{1, 2});
+        closing.keyframes.push_back(
+            common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 7});
+        common::core::Chart chart = makeBareChart();
+        chart.notes = {
+            makeTestNote(downbeat(2), 1, 5, common::core::Fraction{1, 2}), std::move(closing)
+        };
+        MarkerRowEditor editor{makeMarkerSections(), {}, std::move(chart)};
+        editor.parkAtMeasure(3);
+        editor.controller.onFretHandPositionChordRequested();
+        const std::vector<common::core::FretHandPosition> placements = editor.placements();
+        REQUIRE(placements.size() == 1);
+        CHECK(
+            placements.front() ==
+            common::core::FretHandPosition{.position = downbeat(3), .fret = 5, .end_fret = 7});
+        CHECK(editor.chipAuthored(downbeat(3)) == common::core::FhpAuthored::FretAndEnd);
+        const std::optional<std::size_t> chip = editor.handChipAt(downbeat(3));
+        const std::shared_ptr<const common::core::ChartViewState>& tab = editor.state().tab;
+        REQUIRE(chip.has_value());
+        REQUIRE(tab != nullptr);
+        if (chip.has_value() && tab != nullptr)
+        {
+            CHECK(tab->fret_hand_positions.at(*chip).fret == 5);
+            CHECK(tab->fret_hand_positions.at(*chip).width == 3);
+        }
+    }
+
+    SECTION("a window wider than the figure the placement would head states its end too")
+    {
+        // Measure 2's chord derives 3..7, and the lone 4 on beat 3 plays on in it. A fret-only
+        // placement at 2:2 would head only the 4 and derive four frets, so the insert states the
+        // end that keeps 3..7.
+        common::core::Chart chart = makeBareChart();
+        chart.notes = {
+            makeTestNote(downbeat(2), 1, 3),
+            makeTestNote(downbeat(2), 2, 7),
+            makeTestNote({.measure = 2, .beat = 3}, 1, 4),
+        };
+        MarkerRowEditor editor{makeMarkerSections(), {}, std::move(chart)};
+        const GridPosition second_beat{.measure = 2, .beat = 2};
+        // Measure 2's downbeat sits at two seconds and its quarters last half a second.
+        editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.5});
+        editor.controller.onFretHandPositionChordRequested();
+        const std::vector<common::core::FretHandPosition> placements = editor.placements();
+        REQUIRE(placements.size() == 1);
+        CHECK(
+            placements.front() ==
+            common::core::FretHandPosition{.position = second_beat, .fret = 3, .end_fret = 7});
+        const std::optional<std::size_t> chip = editor.handChipAt(second_beat);
+        const std::shared_ptr<const common::core::ChartViewState>& tab = editor.state().tab;
+        REQUIRE(chip.has_value());
+        REQUIRE(tab != nullptr);
+        if (chip.has_value() && tab != nullptr)
+        {
+            CHECK(tab->fret_hand_positions.at(*chip).fret == 3);
+            CHECK(tab->fret_hand_positions.at(*chip).width == 5);
+        }
+    }
+
+    SECTION("a slide's narrow hand at the board's top states its end")
+    {
+        // The 23 held over 21 sliding to 22 an eighth in leaves the hand 22..24, narrower than four
+        // frets at the board's top. The insert on that chip states its end, which the commit
+        // accepts as it stands, and every chip keeps its window.
+        common::core::ChartNote sliding =
+            makeTestNote(downbeat(2), 2, 21, common::core::Fraction{1, 2});
+        sliding.keyframes.push_back(
+            common::core::Keyframe{.offset = common::core::Fraction{1, 8}, .fret = 22});
+        common::core::Chart chart = makeBareChart();
+        chart.notes = {
+            makeTestNote(downbeat(2), 1, 23, common::core::Fraction{1, 2}),
+            std::move(sliding),
+        };
+        MarkerRowEditor editor{makeMarkerSections(), {}, std::move(chart)};
+        const GridPosition arrival{.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}};
+        // Measure 2's downbeat sits at two seconds and its quarters last half a second; an eighth
+        // grid puts the cursor on the arrival.
+        editor.controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 8});
+        editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.25});
+        editor.controller.onFretHandPositionChordRequested();
+        const std::vector<common::core::FretHandPosition> placements = editor.placements();
+        REQUIRE(placements.size() == 1);
+        CHECK(
+            placements.front() ==
+            common::core::FretHandPosition{.position = arrival, .fret = 22, .end_fret = 24});
+        const std::shared_ptr<const common::core::ChartViewState>& tab = editor.state().tab;
+        REQUIRE(tab != nullptr);
+        if (tab != nullptr)
+        {
+            const std::vector<common::core::FhpViewState>& chips = tab->fret_hand_positions;
+            REQUIRE(chips.size() == 2);
+            CHECK(chips[0].position == downbeat(2));
+            CHECK(chips[0].fret == 21);
+            CHECK(chips[0].width == 4);
+            CHECK(chips[1].position == arrival);
+            CHECK(chips[1].fret == 22);
+            CHECK(chips[1].width == 3);
+        }
     }
 
     SECTION("the closing barline holds no placement, so the chord is refused there")

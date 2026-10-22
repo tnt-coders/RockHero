@@ -687,8 +687,9 @@ public:
 
     The marker grammar, decided entirely in the core because the verb has nothing to prompt for: a
     placement arriving exactly at the cursor is restated, which — with no fret entry yet — only
-    selects it; anywhere else a placement may start, one is inserted stating the fret already
-    standing at the cursor (the nut window where nothing stands yet), so inserting moves no hand,
+    selects it; anywhere else a placement may start, one is inserted stating the window already
+    standing at the cursor — its fret, and its end fret too where the fret alone would derive
+    another width there — or the nut window where nothing stands yet, so inserting moves no hand,
     and left selected. Inert while playing, with no song and with no chart; on the song's closing
     barline, where nothing may start, it is refused, as every marker chord is there.
     */

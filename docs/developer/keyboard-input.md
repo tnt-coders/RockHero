@@ -450,8 +450,9 @@ state through the same entry (`ChartFretEntry::RetypeHandFret`, settled through 
 as "Set Hand Position Start Fret", refused red by the funnel's own front half, `judgeMarkerModel`),
 while the `Alt` digit states its window's END fret ("Set Hand Position End Fret") and `Alt+Delete`
 (`ClearHandPositionEndFret`) clears that end back to the derived one. On a selected DERIVED
-position either digit first authors the position there at the fret standing there — what `Ctrl+P`
-makes at that place — in the same undo entry (`statedPlacement`); and `Alt+Delete`, Delete and
+position either digit first authors the position there as the window standing there — what
+`Ctrl+P` makes at that place, its end fret stated too where its fret alone would derive another
+width — in the same undo entry (`statedPlacement`); and `Alt+Delete`, Delete and
 `Alt+Left/Right` refuse it with the chip glowing red, since nothing is stored to clear, delete or
 move; at the caret, on an EMPTY slot and at a
 ring's EXACT END alike, a HEAD at the typed fret — at the end it is simply the next note, since the

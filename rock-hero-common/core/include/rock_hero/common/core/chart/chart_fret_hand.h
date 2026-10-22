@@ -65,17 +65,17 @@ struct FretHandDerivationTally
     long long slide_arrivals{0};
 
     /*!
-    \brief Of those, the instants whose fingers travel different distances, a stop held across the
-    arrival travelling none.
+    \brief Of those, the crossings: instants where a finger slides past the one nearest an edge
+    before the slide (the hand-position slide rule).
     */
-    long long slide_arrivals_disagreeing{0};
+    long long slide_crossings{0};
 
     // Filled by \ref deriveFretHandEvents.
 
     /*! \brief Holds that pin the hand for some time (hand-position rule 6, \ref fretHandHolds). */
     long long hold_pins{0};
 
-    /*! \brief Figures the walk cut, the figures a slide shift placed included. */
+    /*! \brief Figures the walk cut, the figures a slide placed included. */
     long long runs{0};
 
     /*! \brief Covered figures held still because a stop is still held (hand-position rule 6). */
@@ -91,10 +91,18 @@ struct FretHandDerivationTally
     long long fronts_reaching_back{0};
 
     /*!
-    \brief Slide arrivals placed by the standing window moved by the travel, with as much of the
-    figure as it covers.
+    \brief Slide arrivals whose fingers prove the hand at the standing width: the standing window
+    moved by the travel its edges share — none where held fingers pin both — with as much of the
+    figure as that hand reaches.
     */
     long long slide_shifts{0};
+
+    /*!
+    \brief Slide arrivals whose fingers prove the hand at another width than the standing one: its
+    edges moved different distances, as a slide beside a held finger moves only the edge on its
+    side, stretching or closing the hand — narrower than four frets included.
+    */
+    long long slide_reshapes{0};
 
     /*!
     \brief Figures placed by the window a train of slides proves, carried back from its last
@@ -126,16 +134,18 @@ struct FretHandHold
     int string{1};
 };
 
-/*! \brief Fretting fingers sliding into one instant: how far the hand travels with them. */
-struct FretHandSlideIn
+/*!
+\brief One fretting finger pressed across a slide's end: the fret it pressed before and the fret it
+presses there — the same fret for a stop held across the end (hand-position rule 6), which travels
+none.
+*/
+struct FretHandFinger
 {
-    /*!
-    \brief The frets the hand travels with the sliding fingers; empty where the fingers pressed
-    across the arrival travel different distances — a stop held across it (hand-position rule 6)
-    travels none, the hand stretching to the arrival rather than moving — which proves no single
-    shift.
-    */
-    std::optional<int> travel{};
+    /*! \brief The fret the finger pressed before the slide's end. */
+    int from{0};
+
+    /*! \brief The fret the finger presses at the slide's end. */
+    int to{0};
 };
 
 /*!
@@ -161,8 +171,12 @@ struct FretHandInstant
     /*! \brief How many fretted notes are struck at the instant. */
     int struck{0};
 
-    /*! \brief Present where a fretting finger slides in (the hand-position slide rule). */
-    std::optional<FretHandSlideIn> slide{};
+    /*!
+    \brief Every fretting finger pressed across the instant where one slides into it — each sliding
+    finger, from the stop it slid from, then each stop held across the instant — and empty where
+    none slides in (the hand-position slide rule).
+    */
+    std::vector<FretHandFinger> slide_fingers;
 };
 
 /*!
@@ -291,8 +305,9 @@ stops in turn, and a span's grip from the span's front — is demanded the same 
 hold begins up to, not including, its end. The demands are merged by instant into the hull each one
 states, so a held stop fronting where nothing fretted is struck is still an instant the hand covers.
 A demand reached by a fretting finger sliding from a different pressed stop marks its instant a
-slide arrival, carrying the travel where every finger pressed across it agrees on it — a stop held
-across the arrival travels none (the hand-position slide rule).
+slide arrival, carrying every finger pressed across it (\ref FretHandInstant::slide_fingers): each
+sliding finger, and each stop held across the arrival, which travels none (the hand-position slide
+rule).
 
 \param connections The resolved connections (\ref chartConnections).
 \param shapes The spans and postures derived from the same connections (\ref deriveChartShapes);
@@ -338,10 +353,10 @@ The hand-position rules are listed in \ref design_rulesets_hand_positions.
 
 THE LAW, in the three sentences a charter is taught: cut the song into figures at boundaries you can
 see — a chord being struck, a bar line, or the grip outgrowing the hand; put the hand at each
-figure's floor, spanning the grip, never narrower than four; and two exceptions, both of which only
-ever REMOVE motion: the hand never moves while a written note still rings, and a one-fret figure the
-standing window already covers does not move it — unless a slide leaving it proves where the hand
-was (the slide rule below).
+figure's floor, spanning the grip, never narrower than four unless a slide proves it; and two
+exceptions, both of which only ever REMOVE motion: the hand never moves while a written note still
+rings, and a one-fret figure the standing window already covers does not move it — unless a slide
+leaving it proves where the hand was (the slide rule below).
 
 What the notes demand of the hand is their own statement (\ref fretHandDemands): the walk covers
 every instant it names, a held stop among them from where its hold begins, so no window drops a
@@ -366,32 +381,39 @@ position or slide arrival. The numbered hand-position rules resume at the first 
 not fit, and their fronts never reach back to an authored position.
 
 A SLIDE MOVES THE HAND. A fretting finger's pitched slide from one pressed stop to another — a
-keyframe glide, or a glide arriving into the next head — proves the hand moved with it and kept the
-finger's place in it. The arrival is a forced boundary like an authored position: no figure and no
-authored tenure runs across it, and hand-position rules 5, 6 and 10 neither hold the old window over
-it nor reach back across it. The figure the slide lands in is played in the standing window moved by
-the travel: its floor is the moved floor and its width rule 8's over the figure from there, so a
-six-fret grip sliding onto a lone note arrives four wide. The move stands only where every finger
-pressed across the arrival travels the same distance — a stop held across it travels none, so a
-slide beside a held finger is a stretch: the hand did not move with it, and the ordinary rules place
-both sides, each at its own width — and only where the moved window covers the arrival, a finger
-outside it proving the hand did not travel; it reaches as far into the figure as the moved window
-covers, and the first instant it does not cover heads a figure of its own. Where it does not stand,
-the figure is placed by the ordinary rules. Read backward, the proof runs along the whole train of
-slides the finger makes without lifting — a note's keyframes, a glide into the next head — each
-landing heading a figure of its own for as long as each ends at an arrival whose fingers agree on
-one travel. A slide proves only the shift between the window at its departure and the window at its
-arrival; nothing proves the finger down past the arrival, so which later instants share a landing's
-window is rule 3's call, as for every figure. The hand stands where it is unless the train refutes
-it: from the last landing back, each landing stands in its own window where the hand stands through
-the rest of the train from it, else in the next landing's proven window moved back by the travel, on
-that floor, at rule 8's width over the figure from there, as the forward move places a landing, so
-the two sides of a slide agree; where that misses the figure, the hand moved apart from that slide
-and the train ends there for every figure before. The figure the train leaves is read the same way,
-forced from its last instant before the slide. That proof outranks rule 5, whose one-fret figure
-states nothing, but not rule 6, whose hold does; a figure the forward move placed is never carried.
-The forward move then reads from the carried window and plays the train on. A slide-out's fret is no
-stop, so it moves nothing here (\ref deriveFretHandRides).
+keyframe glide, or a glide arriving into the next head — proves where the hand stands at the
+arrival, read from every finger pressed across it (\ref FretHandInstant::slide_fingers). The arrival
+is a forced boundary like an authored position: no figure and no authored tenure runs across it, and
+hand-position rules 5, 6 and 10 neither hold the old window over it nor reach back across it. The
+sliding finger keeps its slot and a stop held across the arrival stays put, so each edge of the
+standing window keeps its distance from the finger nearest it before the slide — the one that ended
+outermost where several were — and the hand spans every finger. Fingers all travelling one distance
+move the whole hand by it; a slide beside a held finger moves only the edge on its own side,
+stretching or closing the hand — narrower than four frets included; held fingers on both sides of it
+move neither edge; and a held finger pins an edge a crossing slide would leave it outside of. That
+is the hand only where every finger pressed before the slide lies in the standing window and the
+hand reaches the arrival, rule 8's four frets from its floor; elsewhere the ordinary rules place the
+figure. The figure the slide lands in is played in that hand as far as it reaches, and the first
+instant it does not reach heads a figure of its own. A hand that moved as one proves only the slot
+its fingers kept, so rule 8 sizes it over the figure from the moved floor — a six-fret grip sliding
+onto a lone note arrives four wide — unless a finger lands on its moved top; any other proven hand
+keeps its shape while nothing in the figure reaches past its top, and spans rule 8's width from its
+floor where something does. Read backward, the proof runs along the whole train of slides the finger
+makes without lifting — a note's keyframes, a glide into the next head — each landing heading a
+figure of its own for as long as each ends at a slide's arrival. A slide proves only the hand at its
+arrival; nothing proves the finger down past it, so which later instants share a landing's window is
+rule 3's call, as for every figure. The hand stands where it is unless the train refutes it: from
+the last landing back, each landing stands in its own window where the hand stands through the rest
+of the train from it, else in the next landing's proven window with that slide reversed — every
+finger travelling back — placed exactly as the forward move places a landing, so the two sides of a
+slide agree wherever no finger crosses the one nearest an edge; where the reversed slide proves no
+hand over the figure, the hand moved apart from that slide and the train ends there for every figure
+before.
+The figure the train leaves is read the same way, forced from its last instant before the slide.
+That proof outranks rule 5, whose one-fret figure states nothing, but not rule 6, whose hold does; a
+figure the forward move placed is never carried. The forward move then reads from the carried window
+and plays the train on. A slide-out's end is placed by the same rule (\ref deriveFretHandRides); its
+fret is no stop, so it moves nothing here.
 
 Memoryless per figure and never reads seconds: the bar test is the measure number changing between
 consecutive instants.
@@ -441,12 +463,13 @@ struct FretHandRide
     /*! \brief Where the slide-outs end, at their rings' end: the instant the ride arrives. */
     Fraction end{};
 
-    /*! \brief The window standing at the departure, which the ride shifts and returns to. */
+    /*! \brief The window standing at the departure, which the ride leaves and returns to. */
     FretWindow standing{};
 
     /*!
-    \brief The window the ride travels toward: \ref standing shifted the least distance that covers
-    every exit fret, keeping its width, and never equal to it.
+    \brief The window the ride travels toward: where the hand-position slide rule places the hand at
+    \ref end, exactly as at a slide's arrival, from every slide-out ending there and every stop held
+    across it; never equal to \ref standing.
     */
     FretWindow ridden{};
 
@@ -475,15 +498,18 @@ struct FretHandRide
 /*!
 \brief The window's ride with every unpitched slide-out of a stop the fretting hand holds.
 
-The hand travels with a slide-out of a stop it holds (\ref fretHandDemandAt), so the window does:
-from the slide-out's departure it travels on the slide-out's own curve toward the window covering
-the exit fret, and it is back at the standing window by the next instant the hand covers. Slide-outs
-ending at one instant ride one window, shifted the least distance that covers every exit, keeping
-its width; a window already covering them does not move. A slide-out stays planted where it has no
-room: where an instant the hand covers, or a hand event, lies strictly between its departure and its
-end — an event there is the hand moving on. Either one standing exactly at the end is where the ride
-lands, which is how a slide-out into the next onset is ridden. A tap's slide-out is the picking
-hand's travel and moves nothing here.
+The hand travels with a slide-out of a stop it holds (\ref fretHandDemandAt) exactly as a slide
+arriving at a stop moves it: at the end the slide-outs share, the hand-position slide rule reads
+every finger pressed across it — each slide-out, from its last stop to its exit fret, and every stop
+held across the end, which travels none — and places the hand there as it places a slide's arrival
+(\ref deriveFretHandEvents). From the earliest departure the window travels on the slide-out's own
+curve toward that window, and it is back at the standing window by the next instant the hand covers;
+a window the rule leaves where it stands rides nowhere (hand-position rule 11). A slide-out stays
+planted where it has no room: where an instant the hand covers, or a hand event, lies strictly
+between its departure and its end — an event there is the hand moving on. Either one standing
+exactly at the end is where the ride lands, which is how a slide-out into the next onset is ridden.
+A tap's slide-out is the picking hand's travel and moves nothing here. A slide-out's end is no stop,
+so after the ride the hand plays on from where it stood.
 
 How far along its curve the drawn window follows the ride is presentation: the board's hand track
 follows the slide's rail to where its ink is cut and comes to rest in whatever arrives at the end
@@ -491,7 +517,7 @@ follows the slide's rail to where its ink is cut and comes to rest in whatever a
 
 \param connections The resolved connections the events were derived from.
 \param demands The demands the events were derived from (\ref fretHandDemands): the instants a
-       ride needs room between, and the capo.
+       ride needs room between, the holds standing across its end, and the capo.
 \param events The hand events (\ref deriveFretHandEvents).
 
 \return The rides, strictly ascending by end.

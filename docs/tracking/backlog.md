@@ -28,6 +28,27 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while reviewing the slide rule as one placement authority (2026-10-22)
+
+- **The hand-position slide rule is restated outside its ruleset.** The ruleset states it
+  in `docs/design/rulesets/hand-position-rules.md`, yet `chart_fret_hand.h` restates it in full in
+  `deriveFretHandEvents`'s "A SLIDE MOVES THE HAND" paragraph, `slideProof`'s comment in
+  `chart_fret_hand.cpp` restates it again, and the forward block of the derivation loop,
+  `carriedBack`, `provenBefore` and `deriveFretHandRides`'s doc each restate a part. That
+  contradicts `documentation-conventions.md` ("Citing Rules"): a ruleset is written once and the
+  implementing function's header links it (`\ref design_rulesets_hand_positions`), which this
+  header already does. Trim the header to the contract plus that link and the `.cpp` comments to
+  the formula each function computes; the header's "THE LAW" and "AN AUTHORED POSITION"
+  paragraphs restate rules the same way and take the same trim.
+- **A slide-out ride does not cover a pull-off's plant across its end.** In
+  `deriveFretHandRides` (`chart_fret_hand.cpp`) a ride's must-cover is only the fingers pressed
+  across the end (`stops`, the min and max of `fingers`), while an arrival's hull also takes the
+  plant widenings of hand-position rule 12 (`plantWideningsOf`, folded into each instant's
+  `lowest`/`highest` in `deriveFretHandEvents`). A plant on another string standing across a
+  ridden end is therefore not covered by the ridden window. Rare and older than the placement
+  authority. The shape is one "demanded across this place" query that the instants and the rides
+  both read, instead of two assemblies of what the hand must cover.
+
 ## Found while unblocking CI on new runner images (2026-10-21)
 
 - **The CMake formatter is dead and caps Python at 3.14.** The cmake-format hook is cmakelang

@@ -152,9 +152,9 @@ holds (notes, then grips, then positions: the spans never read the hand), by
 `common::core::deriveFretHandEvents` (`chart/chart_fret_hand.h`). Its rules are stated once, in
 \ref design_rulesets_hand_positions, and code cites them from there ("hand-position rule 8"). In
 one breath: the song is cut into figures at chords, bar lines and a grip outgrowing the hand; the
-hand sits at each figure's floor spanning its grip, never narrower than four frets; and it never
-moves while a stop it holds still rings, nor for a one-fret figure the standing window covers —
-unless a slide leaving it proves where the hand was.
+hand sits at each figure's floor spanning its grip, never narrower than four frets unless a slide
+proves it; and it never moves while a stop it holds still rings, nor for a one-fret figure the
+standing window covers — unless a slide leaving it proves where the hand was.
 
 The chart's `positions[]` hold only what a charter authored, and the derivation consumes each as a
 statement: it stands until the chart contradicts it. A project whose stored positions predate the
@@ -171,19 +171,20 @@ Three facts about the hand live in the import and the views rather than in the r
   it scans the notes, not only the hand windows — so the tap stays on screen while the window stays
   low on the left hand.
 - A slide-out places no window of its own; the hand rides it as derived MOTION
-  (`deriveFretHandRides`, `FretHandResolutions::rides`). The
-  rides are published in the hand's track beside the positions (`ChartViewState::fret_hand_track`)
-  and read by the board's hand track alone: no chip, no click, no floor number, and the positions
-  the scorer and the census read are untouched. Whatever arrives where a ridden slide-out ends — the
-  ride itself, its return, or a window fronting there — travels the slide-out's own segment on its
-  unpitched curve toward the window covering the exit, so the hand follows the drawn rail, and
-  settles off that curve into its own window where the rail stops being drawn.
-- The import reads the positions derived before the rings settle for a bare slide-out's EXIT FRET
-  (`resolveSlideOutExits`), as it does for a scoop's start fret (GP import rule 4). When the next
-  window departs in the slide-out's direction AND arrives by the very next onset, the gesture IS the
-  departure: the exit fret rides that travel (widened to GP import rule 4's two-fret minimum).
-  Otherwise the slide-out keeps the fixed four-fret gesture, as does one running past the next onset
-  or past the end of the score.
+  (`deriveFretHandRides`, `FretHandResolutions::rides`). The rides are published in the hand's track
+  beside the positions (`ChartViewState::fret_hand_track`) and read by the board's hand track alone:
+  no chip, no click, no floor number, and the positions the scorer and the census read are
+  untouched. Whatever arrives where a ridden slide-out ends — the ride itself, its return, or a
+  window fronting there — travels the slide-out's own segment on its unpitched curve toward the
+  window the slide rule places at the slide-out's end — the placement a slide arriving at a stop
+  gets — so the hand follows the drawn rail, and settles off that curve into its own window where
+  the rail stops being drawn.
+- The import reads the positions derived from the notes as stored, after every ring has settled, for
+  a bare slide-out's EXIT FRET (`resolveSlideOutExits`), as it does for a scoop's start fret (GP
+  import rule 4). When the next window departs in the slide-out's direction AND arrives by the very
+  next onset, the gesture IS the departure: the exit fret rides that travel (widened to GP import
+  rule 4's two-fret minimum). Otherwise the slide-out keeps the fixed four-fret gesture, as does one
+  running past the next onset or past the end of the score.
 
 **Posture and shape derivation** — not an import rule at all. GP scores in practice carry no
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes

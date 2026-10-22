@@ -203,7 +203,8 @@ struct SpanHolds
 }
 
 // An expected ride in whole notes: where it departs and ends, the floors of the window it leaves
-// and of the one it travels toward, the note it follows, and where it is back, if anywhere.
+// and of the one it travels toward, the note it follows, where it is back, if anywhere, and the
+// two windows' widths.
 struct ExpectedRide
 {
     Fraction departure{};
@@ -212,7 +213,8 @@ struct ExpectedRide
     int ridden{0};
     std::size_t note{0};
     std::optional<Fraction> back{};
-    int width{g_min_fret_hand_width};
+    int standing_width{g_min_fret_hand_width};
+    int ridden_width{g_min_fret_hand_width};
 };
 
 [[nodiscard]] FretHandRide rideOf(const ExpectedRide& expected)
@@ -220,10 +222,114 @@ struct ExpectedRide
     return FretHandRide{
         .departure = expected.departure,
         .end = expected.end,
-        .standing = FretWindow{.fret = expected.standing, .width = expected.width},
-        .ridden = FretWindow{.fret = expected.ridden, .width = expected.width},
+        .standing = FretWindow{.fret = expected.standing, .width = expected.standing_width},
+        .ridden = FretWindow{.fret = expected.ridden, .width = expected.ridden_width},
         .note = expected.note,
         .back = expected.back,
+    };
+}
+
+// A chord note struck at the start and gone by the sixteenth, before any slide reaches its end.
+[[nodiscard]] ChartNote shortAt(const int string, const int fret)
+{
+    return noteAt(1, 1, string, fret, Fraction{1, 16});
+}
+
+// A chord note struck at the start and held to the half, across every slide's end at the eighth.
+[[nodiscard]] ChartNote heldAt(const int string, const int fret)
+{
+    return noteAt(1, 1, string, fret, Fraction{1, 2});
+}
+
+// One case of THE HAND-POSITION SLIDE RULE's grip, pinned at an arrival and at a slide-out's end
+// alike: the chord struck at the start beside the slider — its short notes fixing the standing
+// window, its held ones pinning the hand — the slider's frets on the string above them, sliding at
+// the eighth, and the window before and after.
+struct GripCase
+{
+    // On strings 1 upward; the slider takes the next string.
+    std::vector<ChartNote> beside;
+    int from{0};
+    int to{0};
+    FretWindow standing{};
+    FretWindow placed{};
+};
+
+// The sliding finger keeps its slot and the held ones stay put, so each edge of the standing
+// window keeps its distance from the finger nearest it, and the hand spans every finger.
+[[nodiscard]] std::vector<GripCase> gripCases()
+{
+    return {
+        // 4..7, the 5 held: 6 sliding to 7 stretches the top to 4..8.
+        {.beside = {shortAt(1, 4), heldAt(2, 5)},
+         .from = 6,
+         .to = 7,
+         .standing = FretWindow::through(4, 7),
+         .placed = FretWindow::through(4, 8)},
+        // 4..7, the 5 held: 7 sliding to 6 closes it to 4..6.
+        {.beside = {shortAt(1, 4), heldAt(2, 5)},
+         .from = 7,
+         .to = 6,
+         .standing = FretWindow::through(4, 7),
+         .placed = FretWindow::through(4, 6)},
+        // 5..8, the 5 held: 8 sliding to 7 closes it to 5..7.
+        {.beside = {heldAt(1, 5)},
+         .from = 8,
+         .to = 7,
+         .standing = FretWindow::through(5, 8),
+         .placed = FretWindow::through(5, 7)},
+        // 4..8, the 5 held: 7 sliding to 6 closes it to 4..7.
+        {.beside = {shortAt(1, 4), heldAt(2, 5), shortAt(3, 8)},
+         .from = 7,
+         .to = 6,
+         .standing = FretWindow::through(4, 8),
+         .placed = FretWindow::through(4, 7)},
+        // 4..9, the 5 and the 8 held on both sides of the slider: neither edge moves.
+        {.beside = {shortAt(1, 4), heldAt(2, 5), heldAt(3, 8), shortAt(4, 9)},
+         .from = 7,
+         .to = 6,
+         .standing = FretWindow::through(4, 9),
+         .placed = FretWindow::through(4, 9)},
+        // 4..8, the 5 held: 6 sliding onto the held fret, on another string, crosses nothing —
+        // the top follows it down to 4..7 and the floor stays.
+        {.beside = {shortAt(1, 4), heldAt(2, 5), shortAt(3, 8)},
+         .from = 6,
+         .to = 5,
+         .standing = FretWindow::through(4, 8),
+         .placed = FretWindow::through(4, 7)},
+        // 5..8, the 8 held: the index sliding 5 to 6 closes the floor to 6..8.
+        {.beside = {heldAt(1, 8)},
+         .from = 5,
+         .to = 6,
+         .standing = FretWindow::through(5, 8),
+         .placed = FretWindow::through(6, 8)},
+        // 5..8, the 7 held: 5 sliding to 4 stretches the floor to 4..8.
+        {.beside = {heldAt(1, 7)},
+         .from = 5,
+         .to = 4,
+         .standing = FretWindow::through(5, 8),
+         .placed = FretWindow::through(4, 8)},
+        // 4..7, the 6 held: 5 sliding past it to 8 moves the floor only until the held 6 pins it,
+        // and the top reaches only as far as the 8 — 6..8.
+        {.beside = {shortAt(1, 4), heldAt(2, 6)},
+         .from = 5,
+         .to = 8,
+         .standing = FretWindow::through(4, 7),
+         .placed = FretWindow::through(6, 8)},
+        // 4..7, the 5 held: 6 sliding past it to 4 moves the top by its travel onto the held 5,
+        // and the floor stays — 4..5.
+        {.beside = {shortAt(1, 4), heldAt(2, 5)},
+         .from = 6,
+         .to = 4,
+         .standing = FretWindow::through(4, 7),
+         .placed = FretWindow::through(4, 5)},
+        // 21..24 at the board's top, the 23 held: 21 sliding to 22 closes the floor to 22..24, a
+        // hand narrower than four frets at the board's edge, which stands as proven.
+        {.beside = {heldAt(1, 23)},
+         .from = 21,
+         .to = 22,
+         .standing = FretWindow::through(21, 24),
+         .placed = FretWindow::through(22, 24)},
     };
 }
 
@@ -1151,12 +1257,11 @@ TEST_CASE("Hand derivation reads a slide's window back from its arrival", "[core
              legatoAt(2, 1, 1, 14)}) == std::vector{eventAt(1, 1, 20), eventAt(1, 4, 14, 5)});
 }
 
-// The hand-position slide rule proves a shift only where every finger pressed across the arrival
-// travels it: a stop held across it travels none, so the slide is a stretch. The index stays on
-// the held 3 while the 7 slides to 9, the window widening from 3..7 to 3..9, and nothing is
-// carried back onto a floor no note demands. Forward the same way: the 4 sliding to 5 beside the
-// held 6 moves no window, and rules 7 to 9 place the arrival on its own floor.
-TEST_CASE("Hand derivation reads a slide beside a held stop as a stretch", "[core][chart]")
+// THE HAND-POSITION SLIDE RULE's grip over windows earlier figures derived: the index stays on the
+// held 3 while the pinky's 7 slides to 9, stretching 3..7 to 3..9, and nothing is carried back
+// onto a floor no note demands. Forward the same way: the 4 sliding to 5 beside the held 6 moves
+// only the floor edge, by its travel, closing 3..6 to 4..6.
+TEST_CASE("Hand derivation reshapes the hand around a slide beside a held stop", "[core][chart]")
 {
     CHECK(
         eventsOf(
@@ -1168,7 +1273,82 @@ TEST_CASE("Hand derivation reads a slide beside a held stop as a stretch", "[cor
             {noteAt(1, 1, 3, 3),
              noteAt(1, 1, 2, 6, Fraction{1}),
              withFretAt(noteAt(1, 2, 4, 4, Fraction{1, 2}), Fraction{1, 4}, 5)}) ==
-        std::vector{eventAt(1, 1, 3), eventAt(1, 3, 5)});
+        std::vector{eventAt(1, 1, 3), eventAt(1, 3, 4, 3)});
+}
+
+// THE HAND-POSITION SLIDE RULE at a slide's arrival (`gripCases`): the arrival fronts the hand the
+// grip gives, and a grip that leaves both edges where they stood fronts nothing.
+TEST_CASE("Hand derivation moves each edge with the finger nearest it", "[core][chart]")
+{
+    for (const GripCase& grip : gripCases())
+    {
+        CAPTURE(grip.from, grip.to, grip.standing.fret, grip.standing.width);
+        const int slider_string = static_cast<int>(grip.beside.size()) + 1;
+        std::vector<ChartNote> notes = grip.beside;
+        notes.push_back(withFretAt(
+            noteAt(1, 1, slider_string, grip.from, Fraction{1, 2}), Fraction{1, 8}, grip.to));
+        std::vector expected{FretHandEvent{.front = Fraction{}, .window = grip.standing}};
+        if (grip.placed != grip.standing)
+        {
+            expected.push_back(FretHandEvent{.front = Fraction{1, 8}, .window = grip.placed});
+        }
+        CHECK(eventsOf(notes) == expected);
+    }
+}
+
+// A grip keeps its shape only as far as it is proven. A hand it closed stays closed only while
+// nothing in its landing run reaches past its top: the 8 that follows 5..7 reopens it to four
+// frets, the window that stood before. A hand whose fingers all travel one distance moved as one,
+// so it keeps a closed width only where a finger lands on its moved top: both fingers sliding up
+// two frets carry 5..7 to 7..9. Two fingers sliding toward each other move both edges, closing
+// 5..8 to 6..7.
+TEST_CASE("Hand derivation keeps a grip's shape only as far as it is proven", "[core][chart]")
+{
+    const ChartNote held = heldAt(1, 5);
+    const ChartNote closing = withFretAt(heldAt(2, 8), Fraction{1, 8}, 7);
+    const FretHandEvent closed{.front = Fraction{1, 8}, .window = FretWindow::through(5, 7)};
+    CHECK(eventsOf({held, closing, noteAt(1, 3, 2, 8)}) == std::vector{eventAt(1, 1, 5)});
+    CHECK(
+        eventsOf({withFretAt(held, Fraction{1, 4}, 7), withFretAt(closing, Fraction{1, 4}, 9)}) ==
+        std::vector{eventAt(1, 1, 5), closed, eventAt(1, 2, 7, 3)});
+    CHECK(
+        eventsOf(
+            {withFretAt(heldAt(1, 5), Fraction{1, 8}, 6),
+             withFretAt(heldAt(2, 8), Fraction{1, 8}, 7)}) ==
+        std::vector{
+            eventAt(1, 1, 5),
+            FretHandEvent{.front = Fraction{1, 8}, .window = FretWindow::through(6, 7)},
+        });
+}
+
+// A hand a slide proves at the board's top reaches from its own floor to the board's end, never
+// below it, exactly as it does mid-board: the 23 held over 21 sliding to 22 proves 22..24, which
+// does not reach the 21 struck on beat 2 in the figure the slide lands in, so the train refutes the
+// standing 21..24 and the slide read backward carries the hand to 20..24, the middle finger
+// sliding 21 to 22 into 21..24, where the 21 is played. Ten frets lower the same shape derives the
+// same windows ten frets lower.
+TEST_CASE("A slide-proven hand at the board's top reaches only from its floor", "[core][chart]")
+{
+    const auto shape = [](const int shift) {
+        return std::vector{
+            heldAt(1, 23 - shift),
+            withFretAt(noteAt(1, 1, 2, 21 - shift, Fraction{1, 2}), Fraction{1, 8}, 22 - shift),
+            noteAt(1, 2, 3, 21 - shift),
+        };
+    };
+    const std::vector<FretHandEvent> events = eventsOf(shape(0));
+    REQUIRE(
+        events == std::vector{
+                      eventAt(1, 1, 20, 5),
+                      FretHandEvent{.front = Fraction{1, 8}, .window = FretWindow::through(21, 24)},
+                  });
+    CHECK(std::prev(firstFretHandEventAfter(events, Fraction{1, 4}))->window.covers(21));
+    CHECK(
+        eventsOf(shape(10)) ==
+        std::vector{
+            eventAt(1, 1, 10, 5),
+            FretHandEvent{.front = Fraction{1, 8}, .window = FretWindow::through(11, 14)},
+        });
 }
 
 // The hand-position slide rule reads the run the slide lands in, not its first note alone: the
@@ -1380,9 +1560,10 @@ TEST_CASE("An authored position after the last note is still an event", "[core][
         std::vector{eventAt(1, 1, 5), eventAt(2, 1, 9)});
 }
 
-// The hand travels with a slide-out, so the window rides toward the window covering the exit fret
-// from where the slide departs to where it ends, and is back at the standing window by the next
-// instant the hand covers. That is motion beside the hand events, which stay exactly what the
+// The hand travels with a slide-out exactly as with a slide arriving at a stop: the window rides
+// toward the standing window moved by the slide-out's travel, rule 8 sizing it from the moved
+// floor, from where the slide departs to where it ends, and is back at the standing window by the
+// next instant the hand covers. That is motion beside the hand events, which stay exactly what the
 // notes derive.
 TEST_CASE("The window rides a slide-out to its exit and back", "[core][chart]")
 {
@@ -1399,11 +1580,19 @@ TEST_CASE("The window rides a slide-out to its exit and back", "[core][chart]")
     CHECK(eventsOf(notes) == std::vector{eventAt(1, 1, 5)});
 }
 
-// A window already covering the exit fret does not move, and neither does the fret hand for a
-// tap's slide-out, which is the picking hand's travel.
-TEST_CASE("The window does not ride an exit it covers or a tap's slide-out", "[core][chart]")
+// The hand travels with a slide-out whether its exit lies inside the window or not, the finger
+// keeping its slot, and not at all with a tap's slide-out, which is the picking hand's travel.
+TEST_CASE("The window rides a slide-out inside it, and not a tap's", "[core][chart]")
 {
-    CHECK(ridesOf({slideOutAt(1, 1, 1, 8, 6), noteAt(1, 2, 1, 5)}).empty());
+    CHECK(
+        ridesOf({slideOutAt(1, 1, 1, 8, 6), noteAt(1, 2, 1, 5)}) == std::vector{rideOf({
+                                                                        .departure = Fraction{},
+                                                                        .end = Fraction{1, 8},
+                                                                        .standing = 5,
+                                                                        .ridden = 3,
+                                                                        .note = 0,
+                                                                        .back = Fraction{1, 4},
+                                                                    })});
     CHECK(ridesOf({withFretAt(tapAt(1, 1, 1, 5), Fraction{1, 4}, 1), noteAt(1, 1, 2, 5)}).empty());
 }
 
@@ -1483,7 +1672,9 @@ TEST_CASE("A chain's ride departs where its slide-out does", "[core][chart]")
 }
 
 // A later ride arriving by an earlier one's way back takes the window on from there, so only the
-// later one returns.
+// later one returns. The earlier one rides beside the later one's 5, still held across its end:
+// the index slides to 1 while that finger stays, so the floor follows it down and the top stays at
+// 8.
 TEST_CASE("A later ride takes over an earlier one's way back", "[core][chart]")
 {
     CHECK(
@@ -1498,6 +1689,7 @@ TEST_CASE("A later ride takes over an earlier one's way back", "[core][chart]")
                                              .ridden = 1,
                                              .note = 0,
                                              .back = std::nullopt,
+                                             .ridden_width = 8,
                                          }),
                                          rideOf({
                                              .departure = Fraction{},
@@ -1510,7 +1702,9 @@ TEST_CASE("A later ride takes over an earlier one's way back", "[core][chart]")
                                      });
 }
 
-// Strings sliding out together ride one window, shifted the least distance that covers every exit.
+// Strings sliding out together are fingers of one grip at their shared end: travelling one
+// distance they move the whole hand by it; travelling different distances, each edge keeps its
+// distance from the finger nearest it.
 TEST_CASE("Strings sliding out together ride one window", "[core][chart]")
 {
     CHECK(
@@ -1523,9 +1717,21 @@ TEST_CASE("Strings sliding out together ride one window", "[core][chart]")
             .note = 0,
             .back = Fraction{1, 2},
         })});
+    CHECK(
+        ridesOf({slideOutAt(1, 1, 1, 5, 2), slideOutAt(1, 1, 2, 7, 6), noteAt(1, 3, 1, 5)}) ==
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{1, 8},
+            .standing = 5,
+            .ridden = 2,
+            .note = 0,
+            .back = Fraction{1, 2},
+            .ridden_width = 6,
+        })});
 }
 
-// An authored window is ridden like a derived one, keeping its width.
+// An authored window is ridden like a derived one: the hand moved as one by the travel, sized by
+// rule 8 from the moved floor.
 TEST_CASE("An authored position standing over a slide-out gets the same ride", "[core][chart]")
 {
     CHECK(
@@ -1534,10 +1740,84 @@ TEST_CASE("An authored position standing over a slide-out gets the same ride", "
             .departure = Fraction{},
             .end = Fraction{1, 8},
             .standing = 5,
-            .ridden = 8,
+            .ridden = 10,
             .note = 0,
             .back = Fraction{1, 2},
-            .width = 5,
+            .standing_width = 5,
+        })});
+}
+
+// The hand travels with a slide-out onto the window the next figure stands in: a six-fret grip
+// whose finger slides two frets down rides the window down with it, four frets wide over the exit,
+// landing where the slide that follows proves the hand stood.
+TEST_CASE("A slide-out rides onto the window the next figure stands in", "[core][chart]")
+{
+    const std::vector notes{
+        noteAt(1, 1, 3, 14),
+        noteAt(1, 1, 5, 19),
+        slideOutAt(1, 2, 3, 14, 12, Fraction{3, 4}),
+        withFretAt(noteAt(2, 1, 3, 14, Fraction{1, 2}), Fraction{1, 8}, 16),
+        noteAt(2, 2, 4, 14),
+    };
+    CHECK(
+        eventsOf(notes) == std::vector{
+                               eventAt(1, 1, 14, 6),
+                               eventAt(2, 1, 12),
+                               FretHandEvent{
+                                   .front = Fraction{9, 8},
+                                   .window = FretWindow{.fret = 14, .width = g_min_fret_hand_width},
+                               },
+                           });
+    CHECK(
+        ridesOf(notes) == std::vector{rideOf({
+                              .departure = Fraction{1, 4},
+                              .end = Fraction{1},
+                              .standing = 14,
+                              .ridden = 12,
+                              .note = 2,
+                              .back = std::nullopt,
+                              .standing_width = 6,
+                          })});
+}
+
+// A slide-out moves the hand exactly as a slide arriving beside the same stops does (`gripCases`):
+// the window rides toward the hand the grip gives at the slide-out's end and is back by the next
+// instant the hand covers, and a grip that leaves both edges where they stood rides nowhere. Two
+// slide-outs ending together are two fingers: sliding toward each other, they close 5..8 to 6..7.
+TEST_CASE("A slide-out moves each edge with the finger nearest it", "[core][chart]")
+{
+    for (const GripCase& grip : gripCases())
+    {
+        CAPTURE(grip.from, grip.to, grip.standing.fret, grip.standing.width);
+        const std::size_t slider = grip.beside.size();
+        std::vector<ChartNote> notes = grip.beside;
+        notes.push_back(slideOutAt(1, 1, static_cast<int>(slider) + 1, grip.from, grip.to));
+        notes.push_back(noteAt(1, 3, 1, grip.standing.fret));
+        std::vector<FretHandRide> expected;
+        if (grip.placed != grip.standing)
+        {
+            expected.push_back(
+                FretHandRide{
+                    .departure = Fraction{},
+                    .end = Fraction{1, 8},
+                    .standing = grip.standing,
+                    .ridden = grip.placed,
+                    .note = slider,
+                    .back = Fraction{1, 2},
+                });
+        }
+        CHECK(ridesOf(notes) == expected);
+    }
+    CHECK(
+        ridesOf({slideOutAt(1, 1, 1, 5, 6), slideOutAt(1, 1, 2, 8, 7), noteAt(1, 3, 1, 5)}) ==
+        std::vector{rideOf({
+            .departure = Fraction{},
+            .end = Fraction{1, 8},
+            .standing = 5,
+            .ridden = 6,
+            .note = 0,
+            .back = Fraction{1, 2},
+            .ridden_width = 2,
         })});
 }
 

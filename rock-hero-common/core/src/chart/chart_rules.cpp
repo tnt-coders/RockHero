@@ -272,7 +272,7 @@ std::expected<void, ChartError> validateFretHandPositions(
     for (const FretHandPosition& fhp : placements)
     {
         // A position off the grid or past the song has no repair; where the window SITS is the
-        // normalizer's fit (above the capo, the narrowest window under the last fret), asked as the
+        // normalizer's fit (above the capo, its window under the last fret), asked as the
         // fixpoint.
         if (!objectCanStartAt(fhp.position, tempo_map))
         {
@@ -888,22 +888,28 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
-    // The window's reach is the top of the figure the position heads (deriveFretHandEvents), and no
-    // note holds a fret past the board, so the index finger only has to leave room for the
-    // narrowest window — kept even under an authored end, so clearing that end always leaves a
-    // legal window. Every legal capo leaves that room above it; the floor still wins on a capo out
-    // of range, which the validator refuses after this runs.
-    static_assert(g_max_fret - g_max_capo >= g_min_fret_hand_width);
-    const int fitted = fittedWindowFret(position.fret, g_min_fret_hand_width, tuning.capo);
-    bool past_board = fitted < position.fret;
-    const bool below_capo = position.fret < fitted;
-    position.fret = fitted;
-    // An authored end past the last fret comes down onto it, the same fit the finger takes.
-    if (position.end_fret.has_value() && *position.end_fret > g_max_fret)
+    // An authored end past the last fret comes down onto it first: the window it states is then the
+    // one the index finger fits under the board's end.
+    bool past_board = false;
+    std::optional<int>& end_fret = position.end_fret;
+    if (end_fret.has_value() && *end_fret > g_max_fret)
     {
-        position.end_fret = g_max_fret;
+        end_fret = g_max_fret;
         past_board = true;
     }
+    // A stated end states the window's width, however narrow, so a narrow window at the board's top
+    // stands as stated. Without one, the window's reach is the top of the figure the position heads
+    // (deriveFretHandEvents), never under four frets, so the index finger leaves room for the
+    // narrowest window. Every legal capo leaves that room above it; the floor still wins on a capo
+    // out of range, which the validator refuses after this runs. An end below the finger states no
+    // window — the validator refuses it — so the finger fits there as a single fret.
+    static_assert(g_max_fret - g_max_capo >= g_min_fret_hand_width);
+    const int width =
+        end_fret.has_value() ? std::max(1, *end_fret - position.fret + 1) : g_min_fret_hand_width;
+    const int fitted = fittedWindowFret(position.fret, width, tuning.capo);
+    past_board = past_board || fitted < position.fret;
+    const bool below_capo = position.fret < fitted;
+    position.fret = fitted;
     std::vector<ChartRepair> repairs;
     if (past_board)
     {

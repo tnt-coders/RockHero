@@ -2158,9 +2158,9 @@ is why the connection resolver disqualifies a scrape before ever asking this.
 /*!
 \brief The fewest frets a fret-hand window spans: one finger per fret from the index up.
 
-The floor of every derived window width (\ref deriveFretHandEvents), and so also how HIGH a
-position's index finger may sit: the narrowest window must still end on the board
-(\ref fittedWindowFret).
+The floor of every derived window width but the hand a slide's grip proves
+(\ref deriveFretHandEvents), and so also how HIGH the index finger of a position stating no end may
+sit: the narrowest window it derives must still end on the board (\ref fittedWindowFret).
 */
 inline constexpr int g_min_fret_hand_width{4};
 
@@ -2246,7 +2246,8 @@ struct FretHandEvent
 
     /*!
     \brief The window: the run's floor fitted onto the board (\ref fittedWindowFret) and the width
-    `max(4, run hull)`, or the window an authored position states.
+    `max(4, run hull)`, or the hand a slide proves (the hand-position slide rule) — narrower than
+    four frets included — or the window an authored position states.
     */
     FretWindow window{};
 
@@ -2281,12 +2282,14 @@ struct FretHandPosition
     /*!
     \brief The authored highest fret the window covers, or absent where the notes derive it.
 
-    Where stated the window is exactly `[fret, end_fret]`, however narrow — the narrowest derived
-    window (\ref g_min_fret_hand_width) floors only the derived width. The index finger still leaves
-    that narrowest window's room under the last fret (\ref normalizeFretHandPosition), so clearing
-    an authored end always leaves a legal window, and an authored window never starts above
-    `g_max_fret - 3`. A demand above the end at the position's own instant stays outside the
-    window, as one below \ref fret does; a demand outside it later on ends the position.
+    Where stated the window is exactly `[fret, end_fret]`, however narrow — the four-fret floor
+    (\ref g_min_fret_hand_width) binds only a derived width, and a slide can prove even that
+    narrower. The window fits on the board by its stated width
+    (\ref normalizeFretHandPosition), so a narrow window at either edge of the board — 22..24 or
+    24..24 at the top, 1..1 at the bottom — stands as stated; a position without an end leaves the
+    narrowest derived window's room under the last fret instead. A demand above the end at the
+    position's own instant stays outside the window, as one below \ref fret does; a demand outside
+    it later on ends the position.
     */
     std::optional<int> end_fret{};
 

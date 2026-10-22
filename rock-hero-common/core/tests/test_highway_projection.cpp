@@ -2215,7 +2215,7 @@ TEST_CASE("Highway tap light arrives pitched at a scrape's turnarounds", "[core]
 }
 
 // The fretting hand's track is the scene's, with each settled window as fret lines. A placement
-// landing where a ridden slide-out ends, on the very window the ride covers the exit with, gets the
+// landing where a ridden slide-out ends, on the very window the ride moves the hand to, gets the
 // crop zone as its settle — the slide-out's rail is cut one margin before the next head while the
 // hand completes at the head — and a margin-morph placement settles over nothing.
 TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[core][highway]")
@@ -2255,9 +2255,9 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     const GridPosition slide_out_arrival{.measure = 2, .beat = 1};
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
-        // Exactly on the slide-out's terminal, the window covering its exit: rides the
+        // Exactly on the slide-out's terminal, the window the ride moves the hand to: rides the
         // slide-out's own segment, unpitched.
-        FretHandPosition{.position = slide_out_arrival, .fret = 9},
+        FretHandPosition{.position = slide_out_arrival, .fret = 12},
         // An ordinary move with no glide under it: the margin morph.
         FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 2},
     };
@@ -2281,8 +2281,8 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
     // fret - 1 to fret + width - 1.
     CHECK(state.fret_hand.track[0].low_line == Catch::Approx(4.0));
     CHECK(state.fret_hand.track[0].high_line == Catch::Approx(8.0));
-    CHECK(state.fret_hand.track[1].low_line == Catch::Approx(8.0));
-    CHECK(state.fret_hand.track[1].high_line == Catch::Approx(12.0));
+    CHECK(state.fret_hand.track[1].low_line == Catch::Approx(11.0));
+    CHECK(state.fret_hand.track[1].high_line == Catch::Approx(15.0));
     CHECK(state.fret_hand.track[2].low_line == Catch::Approx(1.0));
     CHECK(state.fret_hand.track[2].high_line == Catch::Approx(6.0));
 
@@ -2306,7 +2306,7 @@ TEST_CASE("Highway fret hand settles a slide-out arrival over its crop zone", "[
             settle->seconds ==
             Catch::Approx(slide_out.seconds - state.chart.notes.front().ink_end_seconds));
         CHECK(settle->seconds <= slide_out.ramp_seconds);
-        // The ride covers the exit with the placement's own window, so the curve heads for it.
+        // The ride moves the hand onto the placement's own window, so the curve heads for it.
         CHECK(settle->low_line == Catch::Approx(slide_out.low_line));
         CHECK(settle->high_line == Catch::Approx(slide_out.high_line));
     }

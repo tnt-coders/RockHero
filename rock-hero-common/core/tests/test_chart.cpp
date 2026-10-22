@@ -2645,10 +2645,10 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     CHECK(validateChartRules(chart, makeTempoMap()).has_value());
 }
 
-// The narrowest hand window must fit on the neck: with g_max_fret = 24 an index finger at 21 spans
-// 21..24 and stands, while one at 22 wants 22..25 and is refused. The reach past four frets is
-// derived from notes, which never state a fret off the board. Asked of the stream alone, since the
-// fixture's notes would leave either window's position uncovered.
+// The narrowest derived hand window must fit on the neck: with g_max_fret = 24 an index finger
+// stating no end at 21 spans 21..24 and stands, while one at 22 wants 22..25 and is refused. The
+// reach past four frets is derived from notes, which never state a fret off the board. Asked of the
+// stream alone, since the fixture's notes would leave either window's position uncovered.
 TEST_CASE("Chart rules bound the narrowest hand window by the neck", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -2662,6 +2662,38 @@ TEST_CASE("Chart rules bound the narrowest hand window by the neck", "[core][cha
     chart.fret_hand_positions.back().fret = g_max_fret - g_min_fret_hand_width + 2;
     CHECK_FALSE(
         validateFretHandPositions(chart.fret_hand_positions, chart.tuning, tempo_map).has_value());
+}
+
+// A stated end states the window's width, so a window narrower than four frets at either edge of
+// the board is a legal position the normalizer leaves alone: 22..24, 23..24 and 24..24 at the top,
+// 1..1 and 1..2 at the bottom. Without its end, the same index finger at 22 is still fitted down
+// to the narrowest derived window, 21..24.
+TEST_CASE("Chart rules leave a stated narrow window at the board's edges", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const ChartTuning tuning{};
+    for (const auto& [fret, end] : std::vector<std::pair<int, int>>{
+             {22, g_max_fret}, {23, g_max_fret}, {g_max_fret, g_max_fret}, {1, 1}, {1, 2}
+         })
+    {
+        CAPTURE(fret, end);
+        const FretHandPosition stated{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .fret = fret,
+            .end_fret = end,
+        };
+        FretHandPosition normal = stated;
+        CHECK(normalizeFretHandPosition(normal, tuning).empty());
+        CHECK(normal == stated);
+        CHECK(validateFretHandPositions({stated}, tuning, tempo_map).has_value());
+    }
+
+    FretHandPosition fret_only{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 22};
+    CHECK_FALSE(validateFretHandPositions({fret_only}, tuning, tempo_map).has_value());
+    CHECK(
+        normalizeFretHandPosition(fret_only, tuning) ==
+        std::vector<ChartRepair>{ChartRepair::FretPastBoard});
+    CHECK(fret_only.fret == g_max_fret - g_min_fret_hand_width + 1);
 }
 
 // The placement stream is strictly ascending: two placements at one instant leave "where the hand

@@ -25,9 +25,10 @@ The numbered list is the implementer's order. A charter is taught only this:
 
 > Cut the song into figures at boundaries you can see — a chord being struck, a bar line, or the
 > grip outgrowing the hand. Put the hand at each figure's floor, spanning the grip, never narrower
-> than four frets. Two exceptions, both of which only ever remove motion: the hand never moves while
-> a stop it holds still rings, and a one-fret figure the standing window already covers does not
-> move it — unless a slide leaving it proves where the hand was (the slide rule).
+> than four frets unless a slide proves the hand narrower. Two exceptions, both of which only ever
+> remove motion: the hand never moves while a stop it holds still rings, and a one-fret figure the
+> standing window already covers does not move it — unless a slide leaving it proves where the hand
+> was (the slide rule).
 
 Each figure's window depends only on that figure's own notes, so an edit changes at most the figure
 it touches and where the previous one ends.
@@ -68,10 +69,16 @@ it touches and where the previous one ends.
    already covers moves nothing while any hold begun before it still holds. The same release decides
    a shape hold's conflicts (shape rule 9). (`fretHandHolds`, `stringReleasesStopAt`)
 7. **The floor.** A run's window sits on the run's lowest demanded fret: the index finger.
-8. **The width.** A window spans the run's hull, never fewer than four frets. The same
-   `max(4, hull)` is the capacity rule 3 tests a run against. (`runWidth`)
+8. **The width.** A window spans the run's hull, never fewer than four frets — save the hand a
+   slide's grip proves (the slide rule), which may be narrower or wider. The same `max(4, hull)` is
+   the capacity rule 3 tests a run against, and how far any hand reaches from its floor, a narrower
+   one included, up to the board's end (rule 9). (`runWidth`)
 9. **On the board.** A window is lowered until it ends on the last fret, then lifted to the first
-   playable fret; the lift wins. (`fittedWindowFret`)
+   playable fret; the lift wins. A window is fitted by its own width: a slide-proven or stated
+   window may be narrower than four frets at either edge of the board — 1..1, 1..2 and 1..3 at the
+   bottom, 22..24, 23..24 and 24..24 at the top — and stands there as it is. A hand reaches from its
+   own floor no further than the board's end, never refitted below that floor. (`fittedWindowFret`,
+   `reachOf`)
 10. **Where a window takes over.** A derived window fronts at the earliest note onset — open strings
     and taps included — that comes after the previous instant and the previous event, lies strictly
     inside no hold (the hand never moves while a stop it holds still rings), and is not before its
@@ -95,36 +102,55 @@ it touches and where the previous one ends.
 
 ## The slide rule
 
-A fretting finger sliding from one pressed stop to another proves the hand moved with it and kept
-the finger's place in it, so the windows on the slide's two sides differ by the slide's distance.
-The hand stands where it is, so the window before the slide is placed first, and the run the slide
-lands in is played in that window moved by the travel: the moved floor is its floor, and its width
-is rule 8's over the run from there, so a six-fret grip sliding onto a lone note arrives four wide.
-The move stands only where every finger pressed across the arrival travels the same distance — a
-stop held across it (rule 6) travels none, so a slide beside a held finger is a stretch: the hand
-did not move with it, and the ordinary rules place both sides, each at its own width — and only
-where the moved window covers the arrival; it reaches as far into the landing run as the moved
-window covers, and the first instant it does not cover — a finger outside the hand — heads a run of
-its own, placed by the ordinary rules. Where the moved window misses the arrival, rules 3 and 7 to 9
-place the landing run as usual. Read backward, the proof runs along the whole train of slides the
-finger makes without lifting — a note's keyframes, a glide into the next head — each landing heading
-a run of its own (rule 3), for as long as each run ends at an arrival whose fingers agree on one
-travel; an authored position, an arrival proving no single travel, or a run ending anywhere else
-ends the train. A slide proves only the shift between the window at its departure and the window at
-its arrival; nothing proves the finger down past the arrival, so which later instants share a
-landing's window is rule 3's call, as for every run. The hand stands where it is unless the train
-refutes it: where the leaving run's window, moved by each travel in turn, covers every landing run,
-nothing is carried. Otherwise the train is read from its last landing back: each landing stands in
-its own window (rules 7 to 9) where the hand stands through the rest of the train from it, else in
-the next landing's proven window moved back by the travel, on that floor, at rule 8's width over the
-run from there, as the forward move places a landing, so the two sides of a slide agree; where that
-moved window misses the run, the hand moved apart from that slide, and the train ends there for
-every run before it. The leaving run is read the same way, forced from its last instant before the
-slide; the forward move then reads from the carried window and plays the train on. So a slide
-landing in the pinky's slot left from the pinky, however many stops the finger passed on the way.
-That proof outranks rule 5, whose one-fret run states nothing, but not rule 6, whose hold does; a
-run the forward move placed is never carried. A slide arrival is a forced boundary: no run crosses
-it, and rules 5, 6 and 10 neither hold the old window over it nor reach back across it.
+A fretting finger sliding from one pressed stop to another proves where the hand stands at the
+arrival, read from every finger pressed across it: each sliding finger, and each stop still held
+across the arrival (rule 6), a finger that travels none. The sliding finger keeps its slot in the
+hand and the held fingers stay put, so each edge of the window standing before the slide keeps its
+distance from the finger nearest it — the one that ended outermost, where several were nearest — and
+the hand spans every finger. Fingers all travelling one distance move the whole hand by it. A slide
+beside a held finger moves only the edge on the slider's side: with 5 held, a finger sliding 7 to 6
+closes 4..7 to 4..6, one sliding 6 to 7 stretches it to 4..8, and 8 sliding to 7 closes 5..8 to
+5..7. Held fingers on both sides of the slider move neither edge, so 4..9 with 5 and 8 held stays
+4..9 while 7 slides to 6. A finger sliding past a held one moves the edge it stood beside only until
+the held finger pins it, and the far edge reaches only as far as the arrival: 4..7 with 6 held and 5
+sliding to 8 becomes 6..8, and with 5 held and 6 sliding to 4 becomes 4..5. One arriving exactly at
+a held finger's fret crosses nothing: 4..8 with 5 held and 6 sliding to 5 becomes 4..7. The hand
+always spans its fingers, and rule 9 fits it on the board by its own width, which never outgrows
+the board: a hand proved at 22..24 stands at 22..24. The slide proves this hand only where every
+finger pressed before it lies inside the standing window and the hand reaches the arrival — rule
+8's four frets from its floor, cut at the board's end; otherwise rules 3 and 7 to 9 place the
+landing run as usual.
+
+Where the slide proves the hand, the run it lands in is played in that hand as far as the hand
+reaches, and the first instant it does not reach — a finger outside the hand — heads a run of its
+own, placed by the ordinary rules. A hand whose fingers all travelled one distance moved as one, and
+that proves the slot the fingers kept, not the width the hand stood at: its width is rule 8's over
+the run from the moved floor, so a six-fret grip sliding onto a lone note arrives four wide — unless
+a finger lands on the moved top, which it then keeps. Any other proven hand keeps the shape the
+slide gives it, narrower or wider than four frets, for as long as nothing in the landing run reaches
+past its top; a run that does is spanned at rule 8's width from the proven floor, so a later 8 after
+the hand closed to 5..7 opens it to four frets again.
+
+Read backward, the proof runs along the whole train of slides the finger makes without lifting — a
+note's keyframes, a glide into the next head — each landing heading a run of its own (rule 3), for
+as long as each run ends at a slide's arrival; an authored position or a run ending anywhere else
+ends the train. A slide proves only the hand at its arrival; nothing proves the finger down past the
+arrival, so which later instants share a landing's window is rule 3's call, as for every run. The
+hand stands where it is unless the train refutes it: where the slide into every landing, read
+forward from the leaving run's window, proves a hand covering that landing's run, nothing is
+carried. Otherwise the train is read from its last landing back: each landing stands in its own
+window (rules 7 to 9) where the hand stands through the rest of the train from it, else in the next
+landing's proven window with that slide reversed — every finger travelling back — placed exactly as
+the forward rule places a landing, so the two sides of a slide agree wherever no finger crosses the
+one nearest an edge; where the reversed slide proves no hand over the run, the hand moved apart from
+that slide, and the train ends there for every run before it. The leaving run is read the same way,
+forced from its last instant before the slide; the forward move then reads from the carried window
+and plays the train on. So a slide landing in the pinky's slot left from the pinky, however many
+stops the finger passed on the way. That proof outranks rule 5, whose one-fret run states nothing,
+but not rule 6, whose hold does; a run the forward move placed is never carried. A slide arrival is
+a forced boundary: no run crosses it, and rules 5, 6 and 10 neither hold the old window over it nor
+reach back across it. A slide-out's end is placed by this same rule (see [Slide-out
+rides](#slide-out-rides)).
 
 ## Authored positions
 
@@ -166,17 +192,21 @@ An authored position is downstream of the grid, the notes and the holds, so:
 
 ## Slide-out rides
 
-A slide-out's exit is motion, not a position. From where the slide-out leaves its last stop, the
-window rides it on the slide-out's own curve and timing, toward the window that covers the exit
-frets ending at that instant by the least shift, keeping its width. It follows the slide only as
-far as the rail is drawn: where the ring's ink is cut short of its end (tail rule 1), the window
-leaves the curve there and comes to rest with a continuous slope. A slide-out lets the string go at
-speed, so the hand never stops dead on it: the window leaves the curve no later than one minimum
-sustain distance before the slide's end, whatever arrives there, and settles into it, which over
-that stretch is a rail all but faded. What it comes to rest on is whatever arrives at the slide's
-end — the next hand event, the window's return to where it stood, or, into blank space, the ridden
-window itself, from which it returns to the standing window at the next instant the hand covers.
-A slide-out does not ride where an instant the hand covers, or a hand event, lies strictly inside it — an event
-there is the hand moving on — nor where the standing window already covers its exits, nor for a
-tap's slide-out, which the picking hand makes. Rides are not hand events and change none.
-(`deriveFretHandRides`; the drawn track in `makeChartViewState`)
+A slide-out's exit is motion, not a position. The hand travels with a slide-out exactly as a slide
+arriving at a stop moves it (the slide rule): the fingers pressed across its end are every slide-out
+ending there, each from its last stop to its exit fret, and every stop still held across that end,
+which travels none, and the slide rule places the hand from them. From where the slide-out leaves
+its last stop, the window rides toward that window on the slide-out's own curve and timing. It
+follows the slide only as far as the rail is drawn: where the ring's ink is cut short of its end
+(tail rule 1), the window leaves the curve there and comes to rest with a continuous slope. A
+slide-out lets the string go at speed, so the hand never stops dead on it: the window leaves the
+curve no later than one minimum sustain distance before the slide's end, whatever arrives there, and
+settles into it, which over that stretch is a rail all but faded. What it comes to rest on is
+whatever arrives at the slide's end — the next hand event, the window's return to where it stood,
+or, into blank space, the ridden window itself, from which it returns to the standing window at the
+next instant the hand covers. A slide-out does not ride where an instant the hand covers, or a hand
+event, lies strictly inside it — an event there is the hand moving on — nor where the slide rule
+leaves the hand where it stands (rule 11), nor for a tap's slide-out, which the picking hand makes.
+A slide-out's end is no stop (rule 2), so after the ride the hand plays on from where it stood:
+rides are not hand events and change none. (`deriveFretHandRides`; the drawn track in
+`makeChartViewState`)

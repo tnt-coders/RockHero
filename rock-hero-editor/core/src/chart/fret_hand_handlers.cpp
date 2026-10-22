@@ -57,48 +57,6 @@ namespace
     return std::ranges::find(placements, position, &common::core::FretHandPosition::position);
 }
 
-// The placement an insert at a position makes: it states the fret of the window already standing
-// there — the last hand event fronting at or before it, derived or authored, read from the hand
-// layer the projection draws — so inserting moves no hand. Where nothing stands yet it states the
-// nut window, the first fret the capo leaves playable. Either fret is already one the normalizer
-// leaves alone: every event's window is fitted onto the board, and so is the nut window.
-[[nodiscard]] common::core::FretHandPosition defaultedPlacement(
-    const std::vector<common::core::FretHandEvent>& events, const int capo,
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
-{
-    const auto past =
-        common::core::firstFretHandEventAfter(events, tempo_map.wholeNotePositionAt(position));
-    return common::core::FretHandPosition{
-        .position = position,
-        .fret = past == events.begin() ? common::core::firstPlayableFret(capo)
-                                       : std::prev(past)->window.fret,
-        .end_fret = std::nullopt,
-    };
-}
-
-// The placement a STATING edit at `position` writes into: the authored one standing there, else —
-// a derived position stores nothing — the one Ctrl+P makes at that place (defaultedPlacement over
-// the chart's hand events), appended for the funnel's normalize to order. The edit then applies to
-// it exactly as to an authored one, the authoring and the edit one commit. Nothing without a chart.
-[[nodiscard]] std::vector<common::core::FretHandPosition>::iterator statedPlacement(
-    std::vector<common::core::FretHandPosition>& placements, const common::core::Session& session,
-    const std::vector<common::core::FretHandEvent>& events,
-    const common::core::GridPosition& position)
-{
-    if (const auto match = findPlacement(placements, position); match != placements.end())
-    {
-        return match;
-    }
-    const common::core::Arrangement* const arrangement = session.currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
-    {
-        return placements.end();
-    }
-    placements.push_back(defaultedPlacement(
-        events, arrangement->chart->tuning.capo, session.song().tempo_map, position));
-    return std::prev(placements.end());
-}
-
 // The stored positions less every one the derivation does not need: walked in order, a position is
 // dropped where the events derived without it equal the events derived with it, and the walk goes
 // on against the reduced list, so each verdict is judged against what is actually kept. Dropping
@@ -140,6 +98,76 @@ namespace
 }
 
 } // namespace
+
+// The placement an insert at a position makes: it states the window already standing there — the
+// last hand event fronting at or before it, derived or authored, read from the hand layer the
+// projection draws — so inserting moves no hand. Its fret alone states that window wherever the
+// derivation, asked with the placement in place, widens the fret to exactly it; anywhere else — a
+// hand a slide's grip proved, or a window wider than the figure the placement would head — the
+// window's end fret is stated too. Where nothing stands yet it states the nut window, the first
+// fret the capo leaves playable. Either placement is already one the normalizer leaves alone: every
+// event's window lies on the board, so a stated end fits there by its own width — a slide's narrow
+// hand at either edge of the board included — and a fret stated alone widens to that window only
+// where four frets fit above it, as they do above the nut window's fret.
+common::core::FretHandPosition EditorController::Impl::defaultedPlacement(
+    const common::core::Chart& chart, const common::core::GridPosition& position) const
+{
+    const common::core::ChartResolutions& resolved = chartResolutions();
+    const std::vector<common::core::FretHandEvent>& events = fretHandResolutions().events;
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const common::core::Fraction place = tempo_map.wholeNotePositionAt(position);
+    const auto past = common::core::firstFretHandEventAfter(events, place);
+    if (past == events.begin())
+    {
+        return common::core::FretHandPosition{
+            .position = position,
+            .fret = common::core::firstPlayableFret(chart.tuning.capo),
+            .end_fret = std::nullopt,
+        };
+    }
+    const common::core::FretWindow standing = std::prev(past)->window;
+    common::core::FretHandPosition placement{
+        .position = position,
+        .fret = standing.fret,
+        .end_fret = std::nullopt,
+    };
+    // No stored placement arrives at the position — every caller asked first — so inserting this
+    // one in order keeps the list strictly ascending, as the derivation requires, and its own event
+    // fronts at `place`.
+    std::vector<common::core::FretHandPosition> with = chart.fret_hand_positions;
+    with.insert(
+        std::ranges::upper_bound(
+            with, position, std::ranges::less{}, &common::core::FretHandPosition::position),
+        placement);
+    const std::vector<common::core::FretHandEvent> derived = common::core::deriveFretHandEvents(
+        resolved.connections, resolved.hand_demands, tempo_map, with);
+    if (std::prev(common::core::firstFretHandEventAfter(derived, place))->window != standing)
+    {
+        placement.end_fret = standing.top();
+    }
+    return placement;
+}
+
+// The placement a STATING edit at `position` writes into: the authored one standing there, else —
+// a derived position stores nothing — the one Ctrl+P makes at that place (defaultedPlacement over
+// the chart's hand layer), appended for the funnel's normalize to order. The edit then applies to
+// it exactly as to an authored one, the authoring and the edit one commit. Nothing without a chart.
+std::vector<common::core::FretHandPosition>::iterator EditorController::Impl::statedPlacement(
+    std::vector<common::core::FretHandPosition>& placements,
+    const common::core::GridPosition& position) const
+{
+    if (const auto match = findPlacement(placements, position); match != placements.end())
+    {
+        return match;
+    }
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return placements.end();
+    }
+    placements.push_back(defaultedPlacement(*arrangement->chart, position));
+    return std::prev(placements.end());
+}
 
 // Chips ascend by their fronts, so the one fronting at a position is one search.
 std::optional<std::size_t> EditorController::Impl::fretHandChipIndex(
@@ -199,8 +227,7 @@ void EditorController::Impl::performActionImpl(
 
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
-    after.placements.push_back(
-        defaultedPlacement(fretHandResolutions().events, chart.tuning.capo, tempo_map, position));
+    after.placements.push_back(defaultedPlacement(chart, position));
     // The subject is the place the insert addressed, which lights the derived chip standing there.
     if (commitMarkerModel(
             std::move(before),
@@ -229,8 +256,7 @@ void EditorController::Impl::moveSelectedFretHandPosition(
     const std::string label = markerVerbLabel(MarkerVerb::MoveHandPosition);
     FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
-    const auto match = statedPlacement(
-        after.placements, session(), fretHandResolutions().events, selection.position);
+    const auto match = statedPlacement(after.placements, selection.position);
     if (match == after.placements.end())
     {
         return;
@@ -269,8 +295,7 @@ std::expected<EditorController::Impl::ChartFretHandPlan, PlanRefusal> EditorCont
 {
     const FretHandPositionsSnapshot before = FretHandPositionsSnapshot::capture(session());
     FretHandPositionsSnapshot after = before;
-    const auto match =
-        statedPlacement(after.placements, session(), fretHandResolutions().events, position);
+    const auto match = statedPlacement(after.placements, position);
     if (match == after.placements.end())
     {
         return std::unexpected{PlanNoChange{}};
@@ -309,8 +334,7 @@ common::core::FhpViewState EditorController::Impl::fretHandEntryChip(
     const common::core::GridPosition& position, const FretHandEdge edge, const int value) const
 {
     FretHandPositionsSnapshot placements = FretHandPositionsSnapshot::capture(session());
-    const auto match =
-        statedPlacement(placements.placements, session(), fretHandResolutions().events, position);
+    const auto match = statedPlacement(placements.placements, position);
     const common::core::FretHandPosition typed =
         match == placements.placements.end()
             ? common::core::FretHandPosition{.position = position, .fret = value}
