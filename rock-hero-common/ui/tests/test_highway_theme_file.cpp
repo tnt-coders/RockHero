@@ -640,7 +640,7 @@ TEST_CASE("Every shipped built-in theme loads", "[ui][highway-theme]")
 TEST_CASE("A broken user theme is dropped and the registry stays usable", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
 
     const ThemeFolder user;
     const juce::var mine = defaultThemeDocument();
@@ -672,7 +672,7 @@ TEST_CASE("A broken user theme is dropped and the registry stays usable", "[ui][
 TEST_CASE("An inheriting theme takes what it leaves out from its base", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
     const ThemeFolder user;
     const juce::var tweak = inheritingDocument("Tweak");
     setOwnColor(tweak, "beat_bar", "#102030");
@@ -699,7 +699,7 @@ TEST_CASE("An inheriting theme takes what it leaves out from its base", "[ui][hi
 TEST_CASE("A strings-only theme is a palette of its own", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
     const ThemeFolder user;
     const juce::var my_strings = inheritingDocument("My Strings");
     setOwnColor(my_strings, "strings", colorOf(defaultThemeDocument(), "strings"));
@@ -768,7 +768,7 @@ TEST_CASE("An inheriting theme stays strict", "[ui][highway-theme]")
 TEST_CASE("A user theme with a built-in's id shadows the built-in", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
     const ThemeFolder user;
     const juce::var shadow = inheritingDocument("Default Tweaked");
     setOwnColor(shadow, "beat_bar", "#102030");
@@ -797,7 +797,7 @@ TEST_CASE("A user theme with a built-in's id shadows the built-in", "[ui][highwa
 TEST_CASE("A picked theme resolves to itself or to the default", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
     const ThemeFolder user;
     const juce::var mine = defaultThemeDocument();
     setKey(mine, "name", "Mine");
@@ -825,7 +825,7 @@ TEST_CASE("A picked theme resolves to itself or to the default", "[ui][highway-t
 TEST_CASE("A palette resolves to its pin or to the theme's choice", "[ui][highway-theme]")
 {
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
     const juce::var other = defaultThemeDocument();
     setKey(other, "name", "Other");
     colorOf(other, "strings").getArray()->set(0, "#FF00FF");
@@ -883,13 +883,13 @@ TEST_CASE("Only a missing or broken default theme fails the registry", "[ui][hig
     const juce::var broken = defaultThemeDocument();
     setColor(broken, "beat_bar", "#nothex");
     const ThemeFolder with_broken_default;
-    with_broken_default.addTheme(std::string{g_default_highway_theme_id}, broken);
+    with_broken_default.addTheme(g_default_highway_theme_id, broken);
     CHECK(failure(with_broken_default.path()) == HighwayThemeErrorCode::InvalidColor);
 
     // A built-in may inherit the default theme and nothing else: not another built-in, whatever
     // the folder order. One that inherits another, like one whose colors are bad, is dropped.
     const ThemeFolder built_in;
-    built_in.addTheme(std::string{g_default_highway_theme_id}, defaultThemeDocument());
+    built_in.addTheme(g_default_highway_theme_id, defaultThemeDocument());
     built_in.addThemeFileOnly("accent", inheritingDocument("Accent"));
     built_in.addTheme("broken", broken);
     const juce::var chained = inheritingDocument("Chained");
