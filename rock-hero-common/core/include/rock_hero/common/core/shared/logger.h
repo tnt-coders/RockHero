@@ -10,6 +10,7 @@
 #include <expected>
 #include <filesystem>
 #include <rock_hero/common/core/shared/logger_error.h>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -91,7 +92,9 @@ struct Logger
         {
             if (!isWellFormed(name))
             {
-                throw "log category must be lowercase dotted segments of [a-z0-9_-]";
+                throw std::logic_error{
+                    "log category must be lowercase dotted segments of [a-z0-9_-]"
+                };
             }
         }
 
