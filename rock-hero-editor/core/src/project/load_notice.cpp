@@ -45,7 +45,7 @@ std::string loadConversionNoticeText(
         }
         else
         {
-            text += "\n";
+            text += '\n';
         }
         for (const auto& [repair, count] : rules)
         {

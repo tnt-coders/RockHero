@@ -890,7 +890,7 @@ namespace
     if (text.ends_with(",\n"))
     {
         text.erase(text.size() - 2);
-        text += "\n";
+        text += '\n';
     }
     text += "}\n";
     return text;
