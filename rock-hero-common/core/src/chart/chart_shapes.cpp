@@ -564,16 +564,24 @@ ChartShapes deriveChartShapes(
         };
 
     // THE HOLD'S EVIDENCE (shape rule 9, feeding rule 7's hold-under law). An unnamed hold is the
-    // charter's word that one shape is held from its start, so on a string the hold's span does not
-    // yet state a pull-off source can only be riding above its plant: the hold demonstrates the
-    // stop the string is at, as a standing grip's entry does elsewhere. Handed to
-    // \ref gripStatement as `down`, so its own refusals — a harmonic over a pressed stop, a path
-    // sweeping the plant — stand.
-    const auto hold_demonstrates =
-        [&planted_stops](const std::size_t note) -> std::optional<ChartStop> {
+    // charter's word that one shape is held to `hold_end`, so on a string its span does not yet
+    // state it stands in for the grip's entry exactly where that entry is needed and can stand: a
+    // pull-off source whose release — its ring's end — falls strictly inside the hold could not
+    // keep the fret it sounds to the end, and a PRESSED plant can (an open plant holds nothing,
+    // rule 8). Everywhere else the source states the fret it sounds, as a derived span's does, so a
+    // hold exactly over a derived span reproduces it. Handed to \ref gripStatement as `down`, whose
+    // own refusals — a harmonic over a pressed stop, a path sweeping the plant — stand.
+    const auto hold_demonstrates = [&planted_stops, &ring_end_of](
+                                       const std::size_t note,
+                                       const Fraction hold_end) -> std::optional<ChartStop> {
         // Bound once so the presence test and the read are provably the same object.
         const std::optional<int>& planted = planted_stops[note];
-        return planted.has_value() ? std::optional{fretStop(*planted)} : std::nullopt;
+        if (!planted.has_value() || !pressedFret(*planted).has_value() ||
+            !(ring_end_of(note) < hold_end))
+        {
+            return std::nullopt;
+        }
+        return fretStop(*planted);
     };
 
     // HAND-POSITION RULE 6's RELEASE (\ref stringReleasesStopAt) of a stop a span states, by the
@@ -866,11 +874,13 @@ ChartShapes deriveChartShapes(
     // instant it joins, so a landing it passed later still caps it (shape rule 4). Returns which
     // strings were carried, for \ref OpenSpan::carried. One routine for the two spans that open
     // over rings — a statement's and a shape hold's (shape rule 9). At an unnamed hold's front
-    // (`hold_front`) the hold is evidence too (\c hold_demonstrates): a carried pull-off source
-    // states its plant beneath the fret it rings.
+    // (`hold_end`, the hold's stated end) the hold is evidence too (\c hold_demonstrates): a
+    // carried pull-off source released inside the hold states its pressed plant beneath the fret it
+    // rings.
     const auto carry_into = [&](std::vector<std::optional<ChartStop>>& stops,
                                 const Fraction front,
-                                const bool hold_front) {
+                                const std::optional<Fraction>
+                                    hold_end) {
         std::vector<bool> carried_in(string_count, false);
         for (std::size_t string_index = 0; string_index < string_count; ++string_index)
         {
@@ -885,13 +895,16 @@ ChartShapes deriveChartShapes(
             }
             // At an unnamed hold's front the hold is the evidence the ring's strike lacked: a
             // source that stated what it sounds, nothing being down then, states its plant beneath
-            // it here.
+            // it here wherever the hold stands in for that plant.
             StringHand& string_hand = hand[string_index];
             const std::optional<std::size_t>& finger = string_hand.finger;
-            if (hold_front && finger.has_value() && !string_hand.stated_beneath.has_value())
+            if (hold_end.has_value() && finger.has_value() &&
+                !string_hand.stated_beneath.has_value())
             {
                 string_hand.stated_beneath = gripStatement(
-                    saved_notes[*finger], planted_stops[*finger], hold_demonstrates(*finger));
+                    saved_notes[*finger],
+                    planted_stops[*finger],
+                    hold_demonstrates(*finger, *hold_end));
             }
             stops[string_index] = carried_statement(string_index, *at_front);
             carried_in[string_index] = true;
@@ -1288,7 +1301,7 @@ ChartShapes deriveChartShapes(
             else
             {
                 std::vector<std::optional<ChartStop>> stops(string_count);
-                std::vector<bool> carried_in = carry_into(stops, slot.place, true);
+                std::vector<bool> carried_in = carry_into(stops, slot.place, tenure.end);
                 open = OpenSpan{
                     .front_place = slot.place,
                     .stops = std::move(stops),
@@ -1334,15 +1347,23 @@ ChartShapes deriveChartShapes(
             gripped_before = open->stops;
         }
         // Inside an unnamed hold the hold itself is evidence on a string its span does not yet
-        // state (\c hold_demonstrates): a planted source struck there rides above its plant.
+        // state (\c hold_demonstrates): a planted source struck there and released inside the
+        // hold rides above its pressed plant.
         if (standing && insideHold(*open, slot.place))
         {
-            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            // Bound once so the presence test and the read are provably the same object; the
+            // hold is present, as \ref insideHold just proved.
+            const std::optional<HoldTenure>& tenure = open->hold;
+            if (tenure.has_value())
             {
-                const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
-                if (striking.has_value() && !gripped_before[string_index].has_value())
+                const Fraction hold_end = tenure->end;
+                for (std::size_t string_index = 0; string_index < string_count; ++string_index)
                 {
-                    gripped_before[string_index] = hold_demonstrates(*striking);
+                    const std::optional<std::size_t>& striking = slot.strike_notes[string_index];
+                    if (striking.has_value() && !gripped_before[string_index].has_value())
+                    {
+                        gripped_before[string_index] = hold_demonstrates(*striking, hold_end);
+                    }
                 }
             }
         }
@@ -2026,7 +2047,7 @@ ChartShapes deriveChartShapes(
                 // too-few rule is publication's). The carried members make the figure sound in
                 // parts beside the hand's own verdict (\ref inParts).
                 const bool whole_stroke = !partial_slide && chord_statement_stands;
-                std::vector<bool> carried_in = carry_into(stops, slot.place, false);
+                std::vector<bool> carried_in = carry_into(stops, slot.place, std::nullopt);
                 open = OpenSpan{
                     .front_place = slot.place,
                     .stops = std::move(stops),

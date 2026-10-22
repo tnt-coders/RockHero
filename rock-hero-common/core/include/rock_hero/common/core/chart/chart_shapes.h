@@ -410,7 +410,8 @@ what it sounds, exactly as the same notes plainly picked would.
 \param planted The stop \p note's pull-off lands on (\ref chartPlantedStops); absent where none.
 \param down The stop the string is demonstrably at where \p note speaks — what it still sounds, the
        standing grip's entry — or, inside an unnamed shape hold on a string its span does not yet
-       state, the stop \p note itself plants (shape rule 9); absent where nothing is down.
+       state, the pressed stop \p note plants where the fret it sounds could not stand to the
+       hold's end (shape rule 9); absent where nothing is down.
 \return \p down where \p note states it as its grip; empty where \p note states the fret it sounds.
 */
 [[nodiscard]] std::optional<ChartStop> gripStatement(

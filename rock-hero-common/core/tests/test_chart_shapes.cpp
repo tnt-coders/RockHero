@@ -324,6 +324,31 @@ struct Held
         .stops[static_cast<std::size_t>(string - 1)];
 }
 
+// The span a hold states, by the published flag rather than an index the walk may move.
+[[nodiscard]] std::size_t heldSpanOf(const ChartResolutions& resolutions)
+{
+    const auto found = std::ranges::find_if(
+        resolutions.shapes, [](const ChartShape& shape) { return shape.hold_stated; });
+    REQUIRE(found != resolutions.shapes.end());
+    return static_cast<std::size_t>(found - resolutions.shapes.begin());
+}
+
+// Shape rule 9: an unnamed hold exactly over the one derived span reproduces it, marked
+// hold-stated.
+void checkHoldOverDerivedSpanReproducesIt(
+    const std::vector<ChartNote>& notes, const ShapeHold& hold)
+{
+    const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
+    REQUIRE(plain.shapes.size() == 1);
+    const Held held = deriveUnder(notes, {hold});
+    CHECK(held.fits[0]);
+    std::vector<ChartShape> expected = plain.shapes;
+    expected[0].hold_stated = true;
+    CHECK(held.resolutions.shapes == expected);
+    CHECK(held.resolutions.postures == plain.postures);
+    CHECK(held.resolutions.arrivals == plain.arrivals);
+}
+
 } // namespace
 
 // The core of shape rules 1 and 2: two or more fretting-hand strings struck together form a
@@ -7425,11 +7450,15 @@ TEST_CASE("A hold cropped at a release normalizes once", "[core][chart]")
 }
 
 // An unnamed hold is evidence for the hold-under law (shape rule 9 feeding rule 7): on a string its
-// span does not yet state, a pull-off source can only be riding above its plant, so it states that
-// plant and the pull-off's landing is the stop already held, not hand-position rule 6's release.
-// String 3 rings open under the bar, string 5 holds 6 from 1:2, and string 4 sounds 7 at 1:3 and
-// pulls off to 5 at 1:4, everything ringing to 2:1.
-TEST_CASE("A planted source inside a shape hold states its plant", "[core][chart]")
+// span does not yet state, a pull-off source released strictly inside the hold could not keep the
+// fret it sounds to the hold's end, so it states its pressed plant and the pull-off's landing is
+// the stop already held, not hand-position rule 6's release. Released at the hold's end, it states
+// the fret it sounds, as the derived span does. String 3 rings open under the bar, string 5 holds 6
+// from 1:2, and string 4 sounds 7 at 1:3 and pulls off to 5 at 1:4, everything ringing to 2:1.
+TEST_CASE(
+    "A planted source inside a shape hold states its plant only where the fret it sounds could not "
+    "stand",
+    "[core][chart]")
 {
     const auto figure = [](ChartNote sounded) {
         return streamOf({
@@ -7444,19 +7473,11 @@ TEST_CASE("A planted source inside a shape hold states its plant", "[core][chart
         deriveUnder(notes, {}).resolutions.connections.legato[indexAt(notes, 1, 4, 4)] ==
         LegatoMotion::Pull);
 
-    // The span a hold states, by the published flag rather than an index the walk may move.
-    const auto held_span = [](const ChartResolutions& resolved) {
-        const auto found = std::ranges::find_if(
-            resolved.shapes, [](const ChartShape& shape) { return shape.hold_stated; });
-        REQUIRE(found != resolved.shapes.end());
-        return static_cast<std::size_t>(found - resolved.shapes.begin());
-    };
-
     SECTION("a hold starting on the source holds the plant through the release")
     {
         const Held held = deriveUnder(notes, {holdOver(gridAt(1, 3), gridAt(2, 1))});
         CHECK(held.fits[0]);
-        const std::size_t span = held_span(held.resolutions);
+        const std::size_t span = heldSpanOf(held.resolutions);
         CHECK(held.resolutions.shapes[span].place == Fraction{1, 2});
         CHECK(stopOf(held.resolutions, span, 3) == std::optional{fretStop(0)});
         CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(5)});
@@ -7471,17 +7492,22 @@ TEST_CASE("A planted source inside a shape hold states its plant", "[core][chart
         const Held held =
             deriveUnder(notes, {holdOver(gridAt(1, 3, Fraction{1, 2}), gridAt(2, 1))});
         CHECK(held.fits[0]);
-        const std::size_t span = held_span(held.resolutions);
+        const std::size_t span = heldSpanOf(held.resolutions);
         CHECK(held.resolutions.shapes[span].place == Fraction{5, 8});
         CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(5)});
     }
 
-    SECTION("a hold ending at the release prints the plant, not the fret sounded")
+    SECTION("a hold ending at the release keeps the fret sounded, as the derived span does")
     {
         const Held held = deriveUnder(notes, {holdOver(gridAt(1, 3), gridAt(1, 4))});
         CHECK(held.fits[0]);
-        const std::size_t span = held_span(held.resolutions);
-        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(5)});
+        const std::size_t span = heldSpanOf(held.resolutions);
+        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(7)});
+    }
+
+    SECTION("a hold exactly over the derived span reproduces it")
+    {
+        checkHoldOverDerivedSpanReproducesIt(notes, holdOver(gridAt(1, 1), gridAt(1, 4)));
     }
 
     SECTION("without a hold the derived span is unchanged")
@@ -7505,11 +7531,46 @@ TEST_CASE("A planted source inside a shape hold states its plant", "[core][chart
         const std::vector<ShapeHold> holds{holdOver(gridAt(1, 3), gridAt(2, 1))};
         const Held held = deriveUnder(harmonic_notes, holds);
         CHECK_FALSE(held.fits[0]);
-        const std::size_t span = held_span(held.resolutions);
+        const std::size_t span = heldSpanOf(held.resolutions);
         CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(7)});
         CHECK(
             normalizedOnce(harmonic_notes, holds).resolved.shape_holds ==
             std::vector{holdOver(gridAt(1, 3), gridAt(1, 4))});
+    }
+}
+
+// An open plant holds nothing (shape rule 8), so it cannot stand in for a grip under a hold: a
+// source pulled off to the open string inside a hold states the fret it sounds, its release closes
+// the hold's span there and the hold does not fit, while a hold exactly over the derived span still
+// reproduces it. The figure above with string 4 sounding 3 at 1:3, pulled off to the open string.
+TEST_CASE(
+    "A source pulled off to the open string never states its plant under a hold", "[core][chart]")
+{
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(gridAt(1, 1), 3, 0, Fraction{1}),
+        noteAt(gridAt(1, 2), 5, 6, Fraction{3, 4}),
+        noteAt(gridAt(1, 3), 4, 3, Fraction{1, 4}),
+        pullOffAt(4, Fraction{}, 4, 0, Fraction{1, 4}),
+    });
+    REQUIRE(
+        deriveUnder(notes, {}).resolutions.connections.legato[indexAt(notes, 1, 4, 4)] ==
+        LegatoMotion::Pull);
+
+    SECTION("a hold over the release is refused at the release")
+    {
+        const std::vector<ShapeHold> holds{holdOver(gridAt(1, 3), gridAt(2, 1))};
+        const Held held = deriveUnder(notes, holds);
+        CHECK_FALSE(held.fits[0]);
+        const std::size_t span = heldSpanOf(held.resolutions);
+        CHECK(stopOf(held.resolutions, span, 4) == std::optional{fretStop(3)});
+        CHECK(
+            normalizedOnce(notes, holds).resolved.shape_holds ==
+            std::vector{holdOver(gridAt(1, 3), gridAt(1, 4))});
+    }
+
+    SECTION("a hold exactly over the derived span reproduces it")
+    {
+        checkHoldOverDerivedSpanReproducesIt(notes, holdOver(gridAt(1, 1), gridAt(1, 4)));
     }
 }
 

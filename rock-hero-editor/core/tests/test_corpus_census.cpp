@@ -1605,7 +1605,9 @@ struct Census
     // THE SHAPE-HOLD GATE (shape rule 9): an unnamed hold authored exactly over each derived span,
     // one at a time, as `Ctrl+H` over that span authors it. The walk is the one authority on a
     // hold, so every such hold fits its notes and leaves the derivation as it was, its span
-    // marked hold-stated. A few departures are kept with their file and bar.
+    // marked hold-stated: Ctrl+H over a derived span reproduces it. Only shape rule 5's held class
+    // (fewer than three members under a right-hand onset: a box derived, an arpeggio held) would
+    // depart, and a departure asks for a ruling. A few departures are kept with their file and bar.
     long long held_spans{0};
     long long held_spans_invalid{0};
     long long held_spans_rederived{0};
@@ -2924,7 +2926,11 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 .expected = 0.0,
             },
             CrossCheck{
-                // ...and derives everything else as before, the held span marked hold-stated.
+                // ...and derives everything else as before, the held span marked hold-stated:
+                // Ctrl+H over a derived span reproduces it. The one ruled case that would flag
+                // here is shape rule 5's held class — a grip of fewer than three members under a
+                // right-hand onset is a box derived and an arpeggio held — which the corpus does
+                // not contain; a flag there asks for a ruling, never a re-pin.
                 .label = "held spans deriving otherwise (ZERO)",
                 .rig = static_cast<double>(census.held_spans_rederived),
                 .expected = 0.0,

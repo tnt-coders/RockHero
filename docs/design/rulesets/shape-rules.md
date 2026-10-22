@@ -396,12 +396,16 @@ takes the next one.
      statement. The one exception is a source added above a stop its string is demonstrably already
      at: it states that stop, the fret it sounds being an ornament riding above, so the grip neither
      breaks nor is rewritten (`gripStatement`). Two things demonstrate it: the standing grip's entry
-     on the string, and an unnamed shape hold on a string its span does not yet state — the hold is
-     the charter's word that one shape is held from its start, so a planted source there can only be
-     riding above its plant, whether struck inside the hold or carried into its front (rule 9). The
-     exception never holds where the source's own path sweeps that stop, and never under a harmonic
-     played over a pressed stop, which states the pressed stop, so a pull-off from it is a new
-     statement and closes the span at the release even while the chord around it rings on. The
+     on the string, and — on a string its span does not yet state — an unnamed shape hold, which
+     stands in for that entry only where the entry is needed and can stand: the source's release,
+     its own pull-off, falls strictly inside the hold, so the fret it sounds could not be held to
+     the hold's end, and its plant is a pressed stop (an open plant holds nothing, rule 8).
+     Everywhere else the source states the fret it sounds, whether struck inside the hold or
+     carried into its front, so a hold exactly over a derived span reads it as derived (rule 9).
+     Where neither reading stands, the hold's span closes at the release and the hold does not fit.
+     The exception never holds where the source's own path sweeps that stop, and never under a
+     harmonic played over a pressed stop, which states the pressed stop, so a pull-off from it is a
+     new statement and closes the span at the release even while the chord around it rings on. The
      landing stop stays in the derived table as the source's held stop, and the pull's own head
      prints it.
    - **A held stop has no mark of its own.** The hand windows and the 3D fret-hand light read it
@@ -447,8 +451,10 @@ takes the next one.
      grip statements and plants, membership, the landing instant, the class and the posture. Inside
      an unnamed hold the walk keeps exactly one span, the hold's, fronted at the hold's start. The
      hold adds one piece of evidence to that walk and nothing else: on a string its span does not
-     yet state, a pull-off source states its plant (rule 7's hold-under law), so the release back
-     onto the plant restates the grip and is no conflict.
+     yet state, a pull-off source whose release falls inside the hold states its pressed plant
+     (rule 7's hold-under law), so the release back onto the plant restates the grip and is no
+     conflict; a source released at or after the hold's end, or planted on the open string, states
+     the fret it sounds as it would unheld.
    - **The hold is the statement.** An unnamed hold is the charter's statement that one grip is
      held there, so its span is published whatever the notes inside come to (rule 1's thresholds
      gate derived spans alone). The hold's span opens at the hold's start, every ring sounding there
