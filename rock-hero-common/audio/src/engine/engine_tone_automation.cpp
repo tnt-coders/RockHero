@@ -102,7 +102,7 @@ std::expected<std::vector<AutomationCurvePoint>, ToneAutomationError> Engine::re
         }};
     }
 
-    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
+    const tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -139,7 +139,7 @@ std::expected<float, ToneAutomationError> Engine::readParameterBaselineNormValue
         }};
     }
 
-    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
+    const tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -175,7 +175,7 @@ std::expected<std::string, ToneAutomationError> Engine::formatParameterValue(
         }};
     }
 
-    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
+    const tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -211,7 +211,7 @@ std::expected<float, ToneAutomationError> Engine::parseParameterValue(
         }};
     }
 
-    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
+    const tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{
@@ -247,7 +247,7 @@ std::expected<void, ToneAutomationError> Engine::writeParameterCurve(
         }};
     }
 
-    tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
+    const tracktion::Plugin* const plugin = findBranchPlugin(*branch, instance_id);
     if (plugin == nullptr)
     {
         return std::unexpected{ToneAutomationError{

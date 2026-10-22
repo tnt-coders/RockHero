@@ -25,7 +25,7 @@ constexpr const char* g_command_name = "Grid Snap";
 
 // Names the command the way the copy needs it: "Grid Snap (Ctrl · G)" while a chord is bound, and
 // the bare name once a user has unbound every chord, so the sentences stay grammatical either way.
-[[nodiscard]] juce::String commandPhrase(juce::ApplicationCommandManager& command_manager)
+[[nodiscard]] juce::String commandPhrase(const juce::ApplicationCommandManager& command_manager)
 {
     const juce::String chord_text =
         commandChordText(command_manager, EditorCommandId::ToggleGridSnap);
