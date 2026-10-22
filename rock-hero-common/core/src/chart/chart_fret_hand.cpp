@@ -725,14 +725,31 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             runFrom(instants, head, std::min(authored_instant, next_slide[head + 1]));
         ++counts.runs;
         const Fraction run_head = arriving.place;
-        const std::optional<Fraction> hold_end = latestHoldEndBefore(demands, run_head);
+        // The law's hold exception, asked of one place: the hand never moves strictly inside a
+        // hold, a stop it holds still ringing there.
+        const auto inside_hold = [&demands](const Fraction place) {
+            const std::optional<Fraction> end = latestHoldEndBefore(demands, place);
+            return end.has_value() && place < *end;
+        };
+        // The run's first instant the standing window does not cover, or `run.next` where it covers
+        // them all. The instants before it are played where the hand already stands. A slide
+        // arrival is forced at its head.
+        const auto covered = [&](const FretHandInstant& instant) {
+            return !slid && standing.has_value() && standing->covers(instant.lowest) &&
+                   standing->covers(instant.highest);
+        };
+        const auto forced = static_cast<std::size_t>(std::distance(
+            instants.begin(),
+            std::find_if_not(
+                std::next(instants.begin(), static_cast<std::ptrdiff_t>(head)),
+                std::next(instants.begin(), static_cast<std::ptrdiff_t>(run.next)),
+                covered)));
 
         // Hand-position rules 5 and 6 only ever remove motion, and only from an UNFORCED run, one
         // the standing window already covers: a one-fret run restates nothing, and nothing moves
         // while a stop held from earlier still holds.
-        const bool unforced = !slid && standing.has_value() && standing->covers(run.lowest) &&
-                              standing->covers(run.highest);
-        if (unforced && hold_end.has_value() && run_head < *hold_end)
+        const bool unforced = forced == run.next;
+        if (unforced && inside_hold(run_head))
         {
             ++counts.held_by_hold;
             head = run.next;
@@ -756,20 +773,16 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             continue;
         }
 
-        // Hand-position rule 10: the front is the first onset after the latest of the previous
-        // run's last instant, the latest end among the holds begun before this run, and the bar
-        // line that broke the run — never later than the run's own head. The first run therefore
-        // reaches back to the chart's first note. It never reaches back to the event before it: an
-        // authored position over silence keeps every onset up to its own instant.
+        // Hand-position rule 10: the front is the first onset after the previous run's last
+        // instant, the previous event and the bar line that broke the run that lies inside no hold
+        // — never later than the run's first instant the standing window does not cover. An
+        // unforced run's move, which nothing compels, is never later than its head. The first run
+        // therefore reaches back to the chart's first note. It never reaches back to the event
+        // before it: an authored position over silence keeps every onset up to its own instant.
         Fraction bound{};
-        if (hold_end.has_value())
-        {
-            bound = std::max(bound, *hold_end);
-        }
         if (breaksAtBar(instants, head))
         {
-            bound = std::max(
-                bound, tempo_map.wholeNotePositionAt(measureDownbeat(instants[head].measure)));
+            bound = tempo_map.wholeNotePositionAt(measureDownbeat(instants[head].measure));
         }
         auto after_previous =
             head == 0 ? onsets.begin() : std::ranges::upper_bound(onsets, instants[head - 1].place);
@@ -778,10 +791,13 @@ std::vector<FretHandEvent> deriveFretHandEvents(
             after_previous =
                 std::max(after_previous, std::ranges::upper_bound(onsets, events.back().front));
         }
-        const auto first_onset = std::ranges::lower_bound(after_previous, onsets.end(), bound);
-        const Fraction front = !slid && first_onset != onsets.end() && *first_onset < run_head
-                                   ? *first_onset
-                                   : run_head;
+        const Fraction latest = unforced ? run_head : instants[forced].place;
+        const auto first_free = std::find_if(
+            std::ranges::lower_bound(after_previous, onsets.end(), bound),
+            onsets.end(),
+            [&](const Fraction onset) { return !(onset < latest) || !inside_hold(onset); });
+        const Fraction front =
+            !slid && first_free != onsets.end() && *first_free < latest ? *first_free : latest;
         if (front < run_head)
         {
             ++counts.fronts_reaching_back;

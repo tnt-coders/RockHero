@@ -70,10 +70,14 @@ it touches and where the previous one ends.
 9. **On the board.** A window is lowered until it ends on the last fret, then lifted to the first
    playable fret; the lift wins. (`fittedWindowFret`)
 10. **Where a window takes over.** A derived window fronts at the earliest note onset — open strings
-    and taps included — that comes after the previous instant and the previous event, and not
-    before the latest end of the holds begun before its run, nor before its bar's downbeat when the
-    run is the first in its bar. So a window arrives with the leading open strings of its figure,
-    never later than the run's own head. A slide arrival never reaches back.
+    and taps included — that comes after the previous instant and the previous event, lies strictly
+    inside no hold (the hand never moves while a stop it holds still rings), and is not before its
+    bar's downbeat when the run is the first in its bar. So a window arrives with the leading open
+    strings of its figure. It is never later than the first instant of its run the standing window
+    does not cover: the instants before that one are played where the hand already stands, so the
+    last chord of a chain keeps the chain's window and the hand moves for the note that needs it. An
+    unforced run's move, which nothing compels, is never later than its head. A slide arrival never
+    reaches back.
 11. **Only changes are emitted.** A run whose window equals the standing one emits nothing, so every
     event is a real move.
 12. **Pull-off plants.** The stop a pull-off plants beneath its source note is demanded from the

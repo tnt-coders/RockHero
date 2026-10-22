@@ -332,9 +332,10 @@ every instant it names, a held stop among them from where its hold begins, so no
 ringing stop or a held grip — the direction is notes, then grips, then positions — and each hold
 also pins the hand while it holds.
 
-Each event's front is the first onset after the latest of the previous figure's last instant, the
-latest end among the holds begun before the figure, and the bar line that broke the figure;
-the window before the first front is the reader's question. A derived event is emitted only where
+Each event's front is the first onset after the previous figure's last instant and the bar line
+that broke the figure that lies inside no hold. It is never later than the figure's first instant
+the standing window does not cover, so the last chord of a repeated chain keeps the chain's window.
+The window before the first front is the reader's question. A derived event is emitted only where
 the window changes.
 
 AN AUTHORED POSITION is a statement the derivation consumes, never a patch on its output. It is

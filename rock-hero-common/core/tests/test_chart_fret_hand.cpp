@@ -846,6 +846,23 @@ TEST_CASE("Hand derivation holds still while a written ring sounds", "[core][cha
         std::vector{eventAt(1, 1, 5), eventAt(1, 4, 6)});
 }
 
+// Hand-position rule 10: a forced run fronts no later than its first instant the standing window
+// does not cover, so the last chord of a repeated chain keeps the chain's window and the hand
+// moves for the note that needs it.
+TEST_CASE("Hand derivation moves for the first instant the standing window misses", "[core][chart]")
+{
+    const Fraction ring{1, 4};
+    CHECK(
+        eventsOf(
+            {noteAt(1, 1, 3, 10, ring),
+             noteAt(1, 1, 4, 12, ring),
+             noteAt(1, 2, 3, 10, ring),
+             noteAt(1, 2, 4, 12, ring),
+             noteAt(1, 3, 3, 10, ring),
+             noteAt(1, 3, 4, 12, ring),
+             noteAt(1, 4, 1, 9)}) == std::vector{eventAt(1, 1, 10), eventAt(1, 4, 9)});
+}
+
 // A held ring is a demand for as long as it holds: a window arriving while it sounds reaches it,
 // and a ring ending exactly where the next note is struck is no longer there.
 TEST_CASE("Hand derivation covers every held ring sounding at an instant", "[core][chart]")
