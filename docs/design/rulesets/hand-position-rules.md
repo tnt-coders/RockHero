@@ -100,26 +100,31 @@ the finger's place in it, so the windows on the slide's two sides differ by the 
 The hand stands where it is, so the window before the slide is placed first, and the run the slide
 lands in is played in that window moved by the travel: the moved floor is its floor, and its width
 is rule 8's over the run from there, so a six-fret grip sliding onto a lone note arrives four wide.
-The move stands only where the moved window covers the arrival, and only where every finger sliding
-into that instant travels the same distance; it reaches as far into the landing run as the moved
+The move stands only where every finger pressed across the arrival travels the same distance — a
+stop held across it (rule 6) travels none, so a slide beside a held finger is a stretch: the hand
+did not move with it, and the ordinary rules place both sides, each at its own width — and only
+where the moved window covers the arrival; it reaches as far into the landing run as the moved
 window covers, and the first instant it does not cover — a finger outside the hand — heads a run of
 its own, placed by the ordinary rules. Where the moved window misses the arrival, rules 3 and 7 to 9
 place the landing run as usual. Read backward, the proof runs along the whole train of slides the
-finger makes without lifting — a note's keyframes, a glide into the next head — each landing
-heading a run of its own (rule 3), for as long as each run ends at an arrival every sliding finger
-agrees on; an authored position, a disagreeing arrival, or a run ending anywhere else ends the
-train. The hand stands where it is unless the train refutes it: where the leaving run's window,
-moved by each travel in turn, covers every landing run, nothing is carried. Otherwise the train is
-read from its last landing back: each landing stands in its own window (rules 7 to 9) where the hand
-stands through the rest of the train from it, else in the next landing's proven window moved back by
-the travel, sitting as low inside it as still covers the run, at rule 8's width; where that moved
-window misses the run, the hand moved apart from that slide, and the train ends there for every run
-before it. The leaving run is read the same way, forced from its last instant before the slide; the
-forward move then reads from the carried window and plays the train on. So a slide landing in the
-pinky's slot left from the pinky, however many stops the finger passed on the way. That proof
-outranks rule 5, whose one-fret run states nothing, but not rule 6, whose hold does; a run the
-forward move placed is never carried. A slide arrival is a forced boundary: no run crosses it, and
-rules 5, 6 and 10 neither hold the old window over it nor reach back across it.
+finger makes without lifting — a note's keyframes, a glide into the next head — each landing heading
+a run of its own (rule 3), for as long as each run ends at an arrival whose fingers agree on one
+travel; an authored position, an arrival proving no single travel, or a run ending anywhere else
+ends the train. A slide proves only the shift between the window at its departure and the window at
+its arrival; nothing proves the finger down past the arrival, so which later instants share a
+landing's window is rule 3's call, as for every run. The hand stands where it is unless the train
+refutes it: where the leaving run's window, moved by each travel in turn, covers every landing run,
+nothing is carried. Otherwise the train is read from its last landing back: each landing stands in
+its own window (rules 7 to 9) where the hand stands through the rest of the train from it, else in
+the next landing's proven window moved back by the travel, on that floor, at rule 8's width over the
+run from there, as the forward move places a landing, so the two sides of a slide agree; where that
+moved window misses the run, the hand moved apart from that slide, and the train ends there for
+every run before it. The leaving run is read the same way, forced from its last instant before the
+slide; the forward move then reads from the carried window and plays the train on. So a slide
+landing in the pinky's slot left from the pinky, however many stops the finger passed on the way.
+That proof outranks rule 5, whose one-fret run states nothing, but not rule 6, whose hold does; a
+run the forward move placed is never carried. A slide arrival is a forced boundary: no run crosses
+it, and rules 5, 6 and 10 neither hold the old window over it nor reach back across it.
 
 ## Authored positions
 
