@@ -6571,6 +6571,46 @@ TEST_CASE("Guitar Pro import chooses the slide-out window figure", "[core][gp-im
         CHECK(hands[1].fret == 8);
     }
 
+    SECTION("the exit reads the hand derived over the settled stream")
+    {
+        GpScore score = makeLinearScore(2, syncs);
+        // A 14-19 grip, then a downward slide-out from a lone 14 into a bar whose 14 shift-slides
+        // to 16 and comes back. The slide proves the 14 was played by the third finger, so the hand
+        // stepped down to 12 for it; only the hand derived over the stored notes, slide included,
+        // knows that.
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeat(Fraction{1, 4}, 14, 19, false, false),
+                     restBeat(Fraction{1, 4}),
+                     noteBeat(Fraction{1, 2}, 14, 0, 4)}
+                }
+            });
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 8}, 14, 0, 1),
+                     noteBeat(Fraction{1, 8}, 16),
+                     noteBeat(Fraction{1, 4}, 14),
+                     restBeat(Fraction{1, 2})}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        const std::vector<DerivedHand> hands = handsOf(chart, built->tempo_map);
+        REQUIRE(hands.size() == 3);
+        CHECK(hands[1].position == GridPosition{.measure = 2, .beat = 1});
+        CHECK(hands[1].fret == 12);
+        CHECK(hands[2].fret == 14);
+        // The step down to 12 rather than the four-fret default 10.
+        REQUIRE(chart.notes.size() == 6);
+        const auto* const exit = common::core::endStatedFretOrNull(chart.notes[2]);
+        REQUIRE(exit != nullptr);
+        CHECK(*exit == 12);
+    }
+
     SECTION("a chain's slide-out reads the hand where it departs, not at the onset")
     {
         GpScore score = makeLinearScore(1, syncs);

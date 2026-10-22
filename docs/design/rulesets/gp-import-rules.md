@@ -69,10 +69,10 @@ takes the next one.
    - **A slide-out is the slide-out keyframe**: the keyframe at the ring's end stating the gestured
      fret. A ring ending at or before the last fret its chain states grows to one minimum slide
      window past it. The exit fret is four frets out in the flag's direction, held on the playable
-     board. Where the natural stream's next hand event after the slide-out departs — the instant
-     its last fret is stated, not the note's onset — moves in that direction and arrives by the
-     next onset after that departure, the slide-out is the departure and its exit is that travel
-     exactly (`resolveSlideOutExits`); a slide-out ringing past the next onset, or with no onset
+     board. Where the hand's next event — derived from the notes as the import stores them, after
+     every ring has settled — after the slide-out departs (the instant its last fret is stated, not
+     the note's onset) moves in that direction and arrives by the next onset after that
+     departure, the slide-out is the departure and its exit is that travel exactly (`resolveSlideOutExits`); a slide-out ringing past the next onset, or with no onset
      after it, keeps the four frets. An exit that names the stop the next head on its string is
      struck at is the arrival the chart reads: the hand slid into that chord, and the gesture is
      the shift slide it plays, whatever the source's flag said. The exit is the importer's own
@@ -268,9 +268,9 @@ the ring is the record, so neither staccato nor let ring is ever a stored field.
   steal needs no exemption for the marks that lengthen.
 - **A re-strike stops the ring.** The same-string clamp ends every ring at the next onset on its
   own string. It runs after every pass that can lengthen a ring — the figure law is the last of
-  them — and before the one pass that reads the settled rings, the slide-out exits (rule 1).
-  Slide-in resolution, and the natural stream it reads, run ahead of it, because the scoop is one
-  of the passes that lengthen.
+  them — and before the one pass that reads the settled rings and the hand derived from them, the
+  slide-out exits (rule 1). Slide-in resolution reads the natural stream and runs ahead of it,
+  because the scoop is one of the passes that lengthen.
 - **Payload is trimmed to the ring once**, straight after the clamp, because that is where the ring
   stops moving. The imported bend is the only payload written past a ring, and trimming it earlier
   would cut a let-ring note's curve against a ring the figure law is about to hand back.

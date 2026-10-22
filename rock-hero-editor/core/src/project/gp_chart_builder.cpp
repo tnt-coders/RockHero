@@ -2127,13 +2127,14 @@ void resolveSlideIns(
     }
 }
 
-// Chooses every unpitched slide-out's exit fret from the hand's next move. When the natural
-// stream's next event after the slide-out's departure moves in its direction AND arrives by the
-// next onset after that departure, the slide-out IS the departure: the exit fret is that travel,
-// exactly. Where it names the stop the next head on its string is struck at, the chart reads the
-// arrival (\ref common::core::arrivesIntoNextHead) — the hand slid into that chord, and the
-// gesture is the shift slide it plays, whatever the source's flag said. Otherwise the slide-out
-// keeps the fixed four-fret gesture it was built with, as does one ending past the next onset.
+// Chooses every unpitched slide-out's exit fret from the hand's next move. When the hand's next
+// event after the slide-out's departure, derived over the stored stream, moves in its direction
+// AND arrives by the next onset after that departure, the slide-out IS the departure: the exit fret
+// is that travel, exactly. Where it names the stop the next head on its string is struck at, the
+// chart reads the arrival (\ref common::core::arrivesIntoNextHead) — the hand slid into that
+// chord, and the gesture is the shift slide it plays, whatever the source's flag said. Otherwise
+// the slide-out keeps the fixed four-fret gesture it was built with, as does one ending past the
+// next onset.
 //
 // Every question here — where the slide-out ends, which fret it leaves from, whether it still
 // clears the next onset — is asked of the STORED note, whose ring is the truth; spacing before the
@@ -2935,8 +2936,8 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
     // asked of a derivation over the NATURAL stream — slide-ins still plain notes at their notated
     // positions — and before the rings are final, which is why it cannot wait for the positions a
     // reader derives from the finished chart (plan 60 §9 Q11). The import stores no positions: it
-    // authors nothing, so every position is derived at read. The same natural stream later chooses
-    // each slide-out's exit fret.
+    // authors nothing, so every position is derived at read. The slide-out exits are chosen below
+    // from a second derivation over the settled stream.
     //
     // Resolved on the stream the slide passes have left — the shift branch grew each origin's ring
     // to exactly the gap, so the arrivals the derivation merges at their landings already hold
@@ -3070,8 +3071,17 @@ void roundOntoTickLattice(std::vector<ChartNote>& notes, const common::core::Tem
     const common::core::ChartConnections connections =
         common::core::chartConnections(storedNotes(built), tempo_map);
 
-    // Slide-out exit frets follow the hand's next move where it agrees: the natural stream.
-    resolveSlideOutExits(built, connections.arrives_into, natural_hand, chart.tuning.capo);
+    // Slide-out exit frets follow the hand's next move where it agrees. The hand is derived here,
+    // over the SETTLED stream, not reused from the slide-in walk above: the let-ring law and the
+    // clamp have moved rings since, and a hold that ends elsewhere places the hand elsewhere.
+    const std::vector<common::core::FretHandEvent> settled_hand =
+        common::core::deriveFretHandEvents(
+            connections,
+            common::core::fretHandDemands(
+                connections, common::core::ChartShapes{}, chart.tuning.capo, tempo_map),
+            tempo_map,
+            {});
+    resolveSlideOutExits(built, connections.arrives_into, settled_hand, chart.tuning.capo);
 
     if (unsupported_harmonics > 0)
     {
