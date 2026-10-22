@@ -49,6 +49,12 @@ struct HighwayViewPreferences
     bool show_arpeggio_brackets{true};
 
     /*!
+    \brief True to draw a strum that repeats the one before it as the half-height repeat box with
+    no heads in flight; false draws it as the full box over its own heads, like every other strum.
+    */
+    bool show_repeat_boxes{true};
+
+    /*!
     \brief Compares two preference sets by their stored fields.
     \param lhs Left-hand preferences.
     \param rhs Right-hand preferences.

@@ -53,6 +53,7 @@ TEST_CASE("HighwaySettingsStore round-trips an update", "[core][highway-settings
             .show_note_targets = true,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
+            .show_repeat_boxes = false,
         },
     };
 
@@ -101,6 +102,7 @@ TEST_CASE("HighwaySettingsStore resets only an unreadable setting", "[core][high
     writeRawSetting(shared, "highway.showNoteTargets", "1");
     writeRawSetting(shared, "highway.showNoteRotation", "yes");
     writeRawSetting(shared, "highway.showArpeggioBrackets", "0");
+    writeRawSetting(shared, "highway.showRepeatBoxes", "0");
     const HighwaySettingsStore store{shared};
 
     const HighwayPlayerSettings settings = store.read();
@@ -112,6 +114,7 @@ TEST_CASE("HighwaySettingsStore resets only an unreadable setting", "[core][high
     CHECK(settings.view.show_note_targets);
     CHECK(settings.view.show_note_rotation == defaults.show_note_rotation);
     CHECK_FALSE(settings.view.show_arpeggio_brackets);
+    CHECK_FALSE(settings.view.show_repeat_boxes);
 }
 
 // An update rereads the file under the lock, so it keeps what the other product changed since this

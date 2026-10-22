@@ -445,16 +445,37 @@ struct HighwayChordGroupViewState
     double hold_cap_seconds{0.0};
 
     /*!
+    \brief The treatment this strum draws under the player's reading choices.
+
+    The repeat box is a reading aid (\ref HighwayViewPreferences::show_repeat_boxes): turned off, a
+    repeat draws as the full box over its own heads, so the classification itself never changes.
+
+    \param view The player's reading choices.
+    \return \ref HighwayChordBoxTreatment::Full for a repeat whose box is turned off, otherwise
+            \ref box_treatment.
+    */
+    [[nodiscard]] HighwayChordBoxTreatment drawnTreatment(
+        const HighwayViewPreferences& view) const noexcept
+    {
+        if (box_treatment == HighwayChordBoxTreatment::Repeat && !view.show_repeat_boxes)
+        {
+            return HighwayChordBoxTreatment::Full;
+        }
+        return box_treatment;
+    }
+
+    /*!
     \brief True unless a repeat box stands in for this strum's notes as they approach.
 
     A repeat box's heads draw only once struck, where they take over the hit line from the heads
     before them, as any strum's do.
 
-    \return False for \ref HighwayChordBoxTreatment::Repeat, true for every other treatment.
+    \param view The player's reading choices.
+    \return False when the drawn treatment is \ref HighwayChordBoxTreatment::Repeat, true otherwise.
     */
-    [[nodiscard]] bool showsNotes() const noexcept
+    [[nodiscard]] bool showsNotes(const HighwayViewPreferences& view) const noexcept
     {
-        return box_treatment != HighwayChordBoxTreatment::Repeat;
+        return drawnTreatment(view) != HighwayChordBoxTreatment::Repeat;
     }
 
     /*!

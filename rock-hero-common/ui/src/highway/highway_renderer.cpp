@@ -1572,6 +1572,7 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     options.view.show_note_targets = defaults.show_note_targets;
     options.view.show_note_rotation = defaults.show_note_rotation;
     options.view.show_arpeggio_brackets = defaults.show_arpeggio_brackets;
+    options.view.show_repeat_boxes = defaults.show_repeat_boxes;
     return options;
 }
 
@@ -3113,8 +3114,8 @@ void HighwayRenderer::Impl::draw(
             boxes.push_back(
                 BoxDraw{
                     .start_seconds = group.start_seconds,
-                    .box_only =
-                        group.box_treatment == common::core::HighwayChordBoxTreatment::Repeat,
+                    .box_only = group.drawnTreatment(options.view) ==
+                                common::core::HighwayChordBoxTreatment::Repeat,
                     .emphasis = group.emphasis,
                     .palm_mute = group.all_palm_muted,
                     .dead = group.all_dead,
@@ -3921,7 +3922,7 @@ void HighwayRenderer::Impl::draw(
         const common::core::NoteViewState& note = state->chart.notes[index];
         const std::size_t group_index = state->note_group[index];
         const common::core::HighwayChordGroupViewState& group = state->chord_groups[group_index];
-        if (!group.showsNotes() && note.start_seconds > now_seconds)
+        if (!group.showsNotes(options.view) && note.start_seconds > now_seconds)
         {
             // A repeat box stands in for its strum as it approaches: no heads, shadows, tails, or
             // note targets. Once struck, its heads take over the hit line from the strum before it

@@ -1476,9 +1476,20 @@ TEST_CASE(
         }
         const HighwayViewState state = board(std::move(notes));
         REQUIRE(state.chord_groups.size() == 3);
-        CHECK(state.chord_groups[0].showsNotes());
-        CHECK_FALSE(state.chord_groups[1].showsNotes());
-        CHECK_FALSE(state.chord_groups[2].showsNotes());
+        const HighwayViewPreferences repeats_shown{};
+        CHECK(state.chord_groups[0].showsNotes(repeats_shown));
+        CHECK_FALSE(state.chord_groups[1].showsNotes(repeats_shown));
+        CHECK_FALSE(state.chord_groups[2].showsNotes(repeats_shown));
+        // With the repeat box turned off the classification stands and only the drawing changes:
+        // every repeat draws as the full box over its own heads.
+        HighwayViewPreferences repeats_hidden;
+        repeats_hidden.show_repeat_boxes = false;
+        for (const HighwayChordGroupViewState& group : state.chord_groups)
+        {
+            CHECK(group.drawnTreatment(repeats_hidden) == HighwayChordBoxTreatment::Full);
+            CHECK(group.showsNotes(repeats_hidden));
+        }
+        CHECK(state.chord_groups[1].box_treatment == HighwayChordBoxTreatment::Repeat);
         REQUIRE(state.head_ends.size() == 6);
         check_handed_over(state.head_ends[0], 0.25);
         check_handed_over(state.head_ends[1], 0.25);

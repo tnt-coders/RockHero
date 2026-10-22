@@ -1516,7 +1516,7 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     rotation_off.highway_settings.view.show_note_rotation = false;
     view.setState(rotation_off);
     const std::vector<juce::PopupMenu::Item> toggles = submenu_items("Highway Display");
-    REQUIRE(toggles.size() == 4);
+    REQUIRE(toggles.size() == 5);
     CHECK(toggles[0].text == "Invert Strings");
     CHECK_FALSE(toggles[0].isTicked);
     CHECK(toggles[1].text == "Note Targets");
@@ -1525,6 +1525,8 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
     CHECK_FALSE(toggles[2].isTicked);
     CHECK(toggles[3].text == "Arpeggio Brackets");
     CHECK(toggles[3].isTicked);
+    CHECK(toggles[4].text == "Repeat Chord Boxes");
+    CHECK(toggles[4].isTicked);
     using RequestedFlag = core::testing::RecordingEditorController::HighwayViewFlagChange;
     REQUIRE(toggles[0].action != nullptr);
     toggles[0].action();
@@ -1546,6 +1548,13 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
         controller.last_highway_view_flag ==
         std::optional{RequestedFlag{
             .flag = &common::core::HighwayViewPreferences::show_arpeggio_brackets, .on = false
+        }});
+    REQUIRE(toggles[4].action != nullptr);
+    toggles[4].action();
+    CHECK(
+        controller.last_highway_view_flag ==
+        std::optional{RequestedFlag{
+            .flag = &common::core::HighwayViewPreferences::show_repeat_boxes, .on = false
         }});
 }
 

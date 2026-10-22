@@ -58,6 +58,7 @@ TEST_CASE("EditorController publishes the stored highway settings", "[core][edit
             .show_note_targets = true,
             .show_note_rotation = false,
             .show_arpeggio_brackets = false,
+            .show_repeat_boxes = false,
         },
     };
     REQUIRE(store.update([&stored](HighwayPlayerSettings& settings) { settings = stored; })
@@ -147,6 +148,7 @@ TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-cont
         .show_note_targets = true,
         .show_note_rotation = true,
         .show_arpeggio_brackets = true,
+        .show_repeat_boxes = true,
     };
     const HighwayViewPreferences only_targets{
         .mirrored = false,
@@ -154,6 +156,7 @@ TEST_CASE("A highway view choice is stored and shown alone", "[core][editor-cont
         .show_note_targets = true,
         .show_note_rotation = false,
         .show_arpeggio_brackets = false,
+        .show_repeat_boxes = true,
     };
 
     controller.onHighwayViewFlagChangeRequested(&HighwayViewPreferences::show_note_targets, true);

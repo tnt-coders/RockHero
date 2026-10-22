@@ -33,7 +33,7 @@ string wears.
 
 # Highway Display
 
-**View > Highway Display** holds four switches. A tick means the switch is on.
+**View > Highway Display** holds five switches. A tick means the switch is on.
 
 - **Invert Strings** puts the lowest-pitched string at the bottom of the highway, the way tablature
   is written. Off by default: the lowest string sits on top.
@@ -43,6 +43,8 @@ string wears.
   With it off, notes travel flat the whole way. Chords never rotate either way. On by default.
 - **Arpeggio Brackets** marks an arpeggio's hand shape with a panel where the shape starts and a
   bracket on each string it holds. With it off, the arpeggio still shows its rails. On by default.
+- **Repeat Chord Boxes** draws a chord struck again right after itself as a half-height box with no
+  notes until it lands. With it off, every chord draws as a full box with its notes. On by default.
 
 # Tablature Strings
 

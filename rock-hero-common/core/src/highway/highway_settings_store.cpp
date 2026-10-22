@@ -44,6 +44,10 @@ constexpr std::array g_view_flag_keys{
         .key = "highway.showArpeggioBrackets",
         .flag = &HighwayViewPreferences::show_arpeggio_brackets,
     },
+    ViewFlagKey{
+        .key = "highway.showRepeatBoxes",
+        .flag = &HighwayViewPreferences::show_repeat_boxes,
+    },
 };
 
 // JUCE stores a bool as "1" or "0"; anything else is unreadable and reads as the default.

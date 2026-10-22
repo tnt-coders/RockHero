@@ -2001,6 +2001,10 @@ juce::PopupMenu EditorView::highwayDisplayMenu()
             .text = "Arpeggio Brackets",
             .flag = &common::core::HighwayViewPreferences::show_arpeggio_brackets,
         },
+        ViewToggleItem{
+            .text = "Repeat Chord Boxes",
+            .flag = &common::core::HighwayViewPreferences::show_repeat_boxes,
+        },
     };
 
     juce::PopupMenu menu;
