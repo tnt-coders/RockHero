@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 
@@ -35,7 +36,7 @@ namespace rock_hero::common::ui
 */
 [[nodiscard]] constexpr std::uint32_t packRgba(ArgbColor argb) noexcept
 {
-    return (argb << 8U) | (argb >> 24U);
+    return std::rotl(argb, 8);
 }
 
 } // namespace rock_hero::common::ui
