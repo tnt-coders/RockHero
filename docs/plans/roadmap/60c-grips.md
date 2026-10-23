@@ -29,6 +29,17 @@ against the code before execution.
   derived span or hold open it; naming a grip is never required to author a hold.
 - The export gate: export refuses while a span has no named grip, with the toolbar count. Save
   never warns.
+- **Re-evaluate the glide split (user, 2026-10-22).** Since `135371bb` every stored fret keyframe
+  lands a glide and opens a span of its own (shape rule 4), so a grip gliding through several
+  keyframes with no onset between them derives a span per keyframe. That is technically correct
+  but noisy where the grip slides quickly: My Chemical Romance - Helena 85:2-85:4, a dyad 6/8
+  sliding 7/9, 9/11, 7/9, 6/8 at eighths, is five spans. Creed - What If 102:1-104:1 (1 to 7 to
+  11, three spans) reads right. Kept for now; decide when grips are authored. The fingering is what
+  makes the question answerable: the same fingers are provably held throughout a slide, so the
+  first grip determines and locks in the fingering of every grip it slides into. Options recorded:
+  keep the split at every keyframe; split only at the next onset (which also merges What If's 7
+  and puts the hand's move inside the span, so row "spans crossed by an FHP shift" would exempt
+  slide carriage again); or split only where the grip rests at least a named minimum.
 
 ## Parts bin
 
