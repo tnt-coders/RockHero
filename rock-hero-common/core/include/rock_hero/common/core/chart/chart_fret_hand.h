@@ -132,6 +132,12 @@ struct FretHandHold
     \ref ChartNote::string): every hold is built per string.
     */
     int string{1};
+
+    /*!
+    \brief True where the hold is a span's grip, held from the span's front (shape rule 8 feeding
+    hand-position rule 6); false for a note's own ring.
+    */
+    bool grip{false};
 };
 
 /*!
@@ -302,7 +308,8 @@ keyframe fret statement but a slide-out (hand-position rule 2); a pull-off sourc
 stop the pull-off plants beneath it (\ref chartPlantedStops), from where it states the stop pulled
 from up to the pull-off (hand-position rule 12). Every stop the hand provably holds — each note's
 stops in turn, and a span's grip from the span's front — is demanded the same way, from where its
-hold begins up to, not including, its end. The demands are merged by instant into the hull each one
+hold begins up to, not including, its end; a demand inside a span's grip is demanded from the
+span's front too (hand-position rule 14). The demands are merged by instant into the hull each one
 states, so a held stop fronting where nothing fretted is struck is still an instant the hand covers.
 A demand reached by a fretting finger sliding from a different pressed stop marks its instant a
 slide arrival, carrying every finger pressed across it (\ref FretHandInstant::slide_fingers): each
@@ -347,7 +354,8 @@ void forEachGrippedStop(
 
 /*!
 \brief Derives where the fret hand sits from the notes and the positions the charter authored: the
-13-rule figure-segmented floor tracker, superseded wherever an authored position stands.
+figure-segmented floor tracker of the hand-position rules, superseded wherever an authored position
+stands.
 
 The hand-position rules are listed in \ref design_rulesets_hand_positions.
 
@@ -361,7 +369,8 @@ leaving it proves where the hand was (the slide rule below).
 What the notes demand of the hand is their own statement (\ref fretHandDemands): the walk covers
 every instant it names, a held stop among them from where its hold begins, so no window drops a
 ringing stop or a held grip — the direction is notes, then grips, then positions — and each hold
-also pins the hand while it holds.
+also pins the hand while it holds (what a grip's hand reaches is demanded from its front,
+hand-position rule 14).
 
 Each event's front is the first onset after the previous figure's last instant and the bar line
 that broke the figure that lies inside no hold. It is never later than the figure's first instant

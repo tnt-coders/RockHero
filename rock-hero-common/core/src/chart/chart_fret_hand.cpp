@@ -693,6 +693,7 @@ std::vector<FretHandHold> fretHandHolds(
                             .to = place + stretch.to,
                             .fret = *demand,
                             .string = note.string,
+                            .grip = false,
                         });
                 }
             });
@@ -722,6 +723,7 @@ std::vector<FretHandHold> fretHandHolds(
                         .to = released,
                         .fret = stop->fret,
                         .string = static_cast<int>(string_index) + 1,
+                        .grip = true,
                     });
             }
         }
@@ -754,7 +756,35 @@ FretHandDemands fretHandDemands(
 
     std::vector<HandDemand> demands;
     collectNoteDemands(connections, capo, demands, counts);
-    std::vector<Widening> widenings = plantWideningsOf(connections, counts);
+    const std::vector<Widening> plants = plantWideningsOf(connections, counts);
+    std::vector<Widening> widenings = plants;
+    // Hand-position rule 14: what the hand reaches while a grip holds, it reached from the grip's
+    // front — the grip pins it there (rule 6) — so a demand strictly inside a span's grip hold is
+    // demanded from that hold's start as well, the same widening a plant or a held stop is. A ring
+    // alone pins the hand but reaches nothing back: its stored length is the string's, not the
+    // hand's.
+    const auto reach_back_to_grip = [&hand_demands,
+                                     &widenings](const Fraction place, const int fret) {
+        std::optional<Fraction> front;
+        forEachHoldAcross(hand_demands, place, [&front](const FretHandHold& hold) {
+            if (hold.grip)
+            {
+                front = front.has_value() ? std::min(*front, hold.from) : hold.from;
+            }
+        });
+        if (front.has_value())
+        {
+            widenings.push_back(Widening{.from = *front, .to = place, .fret = fret});
+        }
+    };
+    for (const HandDemand& demand : demands)
+    {
+        reach_back_to_grip(demand.place, demand.fret);
+    }
+    for (const Widening& plant : plants)
+    {
+        reach_back_to_grip(plant.from, plant.fret);
+    }
     for (const FretHandHold& hold : hand_demands.holds)
     {
         widenings.push_back(Widening{.from = hold.from, .to = hold.to, .fret = hold.fret});

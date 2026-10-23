@@ -2972,17 +2972,19 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 // The pin reads the derived hand events, an event wherever the window changes, its
                 // width alone included. 63 since every fret keyframe lands its travel (shape rule
                 // 4): the six slide crossings (five arrivals, one pure widening) split at the grip
-                // the hand lands on.
+                // the hand lands on. 46 since a grip's reach is demanded from its front
+                // (hand-position rule 14): the 17 notes below the window's floor move the hand at
+                // the span's front instead.
                 .label = "spans crossed by an FHP shift",
                 .rig = static_cast<double>(census.derivation.spans_crossed_by_fhp_shift),
-                .expected = 63.0,
+                .expected = 46.0,
             },
             CrossCheck{
-                // The remainder is two classes: a note below the window's floor (17, a hand-side
-                // fix pending a ruling) and an open-strings-only posture (46, unruled).
+                // The remainder is the open-strings-only class: spans whose posture holds no
+                // pressed stop, where nothing pins the hand, pending the user's ruling on it.
                 .label = "  those interior shifts",
                 .rig = static_cast<double>(census.derivation.fhp_shifts_inside_spans),
-                .expected = 63.0,
+                .expected = 46.0,
             },
             CrossCheck{
                 // The derivation's own output size, and the lone-open class inside it: a window

@@ -8,7 +8,7 @@ Code cites a rule as **hand-position rule N**, or by its name for the rules belo
 (**the slide rule**, **the coverage rule**).
 
 The rules are implemented in `rock-hero-common/core/src/chart/chart_fret_hand.cpp`, declared in
-`chart_fret_hand.h`: `fretHandDemands` gathers what the notes demand (rules 1, 2, 6, 12 and 13),
+`chart_fret_hand.h`: `fretHandDemands` gathers what the notes demand (rules 1, 2, 6 and 12 to 14),
 `deriveFretHandEvents` walks those demands into windows (rules 3 and 5 to 11, the slide rule and the
 authored positions), and `deriveFretHandRides` adds the slide-out rides. The coverage rule is
 `uncoveringFretHandPositions` in `chart_rules.h`, which `dropUncoveringFretHandPositions` and
@@ -97,6 +97,11 @@ it touches and where the previous one ends.
     (`chartPlantedStops`)
 13. **Behind-the-nut bends.** An open string bent anywhere along its ring is bent behind the nut, so
     it demands the first playable fret: fret 1, or the fret above a capo.
+14. **A grip's reach is demanded from its front.** A demand strictly inside a span's grip hold — a
+    finger planted beneath a pull-off (rule 12), an ornament hammered above the grip, a note struck
+    below its floor — is demanded from the span's front as well: the grip pins the hand there (rule
+    6), so whatever the hand reaches while the grip holds, it reached from where it stood at the
+    front. A hold a note's ring alone states reaches nothing back. (`fretHandDemands`)
 
 # Named rules
 
