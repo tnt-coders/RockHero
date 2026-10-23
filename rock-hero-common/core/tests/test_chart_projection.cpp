@@ -2477,7 +2477,7 @@ TEST_CASE("A landing-opened span draws its bracket at its landing", "[core][char
         }
     }
 
-    SECTION("a right-hand onset inside the successor brackets it from the landing")
+    SECTION("a right-hand onset inside the successor leaves it a box")
     {
         Arrangement arrangement = slide_into({});
         Chart* const chart = chartOrNull(arrangement);
@@ -2501,12 +2501,11 @@ TEST_CASE("A landing-opened span draws its bracket at its landing", "[core][char
         const ChartViewState state = makeChartViewState(arrangement, tempo_map);
 
         REQUIRE(state.shapes.size() == 2);
-        // The tap flips the successor's CLASS — a held shape sounded from above is trigger (d) —
-        // so its bracket draws at its one instant, the landing. Every member's linked head stands
-        // there stating the stop the grip holds, so the digits the bracket resolves are present
-        // and each is the suppressed one.
+        // The tap is the other hand's, on a string the grip does not hold, so it leaves the
+        // successor's CLASS alone (shape rule 5): the landed chord stays a box, and a box prints
+        // no bracket digit while its posture entries stay.
         const ShapeViewState& successor = state.shapes[1];
-        CHECK(successor.arpeggio);
+        CHECK_FALSE(successor.arpeggio);
         CHECK(successor.landing_opened);
         CHECK_THAT(successor.start_seconds, Catch::Matchers::WithinAbs(1.0, 1e-9));
         CHECK(successor.strings.size() == 3);

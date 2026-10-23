@@ -996,12 +996,13 @@ struct ShapeViewState
     \brief True when the span's members arrive SEPARATELY (arpeggio brackets) rather than together
     (chord box).
 
-    Taken from \ref ChartResolutions::arrivals, derived once per chart revision by \ref
-    chartShapeArrivals — not re-derived here, and not a question about the span's start alone: an
-    interior partial sounding, an inherited claim and a right-hand onset anywhere inside the span
-    each flip it. A CARRY-OPENED SUCCESSOR — one a landing or a member's DEATH founded — is not an
-    arpeggio by construction: a boundary is not a sounding, so it classifies by those same triggers
-    and a chord sliding into chords is a box at both ends.
+    True where the span sounds in parts — its own members arrive separately — copied from \ref
+    ChartShape::sounds_in_parts, the walk's verdict, and not re-derived here. It is not a question
+    about the span's start alone: an interior partial sounding or a member carried into the start
+    flips it. A right-hand onset over the grip is the other hand's and never changes it. A
+    CARRY-OPENED SUCCESSOR — one a landing or a member's DEATH founded — is not an arpeggio by
+    construction: a boundary is not a sounding, so it classifies by the same count and a chord
+    sliding into chords is a box at both ends.
     */
     bool arpeggio{false};
 

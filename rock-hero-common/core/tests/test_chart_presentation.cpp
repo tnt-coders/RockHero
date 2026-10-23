@@ -116,9 +116,9 @@ using rock_hero::common::core::testing::metersAt;
     return chartPresentation(connections, HeadMargins{connections.places, tempo_map}, tempo_map);
 }
 
-// A whole figure's picture, DERIVED the way every reader gets it: the spans the notes imply, the
-// class those spans arrive as, and the presentation rules — the tail law included — over the saved
-// stream, which is exactly what \ref chartResolutions runs. `ink_end` is therefore where both
+// A whole figure's picture, DERIVED the way every reader gets it: the spans the notes imply, each
+// carrying the class it arrives as, and the presentation rules — the tail law included — over the
+// saved stream, which is exactly what \ref chartResolutions runs. `ink_end` is therefore where both
 // surfaces stop drawing each stored note. The cases that turn on a span's own facts use this
 // rather than handing in a shape, because a case stating those facts itself would be stating the
 // very things the rule is a question about.
@@ -127,7 +127,6 @@ struct SpanFigure
     std::vector<Fraction> ink_end;
     std::vector<bool> hidden;
     std::vector<ChartShape> shapes;
-    std::vector<bool> arrivals;
 };
 
 [[nodiscard]] SpanFigure spanFigure(const std::vector<ChartNote>& saved, const TempoMap& tempo_map)
@@ -136,7 +135,6 @@ struct SpanFigure
     const HeadMargins margins{connections.places, tempo_map};
     const ChartShapes derived = deriveChartShapes(connections, margins, {}, tempo_map);
     SpanFigure figure;
-    figure.arrivals = chartShapeArrivals(connections, derived.shapes, derived.postures);
     ChartPresentation presentation = chartPresentation(connections, margins, tempo_map);
     figure.ink_end = std::move(presentation.ink_end);
     figure.hidden.clear();
@@ -1997,8 +1995,7 @@ TEST_CASE("A derived box span takes exactly the rings it covers", "[core][chart]
 
         REQUIRE(figure.shapes.size() == 1);
         CHECK(figure.shapes[0].sustain == Fraction{1, 2});
-        REQUIRE(figure.arrivals.size() == 1);
-        CHECK_FALSE(figure.arrivals[0]);
+        CHECK_FALSE(figure.shapes[0].sounds_in_parts);
         REQUIRE(figure.ink_end.size() == 2);
         CHECK(figure.ink_end[0] == Fraction{1, 2});
         CHECK(figure.ink_end[1] == Fraction{1});
@@ -2120,8 +2117,7 @@ TEST_CASE("A founding strum grows in place and the whole figure goes ribbonless"
     CHECK(figure.shapes[0].sustain == Fraction{1});
     // It arrives ARPEGGIO on its own account: it SOUNDS IN PARTS, the plucks stating it after its
     // front.
-    REQUIRE(figure.arrivals.size() == 1);
-    CHECK(figure.arrivals[0]);
+    CHECK(figure.shapes[0].sounds_in_parts);
     REQUIRE(figure.ink_end.size() == 4);
     REQUIRE(bare.size() == 4);
     CHECK(figure.hidden[0]);

@@ -135,14 +135,20 @@ using rock_hero::common::core::testing::metersAt;
     return deriveWith(notes, makeTempoMap());
 }
 
-// The CLASS both surfaces draw, asked end to end from one stream: the walk's own spans through the
-// shared arrival rule, in span order. Derived rather than handed in, because a case that stated its
-// own span and posture would be stating the very thing the class is a question about.
+// The CLASS both surfaces draw, asked end to end from one stream: each of the walk's own spans'
+// \ref ChartShape::sounds_in_parts, in span order. Derived rather than handed in, because a case
+// that stated its own span and posture would be stating the very thing the class is a question
+// about.
 [[nodiscard]] std::vector<bool> arpeggiosFrom(const std::vector<ChartNote>& notes)
 {
-    const TempoMap tempo_map = makeTempoMap();
-    const ChartShapes derived = deriveWith(notes, tempo_map);
-    return chartShapeArrivals(chartConnections(notes, tempo_map), derived.shapes, derived.postures);
+    const ChartShapes derived = deriveFrom(notes);
+    std::vector<bool> arpeggios;
+    arpeggios.reserve(derived.shapes.size());
+    for (const ChartShape& shape : derived.shapes)
+    {
+        arpeggios.push_back(shape.sounds_in_parts);
+    }
+    return arpeggios;
 }
 
 // THE CHORD BOXES the 3D display derives for a stream, end to end: the walk's own spans through the
@@ -346,7 +352,19 @@ void checkHoldOverDerivedSpanReproducesIt(
     expected[0].hold_stated = true;
     CHECK(held.resolutions.shapes == expected);
     CHECK(held.resolutions.postures == plain.postures);
-    CHECK(held.resolutions.arrivals == plain.arrivals);
+}
+
+// The unnamed hold exactly over a stream's one derived span, front to close, as Ctrl+H over that
+// span authors it.
+[[nodiscard]] ShapeHold holdOverDerivedSpan(const std::vector<ChartNote>& notes)
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const ChartShapes derived = deriveWith(notes, tempo_map);
+    REQUIRE(derived.shapes.size() == 1);
+    const ChartShape& span = derived.shapes.front();
+    return holdOver(
+        tempo_map.gridPositionAtWholeNote(span.place),
+        tempo_map.gridPositionAtWholeNote(span.place + span.sustain));
 }
 
 } // namespace
@@ -1186,7 +1204,7 @@ TEST_CASE(
         CHECK(arpeggiosFrom(notes) == std::vector<bool>{true});
     }
 
-    SECTION("a tap over a two-note grip leaves it a box; over three strings it is an arpeggio")
+    SECTION("a tap on a string the grip does not hold leaves it a box at any size")
     {
         const auto held_under_tap = [](const int strings) {
             std::vector<ChartNote> notes;
@@ -1200,7 +1218,7 @@ TEST_CASE(
         REQUIRE(deriveFrom(held_under_tap(2)).shapes.size() == 1);
         CHECK(arpeggiosFrom(held_under_tap(2)) == std::vector<bool>{false});
         REQUIRE(deriveFrom(held_under_tap(3)).shapes.size() == 1);
-        CHECK(arpeggiosFrom(held_under_tap(3)) == std::vector<bool>{true});
+        CHECK(arpeggiosFrom(held_under_tap(3)) == std::vector<bool>{false});
     }
 }
 
@@ -2232,13 +2250,11 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         };
     };
 
-    SECTION("a picking-hand onset inside the travel flips the class, at the start and mid-glide")
+    SECTION("a picking-hand onset inside the travel leaves the split and the class alone")
     {
-        // Trigger (d) asks whether a right-hand onset sounds INSIDE the span. A departure split
-        // would answer it against an extent that stopped at the departure — a tap at the very slot
-        // the shape was struck at would fall outside its own span, which has no length to contain
-        // it, and one taken mid-glide would fall in a span-free transit. Under the landing split
-        // both are inside the covering span.
+        // A tap at the very slot the shape was struck at, or one taken mid-glide, is the other
+        // hand's: it neither splits the travel nor changes the class of the span covering it,
+        // which asks only how the grip's own members sound (shape rule 5).
         const std::vector<ChartNote> plain = chord_slide();
         const std::vector<bool> untapped = arpeggiosFrom(streamOf(plain));
         REQUIRE(untapped.size() == 2);
@@ -2248,13 +2264,13 @@ TEST_CASE("The landing split covers a travel and hands the grip over", "[core][c
         tapped_at_start.push_back(tapAt(1, Fraction{}, 5, 12, Fraction{1, 8}));
         const std::vector<bool> at_start = arpeggiosFrom(streamOf(tapped_at_start));
         REQUIRE(at_start.size() == 2);
-        CHECK(at_start[0]);
+        CHECK_FALSE(at_start[0]);
 
         std::vector<ChartNote> tapped_mid_travel = chord_slide();
         tapped_mid_travel.push_back(tapAt(2, Fraction{1, 2}, 5, 12, Fraction{1, 8}));
         const std::vector<bool> mid_travel = arpeggiosFrom(streamOf(tapped_mid_travel));
         REQUIRE(mid_travel.size() == 2);
-        CHECK(mid_travel[0]);
+        CHECK_FALSE(mid_travel[0]);
     }
 
     SECTION("open members restruck mid-slide ride the one span, per member and not per slot")
@@ -3791,6 +3807,114 @@ TEST_CASE("A tap over a held chord stop carries the span through it", "[core][ch
     REQUIRE(arpeggio.size() == 1);
     CHECK(arpeggio[0]);
     everySpanIsPositive(derived);
+
+    // Held exactly over (shape rule 9), the figure derives the same arpeggio, marked hold-stated.
+    checkHoldOverDerivedSpanReproducesIt(notes, holdOverDerivedSpan(notes));
+}
+
+// A SPAN'S CLASS DEPENDS ONLY ON HOW ITS OWN MEMBERS SOUND (shape rule 5), derived or held alike.
+// A picking-hand onset on a string the grip does not hold — a tap or a pick slide — is the other
+// hand's, never the chord sounding, so it leaves a box a box at any member count. A tap on a
+// MEMBER's string pulled off back to the held stop is that member re-sounded apart: a grip of
+// three or more sounds in parts, while a dyad, too few for parts, closes there as the box its
+// stroke stated unless a hold keeps it whole across the break.
+TEST_CASE("A span's class reads only its own members, under the other hand", "[core][chart]")
+{
+    // An E5 dyad (string 2 at 7, string 3 at 9) ringing a bar and a half, and the picking-hand
+    // onsets the cases lay over it.
+    const auto dyad = [](const Fraction ring) {
+        return std::vector<ChartNote>{
+            noteAt(1, Fraction{}, 2, 7, ring),
+            noteAt(1, Fraction{}, 3, 9, ring),
+        };
+    };
+    const auto taps = [](std::vector<ChartNote> notes) {
+        notes.push_back(tapAt(3, Fraction{}, 5, 12, Fraction{1, 4}));
+        notes.push_back(inMeasure(2, tapAt(1, Fraction{}, 6, 12, Fraction{1, 4})));
+        return streamOf(std::move(notes));
+    };
+    // A box derived, and a hold exactly over it derives the same box, marked hold-stated.
+    const auto box_derived_and_held = [](const std::vector<ChartNote>& notes) {
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{3, 2});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        checkHoldOverDerivedSpanReproducesIt(notes, holdOverDerivedSpan(notes));
+    };
+
+    SECTION("taps over a dyad leave it a box")
+    {
+        box_derived_and_held(taps(dyad(Fraction{3, 2})));
+    }
+
+    SECTION("a pick slide over a dyad leaves it a box")
+    {
+        std::vector<ChartNote> notes = dyad(Fraction{3, 2});
+        ChartNote scrape = noteAt(3, Fraction{}, 5, 12, Fraction{1, 4});
+        scrape.attack = NoteAttack::PickSlide;
+        scrape.keyframes = {Keyframe{.offset = Fraction{1, 4}, .fret = 5}};
+        notes.push_back(scrape);
+        box_derived_and_held(streamOf(std::move(notes)));
+    }
+
+    SECTION("taps over three members leave them a box")
+    {
+        std::vector<ChartNote> notes = dyad(Fraction{3, 2});
+        notes.push_back(noteAt(1, Fraction{}, 4, 9, Fraction{3, 2}));
+        box_derived_and_held(taps(std::move(notes)));
+    }
+
+    SECTION("the dyad alone is a box")
+    {
+        box_derived_and_held(streamOf(dyad(Fraction{3, 2})));
+    }
+
+    // A tap on string 3 at 14 over its held 9 on beat 3, pulled off back to 9 on beat 3½ and
+    // ringing to the bar's end: string 3's first ring ends where the tap strikes it.
+    const auto pulled_back = [](std::vector<ChartNote> notes) {
+        notes.push_back(noteAt(1, Fraction{}, 3, 9, Fraction{1, 2}));
+        notes.push_back(tapAt(3, Fraction{}, 3, 14, Fraction{1, 8}));
+        notes.push_back(pullOffAt(3, Fraction{1, 2}, 3, 9, Fraction{3, 8}));
+        return streamOf(std::move(notes));
+    };
+
+    SECTION("a member tapped and pulled back off sounds three members in parts")
+    {
+        const std::vector<ChartNote> notes = pulled_back({
+            noteAt(1, Fraction{}, 2, 7, Fraction{1}),
+            noteAt(1, Fraction{}, 4, 9, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{1});
+        CHECK(derived.shapes[0].sounds_in_parts);
+        CHECK(memberCount(derived, 0) == 3);
+        checkHoldOverDerivedSpanReproducesIt(notes, holdOverDerivedSpan(notes));
+    }
+
+    SECTION("a dyad member tapped and pulled back off is a box closing at the landing")
+    {
+        const std::vector<ChartNote> notes =
+            pulled_back({noteAt(1, Fraction{}, 2, 7, Fraction{1})});
+        const ChartShapes derived = deriveFrom(notes);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].place == Fraction{});
+        CHECK(derived.shapes[0].sustain == Fraction{5, 8});
+        CHECK_FALSE(derived.shapes[0].sounds_in_parts);
+        checkHoldOverDerivedSpanReproducesIt(notes, holdOverDerivedSpan(notes));
+
+        // A hold past the pull-off to the dyad's ring end keeps it whole across the break, one
+        // span to the hold's end that sounds in parts (shape rule 9).
+        const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(2, 1))});
+        CHECK(held.fits[0]);
+        REQUIRE(held.resolutions.shapes.size() == 1);
+        CHECK(held.resolutions.shapes[0].hold_stated);
+        CHECK(held.resolutions.shapes[0].place == Fraction{});
+        CHECK(held.resolutions.shapes[0].sustain == Fraction{1});
+        CHECK(held.resolutions.shapes[0].sounds_in_parts);
+    }
 }
 
 // THE TAP'S FLOOR: the picking hand sounds a string only ABOVE the finger
@@ -6991,7 +7115,7 @@ TEST_CASE("A shape hold keeps one arpeggio across a superset restatement", "[cor
     CHECK(held.resolutions.shapes[0].place == Fraction{});
     CHECK(held.resolutions.shapes[0].sustain == Fraction{3, 8});
     CHECK(stopOf(held.resolutions, 0, 3) == std::optional{fretStop(5)});
-    CHECK(held.resolutions.arrivals[0]);
+    CHECK(held.resolutions.shapes[0].sounds_in_parts);
     // The posture table orders its rows by first sighting, so the after-span's row is compared by
     // what it holds rather than by its index.
     ChartShape after = held.resolutions.shapes[1];
@@ -7150,7 +7274,6 @@ TEST_CASE("A shape hold exactly over a derived span derives it unchanged", "[cor
     expected[0].hold_stated = true;
     CHECK(held.resolutions.shapes == expected);
     CHECK(held.resolutions.postures == plain.postures);
-    CHECK(held.resolutions.arrivals == plain.arrivals);
     CHECK(held.fits[0]);
 }
 
@@ -7363,7 +7486,7 @@ TEST_CASE("A hold's span opens at its start over what rings into it", "[core][ch
         CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
         CHECK(stopOf(held.resolutions, 0, 1) == std::optional{fretStop(5)});
         CHECK(stopOf(held.resolutions, 0, 2) == std::optional{fretStop(7)});
-        CHECK(held.resolutions.arrivals[0]);
+        CHECK(held.resolutions.shapes[0].sounds_in_parts);
         CHECK(held.fits[0]);
         CHECK(normalizedOnce(notes, holds).conversions.empty());
     }
@@ -7413,7 +7536,7 @@ TEST_CASE("A hold over a bar of single notes is one arpeggio of all its stops", 
     CHECK(stopOf(held.resolutions, 0, 2) == std::optional{fretStop(2)});
     CHECK(stopOf(held.resolutions, 0, 3) == std::optional{fretStop(4)});
     CHECK(stopOf(held.resolutions, 0, 4) == std::optional{fretStop(0)});
-    CHECK(held.resolutions.arrivals[0]);
+    CHECK(held.resolutions.shapes[0].sounds_in_parts);
     CHECK(held.fits[0]);
 }
 
@@ -7432,14 +7555,13 @@ TEST_CASE("A held span of fewer than three members is an arpeggio in parts", "[c
         const ChartResolutions plain = deriveUnder(notes, {}).resolutions;
         REQUIRE(plain.shapes.size() == 1);
         REQUIRE(plain.shapes[0].sustain == Fraction{1, 8});
-        REQUIRE(plain.arrivals == std::vector<bool>{false});
+        REQUIRE_FALSE(plain.shapes[0].sounds_in_parts);
 
         const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
         REQUIRE(held.resolutions.shapes.size() == 1);
         CHECK(held.resolutions.shapes[0].hold_stated);
         CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
         CHECK(held.resolutions.shapes[0].sounds_in_parts);
-        CHECK(held.resolutions.arrivals == std::vector<bool>{true});
         CHECK(held.fits[0]);
     }
 
@@ -7449,7 +7571,6 @@ TEST_CASE("A held span of fewer than three members is an arpeggio in parts", "[c
         const Held held = deriveUnder(notes, {holdOver(gridAt(1, 1), gridAt(1, 2))});
         REQUIRE(held.resolutions.shapes.size() == 1);
         CHECK_FALSE(held.resolutions.shapes[0].sounds_in_parts);
-        CHECK(held.resolutions.arrivals == std::vector<bool>{false});
     }
 }
 
@@ -7474,7 +7595,6 @@ TEST_CASE("A hold keeps a dyad's arpeggio only for a turn inside it", "[core][ch
         CHECK(held.resolutions.shapes[0].place == Fraction{});
         CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 4});
         CHECK_FALSE(held.resolutions.shapes[0].sounds_in_parts);
-        CHECK(held.resolutions.arrivals == std::vector<bool>{false});
         CHECK(held.fits[0]);
     }
 
@@ -7486,7 +7606,6 @@ TEST_CASE("A hold keeps a dyad's arpeggio only for a turn inside it", "[core][ch
         CHECK(held.resolutions.shapes[0].place == Fraction{});
         CHECK(held.resolutions.shapes[0].sustain == Fraction{1, 2});
         CHECK(held.resolutions.shapes[0].sounds_in_parts);
-        CHECK(held.resolutions.arrivals == std::vector<bool>{true});
         CHECK(held.fits[0]);
     }
 
@@ -7521,7 +7640,6 @@ TEST_CASE("A hold keeps a dyad's arpeggio only for a turn inside it", "[core][ch
         CHECK(restatement.stated_extent == Fraction{});
         CHECK(restatement.closing_onset_place == std::optional{Fraction{3, 8}});
         CHECK_FALSE(restatement.sounds_in_parts);
-        CHECK(held.resolutions.arrivals == std::vector<bool>{false, false});
     }
 }
 
@@ -7910,7 +8028,7 @@ TEST_CASE("A held span of no members under taps is a box", "[core][chart]")
         std::ranges::none_of(
             held.resolutions.postures[held.resolutions.shapes[0].posture].stops,
             [](const std::optional<ChartStop>& stop) { return stop.has_value(); }));
-    CHECK(held.resolutions.arrivals == std::vector<bool>{false});
+    CHECK_FALSE(held.resolutions.shapes[0].sounds_in_parts);
     CHECK(held.fits[0]);
 }
 

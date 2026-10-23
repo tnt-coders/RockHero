@@ -531,10 +531,6 @@ ChartViewState makeChartViewState(
     }
 
     state.shapes.reserve(resolutions.shapes.size());
-    // The shared arrival rule, answered for every span once per chart revision beside the spans
-    // themselves (\ref ChartResolutions::arrivals) — the absorption rule keys on the same answer,
-    // so deriving it here as well would be the class asked twice.
-    const std::vector<bool>& arrivals = resolutions.arrivals;
 
     // WHERE a posture string states its fret, decided per string by what heads that string AT THE
     // SPAN'S FRONT, its one instant — the posture-smart rule. Answered here rather than in the tab
@@ -611,9 +607,8 @@ ChartViewState makeChartViewState(
         return StopMarkSlot::Satellite;
     };
 
-    for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
+    for (const ChartShape& shape : resolutions.shapes)
     {
-        const ChartShape& shape = resolutions.shapes[shape_index];
         const Fraction place = shape.place;
 
         std::vector<ShapeStringViewState> strings;
@@ -642,7 +637,7 @@ ChartViewState makeChartViewState(
                         // is exactly the empty slot — the posture entry itself stays, because the
                         // POSTURE is a fact of its own that the class rule and the repeat-box
                         // identity test both read.
-                        .digit = arrivals[shape_index] ? digit_slot(place, index, *stop)
+                        .digit = shape.sounds_in_parts ? digit_slot(place, index, *stop)
                                                        : std::optional<StopMarkSlot>{},
                     });
             }
@@ -658,9 +653,9 @@ ChartViewState makeChartViewState(
                 .drawn_end_seconds = tempo_map.secondsAtWholeNote(
                     place + drawnShapeExtent(shape, resolutions.margins, move_starts)),
                 .close_seconds = tempo_map.secondsAtWholeNote(place + shape.sustain),
-                // A strummed chord is a box; sequential arrival, or a posture string ringing
-                // through the start un-restruck, renders as arpeggio brackets.
-                .arpeggio = arrivals[shape_index],
+                // A strummed chord is a box; members sounding in parts, or a posture string
+                // ringing through the start un-restruck, render as arpeggio brackets.
+                .arpeggio = shape.sounds_in_parts,
                 .strings = std::move(strings),
                 .landing_opened = shape.landing_opened,
                 .held = shape.hold_stated,

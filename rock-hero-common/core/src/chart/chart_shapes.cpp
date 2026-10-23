@@ -796,9 +796,9 @@ ChartShapes deriveChartShapes(
         };
         // Built once and handed to the table; the row copies it only on a first sighting.
         ChartPosture posture{.stops = std::move(open->stops)};
-        // A none hold publishes no arpeggio span inside it (shape rule 9). The walk runs on
+        // A none hold publishes no span that sounds in parts (shape rule 9). The walk runs on
         // unchanged, so the span still covers its ground and its rings join no later span.
-        if (inside_none_hold(shape.place) && chartShapeIsArpeggio(connections, shape, posture))
+        if (inside_none_hold(shape.place) && shape.sounds_in_parts)
         {
             open.reset();
             return;
@@ -2107,50 +2107,6 @@ ChartShapes deriveChartShapes(
     emit(std::nullopt);
 
     return derived;
-}
-
-// Its own parts first, then its size, then the one trigger derived here.
-bool chartShapeIsArpeggio(
-    const ChartConnections& connections, const ChartShape& shape, const ChartPosture& posture)
-{
-    if (shape.sounds_in_parts)
-    {
-        return true;
-    }
-    // A grip with no member has nothing to arrive separately: a hold's span over silence is a box
-    // whatever the other hand sounds inside it. A derived grip too small for parts is a box under
-    // the other hand too (shape rule 5), while a span an unnamed shape hold states is an arpeggio
-    // at any member count: the hold itself says one shape is held there (shape rule 9).
-    const bool no_member = std::ranges::none_of(
-        posture.stops, [](const std::optional<ChartStop>& stop) { return stop.has_value(); });
-    if (no_member || (!shape.hold_stated && tooFewForParts(posture.stops)))
-    {
-        return false;
-    }
-    // The one trigger derived here, because it is a question about the span's extent: the other
-    // hand sounding while the fretting hand held the shape. The musical close bounds the window
-    // (shape rule 3); display's margin has nothing to say about it.
-    const std::vector<Fraction>& places = connections.places;
-    const auto from = std::ranges::lower_bound(places, shape.place);
-    const auto until = std::ranges::lower_bound(from, places.end(), shape.place + shape.sustain);
-    const auto first = static_cast<std::size_t>(std::distance(places.begin(), from));
-    const auto last = static_cast<std::size_t>(std::distance(places.begin(), until));
-    return std::ranges::any_of(
-        std::span{connections.saved_notes}.subspan(first, last - first),
-        [](const ChartNote& note) { return rightHandOnset(note.attack); });
-}
-
-std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
-    const std::vector<ChartPosture>& postures)
-{
-    std::vector<bool> arpeggio;
-    arpeggio.reserve(shapes.size());
-    for (const ChartShape& shape : shapes)
-    {
-        arpeggio.push_back(chartShapeIsArpeggio(connections, shape, postures[shape.posture]));
-    }
-    return arpeggio;
 }
 
 // The hold's span is the one it states fronted at its start, so one search finds it.

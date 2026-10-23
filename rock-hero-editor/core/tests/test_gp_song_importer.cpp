@@ -273,15 +273,20 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return held;
 }
 
-// Which of an imported chart's spans render arpeggio-style, read off the same derivation as the
-// spans themselves (chart_shapes.h's chartShapeArrivals, which asks the stored stream only for
-// positions and attacks).
-[[nodiscard]] std::vector<bool> shapeArrivalsOf(
+// Which of an imported chart's spans render arpeggio-style: each derived span's own class
+// (\ref common::core::ChartShape::sounds_in_parts), in span order.
+[[nodiscard]] std::vector<bool> shapeArpeggiosOf(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
-    return common::core::chartResolutions(
-               chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map)
-        .arrivals;
+    const common::core::ChartResolutions resolutions = common::core::chartResolutions(
+        chart.notes, chart.shape_holds, chart.tuning.capo, tempo_map);
+    std::vector<bool> arpeggios;
+    arpeggios.reserve(resolutions.shapes.size());
+    for (const common::core::ChartShape& shape : resolutions.shapes)
+    {
+        arpeggios.push_back(shape.sounds_in_parts);
+    }
+    return arpeggios;
 }
 
 // One hand position a reader derives from an imported chart, on the grid: the import stores none,
@@ -1135,7 +1140,7 @@ TEST_CASE(
         std::vector<std::optional<common::core::ChartStop>>{
             common::core::fretStop(3), common::core::fretStop(6), common::core::fretStop(8)
         });
-    CHECK(shapeArrivalsOf(chart, song->tempo_map)[0]);
+    CHECK(shapeArpeggiosOf(chart, song->tempo_map)[0]);
     // The landed shape tiles onto that landing exactly, with no gap and no overlap — founded by
     // the beat-3 chord's own strike rather than opened by the landing, because the glides complete
     // at that very instant and a landing hands over only where the ring runs strictly past it.
@@ -1155,7 +1160,7 @@ TEST_CASE(
         });
     // The tied ring is a member the strum did not strike, so the span is born in parts and is an
     // arpeggio (shape rule 5), as the departing shape was.
-    CHECK(shapeArrivalsOf(chart, song->tempo_map)[1]);
+    CHECK(shapeArpeggiosOf(chart, song->tempo_map)[1]);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -3576,9 +3581,6 @@ TEST_CASE("Guitar Pro import spreads rolled chords over a held grip", "[core][gp
 
         // (2) CLASS: a bracket, because the members sound SEPARATELY — which for a roll is the
         // whole of what the mark says.
-        const std::vector<bool>& arrivals = resolutions.arrivals;
-        REQUIRE(arrivals.size() == 1);
-        CHECK(arrivals.front());
         CHECK(span.sounds_in_parts);
     }
 
@@ -5979,8 +5981,9 @@ TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][
 }
 
 // Tap-only onsets are transparent to span derivation: a chord held under
-// two-hand tapping keeps its span ringing through the taps, and the arrival rule renders the
-// covered span as a held arpeggio; a chord whose ring ends before the taps is unaffected.
+// two-hand tapping keeps its span ringing through the taps, and the covered span stays a chord
+// box, since taps on strings the grip does not hold never change its class; a chord whose ring
+// ends before the taps is unaffected.
 TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -5988,8 +5991,8 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
     };
 
     // Three-string chord against a second voice: a quarter rest, then two tapped eighths that
-    // sound inside the chord's notated ring. Three strings, since a derived span of fewer than
-    // three members is never an arpeggio.
+    // sound inside the chord's notated ring. Three strings, so the grip's size is not what keeps
+    // it a box.
     const auto make_score = [&syncs](const Fraction chord_duration) {
         GpScore score = makeLinearScore(1, syncs);
         GpBeat chord;
@@ -6009,7 +6012,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         return score;
     };
 
-    SECTION("a held chord's span covers the taps and reads as an arpeggio")
+    SECTION("a held chord's span covers the taps and stays a chord")
     {
         const auto built = buildGpSong(make_score(Fraction{1, 2}));
         REQUIRE(built.has_value());
@@ -6020,12 +6023,12 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         CHECK(chart.notes[0].sustain == Fraction{1, 2});
         CHECK(chart.notes[3].attack == common::core::NoteAttack::Tap);
         // One span from the strum through its notated ring: the taps neither close nor trim it,
-        // and the covered span arrives as a held arpeggio.
+        // and the covered span stays the strummed box.
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].place == common::core::Fraction{});
         CHECK(derived.shapes[0].sustain == Fraction{1, 2});
-        CHECK(shapeArrivalsOf(chart, built->tempo_map)[0]);
+        CHECK_FALSE(shapeArpeggiosOf(chart, built->tempo_map)[0]);
     }
 
     SECTION("a short-ringing chord's span still ends before the taps")
@@ -6038,7 +6041,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
         REQUIRE(derived.shapes.size() == 1);
         CHECK(derived.shapes[0].sustain == Fraction{1, 4});
-        CHECK_FALSE(shapeArrivalsOf(chart, built->tempo_map)[0]);
+        CHECK_FALSE(shapeArpeggiosOf(chart, built->tempo_map)[0]);
     }
 
     SECTION("a left-hand note under simultaneous right-hand taps derives no chord")
@@ -7633,7 +7636,7 @@ TEST_CASE("Guitar Pro import normalizes a let-ring figure to one end", "[core][g
         // own written quarter gives when it alone quits there, and never the interior members'
         // six.
         CHECK(derived.shapes[0].sustain == Fraction{3, 4});
-        CHECK(shapeArrivalsOf(chart, built->tempo_map)[0]);
+        CHECK(shapeArpeggiosOf(chart, built->tempo_map)[0]);
         REQUIRE(derived.shapes[0].posture < derived.postures.size());
         // Three stops, one per mark: the figure's rings die exactly AT the unmarked beat, so that
         // beat crosses no slot the texture still holds and states nothing into this posture. Three

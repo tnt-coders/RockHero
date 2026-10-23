@@ -473,16 +473,6 @@ struct ChartResolutions
     std::vector<ChartPosture> postures;
 
     /*!
-    \brief Each span's CLASS (\ref chartShapeArrivals): true where its members arrive SEPARATELY.
-
-    Span-parallel to \ref shapes. Derived here rather than at each surface because both surfaces
-    draw it and one chart revision should answer the class once. NO TAIL RULE READS IT: the tail
-    law is class-blind by construction — its one comparison asks only whether the note's own span
-    covers the ring, and coverage says nothing about how the span's members arrived.
-    */
-    std::vector<bool> arrivals;
-
-    /*!
     \brief Each note's held fret (\ref chartHeldStops); absent where the note holds no second stop.
 
     What \ref NoteViewState::held_fret carries, copied straight across. Read out of the postures

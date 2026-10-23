@@ -3126,15 +3126,15 @@ void paintTabLane(
     // read: a head printing "12" over a node-12 grip agrees on the number and is still two facts,
     // so the agreeing-number case is precisely the one that is NOT harmless. Places part company
     // wherever the hand holds one thing while the string sounds another — under two-hand tapping,
-    // which the arrival rule names as one of the things that MAKE a span an arpeggio, and under a
-    // harmonic, whose finger stands on a node while its head prints where it rings — so the case
-    // is ordinary rather than rare, and it is the ordinary case outright, because a right-hand
-    // onset states the stop under it as its held fret (`chartHeldStops`: a pull-off's plant, else
-    // the grip the covering span holds). Two slots make the conflict unrepresentable
-    // instead of arbitrated: the head's centre carries what SOUNDS and the satellite carries what
-    // the fretting hand HOLDS. Outboard RIGHT because every other side is spoken for — the attack
-    // icons own the upper-left shoulder, the floating chips own the space above, and the left is
-    // where the previous note's head and its arriving sustain ribbon live.
+    // where the grip stays down while the other hand sounds above it, and under a harmonic, whose
+    // finger stands on a node while its head prints where it rings — so the case is ordinary
+    // rather than rare, and it is the ordinary case outright, because a right-hand onset states
+    // the stop under it as its held fret (`chartHeldStops`: a pull-off's plant, else the grip the
+    // covering span holds). Two slots make the conflict unrepresentable instead of arbitrated: the
+    // head's centre carries what SOUNDS and the satellite carries what the fretting hand HOLDS.
+    // Outboard RIGHT because every other side is spoken for — the attack icons own the upper-left
+    // shoulder, the floating chips own the space above, and the left is where the previous note's
+    // head and its arriving sustain ribbon live.
     //
     // This pass draws the SPAN's digits, and no note draws a held stop of its own: the bracket's
     // number is the one statement that the left hand is on the string at all.

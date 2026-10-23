@@ -81,8 +81,8 @@ struct ChartPosture
 
 One mechanism covers strummed chords, chugged riffs on a held shape, and arpeggios: the notes under
 the span are the sounding truth, the span adds the notation layer (box or bracket). Whether it
-renders as a chord box or an arpeggio bracket is a further derivation from the notes at its start
-(\ref chartShapeArrivals), not a property stored here.
+renders as a chord box or an arpeggio bracket is the walk's own verdict on how its members sound
+(\ref ChartShape::sounds_in_parts).
 */
 struct ChartShape
 {
@@ -205,14 +205,14 @@ struct ChartShape
     already says it: a slot that sounds nothing is no sounding of the shape, and a boundary has no
     slot at all. Such a constant would be honest only if a successor could never be strummed, which
     shape rule 4 allows, so it would make a chord sliding into chords arrive an arpeggio at every
-    landing. A successor classifies by the ordinary triggers like any other span.
+    landing. A successor classifies by the same count as any other span.
 
     An ACCUMULATION needs no clause here either, and that is worth stating because it looks like it
     should: its opening slot strikes fewer strings than the shape sounds BY DEFINITION — the rings
     it overlapped into are the rest — so this one count answers it at the founding, and every
     accumulation is an arpeggio by construction rather than by a rule of its own.
 
-    Carried here rather than re-derived beside the arrival rule: answering it needs to know WHICH
+    Carried here rather than re-derived from the span's extent: answering it needs to know WHICH
     SLOTS this statement covers, and this walk is the only thing that does. What a reader can see is
     the span's WINDOW, and the closing onset sits exactly ON its end whenever an event closed the
     span — so a window re-derived from the extent cannot tell a slot the statement RODE from the
@@ -436,45 +436,6 @@ span.
 \return True when either count reaches its threshold.
 */
 [[nodiscard]] bool foundsSpan(std::size_t stated_together, std::size_t sounding_together);
-
-/*!
-\brief Whether a span is an arpeggio rather than a strummed chord box — shape rule 5
-(\ref design_rulesets_shapes).
-
-The second half of the same derivation, and here beside the first for that reason: \ref
-deriveChartShapes says where the hand goes and how long it stays, this says which of the two marks
-the notation draws.
-
-A span's partial soundings are read off the span (\ref ChartShape::sounds_in_parts), because a
-fact about WHICH SLOTS the statement covers has to come from the walk that grouped them. Only the
-right-hand trigger is derived here, because whether a right-hand onset lands inside the span is a
-question about the extent this rule is handed. What it reads off the note stream is positions and
-attacks alone, which presentation never touches, so the rule takes the stored stream and \ref
-chartResolutions can answer the class before the bracket re-read that consumes it runs.
-
-\param connections The resolved connections: the stored stream, sorted by (position, string), whose
-       positions and attacks are all that is read, and its places.
-\param shape A span derived from those connections.
-\param posture The posture `shape` holds: a derived span of fewer than three members is never an
-       arpeggio, a right-hand onset inside it included, while a span an unnamed shape hold states
-       (\ref ChartShape::hold_stated) is one at any member count.
-\return True where the span renders arpeggio-style.
-*/
-[[nodiscard]] bool chartShapeIsArpeggio(
-    const ChartConnections& connections, const ChartShape& shape, const ChartPosture& posture);
-
-/*!
-\brief Classifies every shape span as an arpeggio or a strummed chord box
-(\ref chartShapeIsArpeggio).
-
-\param connections The resolved connections the spans were derived from.
-\param shapes Derived hand-posture spans, sorted by place (\ref ChartResolutions::shapes).
-\param postures The posture table `shapes` index (\ref ChartResolutions::postures).
-\return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
-*/
-[[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const ChartConnections& connections, const std::vector<ChartShape>& shapes,
-    const std::vector<ChartPosture>& postures);
 
 /*!
 \brief Where a shape hold's published extent ends (shape rule 9): the close of the span the walk

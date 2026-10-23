@@ -11,7 +11,7 @@
 // never named.
 //
 // The pipeline is the production one end to end and NOTHING here re-implements it: `parseGpScore`
-// -> `buildGpSong` -> `chartResolutions` / `chartShapeArrivals`, read once. The let-ring extension
+// -> `buildGpSong` -> `chartResolutions`, read once. The let-ring extension
 // belongs to the shipped import (`letRingFigureEnds` in gp_chart_builder.cpp), so every derived
 // counter below reports the built chart exactly as it ships.
 //
@@ -440,8 +440,8 @@ struct LetRingRegion
 
 // ---------------------------------------------------------------------------------------------
 // The derived counters. Every one is a READING of what the production derivation produced, never a
-// second derivation: the spans, postures and arrival flags all come from `chartResolutions` and
-// `chartShapeArrivals`, and what is written here is only the classification each gate asks for.
+// second derivation: the spans, postures and classes all come from `chartResolutions`, and what
+// is written here is only the classification each gate asks for.
 // ---------------------------------------------------------------------------------------------
 
 // The fold-in reach (shape rule 1), kept as ONE family so it can be measured TWICE. The two
@@ -776,7 +776,7 @@ struct StreamIndex
 void countDerivation(
     const std::vector<ChartNote>& saved, const std::vector<Fraction>& ink_end,
     const std::vector<bool>& arrives_into, const std::vector<ChartShape>& shapes,
-    const std::vector<ChartPosture>& postures, const std::vector<bool>& arrivals,
+    const std::vector<ChartPosture>& postures,
     const std::vector<common::core::FretHandEvent>& hand_events,
     const std::vector<common::core::FretHandHold>& holds, const TempoMap& tempo_map,
     DerivationCounters& out)
@@ -863,10 +863,9 @@ void countDerivation(
         }
     }
 
-    for (std::size_t shape_index = 0; shape_index < shapes.size(); ++shape_index)
+    for (const ChartShape& shape : shapes)
     {
-        const ChartShape& shape = shapes[shape_index];
-        const bool arpeggio = shape_index < arrivals.size() && arrivals[shape_index];
+        const bool arpeggio = shape.sounds_in_parts;
         ++out.spans;
         out.spans_arpeggio += arpeggio ? 1 : 0;
 
@@ -1159,11 +1158,9 @@ void countDerivation(
             }
         }
 
-        // ---- one pass over the slots the span covers answers every interior question: the
-        // picking-hand trigger, the lone re-pick and its witness, and the continuity law's own
-        // interior gap.
+        // ---- one pass over the slots the span covers answers every interior question: the lone
+        // re-pick and its witness, and the continuity law's own interior gap.
         const auto first_slot = std::ranges::lower_bound(index.slot_place, start);
-        bool picking_hand_inside = false;
         bool lone_repick_here = false;
         bool interior_gap_here = false;
         bool interior_repick_here = false;
@@ -1177,10 +1174,6 @@ void countDerivation(
             std::vector<std::size_t> struck_here;
             for (std::size_t note = index.slot_first[slot]; note < index.slot_last[slot]; ++note)
             {
-                if (common::core::rightHandOnset(saved[note].attack))
-                {
-                    picking_hand_inside = true;
-                }
                 if (!soundsWithFrettingHand(saved[note]))
                 {
                     continue;
@@ -1301,7 +1294,7 @@ void countDerivation(
         if (foldins_here > 0)
         {
             ++out.trigger4_spans;
-            const bool other_trigger = struck_at_start.size() < 2 || picking_hand_inside;
+            const bool other_trigger = struck_at_start.size() < 2;
             if (!other_trigger)
             {
                 ++out.trigger4_only_spans;
@@ -1605,9 +1598,8 @@ struct Census
     // THE SHAPE-HOLD GATE (shape rule 9): an unnamed hold authored exactly over each derived span,
     // one at a time, as `Ctrl+H` over that span authors it. The walk is the one authority on a
     // hold, so every such hold fits its notes and leaves the derivation as it was, its span
-    // marked hold-stated: Ctrl+H over a derived span reproduces it. Only shape rule 5's held class
-    // (fewer than three members under a right-hand onset: a box derived, an arpeggio held) would
-    // depart, and a departure asks for a ruling. A few departures are kept with their file and bar.
+    // marked hold-stated: Ctrl+H over a derived span reproduces it, and a departure asks for a
+    // ruling. A few departures are kept with their file and bar.
     long long held_spans{0};
     long long held_spans_invalid{0};
     long long held_spans_rederived{0};
@@ -2077,8 +2069,8 @@ void printFoldInReach(const char* const title, FoldInReach& reach)
     }
 }
 
-// THE SHAPE-HOLD GATE over one arrangement: each derived span held alone, compared on the spans,
-// the postures and the classes, all a hold can change.
+// THE SHAPE-HOLD GATE over one arrangement: each derived span held alone, compared on the spans
+// (their classes included) and the postures, all a hold can change.
 void countHeldSpans(
     const common::core::ChartResolutions& resolutions, const TempoMap& tempo_map,
     const std::string& file, Census& census)
@@ -2094,9 +2086,7 @@ void countHeldSpans(
             connections, resolutions.margins, std::span{&hold, 1}, tempo_map);
         std::vector<ChartShape> expected = resolutions.shapes;
         expected[span].hold_stated = true;
-        const bool rederived = held.shapes != expected || held.postures != resolutions.postures ||
-                               common::core::chartShapeArrivals(
-                                   connections, held.shapes, held.postures) != resolutions.arrivals;
+        const bool rederived = held.shapes != expected || held.postures != resolutions.postures;
         const std::string where = file + " bar " + std::to_string(hold.start.measure);
         ++census.held_spans;
         // The walk alone, once per span: the normalizer would complete the whole notes layer for
@@ -2195,7 +2185,7 @@ void countMergedNoneHolds(
     std::vector<common::core::ShapeHold> over_bars;
     for (std::size_t index = 0; index < resolutions.shapes.size(); ++index)
     {
-        if (!resolutions.arrivals[index])
+        if (!resolutions.shapes[index].sounds_in_parts)
         {
             continue;
         }
@@ -2431,7 +2421,6 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
                 resolutions.connections.arrives_into,
                 resolutions.shapes,
                 resolutions.postures,
-                resolutions.arrivals,
                 hand_events,
                 demands.holds,
                 built->tempo_map,
@@ -2931,10 +2920,8 @@ TEST_CASE("Corpus census over the local Guitar Pro corpus", "[.local-corpus]")
             },
             CrossCheck{
                 // ...and derives everything else as before, the held span marked hold-stated:
-                // Ctrl+H over a derived span reproduces it. The one ruled case that would flag
-                // here is shape rule 5's held class — a grip of fewer than three members under a
-                // right-hand onset is a box derived and an arpeggio held — which the corpus does
-                // not contain; a flag there asks for a ruling, never a re-pin.
+                // Ctrl+H over a derived span reproduces it. A flag here asks for a ruling, never a
+                // re-pin.
                 .label = "held spans deriving otherwise (ZERO)",
                 .rig = static_cast<double>(census.held_spans_rederived),
                 .expected = 0.0,

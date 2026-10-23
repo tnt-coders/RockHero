@@ -190,15 +190,15 @@ Three facts about the hand live in the import and the views rather than in the r
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
 under it, so `common::core::deriveChartShapes` (`chart/chart_shapes.h`) derives every span and
 posture from the note stream wherever they are read, once per chart revision inside
-`chartResolutions`, and `chartShapeArrivals` classes each span as a box or an arpeggio. Its rules
+`chartResolutions`, and classes each span as a box or an arpeggio as it walks. Its rules
 are stated once, in \ref design_rulesets_shapes, and code cites them from there ("shape rule 4").
 In one breath: a span is the hand holding one grip, opened by a chord, by three rings sounding
 together, or by a chord slide landing; it runs until a member stops sounding, a strike contradicts
 the grip, or its statement turns between whole and in parts; and it is an arpeggio when its members
-sound separately or the other hand plays over it. Nothing about a hand is authored: the stop the
-fretting hand holds under a right-hand onset is read off the notation — a pull-off's plant, or the
-covering span's grip — and stored nowhere (`chartHeldStops`, shape rules 7 and 8). What reads the
-spans: the brackets, boxes and posture digits both surfaces draw, the 3D board's hold pins
+sound separately, whatever the other hand plays over it. Nothing about a hand is authored: the stop
+the fretting hand holds under a right-hand onset is read off the notation — a pull-off's plant, or
+the covering span's grip — and stored nowhere (`chartHeldStops`, shape rules 7 and 8). What reads
+the spans: the brackets, boxes and posture digits both surfaces draw, the 3D board's hold pins
 (`chartNoteLengths`), the held stops, and after all of them the fret-hand derivation above.
 
 One consequence is worth naming: the derivation sees the SETTLED stream, where an import-time

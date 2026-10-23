@@ -19,8 +19,9 @@ are also called **the grip-tenure law**. The rules are implemented in
   posture table (rules 1 to 4). It reads every fret channel through `statedStopFrom` (rule 4), the
   publication thresholds through `foundsSpan` (rule 1), and every pull-off source through
   `gripStatement` (rule 7).
-- `chartShapeArrivals` classifies each span as an arpeggio or a box (rule 5). The box each onset
-  group wears is `HighwayChordBoxTreatment` in `highway_view_state.h`.
+- A span's class, arpeggio or box (rule 5), is the walk's own `ChartShape::sounds_in_parts`,
+  published with the span. The box each onset group wears is `HighwayChordBoxTreatment` in
+  `highway_view_state.h`.
 - `makeChartViewState` (`chart_projection.h`) draws each span short of its close through
   `drawnSpanExtent` (rule 6) and decides the column of each posture digit (rule 7).
 - `chartPlantedStops` and `chartHeldStops` (`chart_legato.h`) derive the held stops (rule 8).
@@ -264,9 +265,9 @@ takes the next one.
      dyad gliding 1 to 7 and on to 11 is three spans too, the 7 a grip of its own. A travelling
      finger lets go of nothing, so travel is no quit. Where a member's first fret-stating keyframe
      already differs, the hand departs at the onset and the whole glide is the departing grip's
-     span. Every slot inside a glide is inside a span, so a tap mid-glide makes the span an
-     arpeggio (rule 5). Nothing publishes that a span covers a glide: tail rule 4 never
-     rests a ring that is still stating.
+     span. Every slot inside a glide is inside a span, so a tap mid-glide sounds under a span and
+     leaves its class alone (rule 5). Nothing publishes that a span covers a glide: tail rule 4
+     never rests a ring that is still stating.
    - **Restatement mid-travel is judged per member.** A slot restates the shape while everything it
      sounds agrees with what the shape states and contradicts nothing the shape still covers. An
      open member restruck mid-slide therefore rides the span, makes it an arpeggio and leaves the
@@ -333,20 +334,21 @@ takes the next one.
      and the remainder is an arpeggio if the hand's own strokes sounded it in parts and a box if
      they struck it whole — a bracket ending where the carried ring died, the chord's own tails
      ringing past it.
-   - **A right-hand onset sounding within the span**, from its front up to its musical close, makes
-     it an arpeggio: the fretting hand holds the shape while the other hand sounds above it. This is
-     the one trigger `chartShapeArrivals` derives itself, because it asks about the span's extent.
+     The other hand never changes the class: a tap or a pick slide on a string the grip does not
+     hold is not the chord sounding, and one on a member's string counts only through what it makes
+     the member do — a pull-off landing back on the held stop is that member re-sounded apart, a
+     partial sounding like any other.
    - **A derived span of fewer than three members is never an arpeggio**: a bracket over two
      strings states nothing its boxes do not. The rule is asked at publication, because a pair
      picked apart may yet grow to three — a dyad struck and then picked while its other note
      rings is born in parts like any absorbed stroke, and is the arpeggio from its stroke once a
      third member joins. One that never grew is published as the box its stroke stated, closing
-     where the picking began, and its parts publish nothing (rule 3); it is no arpeggio under the
-     other hand either. **A span an unnamed hold states is an arpeggio whenever it sounds in parts, at any
-     member count**, and a box only while every sounding of it is the shape struck whole, since a
-     chord span strictly means notes struck together and ringing together: the hold itself says one
+     where the picking began, and its parts publish nothing (rule 3), whichever hand sounded them.
+     **A span an unnamed hold states is an arpeggio whenever it sounds in parts, at any member
+     count**, and a box only while every sounding of it is the shape struck whole, since a chord
+     span strictly means notes struck together and ringing together: the hold itself says one
      shape is held there, so the bracket states what the boxes cannot. The held exception is
-     decided where the class is, in `chartShapeIsArpeggio`.
+     decided in the walk where it publishes the span.
    - **The class reads the stored stream.** A dead string's carry classifies like any other ring,
      because where the fingers are is a fact about the hands; technique rule 25 is a display rule.
    - **A box marks simultaneity.** Every onset striking two or more strings with the fretting hand

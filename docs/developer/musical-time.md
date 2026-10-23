@@ -130,9 +130,8 @@ and `ink_end_seconds`). Scoring's contract is that what is drawn is what is judg
 The arpeggio-vs-box CLASS reads no ink end at all. Whether a posture string is still carried into a
 span's start is not a display fact: it asks where the fingers are and which of them the pick
 reached, so it reads the **stored** ring, and a dead string's carry classifies exactly like any
-other. `chartShapeArrivals` reads the stream only for the attacks it still derives — the right-hand
-onsets inside a span — and takes the rest off the spans, where `deriveChartShapes` recorded it
-against the stored rings. A derived span of fewer than three members never sounds in parts: the
+other. The class is `ChartShape::sounds_in_parts`, which `deriveChartShapes` records against the
+stored rings as it walks. A derived span of fewer than three members never sounds in parts: the
 walk breaks it at the partial sounding instead. Technique rule 25, by contrast, takes a dead note's tail off what a
 surface **draws**.
 
