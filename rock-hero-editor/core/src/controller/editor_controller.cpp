@@ -19,6 +19,7 @@
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
+#include "song_information/song_file_name.h"
 #include "timeline/section_projection.h"
 #include "tone/tone_automation_projection.h"
 #include "tone/tone_track_projection.h"
@@ -3026,11 +3027,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
         state.undo_history.position = position;
         state.undo_history.clean_position = clean_position;
     }
-    if (!m_project_file.empty())
-    {
-        state.suggested_export_file = m_project_file;
-        state.suggested_export_file.replace_extension(".rock");
-    }
+    // A never-saved project's empty path has an empty parent, so the name then carries no
+    // directory and the view starts in the user's home.
+    state.suggested_project_file =
+        m_project_file.parent_path() / suggestedProjectFileName(session().song().metadata);
     state.close_enabled = isActionAvailable(EditorAction::Id::CloseProject, action_conditions);
     // The marker plane's one published answer, read off the marker verb with the weakest base
     // condition, so every marker-row surface greys and refuses from this alone.

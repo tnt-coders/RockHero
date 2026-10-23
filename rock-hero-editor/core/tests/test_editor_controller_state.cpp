@@ -33,7 +33,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK_FALSE(empty_state.undo_label.has_value());
     CHECK(empty_state.redo_enabled == false);
     CHECK_FALSE(empty_state.redo_label.has_value());
-    CHECK(empty_state.suggested_export_file.empty());
+    CHECK(empty_state.suggested_project_file.empty());
     CHECK(empty_state.close_enabled == false);
     CHECK(empty_state.project_loaded == false);
     CHECK(empty_state.save_requires_destination == false);
@@ -71,7 +71,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .undo_label = std::string{"Move Plugin"},
         .redo_enabled = true,
         .redo_label = std::string{"Restore Plugin"},
-        .suggested_export_file = std::filesystem::path{"saved.rock"},
+        .suggested_project_file = std::filesystem::path{"Artist - Song.rhp"},
         .close_enabled = true,
         .project_loaded = true,
         .save_requires_destination = false,

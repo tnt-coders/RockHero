@@ -49,6 +49,7 @@ add_executable(
     test_timeline.cpp
     test_decimal_text.cpp
     test_juce_path.cpp
+    test_legal_file_name.cpp
     test_logger.cpp
     test_shared_settings_file.cpp
     test_user_data_folders.cpp

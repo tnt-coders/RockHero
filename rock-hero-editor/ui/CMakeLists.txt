@@ -41,6 +41,8 @@ target_sources(
             src/keybinds/keymap_ownership.h
             src/keybinds/plugin_window_shortcut_sync.cpp
             src/keybinds/plugin_window_shortcut_sync.h
+            src/main_window/chooser_initial_file.cpp
+            src/main_window/chooser_initial_file.h
             src/main_window/composed_character_filter.cpp
             src/main_window/composed_character_filter.h
             src/main_window/editor.cpp

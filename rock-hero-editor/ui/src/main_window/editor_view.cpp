@@ -5,6 +5,7 @@
 #include "keybinds/actions_window.h"
 #include "keybinds/editor_command_registry.h"
 #include "keybinds/key_chord_text.h"
+#include "main_window/chooser_initial_file.h"
 #include "main_window/menu_look_and_feel.h"
 #include "preview/preview_window.h"
 #include "shared/editor_theme.h"
@@ -149,17 +150,6 @@ constexpr int g_track_viewport_min_height{80};
         path.replace_extension(".rock");
     }
     return path;
-}
-
-// Converts a project-suggested export path into JUCE's save-dialog starting file.
-[[nodiscard]] juce::File exportChooserInitialFile(const std::filesystem::path& suggested_file)
-{
-    if (suggested_file.empty())
-    {
-        return juce::File::getSpecialLocation(juce::File::userHomeDirectory);
-    }
-
-    return common::core::juceFileFromPath(suggested_file);
 }
 
 // An undo or redo command's menu text, naming the entry's label when it has one.
@@ -3172,13 +3162,12 @@ void EditorView::showImportChooser()
         });
 }
 
-// Opens an asynchronous file chooser and sends accepted save paths to the controller.
+// Opens an asynchronous file chooser and sends accepted save paths to the controller. Save As and
+// a first Save open on the suggested "Artist - Song" name.
 void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Save Rock Hero Project",
-        juce::File::getSpecialLocation(juce::File::userHomeDirectory),
-        "*.rhp");
+        "Save Rock Hero Project", chooserInitialFile(m_state.suggested_project_file), "*.rhp");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
@@ -3226,10 +3215,11 @@ void EditorView::showSongInformation()
 // controller.
 void EditorView::showExportChooser()
 {
+    // The project's suggested stem under the song package's extension: one name, two formats.
+    std::filesystem::path suggested_song_file = m_state.suggested_project_file;
+    suggested_song_file.replace_extension(".rock");
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Export Rock Hero Song (.rock)",
-        exportChooserInitialFile(m_state.suggested_export_file),
-        "*.rock");
+        "Export Rock Hero Song (.rock)", chooserInitialFile(suggested_song_file), "*.rock");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(

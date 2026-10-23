@@ -33,6 +33,13 @@ whole workspace (manifest + `song/`) into `.rhp`; export zips only the song dire
 a manifest. One caveat worth knowing: the archive write is in-place (truncate + rewrite), not
 atomic temp-then-rename.
 
+Save As and a first Save open their chooser on `<Artist> - <Song>.rhp`, named from the song's
+information, with "Unknown Artist" / "Unknown Song" standing in for a blank half
+(`song_information/song_file_name.cpp`, made legal on every OS by common core's
+`legalFileName`). The chooser starts in the saved project's directory, or in the user's home when
+the project has never been saved. The controller publishes the one suggestion as
+`EditorViewState::suggested_project_file`, and export's chooser takes the same stem with `.rock`.
+
 Export itself is withheld from the first release: an exported package must carry complete
 information, so the availability rule refuses Export Song with `ExportWithheld`
 (`controller/editor_action_availability.cpp`) until plan 43's export readiness gate lands. The

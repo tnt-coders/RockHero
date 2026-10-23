@@ -1097,8 +1097,15 @@ struct EditorViewState
     /*! \brief Full undo/redo stack contents for the history inspector panel (toggled with F8). */
     UndoHistoryState undo_history{};
 
-    /*! \brief Suggested .rock destination used to pre-fill the export chooser. */
-    std::filesystem::path suggested_export_file{};
+    /*!
+    \brief Suggested `.rhp` destination for Save As and a first Save, and the stem the export
+    chooser derives its `.rock` from.
+
+    `<Artist> - <Song>.rhp` from the song's information (`suggestedProjectFileName`), in the saved
+    project's directory, or with no directory when the project has never been saved — the view
+    then starts in the user's home.
+    */
+    std::filesystem::path suggested_project_file{};
 
     /*! \brief Enables or disables the File > Close command. */
     bool close_enabled{false};

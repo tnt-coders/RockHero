@@ -178,4 +178,16 @@ TEST_CASE("Song information edits mark the project unsaved", "[core][song-inform
     CHECK(editor.atCleanState());
 }
 
+// The suggested project name is read off the song's information, so an edit renames it at once.
+TEST_CASE("Song information names the suggested project file", "[core][song-information]")
+{
+    LoadedInformationEditor editor;
+    CHECK(editor.state().suggested_project_file.filename() == "Band - Stored.rhp");
+
+    editor.controller.onSongInformationSubmitted(
+        SongMetadata{.title = "Renamed", .artist = "Other Band", .album = "Record", .year = 1987});
+
+    CHECK(editor.state().suggested_project_file.filename() == "Other Band - Renamed.rhp");
+}
+
 } // namespace rock_hero::editor::core

@@ -414,7 +414,7 @@ template <class ComponentType>
         .export_enabled = true,
         .song_information_enabled = true,
         .song_metadata = {},
-        .suggested_export_file = std::filesystem::path{"song.rock"},
+        .suggested_project_file = std::filesystem::path{"song.rhp"},
         .close_enabled = true,
         .project_loaded = true,
         .save_requires_destination = false,

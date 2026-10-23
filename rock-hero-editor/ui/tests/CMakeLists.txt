@@ -43,6 +43,7 @@ add_executable(
     test_preview_time_model.cpp
     test_signal_chain_block_layout.cpp
     test_song_information_view.cpp
+    test_chooser_initial_file.cpp
     test_tab_view.cpp
     test_tone_track_view.cpp
     test_track_viewport.cpp

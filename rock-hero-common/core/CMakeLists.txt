@@ -38,6 +38,7 @@ target_sources(
             src/shared/decimal_text.cpp
             src/shared/json.cpp
             src/shared/juce_path.cpp
+            src/shared/legal_file_name.cpp
             src/shared/logger.cpp
             src/shared/logger_error.cpp
             src/shared/shared_settings_file.cpp

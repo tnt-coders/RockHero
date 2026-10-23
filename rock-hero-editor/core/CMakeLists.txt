@@ -93,6 +93,8 @@ target_sources(
             src/song_information/song_information_handlers.cpp
             src/song_information/song_metadata_snapshot.cpp
             src/song_information/song_metadata_snapshot.h
+            src/song_information/song_file_name.cpp
+            src/song_information/song_file_name.h
             src/tasks/juce_editor_task_runner.cpp
             src/tasks/juce_message_thread_scheduler.cpp
             src/timeline/keep_notes_in_time.cpp

@@ -2,6 +2,7 @@
 #include <compare>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -139,7 +140,9 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
         CHECK(state.export_enabled == false);
-        CHECK(state.suggested_export_file == std::filesystem::path{"second.rock"});
+        CHECK(
+            state.suggested_project_file ==
+            std::filesystem::path{"Unknown Artist - Unknown Song.rhp"});
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
         CHECK(state.project_load_id == 1);
@@ -275,7 +278,9 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
         CHECK(state.export_enabled == false);
-        CHECK(state.suggested_export_file.empty());
+        CHECK(
+            state.suggested_project_file ==
+            std::filesystem::path{"Unknown Artist - Unknown Song.rhp"});
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
         CHECK(state.transport.unavailable_reason == "Playback disabled: no song open.");
@@ -653,7 +658,10 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
         .normalization = std::nullopt,
         .start_offset = {}
     };
-    project_services.next_import_song = makeSong(audio_asset.path);
+    common::core::Song imported_song = makeSong(audio_asset.path);
+    imported_song.metadata.artist = "AC/DC";
+    imported_song.metadata.title = "Back in Black";
+    project_services.next_import_song = std::move(imported_song);
     controller.onImportRequested(std::filesystem::path{"song.rock"});
     transport.current_position = common::core::TimePosition{2.5};
     REQUIRE(view.last_state.has_value());
@@ -662,7 +670,10 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
         const EditorViewState& imported_state = view.last_state.value();
         CHECK(imported_state.save_requires_destination == true);
         CHECK(imported_state.export_enabled == false);
-        CHECK(imported_state.suggested_export_file.empty());
+        // Never saved, so the name carries no directory and the chooser starts in the home.
+        CHECK(
+            imported_state.suggested_project_file ==
+            std::filesystem::path{"AC_DC - Back in Black.rhp"});
         CHECK(imported_state.close_enabled == true);
         CHECK(imported_state.project_loaded == true);
     }
@@ -671,18 +682,22 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
 
     CHECK(project_services.save_call_count == 0);
 
-    controller.onSaveAsRequested(std::filesystem::path{"saved.rhp"});
+    const std::filesystem::path saved_file = std::filesystem::path{"charts"} / "saved.rhp";
+    controller.onSaveAsRequested(saved_file);
 
     CHECK(project_services.save_as_call_count == 1);
-    CHECK(project_services.last_save_as_file == std::optional{std::filesystem::path{"saved.rhp"}});
+    CHECK(project_services.last_save_as_file == std::optional{saved_file});
     CHECK(project_services.last_save_as_audio_path == std::optional{audio_asset.path});
-    CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"saved.rhp"}});
+    CHECK(controller.currentProjectFile() == std::optional{saved_file});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
         const EditorViewState& saved_state = view.last_state.value();
         CHECK(saved_state.save_requires_destination == false);
-        CHECK(saved_state.suggested_export_file == std::filesystem::path{"saved.rock"});
+        // Saved, so the name sits in the saved project's directory, whatever the file is called.
+        CHECK(
+            saved_state.suggested_project_file ==
+            std::filesystem::path{"charts"} / "AC_DC - Back in Black.rhp");
         CHECK_FALSE(saved_state.unsaved_changes_prompt.has_value());
     }
 
