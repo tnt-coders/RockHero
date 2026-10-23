@@ -57,7 +57,7 @@ phase it blocks cannot start without it.
 | Gate | Where | Blocks |
 |---|---|---|
 | **G65-TS** (G41-TS until 2026-10-03) — content policy for a beats-per-measure edit. PROVISIONALLY A (hold the beat, measures renumber), 2026-09-19; signed at its sighting | `docs/plans/roadmap/65-time-signature-editing.md` Q1 | Nothing now — Phase 1's time-signature work may build on A, after plan 60 |
-| **G43-METADATA** — 43-Q1..Q6. NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5, so only Q6 (an authored chart version field; recommended: none) still stands | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 | Nothing in the release unless Q6 is ruled B — the four-field subset adds no format field |
+| ~~**G43-METADATA**~~ — CLOSED 2026-10-22: 43-Q6 RULED A (no authored chart version). NARROWED by D1 (2026-09-19): Q1..Q5 left the release with plan 43 Phases 1, 3 and 5; 43-Q3 was ruled the same day (strict square art, for after the release) | `docs/plans/roadmap/43-song-information-and-art.md` Phase 0 and its 2026-10-22 block | Nothing |
 | ~~**The keyframe ruling bundle + the bend display anchor + W9-F / W9-D / W9-G**~~ — CLOSED 2026-09-28 with Phase 3: W9-F resolved, W9-G ruled, the anchor moved to a watch item; bundle items 1–3 carried, not blocking | `technique-review-walkthrough.md` W9, Phase 3 below | Nothing |
 | **G60-RULINGS** — 60-Q1..Q5, a law-by-law session. **RULED 2026-10-02** (Q1 signed, its re-measurement condition discharged 2026-10-03; Q3/Q5 deferred to a Phase 5 session). Still unruled from the items this plan carried into it: harmonic follow-up #4 and the span-end margin #59 | `docs/plans/roadmap/60-the-hand.md` §9 | Phase 4 open; #4 and #59 ruled at Phase 3's session |
 | **G52-RANGE-EDIT** — all of 52-Q1..Q8, individually | `docs/plans/roadmap/52-range-edit-operations.md` Phase 0 | Phase 5 |
@@ -89,6 +89,11 @@ Build the path that creates an editable song without importing a Guitar Pro file
   deleted. Phase 5 (offline onset snapping) and the tap-tempo readout are out of the bar.
 - **Song information, audio and art** — plan 43, or the subset the release needs: the fields
   required to save and reopen, song audio selection, album art. D1 decides how much of 43 is in.
+  **Plan 43's release subset is BUILT (2026-10-22):** File > Song Information... edits title,
+  artist, album and year (`4a227e31`), export is withheld (`5714af08`), and Save As opens on
+  `<Artist> - <Song>.rhp` (`712cdf55`). Album art, the new fields and the export gate are
+  deferred past the release (plan 43's 2026-10-22 block). Song audio selection is not plan 43's
+  and is untouched by this.
 - **Tuning, capo and cent offsets** — plan 40 Phase 10 (task G7). String count is
   `tuning.strings.size()`; removing a string deletes its notes in one compound undo and re-fits both
   surfaces' lane counts.

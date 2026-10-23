@@ -79,7 +79,12 @@ struct consumers. That is where compiler help ends; everything serialization-sha
    belong there, and vice versa.
 6. **Downstream consumers.** The game's library projection
    (`rock-hero-game/core/src/library/rock_song_package_describer.cpp` and friends) consumes
-   `PackageDescription`; extend it if the new field should surface in the library.
+   `PackageDescription`; extend it if the new field should surface in the library. The game's
+   library index cache (`rock-hero-game/core/src/library/library_index_store.cpp`) spells the
+   song's metadata keys a third time — `title`, `artist`, `album`, `year`, written in
+   `entryToJson` and read back in `entryFromJson` — so a metadata field added, renamed or removed
+   lands there too, and a change to the index's own keys bumps its `indexFormatVersion`
+   (`g_library_index_format_version`) so stale caches rebuild.
 7. **Tests.** `test_rock_song_package.cpp`, `test_package_description.cpp`, and `test_song.cpp`
    under `rock-hero-common/core/tests/` — cover write→read round-trip through *both* readers.
 8. **Corpus smoke.** After any read-path change, run the local corpus-smoke check (it loads every

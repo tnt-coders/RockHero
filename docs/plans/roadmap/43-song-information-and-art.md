@@ -1,6 +1,7 @@
 # Plan 43 — Song Information and Art
 
-**Status**: Decision-gated | 2026-07-06 | baseline `refactor @ 13e82fb0`
+**Status**: v1 built 2026-10-22 (the first release's subset); the rest deferred until after the
+first releasable editor | 2026-07-06 | baseline `refactor @ 13e82fb0`
 
 > **2026-09-19 (user): this plan no longer waits on plan 10.** Plan 10 is deferred until just after
 > the first releasable editor, and until then the format changes in place. Every step below that
@@ -15,6 +16,86 @@
 > every span carries an explicit fingering and a chord name, and plan 42 reports no findings — so
 > Q1's "plan 42 appends to the same list later" is a condition of re-enabling export, not a later
 > nicety. Q2's answer is therefore at least (A), all five metadata fields.
+
+> **2026-10-22 — v1 built; the rest deferred.** The first release's subset of this plan (D1 in
+> `docs/plans/in-progress/first-releasable-editor.md`) is built:
+>
+> - **File > Song Information...** (`4a227e31`) — a modal dialog editing the four fields the
+>   format already carries (title, artist, album, year). An OK that changes something is one undo
+>   entry through the marker funnel (`SongMetadataSnapshot`); an unchanged OK and Cancel record
+>   nothing; a negative year is refused. Fields are trimmed by the one shared
+>   `trimmedWhitespace`. The narrow `Session::setSongMetadata` replaces Phase 2's
+>   `SongMetadata* metadata()` accessor.
+> - **Export withheld** (`5714af08`) — `ActionUnavailableReason::ExportWithheld` refuses Export
+>   Song in `editor_action_availability.cpp`; the File menu item stays listed and `Ctrl+E` stays
+>   bound, both disabled.
+> - **Save As pre-fill** (`712cdf55`) — Save As and a first Save open on
+>   `<Artist> - <Song>.rhp` (`song_information/song_file_name.cpp`, legal on every OS through
+>   common core's `legalFileName`), and export's chooser derives the same stem with `.rock`.
+>
+> **Deferred, with reasons:**
+>
+> - **Album art — RULED strict (user, 2026-10-22), amending 43-Q3-A.** PNG or JPEG only (GIF is
+>   refused even though JUCE decodes it); the image must be square, and a non-square one is
+>   refused with a "crop it to a square" message rather than cropped or letterboxed for the user;
+>   at least 512 px on a side. The package carries one canonical `art/cover.jpg` at exactly
+>   512x512, JPEG quality 0.85, alpha flattened. Q3-A's "max dimension 1024, aspect preserved" is
+>   superseded: one fixed size gives the game one decode shape and a fixed package cost.
+> - **Art storage** — the art rides on `Song` as immutable in-memory bytes (the canonical JPEG),
+>   which the package writer persists as `art/cover.jpg`; undo mementos then share the bytes
+>   instead of staging files in the workspace (supersedes Phase 2 item 5's workspace staging).
+>   JUCE pitfalls the codec must handle, verified against the vendored JUCE 8 sources under
+>   `external/tracktion_engine/modules/juce/modules/juce_graphics/`:
+>   - `ImageFileFormat::loadFrom` returns an invalid `juce::Image` on failure with no reason, and
+>     its registry also accepts GIF (`images/juce_ImageFileFormat.cpp`): test the decoded format
+>     explicitly (`PNGImageFormat` / `JPEGImageFormat::canUnderstand`) to refuse GIF, and test
+>     `isValid()` for the failure.
+>   - The JPEG writer drops alpha without compositing (`image_formats/juce_JPEGLoader.cpp`, the
+>     non-RGB branch writes `getPixelColour` straight through): flatten onto a solid background
+>     before encoding.
+>   - The JPEG reader ignores EXIF orientation (no orientation handling in
+>     `juce_JPEGLoader.cpp`): a phone photo can arrive rotated, so the dialog's preview must show
+>     the image exactly as it will be stored.
+>   - The JPEG reader forces `JCS_RGB` output: a CMYK JPEG is expected to fail decode (libjpeg
+>     has no CMYK-to-RGB conversion) — re-verify, and refuse it with a "convert to RGB" message.
+>   - Downscaling by more than about 2x through `Image::rescaled` aliases on the software path:
+>     halve successively to within 2x of 512, then rescale once (inventory above).
+>   - On macOS a PNG always decodes to ARGB (CoreImage); the file's real alpha survives only in
+>     the `originalImageHadAlpha` image property — read that, never the pixel format, to decide
+>     whether the source had alpha.
+>   - Not a JUCE pitfall but the same seam: the game's library index already carries a cached
+>     album-art image beside the index (`album_art_file_name`, key `albumArt` in
+>     `rock-hero-game/core/src/library/library_index_store.cpp`), empty until this plan adds art.
+>     Feed that cache from `art/cover.jpg` rather than opening a second art path.
+> - **Charter and genre fields** — new `song.json` fields, so they come with Phase 1's metadata
+>   extensions, not before.
+> - **The export readiness gate** — Phase 5, widened by D6 to plan 42's chart findings and the
+>   span-completeness check. When export comes back, restore from `4a227e31` the two tests
+>   deleted when export was withheld — "EditorController song export failure surfaces an error"
+>   (`test_editor_controller_project_lifecycle.cpp`) and "EditorController song export begins
+>   busy with default message" (`test_editor_controller_busy.cpp`) — together with
+>   `FakeProjectServices`' `next_export_error`, `last_export_audio_path` and
+>   `last_export_tone_document_ref` (`editor_controller_test_harness.h`), and re-point
+>   `g_export_offered` in the `ExportSong` arm of `editor_action_availability.cpp` at the gate.
+> - **The game's third spelling of the metadata keys** — `library_index_store.cpp` writes
+>   (lines 119-125) and reads (lines 180-186) `title` / `artist` / `album` / `year` in the
+>   library index cache, beside the package writer (`rock_song_package_write.cpp`) and the shared
+>   reader walk (`song_document_json.cpp`). Every metadata field Phase 1 adds must land in all
+>   three, and a change to the index's keys bumps its `indexFormatVersion`. Recorded as a silent
+>   step in `docs/developer/changing-the-package-format.md`.
+> - **43-Q6 is RULED A** (user, 2026-10-22): no authored chart version; identity is plan 10's
+>   chart hash. That closes G43-METADATA.
+>
+> **Re-verify before resuming** (the phases below predate v1):
+>
+> - The Phase 2 and Phase 4 scopes against what v1 built: `Session::setSongMetadata`,
+>   `EditorAction::SetSongInformation`, the `song_information/` folders in editor core and UI,
+>   and the dialog's four rows; extend them rather than building the drafted shapes beside them.
+> - Phase 1's `formatVersion` 2 and migration steps are void (the 2026-09-19 block above).
+> - Every line number in the inventory (§4); they are from 2026-07-06.
+> - Whether the export path (`project_handlers.cpp`, the `ExportSong` flow) and the export busy
+>   state still match the restored tests above.
+> - The game library index's `albumArt` cache, before feeding it from the package's art.
 
 ## 1. Goal
 
@@ -250,7 +331,10 @@ Mirrored into `docs/plans/roadmap/00-roadmap.md` Decisions-needed. Phase 0 prese
   `docs/plans/roadmap/26-game-startup-menus-library.md` Phase 3).
   (B) Title/artist/year hard; album and art soft (warning, the export proceeds). Choose this only
   if requiring art is judged too hostile for quick personal exports.
-- **Q3 — canonical art policy.**
+- **Q3 — canonical art policy.** **RESOLVED 2026-10-22 (user): A, amended strict** — PNG or
+  JPEG only, square required (a non-square image is refused with "crop it to a square"), at least
+  512 px, stored as one `art/cover.jpg` at exactly 512x512, quality 0.85, alpha flattened; the
+  max-1024 aspect-preserving master below is superseded (the 2026-10-22 block above).
   (A) *Transcode at import to one JPEG master, quality 0.85, max dimension 1024, aspect
   preserved, downscale-only, alpha flattened onto solid black* (recommended; the
   juce-tracktion-expert findings above drive every term: JPEG-only photographic payload, the
@@ -277,7 +361,8 @@ Mirrored into `docs/plans/roadmap/00-roadmap.md` Decisions-needed. Phase 0 prese
   (C) Extend `common/core`'s JUCE permission to `juce_graphics` — drags a rendering stack into
   the headless domain library; rejected shape.
 - **Q6 — chart "version" field.** Should packages carry an authored chart/package version number
-  (e.g. "v2 of my chart of Song X")?
+  (e.g. "v2 of my chart of Song X")? **RESOLVED 2026-10-22 (user): A** — this closes
+  G43-METADATA.
   (A) *No authored version; resolve identity via plan 10's chart-identity hash* (recommended).
   Any content edit changes the hash, which is what leaderboards
   (`docs/plans/roadmap/29-online-leaderboards.md`) and score records key on; an authored counter is
@@ -343,7 +428,13 @@ Phase 2 was cut 2026-09-19.)
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 2 — editor-core Song Information workflow and undo
+### Phase 2 — editor-core Song Information workflow and undo *(four fields BUILT; rest DEFERRED)*
+
+> **2026-10-22:** built for title, artist, album and year in `4a227e31`, in a different shape from
+> the scope below: `Session::setSongMetadata` instead of a `SongMetadata*` accessor, the marker
+> funnel's `SongMetadataSnapshot` instead of a dedicated `IEdit`, and a submitted `SongMetadata`
+> instead of a draft. Item 2's sort and preview rules and item 5's art staging remain, and are
+> re-scoped by the 2026-10-22 block at the top (art as in-memory bytes on `Song`).
 
 - **Scope**:
   1. `Session` gains one narrow mutation surface: `SongMetadata* metadata() noexcept` (null when
@@ -423,7 +514,12 @@ Phase 2 was cut 2026-09-19.)
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets clang-tidy
   ```
 
-### Phase 4 — Song Information dialog (editor/ui)
+### Phase 4 — Song Information dialog (editor/ui) *(four fields BUILT; rest DEFERRED)*
+
+> **2026-10-22:** built in `4a227e31`: File > Song Information... in its own menu group between
+> Export Song and Close, a modal `SongInformationWindow` hosting four rows (the year takes up to
+> four digits); OK / Enter submits and Cancel / Escape / close cancels. The art panel follows the
+> strict Q3 ruling (PNG or JPEG, square, at least 512 px), so its chooser filter drops `*.gif`.
 
 - **Scope**: a `song_information/` feature in `rock-hero-editor/ui`: modal-style window following
   the `audio_device_settings_window.cpp` precedent, opened from a new File-menu item "Song
