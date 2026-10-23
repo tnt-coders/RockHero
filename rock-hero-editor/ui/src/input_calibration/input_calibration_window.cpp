@@ -207,6 +207,12 @@ public:
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
+        // Focus is a keyboard signal: a click works the control without leaving the ring on it.
+        m_pickup_chooser.setMouseClickGrabsKeyboardFocus(false);
+        m_measure_button.setMouseClickGrabsKeyboardFocus(false);
+        m_apply_button.setMouseClickGrabsKeyboardFocus(false);
+        m_cancel_button.setMouseClickGrabsKeyboardFocus(false);
+
         // Sized once, for the longest message, so nothing ever resizes the native window.
         setSize(
             g_content_width + (2 * g_margin),

@@ -135,4 +135,15 @@ TEST_CASE("Song information fields answer Enter and Escape", "[ui][song-informat
     CHECK(recorded.submitted.size() == 1);
 }
 
+// The focus ring is a keyboard signal: neither OK nor Cancel takes focus from a click.
+TEST_CASE(
+    "Song information view buttons never take focus from a click",
+    "[ui][song-information][focus-ring]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordedSongInformationView recorded{SongMetadata{}};
+
+    CHECK(testing::clickFocusedControls(recorded.view).empty());
+}
+
 } // namespace rock_hero::editor::ui

@@ -238,4 +238,17 @@ TEST_CASE("PluginBrowserWindow shows busy overlay", "[ui][plugin-browser]")
     CHECK_FALSE(overlay.isVisible());
 }
 
+// The focus ring is a keyboard signal: no combo box or button here takes focus from a click.
+TEST_CASE(
+    "PluginBrowserWindow controls never take focus from a click",
+    "[ui][plugin-browser][focus-ring]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakePluginBrowserListener listener;
+    PluginBrowserWindow window{listener};
+    window.setState(makeBrowserState());
+
+    CHECK(testing::clickFocusedControls(window).empty());
+}
+
 } // namespace rock_hero::editor::ui

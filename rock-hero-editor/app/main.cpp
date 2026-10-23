@@ -19,6 +19,7 @@
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
 #include <rock_hero/editor/ui/main_window/editor.h>
 #include <rock_hero/editor/ui/main_window/main_window.h>
+#include <rock_hero/editor/ui/shared/editor_look_and_feel.h>
 #include <utility>
 
 namespace rock_hero::editor::app
@@ -149,6 +150,11 @@ public:
         m_live_input_monitor = std::make_unique<rock_hero::common::audio::LiveInputMonitor>(
             *m_audio_engine, *m_audio_engine, *m_audio_config_store);
 
+        // Installed before the first window exists, so every component, plugin windows included,
+        // draws with it from its first paint.
+        m_look_and_feel = std::make_unique<rock_hero::editor::ui::EditorLookAndFeel>();
+        juce::Desktop::getInstance().setDefaultLookAndFeel(m_look_and_feel.get());
+
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
             makeEditorAudioPorts(*m_audio_engine),
             rock_hero::editor::ui::Editor::Services{
@@ -182,6 +188,14 @@ public:
         m_audio_engine.reset();
         m_highway_themes.reset();
 
+        // Unset only once the engine's plugin windows are gone too, and before it is destroyed: a
+        // JUCE look-and-feel must not die while the desktop still names it the default.
+        if (m_look_and_feel != nullptr)
+        {
+            juce::Desktop::getInstance().setDefaultLookAndFeel(nullptr);
+            m_look_and_feel.reset();
+        }
+
         // Plugin-scan child processes return from initialise before installing logging, so only
         // tear it down when this instance actually started it.
         if (m_logging_started)
@@ -208,6 +222,10 @@ private:
     // Tracks whether this instance installed the logging backend, so shutdown only tears it down
     // for the real editor process and not for early-returning plugin-scan child processes.
     bool m_logging_started = false;
+
+    // The desktop's default look-and-feel while the editor runs. Released last of the UI objects,
+    // after the engine whose plugin windows also draw with it.
+    std::unique_ptr<rock_hero::editor::ui::EditorLookAndFeel> m_look_and_feel;
 
     // Owns Tracktion-backed playback for the lifetime of the editor window.
     std::unique_ptr<rock_hero::common::audio::Engine> m_audio_engine;

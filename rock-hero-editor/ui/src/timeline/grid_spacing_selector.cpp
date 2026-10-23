@@ -148,6 +148,8 @@ GridSpacingSelector::GridSpacingSelector(Listener& listener)
     m_note_value_box.setEditableText(true);
     m_note_value_box.setComponentID("grid_note_value_box");
     m_note_value_box.onChange = [this] { handleSelectionCommitted(); };
+    // Focus is a keyboard signal: a click opens the list without leaving the focus ring on it.
+    m_note_value_box.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(m_note_value_box);
 
     refreshDisplayedNoteValue();

@@ -1,6 +1,7 @@
 #include "audio_device_settings_view.h"
 
 #include <algorithm>
+#include <initializer_list>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -229,6 +230,24 @@ void AudioDeviceSettingsView::configureControls()
     m_control_panel_button.setButtonText("Control Panel");
     m_ok_button.setButtonText("OK");
     m_cancel_button.setButtonText("Cancel");
+
+    // Focus is a keyboard signal: a click works the control without leaving the focus ring on it.
+    for (juce::Component* const control : std::initializer_list<juce::Component*>{
+             &m_device_type_combo,
+             &m_device_combo,
+             &m_input_device_combo,
+             &m_output_device_combo,
+             &m_input_channel_combo,
+             &m_output_pair_combo,
+             &m_sample_rate_combo,
+             &m_buffer_size_combo,
+             &m_control_panel_button,
+             &m_ok_button,
+             &m_cancel_button
+         })
+    {
+        control->setMouseClickGrabsKeyboardFocus(false);
+    }
 
     // populateChoiceCombo() uses juce::dontSendNotification on clear() and setSelectedId(), so
     // refresh-driven updates never invoke these callbacks. They fire only on user gestures.

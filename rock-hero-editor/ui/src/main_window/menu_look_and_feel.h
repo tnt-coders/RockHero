@@ -6,12 +6,18 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/editor/ui/shared/editor_look_and_feel.h>
 
 namespace rock_hero::editor::ui
 {
 
-/*! \brief Paints the editor menu strip as flat application chrome instead of a framed control. */
-class MenuLookAndFeel final : public juce::LookAndFeel_V4
+/*!
+\brief Paints the editor menu strip as flat application chrome instead of a framed control.
+
+Derived from the editor-wide look-and-feel, so the focus rules exist once and the strip keeps
+them.
+*/
+class MenuLookAndFeel final : public EditorLookAndFeel
 {
 public:
     /*!

@@ -200,6 +200,12 @@ public:
         m_add_button.setButtonText("Add");
         m_add_button.onClick = [this] { addSelectedPlugin(); };
 
+        // Focus is a keyboard signal: a click works the control without leaving the ring on it.
+        m_type_filter_combo.setMouseClickGrabsKeyboardFocus(false);
+        m_rescan_button.setMouseClickGrabsKeyboardFocus(false);
+        m_close_button.setMouseClickGrabsKeyboardFocus(false);
+        m_add_button.setMouseClickGrabsKeyboardFocus(false);
+
         m_count_label.setComponentID("plugin_browser_count_label");
         m_count_label.setJustificationType(juce::Justification::centredLeft);
         m_count_label.setColour(juce::Label::textColourId, juce::Colours::white);

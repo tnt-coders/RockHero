@@ -26,10 +26,13 @@ void paintMenuStyleHighlight(
 } // namespace
 
 // Creates a JUCE button with no visible label until the owner supplies one. The empty internal
-// name is intentional; owners identify the component via Component::setComponentID.
+// name is intentional; owners identify the component via Component::setComponentID. Focus is a
+// keyboard signal, so a click never leaves the editor's focus on the button.
 MenuBarButton::MenuBarButton()
     : juce::Button{juce::String{}}
-{}
+{
+    setMouseClickGrabsKeyboardFocus(false);
+}
 
 // Adapts the menu-bar action vocabulary to JUCE's button text storage.
 void MenuBarButton::setText(const juce::String& label_text)

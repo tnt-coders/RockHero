@@ -26,6 +26,7 @@ add_executable(
     test_composed_character_filter.cpp
     test_editor.cpp
     test_editor_keymap_persistence.cpp
+    test_editor_look_and_feel.cpp
     test_editor_view_audio_controls.cpp
     test_editor_view_busy_overlay.cpp
     test_editor_view_layout.cpp

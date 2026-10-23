@@ -112,6 +112,7 @@ public:
     {
         setEnabled(interactive);
         setWantsKeyboardFocus(false);
+        setMouseClickGrabsKeyboardFocus(false);
     }
 
     void paintButton(juce::Graphics& g, bool is_over, bool is_down) override
@@ -312,6 +313,8 @@ KeymapEditorView::KeymapEditorView(juce::ApplicationCommandManager& command_mana
     addAndMakeVisible(m_viewport);
     m_reset_button.setComponentID("keymap_reset_all_button");
     m_reset_button.onClick = [this] { confirmResetAll(); };
+    // Focus is a keyboard signal, so a click never leaves the focus ring on the button.
+    m_reset_button.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(m_reset_button);
     rebuildRows();
     m_command_manager.getKeyMappings()->addChangeListener(this);

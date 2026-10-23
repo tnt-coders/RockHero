@@ -113,4 +113,17 @@ TEST_CASE("InputCalibrationWindow offers the guide only when it exists", "[ui][i
     CHECK(no_guide.getTooltip() == "The input calibration guide is not installed.");
 }
 
+// The focus ring is a keyboard signal: no combo box or button here takes focus from a click.
+TEST_CASE(
+    "InputCalibrationWindow controls never take focus from a click",
+    "[ui][input-calibration][focus-ring]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingEditorController controller;
+    const core::InputCalibrationPrompt prompt = core::testing::makeInputCalibrationPrompt(-6.0);
+    InputCalibrationWindow window{controller, prompt, juce::File{}, nullptr};
+
+    CHECK(testing::clickFocusedControls(window).empty());
+}
+
 } // namespace rock_hero::editor::ui

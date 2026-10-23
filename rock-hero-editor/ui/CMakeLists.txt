@@ -65,6 +65,7 @@ target_sources(
             src/preview/preview_window.h
             src/shared/audio_level_meter.cpp
             src/shared/audio_level_meter.h
+            src/shared/editor_look_and_feel.cpp
             src/shared/editor_theme.cpp
             src/shared/editor_theme.h
             src/shared/flash_pulse.cpp

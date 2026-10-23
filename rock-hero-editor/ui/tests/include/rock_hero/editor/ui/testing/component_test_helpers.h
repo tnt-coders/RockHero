@@ -10,6 +10,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::ui::testing
 {
@@ -219,6 +220,40 @@ probe holds whatever antialiasing level a platform's rasterizer lands on.
     return std::ranges::min(known, {}, [pixel](const juce::Colour candidate) {
         return squaredColorDistance(pixel, candidate);
     });
+}
+
+/*!
+\brief Names every button and combo box under a component that a mouse click would hand keyboard
+focus.
+
+The editor's focus ring is a keyboard signal, so every focusable button and combo box is built with
+`setMouseClickGrabsKeyboardFocus(false)`. A control that never takes focus (a scroll bar's arrow
+buttons, a mode toggle) cannot take it by a click either, so it is not reported.
+
+\param root Component whose subtree is walked, itself included.
+\return The component id (or, without one, the name) of each offending control; empty when none.
+*/
+[[nodiscard]] inline std::vector<std::string> clickFocusedControls(juce::Component& root)
+{
+    std::vector<std::string> offenders;
+    const auto visit = [&offenders](const auto& self, juce::Component& component) -> void {
+        const bool control = dynamic_cast<juce::Button*>(&component) != nullptr ||
+                             dynamic_cast<juce::ComboBox*>(&component) != nullptr;
+        if (control && component.getWantsKeyboardFocus() &&
+            component.getMouseClickGrabsKeyboardFocus())
+        {
+            const juce::String label = component.getComponentID().isNotEmpty()
+                                           ? component.getComponentID()
+                                           : component.getName();
+            offenders.push_back(label.toStdString());
+        }
+        for (juce::Component* const child : component.getChildren())
+        {
+            self(self, *child);
+        }
+    };
+    visit(visit, root);
+    return offenders;
 }
 
 } // namespace rock_hero::editor::ui::testing

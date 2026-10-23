@@ -53,10 +53,13 @@ SongInformationView::SongInformationView(
     m_ok.setButtonText("OK");
     m_ok.setComponentID("song_information_ok");
     m_ok.onClick = [this] { submit(); };
+    // Focus is a keyboard signal, so a click never leaves the focus ring on a button.
+    m_ok.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(m_ok);
     m_cancel.setButtonText("Cancel");
     m_cancel.setComponentID("song_information_cancel");
     m_cancel.onClick = [this] { m_on_cancel(); };
+    m_cancel.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(m_cancel);
 
     // Tab walks the fields top to bottom and then the buttons, left to right.

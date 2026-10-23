@@ -22,6 +22,12 @@ small exemplar of every convention below.
 3. **Theme.** All colors come from `editorTheme()`
    (`rock-hero-editor/ui/src/shared/editor_theme.h`) by semantic role. Never hard-code a color;
    if no role fits, the theme gains a role.
+4. **Look-and-feel.** The application installs one `EditorLookAndFeel`
+   (`rock-hero-editor/ui/include/rock_hero/editor/ui/shared/editor_look_and_feel.h`) as the
+   desktop default, so a new view draws with it without asking. It is JUCE's V4 drawing plus a
+   2 px ring in `EditorTheme::focus_ring` around the button, combo box or text field holding
+   keyboard focus. A view that needs a look-and-feel of its own derives from it, as
+   `MenuLookAndFeel` does, so the focus ring survives.
 
 # Part A — The compiler walks you through these {#add_view_part_a}
 
@@ -46,6 +52,13 @@ get on this recipe.
    `editor_view_test_harness.h` (it supplies port fakes) and `component_test_helpers.h`. Cover
    the synchronous wiring: state in → visible change; gesture → listener call. Behavior beyond
    wiring belongs in editor-core tests, not component tests.
+7. **Keyboard-only focus.** Every button and combo box you build calls
+   `setMouseClickGrabsKeyboardFocus(false)`, as JUCE's AlertWindow does for its buttons, so the
+   focus ring only ever marks a control the keyboard reached; a control that should never take
+   focus (a mode toggle, a transport button) also calls `setWantsKeyboardFocus(false)`. Nothing
+   fails at build time if you forget — add a case asserting
+   `testing::clickFocusedControls(view).empty()` (`component_test_helpers.h`) beside the view's
+   other tests, as every dialog's test file does.
 
 # Popup and menu-bar menus
 

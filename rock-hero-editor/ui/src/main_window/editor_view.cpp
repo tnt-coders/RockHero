@@ -689,6 +689,8 @@ EditorView::EditorView(
             m_controller.onArrangementSelected(choices[static_cast<std::size_t>(item_index)].id);
         }
     };
+    // Focus is a keyboard signal: a click picks an arrangement without moving the editor's focus.
+    m_arrangement_selector.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(m_arrangement_selector);
     addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);

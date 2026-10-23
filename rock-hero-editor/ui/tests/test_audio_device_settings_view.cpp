@@ -233,4 +233,17 @@ TEST_CASE(
     CHECK_FALSE(ok_button.isEnabled());
 }
 
+// The focus ring is a keyboard signal: no combo box or button here takes focus from a click.
+TEST_CASE(
+    "AudioDeviceSettingsView controls never take focus from a click",
+    "[ui][audio-device-settings][focus-ring]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    CHECK(testing::clickFocusedControls(view).empty());
+}
+
 } // namespace rock_hero::editor::ui

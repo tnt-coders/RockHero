@@ -120,6 +120,14 @@ struct EditorTheme
     juce::Colour muted_text{0xff9aa1ab};
 
     /*!
+    \brief The ring that marks the control holding keyboard focus.
+
+    The same white as primary_text today, but its own role so a theme can move it alone. Never the
+    accent: an accent ring already means "on" for a mode toggle.
+    */
+    juce::Colour focus_ring{0xffffffff};
+
+    /*!
     \brief Dim laid over the whole editor while it is unavailable. Light enough to keep editor
     content recognizable underneath, dark enough to make "this is not interactive right now"
     obvious.

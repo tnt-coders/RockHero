@@ -352,4 +352,25 @@ TEST_CASE("EditorView opens the actions window from the command", "[ui][keybinds
     CHECK(actions_window->isVisible());
 }
 
+// The focus ring is a keyboard signal: neither a binding chip nor the reset button takes focus
+// from a click.
+TEST_CASE("KeymapEditorView controls never take focus from a click", "[ui][keybinds][focus-ring]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureHighwayThemeRegistry()
+    };
+
+    KeymapEditorView editor{view.commandManager()};
+    editor.setSize(560, 520);
+
+    CHECK(testing::clickFocusedControls(editor).empty());
+}
+
 } // namespace rock_hero::editor::ui

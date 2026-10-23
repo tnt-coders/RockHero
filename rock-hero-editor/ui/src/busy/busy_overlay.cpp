@@ -116,6 +116,8 @@ BusyOverlay::BusyOverlay()
             m_cancel_callback();
         }
     };
+    // Focus is a keyboard signal, so a click never leaves the focus ring on the button.
+    m_cancel_button.setMouseClickGrabsKeyboardFocus(false);
     addChildComponent(m_cancel_button);
 }
 

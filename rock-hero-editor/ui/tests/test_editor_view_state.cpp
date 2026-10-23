@@ -1606,4 +1606,38 @@ TEST_CASE("EditorView lists the highway themes and palettes to pick", "[ui][edit
         }});
 }
 
+// The focus ring is a keyboard signal: no button or combo box in the main window, the signal
+// chain's plugin tiles included, takes keyboard focus from a mouse click.
+TEST_CASE("EditorView controls never take focus from a click", "[ui][editor-view][focus-ring]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{
+        controller,
+        viewAudioPorts(transport, thumbnail_factory),
+        juce::File{},
+        fixtureHighwayThemeRegistry()
+    };
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.signal_chain = core::SignalChainViewState{
+        .remove_plugins_enabled = true,
+        .plugins = {
+            core::PluginViewState{
+                .instance_id = "instance",
+                .plugin_id = "plugin",
+                .name = "Amp Sim",
+                .manufacturer = "Example Audio",
+                .format_name = "VST3",
+                .chain_index = 0,
+            },
+        },
+    };
+    view.setState(state);
+
+    CHECK(testing::clickFocusedControls(view).empty());
+}
+
 } // namespace rock_hero::editor::ui
