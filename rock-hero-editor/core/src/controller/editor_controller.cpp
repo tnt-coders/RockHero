@@ -425,6 +425,10 @@ namespace
         {
             return "RenameSongSection";
         }
+        case EditorAction::Id::SetSongInformation:
+        {
+            return "SetSongInformation";
+        }
         case EditorAction::Id::InsertTempoAnchor:
         {
             return "InsertTempoAnchor";
@@ -1261,6 +1265,11 @@ void EditorController::onSongSectionRenameRequested(
     common::core::GridPosition position, std::string name)
 {
     m_impl->onSongSectionRenameRequested(position, std::move(name));
+}
+
+void EditorController::onSongInformationSubmitted(common::core::SongMetadata metadata)
+{
+    m_impl->runAction(EditorAction::SetSongInformation{.metadata = std::move(metadata)});
 }
 
 void EditorController::onTempoAnchorInsertRequested(const common::core::GridPosition position)
@@ -3003,6 +3012,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
     state.save_as_enabled = isActionAvailable(EditorAction::Id::SaveProjectAs, action_conditions);
     state.export_enabled = isActionAvailable(EditorAction::Id::ExportSong, action_conditions);
+    state.song_information_enabled =
+        isActionAvailable(EditorAction::Id::SetSongInformation, action_conditions);
+    state.song_metadata = session().song().metadata;
     state.undo_enabled = isActionAvailable(EditorAction::Id::Undo, action_conditions);
     state.undo_label = m_undo_history.undoLabel();
     state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);

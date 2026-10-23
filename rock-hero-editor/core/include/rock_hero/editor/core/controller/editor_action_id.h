@@ -217,6 +217,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Rename the song-structure section at a position. */
     RenameSongSection,
 
+    /*! \brief Replace the song's information (title, artist, album, year) with a submitted set. */
+    SetSongInformation,
+
     /*! \brief Select a tempo chip on the ruler (the beat anchor it marks). */
     SelectTempoAnchor,
 

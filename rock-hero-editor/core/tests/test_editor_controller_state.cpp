@@ -27,6 +27,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.save_enabled == false);
     CHECK(empty_state.save_as_enabled == false);
     CHECK(empty_state.export_enabled == false);
+    CHECK(empty_state.song_information_enabled == false);
+    CHECK(empty_state.song_metadata == common::core::SongMetadata{});
     CHECK(empty_state.undo_enabled == false);
     CHECK_FALSE(empty_state.undo_label.has_value());
     CHECK(empty_state.redo_enabled == false);
@@ -63,6 +65,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .save_enabled = true,
         .save_as_enabled = true,
         .export_enabled = true,
+        .song_information_enabled = true,
+        .song_metadata = {},
         .undo_enabled = true,
         .undo_label = std::string{"Move Plugin"},
         .redo_enabled = true,

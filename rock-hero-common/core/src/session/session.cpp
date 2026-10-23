@@ -161,6 +161,12 @@ void Session::setSongSections(std::vector<SongSection> sections)
     ++m_markers_revision;
 }
 
+// No projection reads the metadata, so no revision advances.
+void Session::setSongMetadata(SongMetadata metadata)
+{
+    m_song.metadata = std::move(metadata);
+}
+
 // The tempo map places every note, so it is a notes write.
 void Session::setTempoMap(TempoMap tempo_map)
 {

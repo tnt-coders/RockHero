@@ -51,6 +51,14 @@ struct SongMetadata
 
     /*! \brief Release year; zero means unknown. */
     int year{0};
+
+    /*!
+    \brief Compares two metadata sets by their stored fields.
+    \param lhs Left-hand metadata.
+    \param rhs Right-hand metadata.
+    \return True when both sets store equal values.
+    */
+    friend bool operator==(const SongMetadata& lhs, const SongMetadata& rhs) = default;
 };
 
 /*!

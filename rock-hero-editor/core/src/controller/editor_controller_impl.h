@@ -922,6 +922,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SelectSpanRowMark& action);
     void performActionImpl(const EditorAction::InsertSongSection& action);
     void performActionImpl(const EditorAction::RenameSongSection& action);
+    void performActionImpl(const EditorAction::SetSongInformation& action);
     void performActionImpl(const EditorAction::InsertTempoAnchor& action);
     void performActionImpl(const EditorAction::SetTempoSpanBpm& action);
     void performActionImpl(const EditorAction::SetTimeSignature& action);

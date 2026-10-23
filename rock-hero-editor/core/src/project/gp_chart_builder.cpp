@@ -18,10 +18,11 @@
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
-#include <rock_hero/common/core/song/song_section_rules.h>
+#include <rock_hero/common/core/shared/whitespace_trim.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/tick_lattice.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -3179,12 +3180,13 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     {
         // A song section is a NAMED place in the structure, so an unlabelled section mark states
         // no section here. Bound to one reference so the guard and the read are the same object.
-        // "Unlabelled" is measured by the shared section-name trim, not by emptiness: a bar whose
+        // "Unlabelled" is measured by the shared whitespace trim, not by emptiness: a bar whose
         // label is nothing but spaces states no name either, and importing it would build a section
         // list the section rules refuse and the package could never be read back.
         const std::optional<std::string>& section = score.master_bars[measure].section;
-        const std::string section_name =
-            section.has_value() ? common::core::trimmedSongSectionName(*section) : std::string{};
+        const std::string section_name{
+            section.has_value() ? common::core::trimmedWhitespace(*section) : std::string_view{}
+        };
         if (!section_name.empty())
         {
             const GridPosition downbeat =

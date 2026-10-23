@@ -594,6 +594,9 @@ public:
     void onSongSectionRenameRequested(
         common::core::GridPosition position, std::string name) override;
 
+    /*! \copydoc IEditorController::onSongInformationSubmitted */
+    void onSongInformationSubmitted(common::core::SongMetadata metadata) override;
+
     /*! \copydoc IEditorController::onTempoAnchorInsertRequested */
     void onTempoAnchorInsertRequested(common::core::GridPosition position) override;
 

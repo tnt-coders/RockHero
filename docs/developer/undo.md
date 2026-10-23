@@ -40,7 +40,8 @@ dropped), so one undo restores the notes, the holds and the positions together;
 discards that value, and `applyChartChange` runs it on a copy it
 swaps in only on success, leaving the chart entirely untouched otherwise),
 `marker_model_edit.h` (ONE `MarkerModelEdit<Snapshot>` behind every timeline-marker verb of every
-kind, carrying that kind's whole model before and after; every marker verb commits through one
+kind and behind the song's information, carrying that model whole before and after; every marker
+verb, and the Song Information dialog's submission, commits through one
 funnel, `commitMarkerModel` in `marker_model_commit.h`, which normalizes the produced model,
 validates it against one `MarkerJudgeContext` (`marker_judge_context.h`: the session and the
 displayed chart's memoized notes layer, the same for every snapshot kind, so the funnel names no
@@ -70,7 +71,7 @@ The tempo chip's pointer drag is NOT a run: it is one gesture whose events write
 hold the move and publish a preview map, plan 66 decision 7), and its release makes the one
 commit a single `Alt+←/→` press would, so the drag is one entry, one engine resync and one
 re-projection, and a drag released where it began records nothing.
-Five snapshots plug in today: `TempoMapSnapshot`
+Six snapshots plug in today: `TempoMapSnapshot`
 (`timeline/tempo_map_snapshot.h` — the song's whole tempo map behind anchor insert, typed tempo,
 move and delete; its `validate` is the shared `validateTempoMapRules`, and its apply goes through
 `Session::setTempoMap()`, which advances the chart revision because the map places every note),
@@ -80,7 +81,13 @@ rename and boundary-move; its `normalize` prunes catalog tones no region referen
 `validate` is `validateToneTrackRules` plus catalog coverage), `SongSectionsSnapshot`
 (`song_sections_snapshot.h` — the whole song-level section list behind add, rename, move and
 delete; its `normalize` sorts by position and its `validate` is the shared
-`validateSongSectionRules`) and `FretHandPositionsSnapshot`
+`validateSongSectionRules`), `SongMetadataSnapshot` (`song_information/song_metadata_snapshot.h` —
+the song's whole information, title, artist, album and year, behind File > Song Information...; its
+`normalize` trims the three text fields with the shared `trimmedWhitespace`, its `validate` refuses
+a negative year and nothing else, so nothing is required to save, and its apply goes through
+`Session::setSongMetadata()`, which advances no revision because nothing projected reads the
+metadata; it stands at no place on the timeline, so no lock governs it and its undo focuses
+nothing) and `FretHandPositionsSnapshot`
 (`chart/fret_hand_positions_snapshot.h` — the current chart's whole list of AUTHORED fret-hand
 positions behind the fret-hand position's add, move, fret entries, end clear, delete and the
 Prune Hand Positions command — a stating verb on a DERIVED position authors it inside the same

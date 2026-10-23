@@ -76,6 +76,9 @@ enum class EditorCommandId : std::uint16_t
     */
     ExportTone = 0x1009,
 
+    /*! \brief File > Song Information... (no default chord). */
+    SongInformation = 0x100A,
+
     /*! \brief Edit > Undo (`Ctrl+Z`). */
     Undo = 0x1101,
 

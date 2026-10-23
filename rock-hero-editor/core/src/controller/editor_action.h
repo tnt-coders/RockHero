@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -1127,6 +1128,19 @@ struct EditorAction
     };
 
     /*!
+    \brief Replace the song's information with the set the Song Information dialog submitted.
+
+    The whole set, as the charter left every field: the commit trims the text fields and judges
+    the year, and a set equal to the stored one records nothing. Song-level and timeless, so no
+    lock refuses it.
+    */
+    struct SetSongInformation
+    {
+        /*! \brief The submitted information, untrimmed; a negative year refuses. */
+        common::core::SongMetadata metadata;
+    };
+
+    /*!
     \brief Insert a tempo anchor at a grid position, pinning the time the map already gives it.
 
     Carries the position the surface captured at the press, like the section insert, so the verb
@@ -1232,11 +1246,11 @@ struct EditorAction
         DeleteSelection, InsertAtCaret, InsertRingPoint, TypeChartFretDigit, ShiftChartFrets,
         AdjustChartSustain, ToggleChartTechnique, ChooseChartHarmonic, SetChartHarmonicNode,
         ChooseChartBend, SetChartBend, ToggleChartJunction, SelectSongSection, InsertSongSection,
-        RenameSongSection, SelectTempoAnchor, InsertTempoAnchor, SetTempoSpanBpm, MoveTempoAnchor,
-        ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature, SetTimeSignature,
-        SelectFretHandPosition, AuthorFretHandPositionAtCursor, SongSectionChord, SongSectionAt,
-        TempoChord, TimeSignatureChord, TimeSignatureAt, ToneChord, ToneChangeAt, ToneRenamePrompt,
-        ScaleTempoPrompt, RestateSelection, RenameSelection, ClearFretHandEnd,
+        RenameSongSection, SetSongInformation, SelectTempoAnchor, InsertTempoAnchor,
+        SetTempoSpanBpm, MoveTempoAnchor, ReleaseTempoAnchorDrag, ScaleTempo, SelectTimeSignature,
+        SetTimeSignature, SelectFretHandPosition, AuthorFretHandPositionAtCursor, SongSectionChord,
+        SongSectionAt, TempoChord, TimeSignatureChord, TimeSignatureAt, ToneChord, ToneChangeAt,
+        ToneRenamePrompt, ScaleTempoPrompt, RestateSelection, RenameSelection, ClearFretHandEnd,
         PruneFretHandPositions, ChooseHold, SetHold, SelectSpanRowMark, StepToRowObject,
         JumpToFocusRow>;
 };

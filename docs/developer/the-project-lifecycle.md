@@ -33,6 +33,10 @@ whole workspace (manifest + `song/`) into `.rhp`; export zips only the song dire
 a manifest. One caveat worth knowing: the archive write is in-place (truncate + rewrite), not
 atomic temp-then-rename.
 
+The song's information — title, artist, album and year — is edited in File > Song Information...
+(one undoable edit through the marker funnel, \ref guide_undo) and travels in `song.json`'s
+metadata, as it always has, so save and export both carry it.
+
 # The open flow
 
 ```mermaid

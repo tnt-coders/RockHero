@@ -43,7 +43,7 @@ target_sources(
             src/controller/editor_undo_history.h
             # Private headers: the one marker commit funnel, the context it judges every snapshot
             # against, and the one whole-snapshot undo entry every marker verb (tone regions, song
-            # sections, fret-hand positions) shares.
+            # sections, fret-hand positions) and the song's information share.
             src/controller/marker_judge_context.h
             src/controller/marker_model_commit.h
             src/controller/marker_model_edit.h
@@ -90,6 +90,9 @@ target_sources(
             src/signal_chain/signal_chain_handlers.cpp
             src/signal_chain/signal_chain_workflow.cpp
             src/signal_chain/signal_chain_workflow.h
+            src/song_information/song_information_handlers.cpp
+            src/song_information/song_metadata_snapshot.cpp
+            src/song_information/song_metadata_snapshot.h
             src/tasks/juce_editor_task_runner.cpp
             src/tasks/juce_message_thread_scheduler.cpp
             src/timeline/keep_notes_in_time.cpp

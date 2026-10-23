@@ -98,6 +98,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SetHold:
         case EditorAction::Id::ClearFretHandEnd:
         case EditorAction::Id::PruneFretHandPositions:
+        // The song's information is part of the project the prompt is parked over.
+        case EditorAction::Id::SetSongInformation:
         // The marker verbs decided at the press ask for a prompt whose answer edits the project.
         case EditorAction::Id::SongSectionChord:
         case EditorAction::Id::SongSectionAt:
@@ -230,6 +232,7 @@ using Verdict = std::optional<ActionUnavailableReason>;
             case EditorAction::Id::SelectSongSection:
             case EditorAction::Id::InsertSongSection:
             case EditorAction::Id::RenameSongSection:
+            case EditorAction::Id::SetSongInformation:
             case EditorAction::Id::InsertTempoAnchor:
             case EditorAction::Id::SetTempoSpanBpm:
             case EditorAction::Id::SetTimeSignature:
@@ -287,6 +290,8 @@ using Verdict = std::optional<ActionUnavailableReason>;
         case EditorAction::Id::SaveProjectAs:
         case EditorAction::Id::ExportSong:
         case EditorAction::Id::CloseProject:
+        // The song's information is song-level and timeless: a project is all it needs.
+        case EditorAction::Id::SetSongInformation:
         {
             return require(conditions.has_project, Reason::NoProject);
         }
@@ -637,6 +642,8 @@ ActionLock governingLock(const EditorAction::Id action) noexcept
         case EditorAction::Id::SelectTimeSignature:
         case EditorAction::Id::SelectFretHandPosition:
         case EditorAction::Id::SelectSpanRowMark:
+        // The song's information has no time, so neither lock holds it.
+        case EditorAction::Id::SetSongInformation:
         {
             return ActionLock::None;
         }
@@ -718,6 +725,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectSongSection:
         case EditorAction::Id::InsertSongSection:
         case EditorAction::Id::RenameSongSection:
+        case EditorAction::Id::SetSongInformation:
         case EditorAction::Id::InsertTempoAnchor:
         case EditorAction::Id::SetTempoSpanBpm:
         case EditorAction::Id::SetTimeSignature:

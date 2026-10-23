@@ -2451,6 +2451,8 @@ TEST_CASE("EditorView Ctrl-click seeks the same slot as a plain click", "[ui][ed
             .save_enabled = true,
             .save_as_enabled = true,
             .export_enabled = true,
+            .song_information_enabled = true,
+            .song_metadata = {},
             .suggested_export_file = std::filesystem::path{"song.rock"},
             .close_enabled = true,
             .project_loaded = true,

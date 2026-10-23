@@ -30,6 +30,20 @@ using testing::getStopButton;
     return mappings->keyPressed(key, &view);
 }
 
+// The File menu as its item ids in order, a separator read as 0, so a test can pin where an item
+// stands and which group it belongs to.
+[[nodiscard]] std::vector<int> fileMenuLayout(const juce::PopupMenu& menu)
+{
+    std::vector<int> layout;
+    juce::PopupMenu::MenuItemIterator iterator{menu};
+    while (iterator.next())
+    {
+        const juce::PopupMenu::Item& item = iterator.getItem();
+        layout.push_back(item.isSeparator ? 0 : item.itemID);
+    }
+    return layout;
+}
+
 // The anchor the tempo prompt tests ask a SetTempoTarget prompt for.
 constexpr common::core::GridPosition g_tempo_anchor{.measure = 3, .beat = 1};
 
@@ -430,6 +444,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .save_enabled = false,
             .save_as_enabled = false,
             .export_enabled = false,
+            .song_information_enabled = false,
+            .song_metadata = {},
             .suggested_export_file = std::filesystem::path{},
             .close_enabled = false,
             .project_loaded = true,
@@ -489,6 +505,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     const int close_command = toJuceCommandId(EditorCommandId::CloseProject);
     const int exit_command = toJuceCommandId(EditorCommandId::ExitEditor);
     const int export_command = toJuceCommandId(EditorCommandId::ExportSong);
+    const int song_information_command = toJuceCommandId(EditorCommandId::SongInformation);
     const int undo_command = toJuceCommandId(EditorCommandId::Undo);
     const int redo_command = toJuceCommandId(EditorCommandId::Redo);
     const juce::KeyPress undo_key{'z', juce::ModifierKeys::commandModifier, 0};
@@ -503,6 +520,8 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     CHECK(menu_names[1] == "Edit");
     CHECK(menu_names[2] == "View");
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    CHECK_FALSE(
+        requiredMenuItem(view.getMenuForIndex(0, "File"), song_information_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command).isEnabled);
     // Direct invocation of disabled commands stays a no-op: perform mirrors the enablement
@@ -536,6 +555,8 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
             .save_enabled = true,
             .save_as_enabled = true,
             .export_enabled = true,
+            .song_information_enabled = true,
+            .song_metadata = {},
             .undo_enabled = true,
             .undo_label = std::string{"Move Plugin"},
             .redo_enabled = true,
@@ -579,6 +600,27 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     const auto export_item = requiredMenuItem(view.getMenuForIndex(0, "File"), export_command);
     CHECK(export_item.isEnabled);
     CHECK(export_item.text == "Export Song...");
+    const auto song_information_item =
+        requiredMenuItem(view.getMenuForIndex(0, "File"), song_information_command);
+    CHECK(song_information_item.isEnabled);
+    CHECK(song_information_item.text == "Song Information...");
+    // Song Information is its own group between the export and the close: a separator on either
+    // side, so neither the project writes nor the close-and-exit pair absorb it.
+    CHECK(
+        fileMenuLayout(view.getMenuForIndex(0, "File")) ==
+        std::vector<int>{
+            toJuceCommandId(EditorCommandId::OpenProject),
+            toJuceCommandId(EditorCommandId::ImportSong),
+            0,
+            save_command,
+            toJuceCommandId(EditorCommandId::SaveProjectAs),
+            export_command,
+            0,
+            song_information_command,
+            0,
+            close_command,
+            exit_command,
+        });
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), close_command).isEnabled);
     const auto undo_item = requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command);
     CHECK(undo_item.isEnabled);
@@ -650,6 +692,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
          .value = 0x1004,
          .chords = {chord('s', command | shift)}},
         {.id = EditorCommandId::ExportSong, .value = 0x1005, .chords = {chord('e', command)}},
+        {.id = EditorCommandId::SongInformation, .value = 0x100A, .chords = {}},
         {.id = EditorCommandId::CloseProject, .value = 0x1006, .chords = {chord('w', command)}},
         {.id = EditorCommandId::ExitEditor, .value = 0x1007, .chords = {chord('q', command)}},
         {.id = EditorCommandId::ImportTone,

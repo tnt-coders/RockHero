@@ -534,6 +534,12 @@ public:
         last_renamed_song_section_name = std::move(name);
     }
 
+    /*! \copydoc IEditorController::onSongInformationSubmitted */
+    void onSongInformationSubmitted(common::core::SongMetadata metadata) override
+    {
+        last_submitted_song_information = std::move(metadata);
+    }
+
     /*! \copydoc IEditorController::onTempoAnchorInsertRequested */
     void onTempoAnchorInsertRequested(common::core::GridPosition position) override
     {
@@ -1172,6 +1178,9 @@ public:
 
     /*! \brief Last name reported through onSongSectionRenameRequested(). */
     std::string last_renamed_song_section_name{};
+
+    /*! \brief Last information reported through onSongInformationSubmitted(). */
+    std::optional<common::core::SongMetadata> last_submitted_song_information{};
 
     /*! \brief Last position reported through onTempoAnchorInsertRequested(). */
     std::optional<common::core::GridPosition> last_inserted_tempo_anchor_position{};

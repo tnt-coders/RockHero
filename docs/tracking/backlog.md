@@ -28,6 +28,18 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found while adding the Song Information dialog (2026-10-22)
+
+- **The marker funnel's names no longer say what it carries.** `commitMarkerModel`,
+  `landMarkerModel`, `judgeMarkerModel` and `MarkerModelEdit` (`controller/marker_model_commit.h`,
+  `controller/marker_model_edit.h`) now also carry the song's information
+  (`SongMetadataSnapshot`), which is no marker: the funnel is the editor's one whole-model edit.
+  Rename it to the whole-model vocabulary when it is next touched, with the prose that names it
+  (`docs/developer/undo.md`, `docs/developer/index.md`).
+- **`pan.cpp` keeps a trim of its own.** `rock-hero-common/audio/src/shared/pan.cpp` trims with an
+  `isspace` helper of its own; a pan token is one line, so `trimmedWhitespace`
+  (`shared/whitespace_trim.h`) serves it. Fold it in when the file is next touched.
+
 ## Found while reviewing the slide rule as one placement authority (2026-10-22)
 
 - **The hand-position slide rule is restated outside its ruleset.** The ruleset states it

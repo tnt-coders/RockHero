@@ -53,11 +53,12 @@ class Component;
 namespace rock_hero::editor::ui
 {
 
-// Forward declarations so the timeline cursor overlay, viewport, calibration, preview, and
-// keyboard-shortcuts window units stay out of this header.
+// Forward declarations so the timeline cursor overlay, viewport, calibration, preview,
+// keyboard-shortcuts and song-information window units stay out of this header.
 class CursorOverlay;
 class InputCalibrationWindow;
 class ActionsWindow;
+class SongInformationWindow;
 class PreviewWindow;
 class TrackViewport;
 
@@ -364,6 +365,10 @@ private:
 
     // Opens the asynchronous song-export chooser and forwards accepted selections.
     void showExportChooser();
+
+    // Opens the modal Song Information dialog on the published information and forwards a
+    // submission.
+    void showSongInformation();
 
     // Opens the asynchronous tone-file open chooser and forwards accepted selections.
     void showOpenToneChooser();
@@ -836,6 +841,9 @@ private:
 
     // Optional top-level audio-device settings window.
     std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;
+
+    // The Song Information dialog; created on first open, then kept and reopened.
+    std::unique_ptr<SongInformationWindow> m_song_information_window;
 
     // Optional top-level 3D preview window; created on first toggle, then kept and
     // shown/hidden (its render surface rebuilds per open).

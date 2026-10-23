@@ -10,6 +10,7 @@
 #include "shared/editor_theme.h"
 #include "shared/notice_plate.h"
 #include "shared/themed_message_box.h"
+#include "song_information/song_information_window.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/grid_snap_warning_dialog.h"
 #include "timeline/timeline_cursor.h"
@@ -237,6 +238,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SaveProject:
             case core::EditorActionId::SaveProjectAs:
             case core::EditorActionId::ExportSong:
+            case core::EditorActionId::SetSongInformation:
             case core::EditorActionId::CloseProject:
             case core::EditorActionId::ResolveUnsavedChangesPrompt:
             case core::EditorActionId::CancelSaveAsPrompt:
@@ -351,6 +353,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SaveProject:
         case core::EditorActionId::SaveProjectAs:
         case core::EditorActionId::ExportSong:
+        case core::EditorActionId::SetSongInformation:
         case core::EditorActionId::ResolveUnsavedChangesPrompt:
         case core::EditorActionId::CancelSaveAsPrompt:
         case core::EditorActionId::CancelBusyOperation:
@@ -736,6 +739,8 @@ EditorView::~EditorView()
 
     m_audio_device_settings_window.reset();
     m_audio_device_settings_window_reset_pending = false;
+    // Its submit forwards to the controller, so it goes while this view still answers for it.
+    m_song_information_window.reset();
     m_busy_overlay.setPaintCallback({});
     m_busy_overlay.setCancelCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
@@ -1851,6 +1856,8 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::SaveProjectAs);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ExportSong);
         menu.addSeparator();
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::SongInformation);
+        menu.addSeparator();
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::CloseProject);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ExitEditor);
         return menu;
@@ -2091,6 +2098,11 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ExportSong:
         {
             info.setActive(m_state.export_enabled);
+            break;
+        }
+        case EditorCommandId::SongInformation:
+        {
+            info.setActive(m_state.song_information_enabled);
             break;
         }
         case EditorCommandId::CloseProject:
@@ -2412,6 +2424,14 @@ bool EditorView::performCommand(const InvocationInfo& info)
             if (m_state.export_enabled)
             {
                 showExportChooser();
+            }
+            return true;
+        }
+        case EditorCommandId::SongInformation:
+        {
+            if (m_state.song_information_enabled)
+            {
+                showSongInformation();
             }
             return true;
         }
@@ -3182,6 +3202,24 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
 
             safe_this->m_controller.onSaveAsRequested(pathWithRhpExtension(file));
         });
+}
+
+// Opens the Song Information dialog on the information as published. Only a submission reaches
+// the controller; a cancel changes nothing anywhere, so it calls nothing. The window is kept for
+// the next open rather than destroyed from inside its own answer.
+void EditorView::showSongInformation()
+{
+    if (m_song_information_window == nullptr)
+    {
+        m_song_information_window =
+            std::make_unique<SongInformationWindow>(*getTopLevelComponent());
+    }
+    m_song_information_window->open(
+        m_state.song_metadata,
+        [this](common::core::SongMetadata metadata) {
+            m_controller.onSongInformationSubmitted(std::move(metadata));
+        },
+        [] {});
 }
 
 // Opens an asynchronous file chooser and sends accepted native song package paths to the

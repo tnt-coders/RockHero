@@ -94,6 +94,10 @@ target_sources(
             src/signal_chain/signal_chain_view.cpp
             src/signal_chain/signal_chain_view.h
             src/signal_chain/signal_chain_view_metrics.h
+            src/song_information/song_information_view.cpp
+            src/song_information/song_information_view.h
+            src/song_information/song_information_window.cpp
+            src/song_information/song_information_window.h
             src/tab/tab_view.cpp
             src/tab/tab_view.h
             src/timeline/arrangement_view.cpp

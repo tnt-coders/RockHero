@@ -15,6 +15,7 @@
 #include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/audio/input/live_input_sample.h>
 #include <rock_hero/common/core/highway/highway_view_preferences.h>
+#include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -881,6 +882,18 @@ public:
     */
     virtual void onSongSectionRenameRequested(
         common::core::GridPosition position, std::string name) = 0;
+
+    /*!
+    \brief Handles one submission of the Song Information dialog.
+
+    The dialog belongs to the view and only its answer reaches the core: a cancelled dialog calls
+    nothing. The core trims the text fields and judges the whole set as one undoable edit, so a
+    submission equal to the stored information records nothing, and one with a negative year is
+    refused. Refused with no project open.
+
+    \param metadata The information as the charter left it: untrimmed text, a year of 0 for unknown.
+    */
+    virtual void onSongInformationSubmitted(common::core::SongMetadata metadata) = 0;
 
     /*!
     \brief Handles a request to insert a tempo anchor at a grid position.

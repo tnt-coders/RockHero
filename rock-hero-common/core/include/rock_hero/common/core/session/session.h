@@ -154,15 +154,25 @@ public:
     write).
 
     The fifth narrow mutation surface, and the first song-level one: sections describe the song's
-    structure rather than one arrangement's tab, so section authoring reaches them here while
-    every other song field stays read-only through this session. Sections feed the highway
-    projection's labels and camera zones, so a section change IS a projection change: it advances
-    the same revision a chart write does. The notes layer reads no section, so
+    structure rather than one arrangement's tab, so section authoring reaches them here. Sections
+    feed the highway projection's labels and camera zones, so a section change IS a projection
+    change: it advances the same revision a chart write does. The notes layer reads no section, so
     chartNotesRevision() stays where it was.
 
     \param sections Section markers the caller has already validated, in ascending position order.
     */
     void setSongSections(std::vector<SongSection> sections);
+
+    /*!
+    \brief Replaces the song's descriptive metadata, advancing no revision.
+
+    The ninth narrow mutation surface, song-level like the sections. Nothing projected reads the
+    metadata (no chart, highway or tone projection draws a title or a year), so no derived layer
+    goes stale and no revision advances; the song document writer is its only reader.
+
+    \param metadata Metadata the caller has already normalized and validated.
+    */
+    void setSongMetadata(SongMetadata metadata);
 
     /*!
     \brief Replaces the song's tempo map, then advances chartNotesRevision(), and with it

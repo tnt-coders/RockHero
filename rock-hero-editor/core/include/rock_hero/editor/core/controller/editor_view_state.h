@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_player_settings.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/grid_position.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -1071,6 +1072,15 @@ struct EditorViewState
 
     /*! \brief Enables or disables the File > Export Song command. */
     bool export_enabled{false};
+
+    /*! \brief Enables or disables the File > Song Information command. */
+    bool song_information_enabled{false};
+
+    /*!
+    \brief The song's information as stored, which the Song Information dialog opens on; empty
+    with no project.
+    */
+    common::core::SongMetadata song_metadata{};
 
     /*! \brief Enables or disables the Edit > Undo command. */
     bool undo_enabled{false};

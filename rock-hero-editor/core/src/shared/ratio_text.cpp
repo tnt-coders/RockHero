@@ -2,32 +2,17 @@
 
 #include <charconv>
 #include <cstddef>
+#include <rock_hero/common/core/shared/whitespace_trim.h>
 #include <system_error>
 
 namespace rock_hero::editor::core
 {
 
-namespace
-{
-
-// Spaces and tabs only: a prompt or a stored token is one line of text.
-[[nodiscard]] std::string_view trimmed(std::string_view text)
-{
-    const std::size_t first = text.find_first_not_of(" \t");
-    if (first == std::string_view::npos)
-    {
-        return {};
-    }
-    return text.substr(first, text.find_last_not_of(" \t") - first + 1);
-}
-
-} // namespace
-
 // from_chars reads no sign, no space and no decimal point, and the end check refuses anything left
 // over.
 std::optional<int> parsePositiveWhole(const std::string_view text)
 {
-    const std::string_view digits = trimmed(text);
+    const std::string_view digits = common::core::trimmedWhitespace(text);
     int value = 0;
     const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), value);
     if (digits.empty() || error != std::errc{} || end != digits.data() + digits.size() ||

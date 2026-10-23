@@ -11,7 +11,6 @@
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -44,22 +43,10 @@ struct [[nodiscard]] SongSectionError
 };
 
 /*!
-\brief Strips surrounding whitespace from a section name.
-
-The one trim behind the name rule: a name of nothing but spaces is as blank as an empty one, and
-would draw as a chip with no label to click accurately. Every producer — authoring, import, package
-read — stores what this returns, and \ref validateSongSectionRules measures emptiness through it,
-so the stored name and the accepted name can never disagree.
-
-\param name Raw name as typed or as read from a package.
-\return The name without surrounding spaces or tabs.
-*/
-[[nodiscard]] std::string trimmedSongSectionName(std::string_view name);
-
-/*!
 \brief Validates the structural song-section rules shared by editing and persistence.
 
-Checks non-empty names (after \ref trimmedSongSectionName), positions where a marker may start
+Checks non-empty names (after \ref trimmedWhitespace, whose result every producer of a section
+name — authoring, import, package read — stores), positions where a marker may start
 (\ref objectCanStartAt: on the tempo map's grid and strictly before the terminal anchor, since a
 section starting on the closing barline would name a passage of no length — a section is a named
 instant anywhere on the grid, a measure downbeat or not), and strictly ascending positions —

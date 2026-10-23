@@ -45,7 +45,8 @@ These are the loose ends. Check each one deliberately.
 1. **The handler body's location.** Define `performActionImpl` in the feature's handler file
    (`chart_handlers.cpp`, `fret_hand_handlers.cpp`, `tone_handlers.cpp`, `section_handlers.cpp`,
    `project_handlers.cpp`, `signal_chain_handlers.cpp`, `tone_designer_handlers.cpp`,
-   `input_calibration_handlers.cpp`, `audio_device_handlers.cpp`) — never in
+   `input_calibration_handlers.cpp`, `audio_device_handlers.cpp`, `song_information_handlers.cpp`)
+   — never in
    `editor_controller.cpp` for convenience.
 2. **The refusal reason.** Each `require` in the action's idle case names an
    `ActionUnavailableReason`; a WRONG one degrades the log and any tooltip that shows it

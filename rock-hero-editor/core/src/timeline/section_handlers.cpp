@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <rock_hero/common/core/song/song_section_rules.h>
+#include <rock_hero/common/core/shared/whitespace_trim.h>
 #include <rock_hero/editor/core/timeline/marker_verb.h>
 #include <string>
 #include <utility>
@@ -119,7 +119,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectSongSec
 // arrow re-arms the caret where it stood.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSongSection& action)
 {
-    const std::string name = common::core::trimmedSongSectionName(action.name);
+    const std::string name{common::core::trimmedWhitespace(action.name)};
     SongSectionsSnapshot before = SongSectionsSnapshot::capture(session());
     SongSectionsSnapshot after = before;
     after.sections.push_back(common::core::SongSection{.position = action.position, .name = name});
@@ -156,7 +156,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameSongSec
     }
 
     const std::string before_name = match->name;
-    const std::string name = common::core::trimmedSongSectionName(action.name);
+    const std::string name{common::core::trimmedWhitespace(action.name)};
     match->name = name;
     const SongSectionSelection section{.position = action.position};
     if (commitMarkerModel(

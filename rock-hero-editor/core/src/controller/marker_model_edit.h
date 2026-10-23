@@ -1,6 +1,7 @@
 /*!
 \file marker_model_edit.h
-\brief The one whole-snapshot undo edit behind every timeline-marker verb.
+\brief The one whole-snapshot undo edit behind every timeline-marker verb and the song's
+information.
 */
 
 #pragma once

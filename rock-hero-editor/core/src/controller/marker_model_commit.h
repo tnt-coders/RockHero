@@ -1,6 +1,7 @@
 /*!
 \file marker_model_commit.h
-\brief Definition of the one commit funnel every timeline-marker verb ends in.
+\brief Definition of the one commit funnel every timeline-marker verb and the song's information
+end in.
 
 Separate from editor_controller_impl.h because that header is a declaration surface only, and a
 member template needs its body where every marker handler translation unit can see it.

@@ -29,6 +29,7 @@
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/whitespace_trim.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
@@ -526,7 +527,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         // Stored trimmed, like every other producer of a section name, so the name the rules
         // accepted is the name the session carries.
         sections.push_back(
-            SongSection{.position = *position, .name = trimmedSongSectionName(*name)});
+            SongSection{.position = *position, .name = std::string{trimmedWhitespace(*name)}});
     }
 
     // Names, places and strict ascent are the section rules the editor's verbs enforce too, so they

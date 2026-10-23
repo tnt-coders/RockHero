@@ -91,6 +91,15 @@ constexpr int g_add_lane_key = 'a';
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::SongInformation,
+            // Opened deliberately and rarely, so the File menu row is its surface and a user who
+            // wants a key binds one.
+            .name = "Song Information...",
+            .category = "File",
+            .default_keypresses = {},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::CloseProject,
             .name = "Close",
             .category = "File",

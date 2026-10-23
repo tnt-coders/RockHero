@@ -2,22 +2,11 @@
 
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/shared/whitespace_trim.h>
 #include <string>
 
 namespace rock_hero::common::core
 {
-
-// Spaces and tabs are the whole of "surrounding whitespace" here: a section name comes from a text
-// prompt or an imported bar label, neither of which can carry a newline.
-std::string trimmedSongSectionName(std::string_view name)
-{
-    const auto first = name.find_first_not_of(" \t");
-    if (first == std::string_view::npos)
-    {
-        return {};
-    }
-    return std::string{name.substr(first, name.find_last_not_of(" \t") - first + 1)};
-}
 
 // Walks the list once in stored order, because one of the three rules is about a section's relation
 // to the one before it. The first violation is the whole answer: a caller that has one rule to fix
@@ -29,7 +18,9 @@ std::expected<void, SongSectionError> validateSongSectionRules(
 
     for (const SongSection& section : sections)
     {
-        if (trimmedSongSectionName(section.name).empty())
+        // A name of nothing but spaces is as blank as an empty one, and would draw as a chip with
+        // no label to click accurately.
+        if (trimmedWhitespace(section.name).empty())
         {
             return std::unexpected{SongSectionError{
                 .code = SongSectionErrorCode::EmptyName,
