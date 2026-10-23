@@ -33,6 +33,12 @@ whole workspace (manifest + `song/`) into `.rhp`; export zips only the song dire
 a manifest. One caveat worth knowing: the archive write is in-place (truncate + rewrite), not
 atomic temp-then-rename.
 
+Export itself is withheld from the first release: an exported package must carry complete
+information, so the availability rule refuses Export Song with `ExportWithheld`
+(`controller/editor_action_availability.cpp`) until plan 43's export readiness gate lands. The
+File menu item and `Ctrl+E` stay, disabled; the export path behind them is kept whole for that
+return.
+
 The song's information — title, artist, album and year — is edited in File > Song Information...
 (one undoable edit through the marker funnel, \ref guide_undo) and travels in `song.json`'s
 metadata, as it always has, so save and export both carry it.

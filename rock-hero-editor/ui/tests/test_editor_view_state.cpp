@@ -554,7 +554,9 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
             .import_enabled = true,
             .save_enabled = true,
             .save_as_enabled = true,
-            .export_enabled = true,
+            // The controller withholds export from the first release, so a loaded project
+            // publishes it disabled.
+            .export_enabled = false,
             .song_information_enabled = true,
             .song_metadata = {},
             .undo_enabled = true,
@@ -597,9 +599,12 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
         });
 
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    // A withheld export stays listed, disabled; its Ctrl+E stays bound (the registry rows pin it)
+    // and the key mapping refuses it like any disabled command.
     const auto export_item = requiredMenuItem(view.getMenuForIndex(0, "File"), export_command);
-    CHECK(export_item.isEnabled);
+    CHECK_FALSE(export_item.isEnabled);
     CHECK(export_item.text == "Export Song...");
+    CHECK_FALSE(pressCommandKey(view, juce::KeyPress{'e', juce::ModifierKeys::commandModifier, 0}));
     const auto song_information_item =
         requiredMenuItem(view.getMenuForIndex(0, "File"), song_information_command);
     CHECK(song_information_item.isEnabled);

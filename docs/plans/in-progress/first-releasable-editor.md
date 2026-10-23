@@ -388,7 +388,10 @@ Open calls this plan cannot make. Each has a recommendation; none is settled unt
   plan 43 Phases 2 and 4 narrowed to the four fields the format already carries (title, artist,
   album, year), plus switching the export action off. Out until plan 43 lands: Phases 1, 3
   and 5, and with them 43-Q1..Q5. Save, Save As and reopen are untouched — they are the release
-  bar's round trip.
+  bar's round trip. **The export switch-off is built (2026-10-22):** the action availability rule
+  refuses Export Song with `ActionUnavailableReason::ExportWithheld`
+  (`editor_action_availability.cpp`); the File menu item stays listed and `Ctrl+E` stays bound,
+  both disabled, until plan 43 Phase 5 re-enables export.
 - **D2 — Pointer drag-move** (`docs/plans/todo/tab-pointer-drag-editing.md`). **RULED 2026-09-19
   (user): not in the bar, not out either — it sits at the END of the plan as an optional item (see
   Phase 7), and the user decides whether it ships in the first release once the editor is taking

@@ -138,7 +138,7 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
-        CHECK(state.export_enabled == true);
+        CHECK(state.export_enabled == false);
         CHECK(state.suggested_export_file == std::filesystem::path{"second.rock"});
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
@@ -471,49 +471,9 @@ TEST_CASE("EditorController save as failure clears busy first", "[core][editor-c
     CHECK(view.shown_errors.back() == "Could not save as: disk full");
 }
 
-// Export Song writes a native song package copy without changing save-destination state.
-TEST_CASE("EditorController song export writes package copy", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-            .save_function = project_services.saveFunction(),
-            .save_as_function = project_services.saveAsFunction(),
-            .export_function = project_services.exportFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-
-    const common::core::AudioAsset audio_asset{
-        .path = std::filesystem::path{"song.wav"}, .normalization = std::nullopt, .start_offset = {}
-    };
-    project_services.next_song = makeSong(audio_asset.path);
-    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-
-    controller.onExportRequested(std::filesystem::path{"song.rock"});
-
-    CHECK(project_services.export_call_count == 1);
-    CHECK(project_services.save_as_call_count == 0);
-    CHECK(project_services.last_export_file == std::optional{std::filesystem::path{"song.rock"}});
-    CHECK(project_services.last_export_audio_path == std::optional{audio_asset.path});
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& state = view.last_state.value();
-        CHECK(state.save_requires_destination == false);
-    }
-    CHECK(view.shown_errors.empty());
-}
-
-// Song-export failures surface an error without closing or retargeting the current project.
-TEST_CASE("EditorController song export failure surfaces an error", "[core][editor-controller]")
+// Export Song is withheld from the first release: the request is refused before any export
+// starts, the menu item reads as disabled, and the project stays exactly as it was.
+TEST_CASE("EditorController withholds song export", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -532,25 +492,20 @@ TEST_CASE("EditorController song export failure surfaces an error", "[core][edit
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    project_services.next_export_error = std::string{"disk full"};
 
     controller.onExportRequested(std::filesystem::path{"song.rock"});
 
-    CHECK(project_services.export_call_count == 1);
+    CHECK(project_services.export_call_count == 0);
+    CHECK_FALSE(project_services.last_export_file.has_value());
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.export_enabled == true);
-        CHECK(state.close_enabled == true);
+        CHECK(state.export_enabled == false);
+        CHECK_FALSE(state.busy.has_value());
+        CHECK(state.save_requires_destination == false);
     }
-    REQUIRE(view.states_seen_at_errors.size() == 1);
-    REQUIRE(view.states_seen_at_errors.back().has_value());
-    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
-    REQUIRE(error_state != nullptr);
-    CHECK_FALSE(error_state->busy.has_value());
-    REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not export: disk full");
+    CHECK(view.shown_errors.empty());
 }
 
 // A failed import leaves the current session unchanged and surfaces an error.
@@ -661,7 +616,7 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
-        CHECK(state.export_enabled == true);
+        CHECK(state.export_enabled == false);
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
         CHECK(state.project_load_id == 1);
@@ -706,7 +661,7 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     {
         const EditorViewState& imported_state = view.last_state.value();
         CHECK(imported_state.save_requires_destination == true);
-        CHECK(imported_state.export_enabled == true);
+        CHECK(imported_state.export_enabled == false);
         CHECK(imported_state.suggested_export_file.empty());
         CHECK(imported_state.close_enabled == true);
         CHECK(imported_state.project_loaded == true);
@@ -777,7 +732,7 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     {
         const EditorViewState& cancel_state = view.last_state.value();
         CHECK_FALSE(cancel_state.unsaved_changes_prompt.has_value());
-        CHECK(cancel_state.export_enabled == true);
+        CHECK(cancel_state.export_enabled == false);
         CHECK(cancel_state.close_enabled == true);
         CHECK(cancel_state.project_loaded == true);
         CHECK(cancel_state.save_requires_destination == true);

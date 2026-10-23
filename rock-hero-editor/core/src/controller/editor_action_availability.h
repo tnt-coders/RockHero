@@ -161,6 +161,9 @@ enum class ActionUnavailableReason : std::uint8_t
 
     /*! \brief The live rig has no loaded plugin instances. */
     NoLoadedPlugins,
+
+    /*! \brief Song export is withheld from this release until its readiness gate exists. */
+    ExportWithheld,
 };
 
 /*!

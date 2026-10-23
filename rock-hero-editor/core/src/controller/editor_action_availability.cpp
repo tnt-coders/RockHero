@@ -286,9 +286,19 @@ using Verdict = std::optional<ActionUnavailableReason>;
         {
             return std::nullopt;
         }
+        case EditorAction::Id::ExportSong:
+        {
+            // Withheld for the first release (D1 in
+            // docs/plans/in-progress/first-releasable-editor.md): an exported package must carry
+            // complete information, so export returns with the readiness gate, plan 43 Phase 5.
+            static constexpr bool g_export_offered = false;
+            return firstFailure({
+                require(g_export_offered, Reason::ExportWithheld),
+                require(conditions.has_project, Reason::NoProject),
+            });
+        }
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::ExportSong:
         case EditorAction::Id::CloseProject:
         // The song's information is song-level and timeless: a project is all it needs.
         case EditorAction::Id::SetSongInformation:
@@ -863,6 +873,10 @@ std::string_view actionUnavailableReasonTag(ActionUnavailableReason reason) noex
         case Reason::NoLoadedPlugins:
         {
             return "no-loaded-plugins";
+        }
+        case Reason::ExportWithheld:
+        {
+            return "export-withheld";
         }
     }
 

@@ -1857,21 +1857,11 @@ public:
         return std::expected<void, ProjectError>{};
     }
 
-    // Simulates exporting a native song package without changing project save state.
-    std::expected<void, ProjectError> exportSong(
-        Project&, const std::filesystem::path& file, const common::core::Song& song)
+    // Records an export request; export is withheld, so the tests only prove it is never reached.
+    std::expected<void, ProjectError> exportSong(const std::filesystem::path& file)
     {
         last_export_file = file;
-        last_export_audio_path = firstAudioPath(song);
-        last_export_tone_document_ref = firstToneDocumentRef(song);
         ++export_call_count;
-        if (next_export_error.has_value())
-        {
-            return std::unexpected{ProjectError{
-                ProjectErrorCode::CouldNotExportSong,
-                *next_export_error,
-            }};
-        }
         return std::expected<void, ProjectError>{};
     }
 
@@ -1916,10 +1906,9 @@ public:
     // Returns the bound song-export callback shape expected by EditorController services.
     [[nodiscard]] EditorController::ExportFunction exportFunction() noexcept
     {
-        return [this](
-                   Project& project,
-                   const std::filesystem::path& file,
-                   const common::core::Song& song) { return exportSong(project, file, song); };
+        return [this](Project&, const std::filesystem::path& file, const common::core::Song&) {
+            return exportSong(file);
+        };
     }
 
     // Song returned by the next open call, or empty to force an open error.
@@ -1940,9 +1929,6 @@ public:
     // Error returned by saveAs(), when present.
     std::optional<std::string> next_save_as_error{};
 
-    // Error returned by exportSong(), when present.
-    std::optional<std::string> next_export_error{};
-
     // Last file passed to open().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -1961,9 +1947,6 @@ public:
     // First arrangement audio path seen by saveAs().
     std::optional<std::filesystem::path> last_save_as_audio_path{};
 
-    // First arrangement audio path seen by exportSong().
-    std::optional<std::filesystem::path> last_export_audio_path{};
-
     // First arrangement tone document reference seen by save().
     std::optional<std::string> last_save_tone_document_ref{};
 
@@ -1972,9 +1955,6 @@ public:
 
     // First arrangement tone document reference seen by saveAs().
     std::optional<std::string> last_save_as_tone_document_ref{};
-
-    // First arrangement tone document reference seen by exportSong().
-    std::optional<std::string> last_export_tone_document_ref{};
 
     // Number of open calls received.
     int open_call_count{0};

@@ -284,41 +284,6 @@ TEST_CASE("EditorController save as begins busy with default message", "[core][e
     CHECK(project_services.save_as_call_count == 1);
 }
 
-// Export Song sets busy=ExportingSong before the deferred package completion restores state.
-TEST_CASE(
-    "EditorController song export begins busy with default message", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    DeferredEditorTaskRunner runner;
-    EditorController controller{
-        audioPorts(transport, audio),
-        controllerServices(runner),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-            .export_function = project_services.exportFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-
-    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
-    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    runner.runPendingCompletions();
-
-    controller.onExportRequested(std::filesystem::path{"song.rock"});
-
-    const EditorViewState* state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    const BusyViewState* busy = busyOrNull(*state);
-    REQUIRE(busy != nullptr);
-    CHECK(busy->operation == BusyOperation::ExportingSong);
-    CHECK(busy->message == "Exporting song...");
-    CHECK(project_services.export_call_count == 1);
-}
-
 // While busy, action routing disables ordinary commands and keeps Close available to supersede.
 TEST_CASE("EditorController busy routing disables ordinary commands", "[core][editor-controller]")
 {

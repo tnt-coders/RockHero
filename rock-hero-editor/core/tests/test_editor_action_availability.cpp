@@ -126,15 +126,30 @@ TEST_CASE("Project actions require an open project", "[core][editor-action]")
 
     CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SaveProjectAs, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::ExportSong, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::CloseProject, conditions));
 
     conditions.has_project = true;
 
     CHECK(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK(isActionAvailable(ActionId::SaveProjectAs, conditions));
-    CHECK(isActionAvailable(ActionId::ExportSong, conditions));
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
+}
+
+// Export Song is withheld from the first release, so it is refused with or without a project.
+TEST_CASE("Export Song is withheld", "[core][editor-action]")
+{
+    ActionConditions conditions;
+
+    CHECK(
+        whyUnavailable(ActionId::ExportSong, conditions) ==
+        ActionUnavailableReason::ExportWithheld);
+
+    conditions.has_project = true;
+
+    CHECK(
+        whyUnavailable(ActionId::ExportSong, conditions) ==
+        ActionUnavailableReason::ExportWithheld);
+    CHECK(actionUnavailableReasonTag(ActionUnavailableReason::ExportWithheld) == "export-withheld");
 }
 
 // Verifies Undo and Redo require both a project and available history direction.
