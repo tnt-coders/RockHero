@@ -164,6 +164,14 @@ standing window, the fingers and the rule's answer; change the edge clause in `s
 one authority, so arrivals, slide-out rides and the backward read all follow — and add the case to
 `gripCases`, which drives both the arrival and the slide-out tests.
 
+**Sighted 2026-10-22; kept watching.** The trigger fired on Periphery - The Way The News Goes lead,
+15:2+1/2 and 19:2+1/2: a 10 slid 12, 5, 3 while imported tails held s1 9, s4 9 and s3 12 across the
+whole slide, so the pin dropped the floor onto the slider (5..13, then 3..13) and the slider's
+second-finger slot was lost. With those tails released as the slide leaves 12, the slider keeps
+its slot at every landing (11..14, 4..7, 2..4). The 3..13 hand cannot exist, so the defect is the
+imported let-ring tails, not the pin. Re-sight when the let-ring work lands; a crossing beside a
+tail that is truly held is still the trigger.
+
 ### ~~The fret-hand window stops with a corner at a slide-out's end~~ — RETIRED 2026-10-13: every release settles
 
 **Retired 2026-10-13.** The user sighted the corner on derived FHPs (Basket Case, measure 125 of a

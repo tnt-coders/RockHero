@@ -95,7 +95,12 @@ Two things the ruleset does not carry, because they are this plan's open work:
   it does not deserve prominent notation.
 - **E28's surfaces are unsighted.** Both surfaces draw a note's bend from its bend channel whatever
   its fret, but no one has yet looked at an open string bending on either, and a dedicated
-  behind-the-nut mark is deferred.
+  behind-the-nut mark is deferred. Drawing it will likely need a hand position starting at fret 0
+  and new graphical work (user, 2026-10-22). The same work owns the 46 corpus spans the census row
+  "spans crossed by an FHP shift" still counts: every one holds only open strings, and the hand
+  moves inside it, most likely to the nut for a bent open string (hand-position rule 13). Confirm
+  that cause with a probe of each event's demand when this work starts, then decide whether the
+  row should count windows arriving inside a grip hold rather than inside a span.
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Compare what
 the fields hold each way:
